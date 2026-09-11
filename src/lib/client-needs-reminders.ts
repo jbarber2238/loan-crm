@@ -1,0 +1,1 @@
+export const CLIENT_NEEDS_REMINDER_INTERVAL_HOURS = [24, 48, 72, 168] as const;

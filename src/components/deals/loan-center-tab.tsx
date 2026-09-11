@@ -1,0 +1,242 @@
+import { updateDealDates } from "@/server/actions/deals";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RolesTab } from "@/components/deals/roles-tab";
+import { ClientNeedsTab, type ClientNeed } from "@/components/deals/client-needs-tab";
+import { ConditionsTab, type DealCondition } from "@/components/deals/conditions-tab";
+import { NotesTab } from "@/components/deals/notes-tab";
+import type { DealCatalogItem } from "@/components/deals/add-client-need-to-deal-dialog";
+
+function toDateInputValue(date: Date | null) {
+  if (!date) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+interface UserOption {
+  id: string;
+  name: string | null;
+}
+
+interface Follower {
+  id: string;
+  name: string;
+  email: string;
+  roleLabel: string | null;
+}
+
+
+interface Note {
+  id: string;
+  body: string;
+  source: "user" | "ai" | "system";
+  resolved: boolean;
+  createdAt: Date;
+  author?: { name: string | null } | null;
+}
+
+function KeyDatesSection({
+  dealId,
+  appraisalOrderedDate,
+  creditPullDate,
+  insuranceContactedDate,
+  titleOrderedDate,
+  driveLink,
+}: {
+  dealId: string;
+  appraisalOrderedDate: Date | null;
+  creditPullDate: Date | null;
+  insuranceContactedDate: Date | null;
+  titleOrderedDate: Date | null;
+  driveLink: string | null;
+}) {
+  const updateDates = updateDealDates.bind(null, dealId);
+
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <form action={updateDates} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="appraisalOrderedDate">Appraisal ordered</Label>
+            <Input
+              id="appraisalOrderedDate"
+              name="appraisalOrderedDate"
+              type="date"
+              defaultValue={toDateInputValue(appraisalOrderedDate)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="creditPullDate">Credit pulled</Label>
+            <Input
+              id="creditPullDate"
+              name="creditPullDate"
+              type="date"
+              defaultValue={toDateInputValue(creditPullDate)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="insuranceContactedDate">Insurance contacted</Label>
+            <Input
+              id="insuranceContactedDate"
+              name="insuranceContactedDate"
+              type="date"
+              defaultValue={toDateInputValue(insuranceContactedDate)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="titleOrderedDate">Title ordered</Label>
+            <Input
+              id="titleOrderedDate"
+              name="titleOrderedDate"
+              type="date"
+              defaultValue={toDateInputValue(titleOrderedDate)}
+            />
+          </div>
+          <div className="md:col-span-2 space-y-1.5">
+            <Label htmlFor="driveLink">Google Drive link</Label>
+            <Input id="driveLink" name="driveLink" defaultValue={driveLink ?? ""} />
+          </div>
+          <div className="md:col-span-2">
+            <Button type="submit">Save</Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function LoanCenterTab({
+  dealId,
+  assignedLoanOfficerId,
+  assignedProcessorId,
+  assignedAssistantId,
+  loanOfficers,
+  processors,
+  assistants,
+  followers,
+  clientNeeds,
+  clientNeedsCatalog,
+  loanCategoryProducts,
+  allProducts,
+  currentProductId,
+  hasBorrowerEmail,
+  remindersPaused,
+  reminderIntervalHours,
+  hasAcceptedProduct,
+  conditions,
+  notes,
+  appraisalOrderedDate,
+  creditPullDate,
+  insuranceContactedDate,
+  titleOrderedDate,
+  driveLink,
+  titleCompanyAgentName,
+  titleAgentEmail,
+  titleAgentPhone,
+  insuranceAgency,
+  insuranceAgentName,
+  insuranceAgentEmail,
+  insuranceAgentPhone,
+}: {
+  dealId: string;
+  assignedLoanOfficerId: string;
+  assignedProcessorId: string | null;
+  assignedAssistantId: string | null;
+  loanOfficers: UserOption[];
+  processors: UserOption[];
+  assistants: UserOption[];
+  followers: Follower[];
+  clientNeeds: ClientNeed[];
+  clientNeedsCatalog: DealCatalogItem[];
+  loanCategoryProducts: { id: string; label: string }[];
+  allProducts: { id: string; label: string }[];
+  currentProductId: string | null;
+  hasBorrowerEmail: boolean;
+  remindersPaused: boolean;
+  reminderIntervalHours: number;
+  hasAcceptedProduct: boolean;
+  conditions: DealCondition[];
+  notes: Note[];
+  appraisalOrderedDate: Date | null;
+  creditPullDate: Date | null;
+  insuranceContactedDate: Date | null;
+  titleOrderedDate: Date | null;
+  driveLink: string | null;
+  titleCompanyAgentName: string | null;
+  titleAgentEmail: string | null;
+  titleAgentPhone: string | null;
+  insuranceAgency: string | null;
+  insuranceAgentName: string | null;
+  insuranceAgentEmail: string | null;
+  insuranceAgentPhone: string | null;
+}) {
+  return (
+    <div className="space-y-4">
+      <Tabs defaultValue="client-needs">
+        <TabsList>
+          <TabsTrigger value="client-needs">Client Needs</TabsTrigger>
+          <TabsTrigger value="conditions">Conditions</TabsTrigger>
+          <TabsTrigger value="roles">Roles and Key Contacts</TabsTrigger>
+          <TabsTrigger value="key-dates">Key Dates</TabsTrigger>
+          <TabsTrigger value="notes">Notes</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="client-needs">
+          <ClientNeedsTab
+            dealId={dealId}
+            needs={clientNeeds}
+            catalog={clientNeedsCatalog}
+            loanCategoryProducts={loanCategoryProducts}
+            allProducts={allProducts}
+            currentProductId={currentProductId}
+            hasBorrowerEmail={hasBorrowerEmail}
+            remindersPaused={remindersPaused}
+            reminderIntervalHours={reminderIntervalHours}
+            hasAcceptedProduct={hasAcceptedProduct}
+          />
+        </TabsContent>
+
+        <TabsContent value="conditions">
+          <ConditionsTab dealId={dealId} conditions={conditions} />
+        </TabsContent>
+
+        <TabsContent value="roles">
+          <RolesTab
+            dealId={dealId}
+            assignedLoanOfficerId={assignedLoanOfficerId}
+            assignedProcessorId={assignedProcessorId}
+            assignedAssistantId={assignedAssistantId}
+            loanOfficers={loanOfficers}
+            processors={processors}
+            assistants={assistants}
+            followers={followers}
+            titleCompanyAgentName={titleCompanyAgentName}
+            titleAgentEmail={titleAgentEmail}
+            titleAgentPhone={titleAgentPhone}
+            insuranceAgency={insuranceAgency}
+            insuranceAgentName={insuranceAgentName}
+            insuranceAgentEmail={insuranceAgentEmail}
+            insuranceAgentPhone={insuranceAgentPhone}
+          />
+        </TabsContent>
+
+        <TabsContent value="key-dates">
+          <KeyDatesSection
+            dealId={dealId}
+            appraisalOrderedDate={appraisalOrderedDate}
+            creditPullDate={creditPullDate}
+            insuranceContactedDate={insuranceContactedDate}
+            titleOrderedDate={titleOrderedDate}
+            driveLink={driveLink}
+          />
+        </TabsContent>
+
+        <TabsContent value="notes">
+          <NotesTab dealId={dealId} notes={notes} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

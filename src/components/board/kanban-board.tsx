@@ -1,0 +1,268 @@
+"use client";
+
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import { useDraggable } from "@dnd-kit/core";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { LOAN_CATEGORIES, STAGES, labelFor } from "@/lib/labels";
+import { STAGES_REQUIRING_REASON } from "@/lib/deal-pipeline";
+import { updateDealStage } from "@/server/actions/deals";
+import { StageReasonDialog } from "@/components/deals/stage-reason-dialog";
+
+export interface BoardDeal {
+  id: string;
+  loanNumber: number;
+  borrowerName: string;
+  propertyAddress: string;
+  loanAmountRequested: string;
+  loanCategory: string;
+  stage: string;
+  createdAt: string;
+  currentStageEnteredAt: string;
+  processingEnteredAt: string | null;
+  assignedLoanOfficerName: string | null;
+  assignedProcessorName: string | null;
+  lenderName: string | null;
+}
+
+// Once a deal reaches Processing, hour-level granularity in a stage stops
+// being a useful signal — underwriting naturally takes days, not hours.
+const DAY_GRANULARITY_STAGES = new Set(["processing", "conditional_approval", "clear_to_close"]);
+
+function daysSince(dateStr: string) {
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+}
+
+function hoursSince(dateStr: string) {
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
+}
+
+function formatDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatAmount(amount: string) {
+  const n = Number(amount);
+  if (Number.isNaN(n)) return amount;
+  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+}
+
+function DealCard({ deal }: { deal: BoardDeal }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: deal.id,
+  });
+
+  const style = transform
+    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
+    : undefined;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      className={isDragging ? "opacity-40" : ""}
+    >
+      <Link href={`/deals/${deal.id}`}>
+        <Card className="cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow">
+          <CardContent className="p-3 space-y-1.5">
+            <p className="text-[10px] font-medium text-muted-foreground tracking-wide">
+              Loan #{deal.loanNumber}
+            </p>
+            <p className="font-medium text-sm leading-tight">{deal.propertyAddress}</p>
+            <p className="text-xs leading-tight">
+              <span className="text-muted-foreground">Borrower: </span>
+              <span className="font-semibold">{deal.borrowerName}</span>
+            </p>
+            <div className="text-xs space-y-0.5 pt-0.5">
+              <p>
+                <span className="text-muted-foreground">Requested Loan Amount: </span>
+                <span className="font-semibold">{formatAmount(deal.loanAmountRequested)}</span>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Loan Type: </span>
+                <span className="font-semibold">{labelFor(LOAN_CATEGORIES, deal.loanCategory)}</span>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Date Submitted: </span>
+                <span className="font-semibold">{formatDate(deal.createdAt)}</span>
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1 pt-1">
+              {deal.assignedLoanOfficerName && (
+                <Badge variant="secondary" className="text-[10px]">
+                  LO: {deal.assignedLoanOfficerName}
+                </Badge>
+              )}
+              {deal.assignedProcessorName && (
+                <Badge variant="secondary" className="text-[10px]">
+                  Proc: {deal.assignedProcessorName}
+                </Badge>
+              )}
+              {deal.lenderName && (
+                <Badge variant="outline" className="text-[10px]">
+                  {deal.lenderName}
+                </Badge>
+              )}
+            </div>
+            <div className="text-[10px] text-muted-foreground pt-0.5 space-y-0.5">
+              <p>{daysSince(deal.createdAt)}d since submission</p>
+              {DAY_GRANULARITY_STAGES.has(deal.stage) ? (
+                <>
+                  <p>{daysSince(deal.currentStageEnteredAt)}d in stage</p>
+                  {deal.processingEnteredAt && (
+                    <p>{daysSince(deal.processingEnteredAt)}d since processing</p>
+                  )}
+                </>
+              ) : (
+                <p>{hoursSince(deal.currentStageEnteredAt)}h in stage</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </Link>
+    </div>
+  );
+}
+
+function Column({
+  stage,
+  label,
+  deals,
+}: {
+  stage: string;
+  label: string;
+  deals: BoardDeal[];
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: stage });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex w-64 shrink-0 flex-col rounded-lg border bg-muted/40 ${
+        isOver ? "ring-2 ring-primary" : ""
+      }`}
+    >
+      <div className="flex items-center justify-between px-3 py-2 border-b bg-background/60 rounded-t-lg">
+        <span className="text-sm font-medium">{label}</span>
+        <span className="text-xs text-muted-foreground">{deals.length}</span>
+      </div>
+      <div className="flex flex-col gap-2 p-2 min-h-24 overflow-y-auto max-h-[70vh]">
+        {deals.map((deal) => (
+          <DealCard key={deal.id} deal={deal} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function KanbanBoard({ deals }: { deals: BoardDeal[] }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [localDeals, setLocalDeals] = useState(deals);
+  const [syncedDeals, setSyncedDeals] = useState(deals);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [pendingDrop, setPendingDrop] = useState<{ dealId: string; stage: string } | null>(null);
+
+  if (deals !== syncedDeals) {
+    setSyncedDeals(deals);
+    setLocalDeals(deals);
+  }
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const dealsByStage = useMemo(() => {
+    const map = new Map<string, BoardDeal[]>();
+    for (const stage of STAGES) map.set(stage.value, []);
+    for (const deal of localDeals) {
+      map.get(deal.stage)?.push(deal);
+    }
+    return map;
+  }, [localDeals]);
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(String(event.active.id));
+  }
+
+  function commitStageChange(dealId: string, newStage: string, reason?: string) {
+    setLocalDeals((prev) =>
+      prev.map((d) =>
+        d.id === dealId ? { ...d, stage: newStage, currentStageEnteredAt: new Date().toISOString() } : d
+      )
+    );
+
+    startTransition(async () => {
+      await updateDealStage(dealId, newStage, reason);
+      router.refresh();
+    });
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    setActiveId(null);
+    const { active, over } = event;
+    if (!over) return;
+    const dealId = String(active.id);
+    const newStage = String(over.id);
+    const deal = localDeals.find((d) => d.id === dealId);
+    if (!deal || deal.stage === newStage) return;
+
+    // Dropped into On Hold/Follow-up/Lost/Disqualified — don't move the card
+    // yet, ask why first. Cancel leaves it exactly where it was.
+    if (STAGES_REQUIRING_REASON.has(newStage)) {
+      setPendingDrop({ dealId, stage: newStage });
+      return;
+    }
+
+    commitStageChange(dealId, newStage);
+  }
+
+  const activeDeal = activeId ? localDeals.find((d) => d.id === activeId) : null;
+
+  return (
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <div className={`flex gap-3 overflow-x-auto pb-4 ${isPending ? "opacity-70" : ""}`}>
+        {STAGES.map((stage) => (
+          <Column
+            key={stage.value}
+            stage={stage.value}
+            label={stage.label}
+            deals={dealsByStage.get(stage.value) ?? []}
+          />
+        ))}
+      </div>
+      <DragOverlay>{activeDeal ? <DealCard deal={activeDeal} /> : null}</DragOverlay>
+      {pendingDrop && (
+        <StageReasonDialog
+          stage={pendingDrop.stage}
+          open={!!pendingDrop}
+          onOpenChange={(open) => {
+            if (!open) setPendingDrop(null);
+          }}
+          onConfirm={(reason) => {
+            commitStageChange(pendingDrop.dealId, pendingDrop.stage, reason);
+            setPendingDrop(null);
+          }}
+        />
+      )}
+    </DndContext>
+  );
+}
