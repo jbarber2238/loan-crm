@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { StageSelect } from "@/components/deals/stage-select";
 import { PipelineStepper } from "@/components/deals/pipeline-stepper";
 import { AcceptedTermsHeader } from "@/components/deals/accepted-terms-header";
+import { ProcessingFeeInvoiceStatus } from "@/components/deals/processing-fee-invoice-status";
 import { labelFor, LOAN_CATEGORIES, STAGES } from "@/lib/labels";
 import { conservativeValueBasis } from "@/lib/term-sheet-calculations";
 import { PAUSED_STAGES } from "@/lib/deal-pipeline";
@@ -104,15 +105,33 @@ export function DealHeader({ deal }: { deal: DealDetail }) {
       <PipelineStepper stage={deal.stage} pausedFromStage={deal.pausedFromStage} />
       <StageReasonBanner deal={deal} />
 
+      {deal.stripeInvoiceStatus && deal.stripeInvoiceAmount && (
+        <ProcessingFeeInvoiceStatus
+          dealId={deal.id}
+          amount={Number(deal.stripeInvoiceAmount)}
+          status={deal.stripeInvoiceStatus}
+          url={deal.stripeInvoiceUrl}
+        />
+      )}
+
       {deal.lenderId && deal.lender && (
         <AcceptedTermsHeader
           dealId={deal.id}
           lenderName={deal.lender.name}
           loanCategory={deal.loanCategory}
+          acceptedTermSheetFields={deal.termSheets.find((t) => t.status === "accepted")?.fields ?? null}
           approvedLoanAmount={deal.approvedLoanAmount}
           approvedLtv={deal.approvedLtv}
           appraisedValue={deal.appraisedValue}
           ltvBasedOnPurchasePrice={deal.ltvBasedOnPurchasePrice}
+          approvedRehabCost={deal.approvedRehabCost}
+          approvedArv={deal.approvedArv}
+          appraisedArv={deal.appraisedArv}
+          ltarvBasedOnApprovedArv={deal.ltarvBasedOnApprovedArv}
+          approvedLtarv={deal.approvedLtarv}
+          approvedLtc={deal.approvedLtc}
+          approvedInitialAdvance={deal.approvedInitialAdvance}
+          interestType={deal.interestType}
           purchasePrice={deal.purchasePrice}
           estimatedAsIsValue={deal.estimatedAsIsValue}
           finalRate={deal.finalRate}
@@ -120,12 +139,17 @@ export function DealHeader({ deal }: { deal: DealDetail }) {
           estimatedFico={deal.estimatedFico}
           costToBorrowerFee={deal.costToBorrowerFee}
           processingFeeOverride={deal.processingFeeOverride}
+          originationPointsOverride={deal.originationPointsOverride}
+          rateBuydownPointsOverride={deal.rateBuydownPointsOverride}
           finalAmortizationType={deal.finalAmortizationType}
           finalLoanTermYears={deal.finalLoanTermYears}
+          finalLoanTermMonths={deal.finalLoanTermMonths}
           annualTaxes={deal.annualTaxes}
           annualInsurance={deal.annualInsurance}
           annualHoa={deal.annualHoa}
           estimatedClosingDate={deal.estimatedClosingDate}
+          applicationSubmissionMethod={deal.lender.applicationSubmissionMethod}
+          brokerPortalUrl={deal.lender.brokerPortalUrl}
         />
       )}
     </div>

@@ -1,6 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import { updateDealDetails } from "@/server/actions/deals";
-import { Button } from "@/components/ui/button";
+import { ActionForm } from "@/components/forms/action-form";
+import { SubmitButton } from "@/components/forms/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,7 +27,7 @@ import { DscrCalculator } from "@/components/deals/dscr-calculator";
 import { CollapseAllButton } from "@/components/deals/collapse-all-button";
 import { AiValueAssessmentSection } from "@/components/deals/ai-value-assessment-section";
 import { AiLenderMatchSection } from "@/components/deals/ai-lender-match-section";
-import { sectionsFor } from "@/lib/loan-sections";
+import { sectionsFor, rehabOrConstructionBudgetLabel } from "@/lib/loan-sections";
 import type { deals as dealsTable } from "@/server/db/schema";
 import type { ReactNode } from "react";
 
@@ -144,7 +145,7 @@ export function OverviewTab({ deal }: { deal: Deal }) {
         />
       )}
 
-      <form action={updateDetails} className="space-y-4">
+      <ActionForm action={updateDetails} successMessage="Deal details saved" className="space-y-4">
         <div id="loan-inquiry-sections" className="space-y-4 rounded-lg border p-4">
           <div className="flex items-center justify-between gap-2 border-b pb-3">
             <div>
@@ -496,7 +497,7 @@ export function OverviewTab({ deal }: { deal: Deal }) {
         </Section>
 
         {s.showRehabFields && (
-          <Section title="Rehab / Construction">
+          <Section title={rehabOrConstructionBudgetLabel(deal.loanCategory)}>
             {(s.showFixFlipOwnership || s.showConstructionLandOwnership) && (
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox name="propertyAlreadyOwned" defaultChecked={deal.propertyAlreadyOwned ?? false} />
@@ -516,7 +517,7 @@ export function OverviewTab({ deal }: { deal: Deal }) {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="estimatedRehabCost">Estimated rehab / construction cost</Label>
+                <Label htmlFor="estimatedRehabCost">{rehabOrConstructionBudgetLabel(deal.loanCategory)}</Label>
                 <Input
                   id="estimatedRehabCost"
                   name="estimatedRehabCost"
@@ -530,7 +531,7 @@ export function OverviewTab({ deal }: { deal: Deal }) {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="rehabDescription">Rehab description</Label>
+              <Label htmlFor="rehabDescription">{rehabOrConstructionBudgetLabel(deal.loanCategory)} Description</Label>
               <Textarea
                 id="rehabDescription"
                 name="rehabDescription"
@@ -571,8 +572,8 @@ export function OverviewTab({ deal }: { deal: Deal }) {
         )}
         </div>
 
-        <Button type="submit">Save</Button>
-      </form>
+        <SubmitButton>Save</SubmitButton>
+      </ActionForm>
 
       <AiValueAssessmentSection
         dealId={deal.id}

@@ -27,72 +27,15 @@ function fieldListDescription(fields: TermSheetField[]): string {
     .join("\n");
 }
 
-export async function extractTermSheetFromReply({
-  pricingRequestId,
-  category,
-}: {
-  pricingRequestId: string;
-  category: string;
-}): Promise<TermSheetExtractionResult> {
-  await requireUser();
-
+async function runExtraction(
+  contentBlocks: Anthropic.ContentBlockParam[],
+  category: string
+): Promise<TermSheetExtractionResult> {
   if (!anthropic) {
     throw new Error("AI extraction isn't configured (missing ANTHROPIC_API_KEY).");
   }
 
-  const request = await db.query.pricingRequests.findFirst({
-    where: eq(pricingRequests.id, pricingRequestId),
-  });
-  if (!request) throw new Error("Pricing request not found");
-
-  const attachmentRows = await db.query.pricingRequestReplyAttachments.findMany({
-    where: eq(pricingRequestReplyAttachments.pricingRequestId, pricingRequestId),
-  });
-
-  const replyBodyText = request.replyBodyText ?? "";
-  const attachments = attachmentRows.map((a) => ({
-    fileName: a.fileName,
-    mimeType: a.mimeType,
-    dataBase64: a.data,
-  }));
-
   const fieldDefs = termSheetFieldsFor(category);
-
-  const contentBlocks: Anthropic.MessageParam["content"] = [];
-
-  contentBlocks.push({
-    type: "text",
-    text: `Lender's email reply:\n\n${replyBodyText || "(no plain text body — see attachments)"}`,
-  });
-
-  const skipped: string[] = [];
-  for (const attachment of attachments) {
-    const mime = attachment.mimeType.toLowerCase();
-    if (mime === "application/pdf") {
-      contentBlocks.push({
-        type: "document",
-        source: { type: "base64", media_type: "application/pdf", data: attachment.dataBase64 },
-      });
-    } else if (SUPPORTED_IMAGE_TYPES.has(mime)) {
-      contentBlocks.push({
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: detectImageMediaType(attachment.dataBase64, mime),
-          data: attachment.dataBase64,
-        },
-      });
-    } else {
-      skipped.push(attachment.fileName);
-    }
-  }
-
-  if (skipped.length) {
-    contentBlocks.push({
-      type: "text",
-      text: `(Note: could not read these attachments — unsupported format: ${skipped.join(", ")})`,
-    });
-  }
 
   const systemPrompt = `You are helping a mortgage processor read a lender's pricing reply (email text, and possibly a term sheet PDF or a screenshot of a spreadsheet) and pull out the loan terms into a structured form.
 
@@ -115,7 +58,7 @@ Multiple pricing options: if the lender offers more than one rate/points combina
 
 Underwriting and Doc Fee: lenders itemize their own closing-cost fees in all kinds of ways — "processing fee," "underwriting fee," "admin fee," "doc prep fee," "doc fee," etc. NONE of these are the same thing as origination points or a rate buydown (handled separately above). Add up every one of these lender-charged fee line items and put the SUM into the single underwritingDocFee field — do not create separate fields for them and do not list them individually in "notes". For example, if the lender's reply mentions a $1,495 underwriting fee and a $745 processing fee, underwritingDocFee should be 2240.
 
-Do not confuse a lender's "processing fee" with processingFeePaymentLink. processingFeePaymentLink is solely for our OWN separate $999 upfront processing fee, which we charge the borrower before we begin processing — lenders never charge this, never quote it, and never provide a payment link for it themselves. A lender mentioning their own processing fee should only ever affect underwritingDocFee (per the rule above) and should never trigger a note about a "missing payment link" or anything similar — processingFeePaymentLink is something our own staff pastes in manually and is unrelated to anything in the lender's reply.
+Interest Type (Dutch vs Non-Dutch) on fix-and-flip/new-construction loans: lenders word this very differently from one to the next, so infer it from the STRUCTURE of the payment figures rather than exact wording. If the reply shows TWO payment amounts — an initial/day-1 payment calculated on just the initial advance, alongside a separate maximum/fully-drawn payment calculated on the full loan amount — that pattern means the loan is Non-Dutch (the borrower only pays interest on what's actually been advanced/drawn so far). Lenders phrase this two-payment pattern many different ways: "Day 1 Payment" vs "Payment (Max)", "Initial Payment" vs "Fully Drawn Payment", "Interest-Only Payment (Initial Advance)" vs "Interest-Only Payment (Full Loan Amount)", etc. — look for two distinct interest-payment numbers, one tied to the initial/current advance and one tied to the full/max committed amount. If instead there's only ONE interest payment figure, calculated on the full loan amount from the start, that means the loan is Dutch. Set interestType to "Dutch" or "Non-Dutch" based on this — don't leave it in notFoundKeys just because the lender never uses the words "Dutch" or "Non-Dutch" themselves.
 
 Reserves: DSCR and Portfolio loans use reservesMonths (a number of months, not a dollar amount) — only include it if the lender explicitly states a reserve requirement different from the standard 6 months; otherwise leave it out of "fields" entirely (don't put it in "notFoundKeys" either, since 6 months is already the default). Hard money and bridge loans use reservesRequired (a dollar amount) — lenders describe this as a formula rather than a flat figure (e.g. "10% of loan amount", "25% of the rehab/construction budget", "6 months of payments"), so compute the actual dollar amount using this loan's own numbers (loan amount, rehab/construction budget, etc.) and put that computed figure in reservesRequired.`;
 
@@ -157,4 +100,87 @@ Reserves: DSCR and Portfolio loans use reservesMonths (a number of months, not a
   const notes = typeof parsed.notes === "string" && parsed.notes.trim().length ? parsed.notes.trim() : null;
 
   return { fields, foundKeys: Object.keys(fields), notFoundKeys, notes };
+}
+
+function fileToContentBlock(file: {
+  fileName: string;
+  mimeType: string;
+  dataBase64: string;
+}): Anthropic.ContentBlockParam | null {
+  const mime = file.mimeType.toLowerCase();
+  if (mime === "application/pdf") {
+    return { type: "document", source: { type: "base64", media_type: "application/pdf", data: file.dataBase64 } };
+  }
+  if (SUPPORTED_IMAGE_TYPES.has(mime)) {
+    return {
+      type: "image",
+      source: { type: "base64", media_type: detectImageMediaType(file.dataBase64, mime), data: file.dataBase64 },
+    };
+  }
+  return null;
+}
+
+export async function extractTermSheetFromReply({
+  pricingRequestId,
+  category,
+}: {
+  pricingRequestId: string;
+  category: string;
+}): Promise<TermSheetExtractionResult> {
+  await requireUser();
+
+  const request = await db.query.pricingRequests.findFirst({
+    where: eq(pricingRequests.id, pricingRequestId),
+  });
+  if (!request) throw new Error("Pricing request not found");
+
+  const attachmentRows = await db.query.pricingRequestReplyAttachments.findMany({
+    where: eq(pricingRequestReplyAttachments.pricingRequestId, pricingRequestId),
+  });
+
+  const replyBodyText = request.replyBodyText ?? "";
+
+  const contentBlocks: Anthropic.ContentBlockParam[] = [
+    { type: "text", text: `Lender's email reply:\n\n${replyBodyText || "(no plain text body — see attachments)"}` },
+  ];
+
+  const skipped: string[] = [];
+  for (const a of attachmentRows) {
+    const block = fileToContentBlock({ fileName: a.fileName, mimeType: a.mimeType, dataBase64: a.data });
+    if (block) contentBlocks.push(block);
+    else skipped.push(a.fileName);
+  }
+
+  if (skipped.length) {
+    contentBlocks.push({
+      type: "text",
+      text: `(Note: could not read these attachments — unsupported format: ${skipped.join(", ")})`,
+    });
+  }
+
+  return runExtraction(contentBlocks, category);
+}
+
+// The quick-pricer flow has no lender email to read — just a screenshot of
+// whatever the pricer showed on screen, snapped right after pricing it.
+export async function extractTermSheetFromScreenshot({
+  category,
+  file,
+}: {
+  category: string;
+  file: { fileName: string; mimeType: string; dataBase64: string };
+}): Promise<TermSheetExtractionResult> {
+  await requireUser();
+
+  const block = fileToContentBlock(file);
+  if (!block) {
+    throw new Error(`Can't read "${file.fileName}" — upload a PDF or image instead.`);
+  }
+
+  const contentBlocks: Anthropic.ContentBlockParam[] = [
+    { type: "text", text: "Screenshot of the lender's quick pricer results:" },
+    block,
+  ];
+
+  return runExtraction(contentBlocks, category);
 }

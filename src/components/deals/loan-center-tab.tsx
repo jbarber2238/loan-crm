@@ -1,13 +1,16 @@
 import { updateDealDates } from "@/server/actions/deals";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ActionForm } from "@/components/forms/action-form";
+import { SubmitButton } from "@/components/forms/submit-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RolesTab } from "@/components/deals/roles-tab";
 import { ClientNeedsTab, type ClientNeed } from "@/components/deals/client-needs-tab";
 import { ConditionsTab, type DealCondition } from "@/components/deals/conditions-tab";
 import { NotesTab } from "@/components/deals/notes-tab";
+import { KeyDateTracker } from "@/components/deals/key-date-tracker";
+import type { KeyDateEvent } from "@/lib/key-date-tracker";
 import type { DealCatalogItem } from "@/components/deals/add-client-need-to-deal-dialog";
 
 function toDateInputValue(date: Date | null) {
@@ -35,21 +38,16 @@ interface Note {
   resolved: boolean;
   createdAt: Date;
   author?: { name: string | null } | null;
+  canDelete: boolean;
 }
 
-function KeyDatesSection({
+function OtherDatesSection({
   dealId,
-  appraisalOrderedDate,
   creditPullDate,
-  insuranceContactedDate,
-  titleOrderedDate,
   driveLink,
 }: {
   dealId: string;
-  appraisalOrderedDate: Date | null;
   creditPullDate: Date | null;
-  insuranceContactedDate: Date | null;
-  titleOrderedDate: Date | null;
   driveLink: string | null;
 }) {
   const updateDates = updateDealDates.bind(null, dealId);
@@ -57,16 +55,7 @@ function KeyDatesSection({
   return (
     <Card>
       <CardContent className="pt-6">
-        <form action={updateDates} className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="appraisalOrderedDate">Appraisal ordered</Label>
-            <Input
-              id="appraisalOrderedDate"
-              name="appraisalOrderedDate"
-              type="date"
-              defaultValue={toDateInputValue(appraisalOrderedDate)}
-            />
-          </div>
+        <ActionForm action={updateDates} successMessage="Saved" className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="creditPullDate">Credit pulled</Label>
             <Input
@@ -77,31 +66,13 @@ function KeyDatesSection({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="insuranceContactedDate">Insurance contacted</Label>
-            <Input
-              id="insuranceContactedDate"
-              name="insuranceContactedDate"
-              type="date"
-              defaultValue={toDateInputValue(insuranceContactedDate)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="titleOrderedDate">Title ordered</Label>
-            <Input
-              id="titleOrderedDate"
-              name="titleOrderedDate"
-              type="date"
-              defaultValue={toDateInputValue(titleOrderedDate)}
-            />
-          </div>
-          <div className="md:col-span-2 space-y-1.5">
             <Label htmlFor="driveLink">Google Drive link</Label>
             <Input id="driveLink" name="driveLink" defaultValue={driveLink ?? ""} />
           </div>
           <div className="md:col-span-2">
-            <Button type="submit">Save</Button>
+            <SubmitButton>Save</SubmitButton>
           </div>
-        </form>
+        </ActionForm>
       </CardContent>
     </Card>
   );
@@ -127,10 +98,7 @@ export function LoanCenterTab({
   hasAcceptedProduct,
   conditions,
   notes,
-  appraisalOrderedDate,
   creditPullDate,
-  insuranceContactedDate,
-  titleOrderedDate,
   driveLink,
   titleCompanyAgentName,
   titleAgentEmail,
@@ -139,6 +107,10 @@ export function LoanCenterTab({
   insuranceAgentName,
   insuranceAgentEmail,
   insuranceAgentPhone,
+  appraisalNotes,
+  insuranceNotes,
+  titleNotes,
+  keyDateEvents,
 }: {
   dealId: string;
   assignedLoanOfficerId: string;
@@ -159,10 +131,7 @@ export function LoanCenterTab({
   hasAcceptedProduct: boolean;
   conditions: DealCondition[];
   notes: Note[];
-  appraisalOrderedDate: Date | null;
   creditPullDate: Date | null;
-  insuranceContactedDate: Date | null;
-  titleOrderedDate: Date | null;
   driveLink: string | null;
   titleCompanyAgentName: string | null;
   titleAgentEmail: string | null;
@@ -171,6 +140,10 @@ export function LoanCenterTab({
   insuranceAgentName: string | null;
   insuranceAgentEmail: string | null;
   insuranceAgentPhone: string | null;
+  appraisalNotes: string | null;
+  insuranceNotes: string | null;
+  titleNotes: string | null;
+  keyDateEvents: KeyDateEvent[];
 }) {
   return (
     <div className="space-y-4">
@@ -222,15 +195,17 @@ export function LoanCenterTab({
           />
         </TabsContent>
 
-        <TabsContent value="key-dates">
-          <KeyDatesSection
+        <TabsContent value="key-dates" className="space-y-4">
+          <KeyDateTracker
             dealId={dealId}
-            appraisalOrderedDate={appraisalOrderedDate}
-            creditPullDate={creditPullDate}
-            insuranceContactedDate={insuranceContactedDate}
-            titleOrderedDate={titleOrderedDate}
-            driveLink={driveLink}
+            events={keyDateEvents}
+            appraisalNotes={appraisalNotes}
+            insuranceNotes={insuranceNotes}
+            titleNotes={titleNotes}
+            insuranceEmail={insuranceAgentEmail}
+            titleEmail={titleAgentEmail}
           />
+          <OtherDatesSection dealId={dealId} creditPullDate={creditPullDate} driveLink={driveLink} />
         </TabsContent>
 
         <TabsContent value="notes">

@@ -23,6 +23,20 @@ function encodeHeaderValue(value: string): string {
   return `=?UTF-8?B?${Buffer.from(value, "utf-8").toString("base64")}?=`;
 }
 
+export interface GmailAttachment {
+  fileName: string;
+  mimeType: string;
+  /** Base64-encoded file content — the same encoding dealClientNeedDocuments.data is stored in, so no re-encoding is needed at the call site. */
+  data: string;
+}
+
+// Splits a base64 attachment payload into 76-char lines — required by RFC
+// 2045 for base64 message bodies; most mail servers reject (or silently
+// mangle) a single unbroken base64 line for an attachment part.
+function wrapBase64(data: string): string {
+  return data.replace(/[\r\n]/g, "").match(/.{1,76}/g)?.join("\r\n") ?? data;
+}
+
 function encodeMessage({
   from,
   to,
@@ -30,6 +44,7 @@ function encodeMessage({
   subject,
   body,
   html,
+  attachments,
 }: {
   from: string;
   to: string;
@@ -37,23 +52,47 @@ function encodeMessage({
   subject: string;
   body: string;
   html?: boolean;
+  attachments?: GmailAttachment[];
 }) {
-  const lines = [
+  const headers = [
     `From: ${from}`,
     `To: ${to}`,
     cc ? `Cc: ${cc}` : null,
     `Subject: ${encodeHeaderValue(subject)}`,
     "MIME-Version: 1.0",
-    html ? "Content-Type: text/html; charset=utf-8" : "Content-Type: text/plain; charset=utf-8",
-    "",
-    body,
   ].filter((line): line is string => line !== null);
 
-  return Buffer.from(lines.join("\r\n"))
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+  if (!attachments?.length) {
+    const contentType = html ? "Content-Type: text/html; charset=utf-8" : "Content-Type: text/plain; charset=utf-8";
+    const raw = [...headers, contentType, "", body].join("\r\n");
+    return Buffer.from(raw).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  // With attachments, the message becomes multipart/mixed: one text/html (or
+  // text/plain) part for the body, then one part per attachment with a
+  // Content-Disposition telling the mail client to offer it as a download
+  // rather than render it inline.
+  const boundary = `boundary_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const bodyContentType = html ? "text/html; charset=utf-8" : "text/plain; charset=utf-8";
+
+  const parts = [
+    `--${boundary}`,
+    `Content-Type: ${bodyContentType}`,
+    "",
+    body,
+    ...attachments.flatMap((a) => [
+      `--${boundary}`,
+      `Content-Type: ${a.mimeType}; name="${a.fileName}"`,
+      "Content-Transfer-Encoding: base64",
+      `Content-Disposition: attachment; filename="${a.fileName}"`,
+      "",
+      wrapBase64(a.data),
+    ]),
+    `--${boundary}--`,
+  ];
+
+  const raw = [...headers, `Content-Type: multipart/mixed; boundary="${boundary}"`, "", ...parts].join("\r\n");
+  return Buffer.from(raw).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 export async function getGmailAuthForUser(userId: string) {
@@ -76,7 +115,14 @@ export async function getGmailAuthForUser(userId: string) {
 export async function sendGmailAs(
   userId: string,
   userEmail: string,
-  message: { to: string; cc?: string | null; subject: string; body: string; html?: boolean }
+  message: {
+    to: string;
+    cc?: string | null;
+    subject: string;
+    body: string;
+    html?: boolean;
+    attachments?: GmailAttachment[];
+  }
 ): Promise<{ id: string | null | undefined; threadId: string | null | undefined }> {
   const oauth2Client = await getGmailAuthForUser(userId);
   const gmail = google.gmail({ version: "v1", auth: oauth2Client });

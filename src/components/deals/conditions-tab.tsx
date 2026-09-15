@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   extractConditionsFromEmail,
   toggleConditionCleared,
@@ -47,16 +48,25 @@ function ConditionRow({
 
   function handleToggle(checked: boolean) {
     startTransition(async () => {
-      await toggleConditionCleared(dealId, condition.id, checked);
-      router.refresh();
+      try {
+        await toggleConditionCleared(dealId, condition.id, checked);
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't update that condition.");
+      }
     });
   }
 
   function handleDelete() {
     if (!window.confirm("Remove this condition?")) return;
     startTransition(async () => {
-      await deleteCondition(dealId, condition.id);
-      router.refresh();
+      try {
+        await deleteCondition(dealId, condition.id);
+        toast.success("Condition removed");
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't remove that condition.");
+      }
     });
   }
 
@@ -105,9 +115,12 @@ export function ConditionsTab({ dealId, conditions }: { dealId: string; conditio
         setEmailText("");
         setFileName(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
+        toast.success("Conditions extracted");
         router.refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Couldn't extract conditions.");
+        const message = err instanceof Error ? err.message : "Couldn't extract conditions.";
+        setError(message);
+        toast.error(message);
       }
     });
   }

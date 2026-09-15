@@ -34,7 +34,15 @@ const ROLE_LABELS: Record<string, string> = {
   processor: "Processor",
 };
 
-export function AppSidebar({ user, companyName }: { user: SidebarUser; companyName: string }) {
+export function AppSidebar({
+  user,
+  companyName,
+  logo,
+}: {
+  user: SidebarUser;
+  companyName: string;
+  logo: { src: string; isLight: boolean } | null;
+}) {
   const pathname = usePathname();
 
   const mainLinks = [
@@ -65,9 +73,27 @@ export function AppSidebar({ user, companyName }: { user: SidebarUser; companyNa
 
   return (
     <aside className="fixed inset-y-0 left-0 z-20 flex w-60 flex-col bg-[#111318] text-zinc-300">
-      <div className="flex h-14 items-center border-b border-white/10 px-4">
-        <Link href="/" className="truncate font-semibold text-white">
-          {companyName}
+      <div className="flex min-h-14 flex-col justify-center gap-1.5 border-b border-white/10 px-4 py-3">
+        <Link href="/" className="flex flex-col items-start gap-1.5">
+          {logo ? (
+            <>
+              {/* A light logo already contrasts fine against this sidebar's
+                  own near-black background — only a dark logo needs a
+                  white backdrop card, or it visually disappears here. */}
+              {logo.isLight ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logo.src} alt={companyName} className="max-h-9 w-auto max-w-[170px] object-contain" />
+              ) : (
+                <div className="rounded-md bg-white p-1.5">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={logo.src} alt={companyName} className="max-h-8 w-auto max-w-[150px] object-contain" />
+                </div>
+              )}
+              <span className="truncate text-xs font-medium text-zinc-400">{companyName}</span>
+            </>
+          ) : (
+            <span className="truncate font-semibold text-white">{companyName}</span>
+          )}
         </Link>
       </div>
 

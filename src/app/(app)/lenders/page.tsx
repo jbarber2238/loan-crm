@@ -32,6 +32,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { formatFileSize } from "@/lib/format";
+import { ActionForm } from "@/components/forms/action-form";
+import { SubmitButton } from "@/components/forms/submit-button";
 
 export default async function LendersPage() {
   const user = await requireUser();
@@ -75,7 +77,7 @@ export default async function LendersPage() {
                   <DialogHeader>
                     <DialogTitle>Add Lender</DialogTitle>
                   </DialogHeader>
-                  <form action={createLender} className="space-y-4">
+                  <ActionForm action={createLender} successMessage="Lender created" className="space-y-4">
                     <div className="space-y-1.5">
                       <Label htmlFor="name">Name</Label>
                       <Input id="name" name="name" required />
@@ -84,10 +86,8 @@ export default async function LendersPage() {
                       <Label htmlFor="notes">Notes</Label>
                       <Textarea id="notes" name="notes" rows={3} />
                     </div>
-                    <Button type="submit" className="w-full">
-                      Create
-                    </Button>
-                  </form>
+                    <SubmitButton className="w-full">Create</SubmitButton>
+                  </ActionForm>
                 </DialogContent>
               </Dialog>
             )}
@@ -150,11 +150,11 @@ export default async function LendersPage() {
                       <div className="flex items-center gap-3">
                         <span className="text-xs text-muted-foreground">{formatFileSize(doc.fileSize)}</span>
                         {user.isAdmin && (
-                          <form action={deleteDoc}>
-                            <Button type="submit" size="sm" variant="ghost">
+                          <ActionForm action={deleteDoc} successMessage="Document removed">
+                            <SubmitButton size="sm" variant="ghost">
                               Remove
-                            </Button>
-                          </form>
+                            </SubmitButton>
+                          </ActionForm>
                         )}
                       </div>
                     </div>
@@ -165,13 +165,17 @@ export default async function LendersPage() {
                 )}
               </div>
               {user.isAdmin && (
-                <form action={uploadMasterDocument} className="flex items-end gap-3 border-t pt-4">
+                <ActionForm
+                  action={uploadMasterDocument}
+                  successMessage="Document uploaded"
+                  className="flex items-end gap-3 border-t pt-4"
+                >
                   <div className="flex-1 space-y-1.5">
                     <Label htmlFor="master-file">Upload a new version (remove the old one below when ready)</Label>
                     <Input id="master-file" name="file" type="file" multiple required />
                   </div>
-                  <Button type="submit">Upload</Button>
-                </form>
+                  <SubmitButton>Upload</SubmitButton>
+                </ActionForm>
               )}
             </CardContent>
           </Card>
@@ -186,8 +190,9 @@ export default async function LendersPage() {
               </p>
 
               {user.isAdmin && (
-                <form
+                <ActionForm
                   action={uploadLenderMatrixDocument}
+                  successMessage="Document uploaded"
                   className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto] items-end border-b pb-4"
                 >
                   <div className="space-y-1.5">
@@ -209,8 +214,8 @@ export default async function LendersPage() {
                     <Label htmlFor="matrix-file">File</Label>
                     <Input id="matrix-file" name="file" type="file" multiple required />
                   </div>
-                  <Button type="submit">Upload</Button>
-                </form>
+                  <SubmitButton>Upload</SubmitButton>
+                </ActionForm>
               )}
 
               <div className="space-y-2">
@@ -244,11 +249,11 @@ export default async function LendersPage() {
                                 {formatFileSize(doc.fileSize)}
                               </span>
                               {user.isAdmin && (
-                                <form action={deleteDoc}>
-                                  <Button type="submit" size="sm" variant="ghost">
+                                <ActionForm action={deleteDoc} successMessage="Document removed">
+                                  <SubmitButton size="sm" variant="ghost">
                                     Remove
-                                  </Button>
-                                </form>
+                                  </SubmitButton>
+                                </ActionForm>
                               )}
                             </div>
                           </div>

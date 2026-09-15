@@ -1,17 +1,13 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { emailTemplates } from "@/server/db/schema";
-import { LOAN_CATEGORIES, labelFor } from "@/lib/labels";
 import { renderTemplate } from "@/server/pricing-templates";
+import { buildAllDealTokens } from "@/server/deal-tokens";
 import type { deals } from "@/server/db/schema";
 
 type Deal = typeof deals.$inferSelect;
 
-function firstName(fullName: string): string {
-  return fullName.trim().split(/\s+/)[0] || fullName;
-}
-
-export function buildBorrowerTemplateTokens(
+export async function buildBorrowerTemplateTokens(
   deal: Deal,
   {
     assignedLoanOfficerName,
@@ -24,15 +20,9 @@ export function buildBorrowerTemplateTokens(
     senderName: string;
     extra?: Record<string, string>;
   }
-): Record<string, string> {
+): Promise<Record<string, string>> {
   return {
-    borrowerFirstName: firstName(deal.borrowerName),
-    borrowerName: deal.borrowerName,
-    entityName: deal.borrowerEntityName ?? "Not provided",
-    propertyAddress: deal.propertyAddress,
-    loanNumber: deal.loanNumber?.toString() ?? "",
-    loanPurposeLabel: labelFor(LOAN_CATEGORIES, deal.loanCategory),
-    loanAmountRequested: `$${Number(deal.loanAmountRequested).toLocaleString()}`,
+    ...(await buildAllDealTokens(deal)),
     assignedLoanOfficerName,
     companyName,
     senderName,
@@ -61,7 +51,7 @@ export async function buildBorrowerEmail(
     );
   }
 
-  const tokens = buildBorrowerTemplateTokens(deal, opts);
+  const tokens = await buildBorrowerTemplateTokens(deal, opts);
   return {
     subject: renderTemplate(template.subject, tokens),
     body: renderTemplate(template.body, tokens),

@@ -13,7 +13,8 @@ import { AddClientNeedDialog } from "@/components/client-needs/add-client-need-d
 import { ClientNeedDialog } from "@/components/client-needs/client-need-dialog";
 import type { ExistingClientNeed } from "@/components/client-needs/client-need-form";
 import { Button } from "@/components/ui/button";
-import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
+import { ActionForm } from "@/components/forms/action-form";
+import { SubmitButton } from "@/components/forms/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -146,7 +147,11 @@ export function ProductsChecklist({
                   </p>
                   {isAdmin ? (
                     <div className="space-y-3">
-                      <form id={`product-form-${product.id}`} action={updateProduct.bind(null, product.id)} className="space-y-3">
+                      <ActionForm
+                        action={updateProduct.bind(null, product.id)}
+                        successMessage="Product saved"
+                        className="space-y-3"
+                      >
                         <div className="space-y-1.5">
                           <Label htmlFor={`category-${product.id}`}>Category</Label>
                           <Select name="category" defaultValue={product.category} required>
@@ -166,29 +171,26 @@ export function ProductsChecklist({
                           <Label htmlFor={`notes-${product.id}`}>Notes</Label>
                           <Textarea id={`notes-${product.id}`} name="notes" rows={2} defaultValue={product.notes ?? ""} />
                         </div>
-                      </form>
+                        <SubmitButton size="sm">Save</SubmitButton>
+                      </ActionForm>
                       <div className="flex items-center justify-between">
-                        <Button type="submit" form={`product-form-${product.id}`} size="sm">
-                          Save
-                        </Button>
-                        <div className="flex items-center gap-1">
-                          <form action={toggleProductActive.bind(null, product.id, !product.active)}>
-                            <Button type="submit" size="sm" variant="outline">
-                              {product.active ? "Mark inactive" : "Mark active"}
-                            </Button>
-                          </form>
-                          <form action={deleteProduct.bind(null, lenderId, product.id)}>
-                            <ConfirmSubmitButton
-                              type="submit"
-                              size="sm"
-                              variant="ghost"
-                              className="text-destructive hover:text-destructive"
-                              confirmMessage={`Delete this ${product.name} product? This removes its criteria, client-need checklist, and documents too.`}
-                            >
-                              Delete
-                            </ConfirmSubmitButton>
-                          </form>
-                        </div>
+                        <ActionForm
+                          action={toggleProductActive.bind(null, product.id, !product.active)}
+                          successMessage={product.active ? "Marked inactive" : "Marked active"}
+                        >
+                          <SubmitButton size="sm" variant="outline">
+                            {product.active ? "Mark inactive" : "Mark active"}
+                          </SubmitButton>
+                        </ActionForm>
+                        <ActionForm
+                          action={deleteProduct.bind(null, lenderId, product.id)}
+                          successMessage="Product deleted"
+                          confirmMessage={`Delete this ${product.name} product? This removes its criteria, client-need checklist, and documents too.`}
+                        >
+                          <SubmitButton size="sm" variant="ghost" className="text-destructive hover:text-destructive">
+                            Delete
+                          </SubmitButton>
+                        </ActionForm>
                       </div>
                     </div>
                   ) : (
@@ -204,17 +206,19 @@ export function ProductsChecklist({
                       Notes for AI Matching
                     </p>
                     {isAdmin ? (
-                      <form action={updateLenderCriteria.bind(null, product.id)} className="space-y-2">
+                      <ActionForm
+                        action={updateLenderCriteria.bind(null, product.id)}
+                        successMessage="Notes saved"
+                        className="space-y-2"
+                      >
                         <Textarea
                           name="otherNotes"
                           rows={2}
                           defaultValue={product.criteria?.otherNotes ?? ""}
                           placeholder="Anything worth calling out that isn't obvious from the uploaded documents"
                         />
-                        <Button type="submit" size="sm">
-                          Save
-                        </Button>
-                      </form>
+                        <SubmitButton size="sm">Save</SubmitButton>
+                      </ActionForm>
                     ) : (
                       <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                         {product.criteria?.otherNotes}
@@ -246,11 +250,11 @@ export function ProductsChecklist({
                           <div className="flex items-center gap-3">
                             <span className="text-xs text-muted-foreground">{formatFileSize(doc.fileSize)}</span>
                             {isAdmin && (
-                              <form action={deleteDoc}>
-                                <Button type="submit" size="sm" variant="ghost">
+                              <ActionForm action={deleteDoc} successMessage="Document removed">
+                                <SubmitButton size="sm" variant="ghost">
                                   Remove
-                                </Button>
-                              </form>
+                                </SubmitButton>
+                              </ActionForm>
                             )}
                           </div>
                         </div>
@@ -261,16 +265,18 @@ export function ProductsChecklist({
                     )}
                   </div>
                   {isAdmin && (
-                    <form action={uploadDocForProduct} className="mt-2 flex items-end gap-2">
+                    <ActionForm
+                      action={uploadDocForProduct}
+                      successMessage="Document uploaded"
+                      className="mt-2 flex items-end gap-2"
+                    >
                       <input type="hidden" name="productId" value={product.id} />
                       <div className="flex-1 space-y-1.5">
                         <Label htmlFor={`file-${product.id}`}>Add a document directly to this product</Label>
                         <Input id={`file-${product.id}`} name="file" type="file" multiple required />
                       </div>
-                      <Button type="submit" size="sm">
-                        Upload
-                      </Button>
-                    </form>
+                      <SubmitButton size="sm">Upload</SubmitButton>
+                    </ActionForm>
                   )}
                 </div>
 
@@ -340,11 +346,11 @@ export function ProductsChecklist({
                                     </Button>
                                   }
                                 />
-                                <form action={detach}>
-                                  <Button type="submit" size="sm" variant="ghost">
+                                <ActionForm action={detach} successMessage="Removed">
+                                  <SubmitButton size="sm" variant="ghost">
                                     Remove
-                                  </Button>
-                                </form>
+                                  </SubmitButton>
+                                </ActionForm>
                               </div>
                             )}
                           </div>
@@ -357,8 +363,9 @@ export function ProductsChecklist({
                   </ul>
 
                   {canEditClientNeeds && otherProducts.length > 0 && (
-                    <form
+                    <ActionForm
                       action={cloneClientNeedsToProduct.bind(null, product.id)}
+                      successMessage="Needs added"
                       className="mt-3 flex items-end gap-2 border-t pt-3"
                     >
                       <div className="flex-1 space-y-1.5">
@@ -376,10 +383,10 @@ export function ProductsChecklist({
                           </SelectContent>
                         </Select>
                       </div>
-                      <Button type="submit" size="sm" variant="secondary">
+                      <SubmitButton size="sm" variant="secondary">
                         Add
-                      </Button>
-                    </form>
+                      </SubmitButton>
+                    </ActionForm>
                   )}
                 </div>
               </CollapsibleContent>

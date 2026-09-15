@@ -109,10 +109,11 @@ export async function deleteEmailTemplate(id: string) {
   await requireAdmin();
   const existing = await db.query.emailTemplates.findFirst({ where: eq(emailTemplates.id, id) });
   if (!existing) return;
-  // Pricing templates are looked up by key from app code — deleting one
-  // would break sending, so only borrower-defined templates can be removed.
+  // Every non-borrower_lifecycle category is looked up by key from app
+  // code — deleting one would break sending, so only borrower-defined
+  // templates can be removed.
   if (existing.category !== "borrower_lifecycle") {
-    throw new Error("Built-in pricing templates can't be deleted — deactivate instead.");
+    throw new Error("Built-in templates can't be deleted — deactivate instead.");
   }
 
   await db.delete(emailTemplates).where(eq(emailTemplates.id, id));

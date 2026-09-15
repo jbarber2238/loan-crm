@@ -8,6 +8,9 @@ declare module "next-auth" {
       baseRole: "loan_officer" | "loan_officer_assistant" | "processor";
       active: boolean;
       schedulingLink: string | null;
+      emailSignatureHtml: string | null;
+      phone: string | null;
+      nmlsNumber: string | null;
     } & DefaultSession["user"];
   }
 }

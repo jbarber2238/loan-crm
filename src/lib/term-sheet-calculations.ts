@@ -10,6 +10,74 @@ export function originationFeeSuggestion(loanAmount: number): number {
   return Math.max(loanAmount * 0.02, 2500);
 }
 
+// The actual origination fee is always points × loan amount, $2,500 floor —
+// origination points is the one thing ever entered/negotiated; the dollar
+// fee is always a derived display, never typed in directly.
+export function originationFeeForPoints(loanAmount: number, points: number): number {
+  return Math.max(loanAmount * (points / 100), 2500);
+}
+
+// Rate buydown points work the same way as origination points — points is
+// the negotiated input, the dollar fee is always derived — but with no
+// $2,500 floor: a buydown genuinely can be $0 (no buydown at all).
+export function rateBuydownFeeForPoints(loanAmount: number, points: number): number {
+  return loanAmount * (points / 100);
+}
+
+// Only DSCR/Portfolio treat the "Cost to Borrower" slot as a points-based
+// rate buydown — Bridge/hard-money's "Lender Fee" is a flat quoted amount
+// with no points concept, so it stays directly editable there.
+export function isRateBuydownCategory(category: string): boolean {
+  return DSCR_CATEGORIES.has(category) || category === "portfolio";
+}
+
+// The dollar figure to actually show/send for "Cost to Borrower": derived
+// from rate buydown points on DSCR/Portfolio, or the directly-entered value
+// everywhere else.
+export function effectiveCostToBorrowerFee(
+  category: string,
+  loanAmount: number,
+  costToBorrowerFee: number | null,
+  rateBuydownPointsOverride: number | null
+): number | null {
+  if (isRateBuydownCategory(category) && loanAmount > 0) {
+    return rateBuydownFeeForPoints(loanAmount, rateBuydownPointsOverride ?? 0);
+  }
+  return costToBorrowerFee;
+}
+
+export interface LeadValue {
+  amount: number;
+  basisLabel: "Requested Loan Amount" | "Loan Amount";
+  basisAmount: number;
+}
+
+// The pipeline board's "Lead Value" — what this deal is actually worth to
+// close, tracked from the moment it comes in through to closed or lost.
+// Before a term sheet is accepted there's no real number to work from yet,
+// so it's a flat 2% estimate off the borrower's requested amount; once a
+// term sheet's accepted, the deal has a real loan amount and (potentially
+// negotiated) origination fee, so that becomes the actual dollar value.
+export function leadValueFor({
+  loanAmountRequested,
+  approvedLoanAmount,
+  originationPointsOverride,
+}: {
+  loanAmountRequested: number;
+  approvedLoanAmount: number | null;
+  originationPointsOverride: number | null;
+}): LeadValue {
+  if (approvedLoanAmount !== null && approvedLoanAmount > 0) {
+    const amount = originationFeeForPoints(approvedLoanAmount, originationPointsOverride ?? 2);
+    return { amount, basisLabel: "Loan Amount", basisAmount: approvedLoanAmount };
+  }
+  return {
+    amount: loanAmountRequested * 0.02,
+    basisLabel: "Requested Loan Amount",
+    basisAmount: loanAmountRequested,
+  };
+}
+
 // Standard estimates shown on every term sheet — not entered per deal.
 // Both are estimates; if the real fee comes in lower, that's a win for the
 // borrower.
@@ -87,6 +155,42 @@ export function calculateLtc(
   const cost = (purchasePrice ?? 0) + (approvedRehabCost ?? 0);
   if (!cost) return null;
   return (loanAmount / cost) * 100;
+}
+
+// Same formula the generated term-sheet PDF uses for "Total Estimated Cash
+// Due from Borrower" (src/server/pdf/term-sheet.tsx) — down payment (or
+// draw-loan equivalent) plus every fee due either at or before closing.
+// Deliberately excludes reserves (the PDF's separate "Cash to Show" figure)
+// since reserves are a liquidity requirement, not cash actually due.
+//
+// Takes already-resolved dollar figures rather than raw term-sheet fields so
+// each caller can supply numbers from whichever source fits its own
+// lifecycle — the PDF resolves them once at generation time; the accepted
+// deal header re-resolves them live, honoring any post-acceptance overrides
+// (a renegotiated origination fee, a rate-locked processing fee, etc.).
+export function calculateEstimatedCashToClose({
+  purchasePrice,
+  closingDisbursement,
+  originationFee,
+  costToBorrowerFee,
+  underwritingDocFee,
+  appraisalFee = STANDARD_APPRAISAL_ESTIMATE,
+  creditPullFee = STANDARD_CREDIT_PULL_ESTIMATE,
+  processingFee = STANDARD_PROCESSING_FEE,
+}: {
+  purchasePrice: number | null;
+  closingDisbursement: number;
+  originationFee: number;
+  costToBorrowerFee: number;
+  underwritingDocFee: number;
+  appraisalFee?: number;
+  creditPullFee?: number;
+  processingFee?: number;
+}): number {
+  const downPayment = purchasePrice !== null ? purchasePrice - closingDisbursement : 0;
+  const cashAtClosing = downPayment + originationFee + costToBorrowerFee + underwritingDocFee;
+  const paidPrior = appraisalFee + creditPullFee + processingFee;
+  return cashAtClosing + paidPrior;
 }
 
 export function calculateDutchMonthlyInterest(loanAmount: number, annualRatePct: number): number {

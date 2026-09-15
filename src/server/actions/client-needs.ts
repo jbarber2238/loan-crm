@@ -258,3 +258,60 @@ export async function deleteClientNeedFromDeal(dealId: string, needId: string) {
   await db.delete(dealClientNeeds).where(and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)));
   revalidatePath(`/deals/${dealId}/loan-center`);
 }
+
+const NEED_STATUS_LABEL: Record<string, string> = {
+  not_sent: "Not Sent",
+  awaiting_docs: "Awaiting Docs",
+  review_needed: "Review Needed",
+};
+
+// A plain, deterministic status pull (no AI) — a processor clicks "Pull
+// Client Need Context" to drop a factual snapshot into a note before editing
+// it further, rather than typing the whole rundown by hand every time.
+export async function buildClientNeedsContextNote(dealId: string): Promise<string> {
+  await requireUser();
+
+  const needs = await db.query.dealClientNeeds.findMany({
+    where: eq(dealClientNeeds.dealId, dealId),
+    with: { documents: { columns: { fileName: true, createdAt: true } } },
+    orderBy: (n, { asc }) => asc(n.createdAt),
+  });
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const receivedToday: string[] = [];
+  for (const need of needs) {
+    const docsToday = need.documents.filter((d) => d.createdAt >= todayStart);
+    if (docsToday.length > 0) {
+      receivedToday.push(`${need.itemName} (${docsToday.map((d) => d.fileName).join(", ")})`);
+    }
+  }
+
+  const outstanding = needs.filter((n) => n.status !== "accepted");
+  const accepted = needs.filter((n) => n.status === "accepted");
+
+  const lines: string[] = [
+    `Client Needs Status — ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`,
+    "",
+  ];
+
+  if (receivedToday.length > 0) {
+    lines.push("Received today:");
+    lines.push(...receivedToday.map((r) => `- ${r}`));
+    lines.push("");
+  }
+
+  if (outstanding.length > 0) {
+    lines.push("Still outstanding:");
+    lines.push(...outstanding.map((n) => `- ${n.itemName} (${NEED_STATUS_LABEL[n.status] ?? n.status})`));
+    lines.push("");
+  } else if (needs.length > 0) {
+    lines.push("Nothing outstanding — every client need is accepted.");
+    lines.push("");
+  }
+
+  lines.push(`Summary: ${accepted.length} accepted, ${outstanding.length} outstanding, ${needs.length} total.`);
+
+  return lines.join("\n");
+}

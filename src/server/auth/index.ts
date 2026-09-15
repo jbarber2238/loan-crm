@@ -65,12 +65,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         baseRole: "loan_officer" | "loan_officer_assistant" | "processor";
         active: boolean;
         schedulingLink: string | null;
+        emailSignatureHtml: string | null;
+        phone: string | null;
+        nmlsNumber: string | null;
       };
       session.user.id = dbUser.id;
       session.user.isAdmin = dbUser.isAdmin;
       session.user.baseRole = dbUser.baseRole;
       session.user.active = dbUser.active;
       session.user.schedulingLink = dbUser.schedulingLink;
+      session.user.emailSignatureHtml = dbUser.emailSignatureHtml;
+      session.user.phone = dbUser.phone;
+      session.user.nmlsNumber = dbUser.nmlsNumber;
       return session;
     },
   },

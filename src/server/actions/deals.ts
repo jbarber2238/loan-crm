@@ -12,6 +12,7 @@ import {
   dealStageEnum,
   dealStageHistory,
   deals,
+  termSheets,
 } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { formatAddress } from "@/lib/format";
@@ -21,6 +22,11 @@ import {
   intakeToDealFields,
   parseIntakeFormData,
 } from "@/server/actions/parse-intake";
+import { extractTermSheetFields } from "@/lib/term-sheet-fields";
+import { conservativeValueBasis, calculateLtarv, calculateLtc } from "@/lib/term-sheet-calculations";
+import { syncProcessingFeeInvoice } from "@/server/billing";
+
+const HARD_MONEY_DRAW_CATEGORIES = new Set(["fix_and_flip", "new_construction"]);
 
 function str(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -297,25 +303,98 @@ export async function removeDealFollower(dealId: string, followerId: string) {
   revalidatePath(`/deals/${dealId}`);
 }
 
+// Editing accepted terms now reuses the exact same field defs/parsing as the
+// term sheet form itself (termSheetFieldsFor + extractTermSheetFields), so
+// the two never disagree on what a field means or how it's typed. Anything
+// NOT on the term sheet (appraised value/ARV, the LTV/LTARV/LTC appraised
+// toggles, FICO, our own processing fee override) is handled separately
+// below as "additional items."
 export async function updateAcceptedTerms(dealId: string, formData: FormData) {
   await requireUser();
+
+  const deal = await db.query.deals.findFirst({
+    where: eq(deals.id, dealId),
+    with: { termSheets: true },
+  });
+  if (!deal) throw new Error("Deal not found");
+
+  const acceptedTermSheet = deal.termSheets.find((t) => t.status === "accepted");
+  const isHardMoneyDraw = HARD_MONEY_DRAW_CATEGORIES.has(deal.loanCategory);
+  const termFields = extractTermSheetFields(formData, deal.loanCategory, false);
+
+  const loanAmount = typeof termFields.loanAmount === "number" ? termFields.loanAmount : null;
+  const rehabCost = typeof termFields.approvedRehabCost === "number" ? termFields.approvedRehabCost : null;
+  const arv = typeof termFields.approvedArv === "number" ? termFields.approvedArv : null;
+
+  const appraisedValue = nullableStr(formData, "appraisedValue");
+  const ltvBasedOnPurchasePrice = boolField(formData, "ltvBasedOnPurchasePrice");
+  const appraisedArv = nullableStr(formData, "appraisedArv");
+  const ltarvBasedOnApprovedArv = boolField(formData, "ltarvBasedOnApprovedArv");
+
+  // Same "use the appraised figure once it's in, otherwise the
+  // purchase-price/quoted figure" logic performTermSheetAcceptance() uses
+  // at acceptance time — just re-evaluated here against whatever's now on
+  // hand (an appraisal or credit pull can change any of these later).
+  const asIsBasis = ltvBasedOnPurchasePrice
+    ? conservativeValueBasis(
+        deal.purchasePrice ? Number(deal.purchasePrice) : null,
+        deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null
+      )
+    : appraisedValue
+      ? Number(appraisedValue)
+      : null;
+  const effectiveArv = ltarvBasedOnApprovedArv ? arv : appraisedArv ? Number(appraisedArv) : null;
+
+  const approvedLtv = !isHardMoneyDraw && loanAmount && asIsBasis ? (loanAmount / asIsBasis) * 100 : null;
+  const approvedLtarv = isHardMoneyDraw && loanAmount ? calculateLtarv(loanAmount, effectiveArv) : null;
+  const approvedLtc = isHardMoneyDraw && loanAmount ? calculateLtc(loanAmount, asIsBasis, rehabCost) : null;
 
   await db
     .update(deals)
     .set({
-      approvedLoanAmount: nullableStr(formData, "approvedLoanAmount"),
-      approvedLtv: nullableStr(formData, "approvedLtv"),
-      appraisedValue: nullableStr(formData, "appraisedValue"),
-      ltvBasedOnPurchasePrice: boolField(formData, "ltvBasedOnPurchasePrice"),
-      finalRate: nullableStr(formData, "finalRate"),
+      approvedLoanAmount: loanAmount !== null ? String(loanAmount) : null,
+      finalRate: typeof termFields.interestRate === "number" ? String(termFields.interestRate) : null,
+      finalAmortizationType: typeof termFields.amortizationType === "string" ? termFields.amortizationType : null,
+      finalLoanTermYears: typeof termFields.loanTermYears === "number" ? termFields.loanTermYears : null,
+      finalLoanTermMonths: typeof termFields.loanTermMonths === "number" ? termFields.loanTermMonths : null,
+      originationPointsOverride:
+        typeof termFields.originationPoints === "number" ? String(termFields.originationPoints) : null,
+      rateBuydownPointsOverride:
+        typeof termFields.rateBuydownPoints === "number" ? String(termFields.rateBuydownPoints) : null,
+      costToBorrowerFee: typeof termFields.costToBorrowerFee === "number" ? String(termFields.costToBorrowerFee) : null,
+      approvedRehabCost: rehabCost !== null ? String(rehabCost) : null,
+      approvedArv: arv !== null ? String(arv) : null,
+      approvedInitialAdvance:
+        typeof termFields.initialAdvance === "number" ? String(termFields.initialAdvance) : null,
+      interestType: typeof termFields.interestType === "string" ? termFields.interestType : null,
+      appraisedValue,
+      ltvBasedOnPurchasePrice,
+      appraisedArv,
+      ltarvBasedOnApprovedArv,
+      approvedLtv: approvedLtv !== null ? String(approvedLtv) : null,
+      approvedLtarv: approvedLtarv !== null ? String(approvedLtarv) : null,
+      approvedLtc: approvedLtc !== null ? String(approvedLtc) : null,
       estimatedFico: nullableInt(formData, "estimatedFico"),
-      costToBorrowerFee: nullableStr(formData, "costToBorrowerFee"),
       processingFeeOverride: nullableStr(formData, "processingFeeOverride"),
-      finalAmortizationType: nullableStr(formData, "finalAmortizationType"),
-      finalLoanTermYears: nullableInt(formData, "finalLoanTermYears"),
       updatedAt: new Date(),
     })
     .where(eq(deals.id, dealId));
+
+  // Optional: fold these same edits back into the accepted term sheet's own
+  // fields so its PDF reflects the update — the whole point being a
+  // processor can pull a fresh PDF after an appraisal/credit-pull change
+  // without re-keying everything into a brand new term sheet.
+  if (formData.get("regenerateTermSheet") === "on" && acceptedTermSheet) {
+    await db
+      .update(termSheets)
+      .set({ fields: { ...acceptedTermSheet.fields, ...termFields } })
+      .where(eq(termSheets.id, acceptedTermSheet.id));
+  }
+
+  // The processing fee (processingFeeOverride, set above) is the one field
+  // here that can affect billing — refreshes the invoice if it changed and
+  // nothing's been paid yet. Never throws; see src/server/billing.ts.
+  await syncProcessingFeeInvoice(dealId);
 
   revalidatePath(`/deals/${dealId}`);
   revalidatePath("/");
@@ -347,10 +426,7 @@ export async function updateDealDates(dealId: string, formData: FormData) {
   await db
     .update(deals)
     .set({
-      appraisalOrderedDate: dateOrNull("appraisalOrderedDate"),
       creditPullDate: dateOrNull("creditPullDate"),
-      insuranceContactedDate: dateOrNull("insuranceContactedDate"),
-      titleOrderedDate: dateOrNull("titleOrderedDate"),
       driveLink: nullableStr(formData, "driveLink"),
       updatedAt: new Date(),
     })
@@ -446,6 +522,22 @@ export async function resolveDealNote(dealId: string, noteId: string) {
   await requireUser();
   await db.update(dealNotes).set({ resolved: true }).where(eq(dealNotes.id, noteId));
   revalidatePath(`/deals/${dealId}`);
+}
+
+// Only the note's own author or an admin can delete it — enforced here, not
+// just hidden in the UI, since the delete button's visibility is only ever
+// a convenience, never the actual guard.
+export async function deleteDealNote(dealId: string, noteId: string) {
+  const user = await requireUser();
+  const note = await db.query.dealNotes.findFirst({ where: eq(dealNotes.id, noteId) });
+  if (!note || note.dealId !== dealId) throw new Error("Note not found");
+  if (note.authorUserId !== user.id && !user.isAdmin) {
+    throw new Error("You can only delete your own notes");
+  }
+
+  await db.delete(dealNotes).where(eq(dealNotes.id, noteId));
+  revalidatePath(`/deals/${dealId}`);
+  revalidatePath(`/deals/${dealId}/loan-center`);
 }
 
 export async function updateClientNeedsReminderSettings(

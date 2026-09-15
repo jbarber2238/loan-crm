@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
 import { uploadLenderDocumentsWithAI, type AiFiledDocument } from "@/server/actions/lender-document-ai-upload";
 import { Button } from "@/components/ui/button";
@@ -26,9 +27,12 @@ export function AiMatrixUpload({ lenderId }: { lenderId: string }) {
         const filed = await uploadLenderDocumentsWithAI(lenderId, formData);
         setResults(filed);
         formRef.current?.reset();
+        toast.success("Documents uploaded");
         router.refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Upload failed.");
+        const message = err instanceof Error ? err.message : "Upload failed.";
+        setError(message);
+        toast.error(message);
       }
     });
   }

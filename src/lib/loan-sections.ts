@@ -12,12 +12,17 @@ export function sectionsFor(category: string) {
     "new_construction",
   ]);
   const refinance = new Set(["dscr_cash_out_refinance", "dscr_rate_term_refinance", "bridge_refinance"]);
-  const rehab = new Set(["fix_and_flip", "bridge_purchase", "bridge_refinance", "new_construction"]);
+  // Bridge is sized against the property's value today (plain LTV, same as
+  // DSCR — see ratioMetricsFor in term-sheet-calculations.ts), not against a
+  // rehab budget or ARV, so it has no business asking for either. This
+  // matters, not just cosmetic: nothing downstream (deal calculations, term
+  // sheets) ever uses a bridge deal's rehab/ARV/lot-value fields anyway.
+  const rehab = new Set(["fix_and_flip", "new_construction"]);
   // For new construction, "as-is value" already means the raw land's
   // value — a separate lot-value field would just be asking the same
-  // question twice. Bridge deals keep it since there's an existing
-  // structure whose as-is value can genuinely differ from the land alone.
-  const lotValue = new Set(["bridge_purchase", "bridge_refinance"]);
+  // question twice. No other category needs a distinct lot value from its
+  // as-is value.
+  const lotValue = new Set<string>();
   // New construction has no existing rent, taxes, insurance, HOA, rental
   // strategy, or occupancy to speak of — there's nothing standing yet.
   const rental = new Set([
@@ -45,3 +50,27 @@ export function sectionsFor(category: string) {
 }
 
 export type LoanSections = ReturnType<typeof sectionsFor>;
+
+// Fix-and-flip and new construction share one intake field for the
+// rehab/construction budget. New construction calls it "Construction"
+// everywhere downstream; every other category (fix-and-flip, bridge) calls
+// it "Rehab" — same underlying field either way.
+export function rehabOrConstructionLabel(category: string): "Rehab" | "Construction" {
+  return category === "new_construction" ? "Construction" : "Rehab";
+}
+
+// Same field, term-sheet-and-later stage: once a number is on the term
+// sheet it's the working budget (refined via the lender's own budget sheet
+// through closing), not just the borrower's intake-time estimate.
+export function rehabOrConstructionBudgetLabel(category: string): "Rehab Budget" | "Construction Budget" {
+  return category === "new_construction" ? "Construction Budget" : "Rehab Budget";
+}
+
+// Fix-and-flip, new construction, and bridge are all short-term,
+// interest-only loans in practice — their term is naturally quoted and
+// displayed in months (e.g. "12 Months"), not years like a DSCR/Portfolio
+// long-term amortizing loan.
+const INTEREST_ONLY_CATEGORIES = new Set(["fix_and_flip", "new_construction", "bridge_purchase", "bridge_refinance"]);
+export function isInterestOnlyCategory(category: string): boolean {
+  return INTEREST_ONLY_CATEGORIES.has(category);
+}

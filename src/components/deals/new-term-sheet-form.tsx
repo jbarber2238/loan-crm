@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createTermSheet } from "@/server/actions/term-sheets";
-import { Button } from "@/components/ui/button";
+import { ActionForm } from "@/components/forms/action-form";
+import { SubmitButton } from "@/components/forms/submit-button";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -26,10 +27,14 @@ export function NewTermSheetForm({
   dealId,
   products,
   isAdmin,
+  purchasePrice = null,
+  estimatedAsIsValue = null,
 }: {
   dealId: string;
   products: ProductOption[];
   isAdmin: boolean;
+  purchasePrice?: number | null;
+  estimatedAsIsValue?: number | null;
 }) {
   const router = useRouter();
   const [productId, setProductId] = useState<string>("");
@@ -42,39 +47,46 @@ export function NewTermSheetForm({
 
   const action = createTermSheet.bind(null, dealId);
 
+  const productSelector = (
+    <div className="space-y-1.5">
+      <Label htmlFor="productId">Lender / Product</Label>
+      <Select name="productId" value={productId} onValueChange={setProductId} required>
+        <SelectTrigger id="productId" className="w-full">
+          <SelectValue placeholder="Select a product" />
+        </SelectTrigger>
+        <SelectContent>
+          {products.map((p) => (
+            <SelectItem key={p.id} value={p.id}>
+              {p.lenderName} — {p.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
   return (
-    <form
-      action={async (formData) => {
-        await action(formData);
-        router.refresh();
-      }}
+    <ActionForm
+      action={action}
+      successMessage="Term sheet created"
+      onSuccess={() => router.refresh()}
       className="space-y-4"
     >
-      <div className="space-y-1.5">
-        <Label htmlFor="productId">Lender / Product</Label>
-        <Select name="productId" value={productId} onValueChange={setProductId} required>
-          <SelectTrigger id="productId" className="w-full">
-            <SelectValue placeholder="Select a product" />
-          </SelectTrigger>
-          <SelectContent>
-            {products.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.lenderName} — {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {product && (
+      {product ? (
         <TermSheetFieldInputs
           fields={isAdmin ? [...fields, ...ADMIN_ONLY_FIELDS] : fields}
+          productSelector={productSelector}
+          category={product.category}
+          purchasePrice={purchasePrice}
+          estimatedAsIsValue={estimatedAsIsValue}
         />
+      ) : (
+        productSelector
       )}
 
-      <Button type="submit" className="w-full" disabled={!productId}>
+      <SubmitButton className="w-full" disabled={!productId}>
         Save draft
-      </Button>
-    </form>
+      </SubmitButton>
+    </ActionForm>
   );
 }

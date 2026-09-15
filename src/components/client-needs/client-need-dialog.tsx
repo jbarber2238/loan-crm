@@ -2,6 +2,7 @@
 
 import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { createClientNeed, updateClientNeed } from "@/server/actions/client-need-catalog";
 import { ClientNeedForm, type ExistingClientNeed } from "@/components/client-needs/client-need-form";
 import {
@@ -39,9 +40,12 @@ export function ClientNeedDialog({
           await createClientNeed(formData);
         }
         setOpen(false);
+        toast.success(isEdit ? "Need saved" : "Need created");
         router.refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Something went wrong.");
+        const message = err instanceof Error ? err.message : "Something went wrong.";
+        setError(message);
+        toast.error(message);
       }
     });
   }

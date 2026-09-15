@@ -5,11 +5,12 @@ import {
   updateTitleContact,
   updateInsuranceContact,
 } from "@/server/actions/deals";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { ActionForm } from "@/components/forms/action-form";
+import { SubmitButton } from "@/components/forms/submit-button";
 import {
   Select,
   SelectContent,
@@ -74,7 +75,7 @@ export function RolesTab({
           <CardTitle>Assigned staff</CardTitle>
         </CardHeader>
         <CardContent>
-          <form action={updateRoles} className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <ActionForm action={updateRoles} successMessage="Roles saved" className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="assignedLoanOfficerId">Loan officer</Label>
               <Select name="assignedLoanOfficerId" defaultValue={assignedLoanOfficerId} required>
@@ -121,9 +122,9 @@ export function RolesTab({
               </Select>
             </div>
             <div className="md:col-span-3">
-              <Button type="submit">Save</Button>
+              <SubmitButton>Save</SubmitButton>
             </div>
-          </form>
+          </ActionForm>
         </CardContent>
       </Card>
 
@@ -153,11 +154,11 @@ export function RolesTab({
                     </p>
                     <p className="text-muted-foreground">{f.email}</p>
                   </div>
-                  <form action={remove}>
-                    <Button type="submit" size="sm" variant="ghost">
+                  <ActionForm action={remove} successMessage="Follower removed">
+                    <SubmitButton size="sm" variant="ghost">
                       Remove
-                    </Button>
-                  </form>
+                    </SubmitButton>
+                  </ActionForm>
                 </li>
               );
             })}
@@ -166,8 +167,10 @@ export function RolesTab({
             )}
           </ul>
 
-          <form
+          <ActionForm
             action={addFollower}
+            successMessage="Follower added"
+            confirmMessage="You're adding someone from outside your organization. They will receive all client need emails. Are you sure you want to add them?"
             className="grid grid-cols-1 gap-3 border-t pt-4 md:grid-cols-[1fr_1fr_1fr_auto] items-end"
           >
             <div className="space-y-1.5">
@@ -182,8 +185,8 @@ export function RolesTab({
               <Label htmlFor="roleLabel">Label (optional)</Label>
               <Input id="roleLabel" name="roleLabel" placeholder="Referral LO, Capital Partner..." />
             </div>
-            <Button type="submit">Add follower</Button>
-          </form>
+            <SubmitButton>Add follower</SubmitButton>
+          </ActionForm>
         </CardContent>
       </Card>
 

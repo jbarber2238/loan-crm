@@ -96,6 +96,55 @@ export async function createDocumentFromTemplate({
 }
 
 /**
+ * Creates a document from an already-generated PDF (our own term sheet,
+ * fetched by PandaDoc from its public URL) rather than a lender's saved
+ * template — used for the "send this specific term sheet for signature"
+ * flow, where there's no pre-built template to fill in.
+ *
+ * The PDF must be the "?forSignature=1" copy (see
+ * src/server/pdf/term-sheet.tsx) — it embeds a PandaDoc field tag
+ * ("{signature:Client_______}", curly braces — PandaDoc's actual "Field
+ * Tags" syntax, confirmed against PandaDoc's own sample file; square
+ * brackets are NOT recognized) as plain text where the signature line goes.
+ * PandaDoc parses that tag by default and swaps it for a real, clickable
+ * signature field tied to the "Client" recipient role below — there's no
+ * separate flag to enable this (that's a different, unrelated feature:
+ * parse_form_fields only detects real embedded PDF AcroForm fields, which a
+ * react-pdf-rendered document doesn't have).
+ */
+export async function createDocumentFromPdfUrl({
+  pdfUrl,
+  name,
+  recipientEmail,
+  recipientFirstName,
+  recipientLastName,
+}: {
+  pdfUrl: string;
+  name: string;
+  recipientEmail: string;
+  recipientFirstName: string;
+  recipientLastName: string;
+}): Promise<CreateDocumentResult> {
+  const res = await pandaDocFetch("/documents", {
+    method: "POST",
+    body: JSON.stringify({
+      name,
+      url: pdfUrl,
+      recipients: [
+        {
+          email: recipientEmail,
+          first_name: recipientFirstName,
+          last_name: recipientLastName,
+          role: "Client",
+          signing_order: 1,
+        },
+      ],
+    }),
+  });
+  return res.json();
+}
+
+/**
  * Document creation is async on PandaDoc's side (it starts as
  * "document.uploaded" while the template is processed) — this polls until
  * it reaches "document.draft" and is ready to send, or gives up.
@@ -122,6 +171,19 @@ export async function sendDocumentSilently(documentId: string) {
   await pandaDocFetch(`/documents/${documentId}/send`, {
     method: "POST",
     body: JSON.stringify({ silent: true }),
+  });
+}
+
+/**
+ * Sends the document WITH PandaDoc's own "you have a document to sign"
+ * email — used for the term sheet e-signature flow, where (unlike the
+ * client-need forms above) there's no borrower-portal page mediating
+ * access, so PandaDoc's own delivery is the whole point.
+ */
+export async function sendDocumentForSignature(documentId: string) {
+  await pandaDocFetch(`/documents/${documentId}/send`, {
+    method: "POST",
+    body: JSON.stringify({ silent: false }),
   });
 }
 

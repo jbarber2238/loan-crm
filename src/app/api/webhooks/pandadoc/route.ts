@@ -1,8 +1,9 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { dealClientNeeds, dealClientNeedDocuments } from "@/server/db/schema";
+import { dealClientNeeds, dealClientNeedDocuments, termSheets } from "@/server/db/schema";
 import { verifyWebhookSignature, downloadCompletedDocument } from "@/server/pandadoc";
 import { recomputeNeedStatus } from "@/server/client-need-status";
+import { performTermSheetAcceptance } from "@/server/actions/term-sheets";
 
 interface PandaDocEvent {
   event: string;
@@ -32,35 +33,58 @@ export async function POST(request: Request) {
     const need = await db.query.dealClientNeeds.findFirst({
       where: eq(dealClientNeeds.pandadocDocumentId, data.id),
     });
-    if (!need) continue; // not one of ours (or already deleted) — ignore
 
-    await db.update(dealClientNeeds).set({ pandadocStatus: data.status }).where(eq(dealClientNeeds.id, need.id));
+    if (need) {
+      await db.update(dealClientNeeds).set({ pandadocStatus: data.status }).where(eq(dealClientNeeds.id, need.id));
+
+      if (data.status === "document.completed") {
+        try {
+          const pdf = await downloadCompletedDocument(data.id);
+          if (pdf) {
+            await db.insert(dealClientNeedDocuments).values({
+              clientNeedId: need.id,
+              fileName: `${need.itemName}.pdf`,
+              mimeType: "application/pdf",
+              fileSize: pdf.length,
+              data: pdf.toString("base64"),
+              uploadedByUserId: null,
+            });
+            // Same approve/reject pipeline every other document goes through —
+            // a processor reviews this exactly like a borrower-uploaded file.
+            await recomputeNeedStatus(need.id);
+          }
+        } catch (err) {
+          // Don't let one failed download (e.g. a Sandbox key, which PandaDoc
+          // flatly refuses to let download completed documents) take down the
+          // rest of this batch or crash the request — log it and move on. The
+          // "PDF ready" event subscription means a fixed key gets another
+          // chance to succeed on the next status change for future documents;
+          // an already-completed document stuck like this needs a one-off
+          // manual re-pull once the key issue is resolved.
+          console.error(`Failed to download completed PandaDoc document ${data.id} for need ${need.id}:`, err);
+        }
+      }
+      continue;
+    }
+
+    // Not a client-need document — check whether it's a term sheet sent for
+    // e-signature instead (see sendTermSheetForSignature in
+    // src/server/actions/term-sheets.ts).
+    const termSheet = await db.query.termSheets.findFirst({
+      where: eq(termSheets.pandadocDocumentId, data.id),
+    });
+    if (!termSheet) continue; // not one of ours (or already deleted) — ignore
+
+    await db.update(termSheets).set({ pandadocStatus: data.status }).where(eq(termSheets.id, termSheet.id));
 
     if (data.status === "document.completed") {
       try {
-        const pdf = await downloadCompletedDocument(data.id);
-        if (pdf) {
-          await db.insert(dealClientNeedDocuments).values({
-            clientNeedId: need.id,
-            fileName: `${need.itemName}.pdf`,
-            mimeType: "application/pdf",
-            fileSize: pdf.length,
-            data: pdf.toString("base64"),
-            uploadedByUserId: null,
-          });
-          // Same approve/reject pipeline every other document goes through —
-          // a processor reviews this exactly like a borrower-uploaded file.
-          await recomputeNeedStatus(need.id);
-        }
+        // Signing IS the acceptance here — no separate manual "Accept"
+        // click. Reuses the exact same field-promotion logic that click
+        // triggers, so the deal header populates identically either way.
+        await performTermSheetAcceptance(termSheet.dealId, termSheet.id);
       } catch (err) {
-        // Don't let one failed download (e.g. a Sandbox key, which PandaDoc
-        // flatly refuses to let download completed documents) take down the
-        // rest of this batch or crash the request — log it and move on. The
-        // "PDF ready" event subscription means a fixed key gets another
-        // chance to succeed on the next status change for future documents;
-        // an already-completed document stuck like this needs a one-off
-        // manual re-pull once the key issue is resolved.
-        console.error(`Failed to download completed PandaDoc document ${data.id} for need ${need.id}:`, err);
+        console.error(`Failed to auto-accept signed term sheet ${termSheet.id}:`, err);
       }
     }
   }

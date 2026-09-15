@@ -13,6 +13,9 @@ export default async function EmailTemplatesPage() {
 
   const pricingTemplates = templates.filter((t) => t.category === "pricing_request");
   const borrowerTemplates = templates.filter((t) => t.category === "borrower_lifecycle");
+  const vendorTemplates = templates.filter((t) =>
+    ["insurance_request", "title_request", "application_submission"].includes(t.category)
+  );
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
@@ -32,6 +35,19 @@ export default async function EmailTemplatesPage() {
             children: (
               <div className="space-y-2" key="pricing-list">
                 {pricingTemplates.map((t) => (
+                  <EmailTemplateCard key={t.id} template={t} />
+                ))}
+              </div>
+            ),
+          },
+          {
+            key: "vendor",
+            title: "Insurance, Title & Lender Submission",
+            description:
+              "Sent when ordering insurance/title on a deal or submitting an application to a lender. Merge fields fill in automatically from the deal.",
+            children: (
+              <div className="space-y-2" key="vendor-list">
+                {vendorTemplates.map((t) => (
                   <EmailTemplateCard key={t.id} template={t} />
                 ))}
               </div>

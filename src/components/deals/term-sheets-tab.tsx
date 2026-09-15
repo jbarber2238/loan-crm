@@ -1,14 +1,25 @@
+"use client";
+
+import { useRef, useState, useTransition, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
-  acceptTermSheet,
   generateTermSheet,
+  previewBookACallEmail,
+  previewTermSheetsToBorrowerEmail,
   sendBookACallEmail,
-  sendTermSheetsToBorrower,
+  sendTermSheetForSignature,
+  sendTermSheetsToBorrowerEmail,
   updateTermSheetFields,
 } from "@/server/actions/term-sheets";
 import { Button } from "@/components/ui/button";
+import { ActionForm } from "@/components/forms/action-form";
+import { SubmitButton } from "@/components/forms/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -18,14 +29,20 @@ import {
 } from "@/components/ui/dialog";
 import { NewTermSheetForm } from "@/components/deals/new-term-sheet-form";
 import { TermSheetFieldInputs } from "@/components/deals/term-sheet-field-inputs";
+import { RecipientLine } from "@/components/emails/recipient-line";
+import { SignaturePreview } from "@/components/emails/signature-preview";
+import { HtmlBodyEditor } from "@/components/emails/html-body-editor";
+import type { RecipientCandidate } from "@/lib/email-recipients";
 import { ADMIN_ONLY_FIELDS, termSheetFieldsFor } from "@/lib/term-sheet-fields";
 
 interface TermSheet {
   id: string;
-  status: "draft" | "generated" | "accepted";
+  status: "draft" | "generated" | "accepted" | "superseded";
   fields: Record<string, unknown>;
   pdfUrl: string | null;
   createdAt: Date;
+  pandadocStatus: string | null;
+  sentForReviewAt: Date | null;
   lender: { name: string };
   product: { name: string; category: string };
 }
@@ -37,75 +54,322 @@ interface ProductOption {
   lenderName: string;
 }
 
+type StatusBadgeVariant = "default" | "secondary" | "destructive" | "warning" | "outline";
+
+const PENDING_SIGNATURE_PANDADOC_STATUSES = new Set([
+  "document.sent",
+  "document.viewed",
+  "document.waiting_approval",
+  "document.waiting_pay",
+]);
+
+// One clear badge per term sheet instead of two overlapping ones — "sent for
+// review" (a plain informational email, see SendTermSheetsDialog) and "sent
+// for e-signature" (PandaDoc, sendTermSheetForSignature) are two different
+// things and shouldn't both just read "Sent".
+function termSheetDisplayStatus(termSheet: TermSheet): { label: string; variant: StatusBadgeVariant } {
+  if (termSheet.status === "accepted") return { label: "Accepted", variant: "default" };
+  if (termSheet.status === "superseded") return { label: "Opted out", variant: "outline" };
+  if (termSheet.pandadocStatus === "document.declined") return { label: "Declined", variant: "destructive" };
+  if (termSheet.pandadocStatus === "document.voided") return { label: "Voided", variant: "outline" };
+  if (termSheet.pandadocStatus && PENDING_SIGNATURE_PANDADOC_STATUSES.has(termSheet.pandadocStatus)) {
+    return { label: "Pending Signature", variant: "warning" };
+  }
+  if (termSheet.sentForReviewAt) return { label: "Sent for Review", variant: "secondary" };
+  if (termSheet.status === "generated") return { label: "Generated", variant: "secondary" };
+  return { label: "Draft", variant: "outline" };
+}
+
+interface EmailComposeState {
+  to: string;
+  cc: string;
+  subject: string;
+  body: string;
+  signatureHtml: string;
+  candidates: RecipientCandidate[];
+}
+
+// Shared compose view for both borrower email flows below — To/Cc/Subject/
+// Body, all editable, plus the sending user's real signature shown before
+// the Send click, matching every other email dialog in the app. The body is
+// edited in place via HtmlBodyEditor; the caller reads bodyRef.current.innerHTML
+// at send time rather than tracking it through compose state.
+function ComposeFields({
+  idPrefix,
+  compose,
+  setCompose,
+  bodyRef,
+}: {
+  idPrefix: string;
+  compose: EmailComposeState;
+  setCompose: Dispatch<SetStateAction<EmailComposeState | null>>;
+  bodyRef: RefObject<HTMLDivElement | null>;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <RecipientLine
+          id={`${idPrefix}-to`}
+          label="To"
+          value={compose.to}
+          onChange={(v) => setCompose((p) => (p ? { ...p, to: v } : p))}
+          candidates={compose.candidates}
+        />
+        <RecipientLine
+          id={`${idPrefix}-cc`}
+          label="Cc"
+          value={compose.cc}
+          onChange={(v) => setCompose((p) => (p ? { ...p, cc: v } : p))}
+          candidates={compose.candidates}
+        />
+      </div>
+      <Input
+        value={compose.subject}
+        onChange={(e) => setCompose((p) => (p ? { ...p, subject: e.target.value } : p))}
+      />
+      <div className="space-y-1.5">
+        <Label>Email preview — click any text below to edit it</Label>
+        <HtmlBodyEditor html={compose.body} bodyRef={bodyRef} />
+      </div>
+      <SignaturePreview html={compose.signatureHtml} />
+    </div>
+  );
+}
+
+function SendTermSheetsDialog({
+  dealId,
+  shareable,
+  hasBorrowerEmail,
+}: {
+  dealId: string;
+  shareable: TermSheet[];
+  hasBorrowerEmail: boolean;
+}) {
+  const router = useRouter();
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<"select" | "compose">("select");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(false);
+  const [sending, startSend] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [compose, setCompose] = useState<EmailComposeState | null>(null);
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (!next) return;
+    setStep("select");
+    setError(null);
+    setSelectedIds(new Set(shareable.map((t) => t.id)));
+  }
+
+  function handlePreview() {
+    setError(null);
+    setLoading(true);
+    previewTermSheetsToBorrowerEmail(dealId, Array.from(selectedIds))
+      .then((preview) => {
+        setCompose(preview);
+        setStep("compose");
+      })
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : "Couldn't build this email.";
+        setError(message);
+        toast.error(message);
+      })
+      .finally(() => setLoading(false));
+  }
+
+  function handleSend() {
+    if (!compose) return;
+    setError(null);
+    const finalBody = bodyRef.current?.innerHTML ?? compose.body;
+    startSend(async () => {
+      try {
+        await sendTermSheetsToBorrowerEmail(
+          dealId,
+          Array.from(selectedIds),
+          compose.to,
+          compose.cc,
+          compose.subject,
+          finalBody
+        );
+        setOpen(false);
+        toast.success("Term sheets sent");
+        router.refresh();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Couldn't send this email.";
+        setError(message);
+        toast.error(message);
+      }
+    });
+  }
+
+  function toggle(id: string, checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button variant="outline">Send to borrower</Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>Send term sheets to borrower</DialogTitle>
+        </DialogHeader>
+        {!hasBorrowerEmail ? (
+          <p className="text-sm text-muted-foreground">Add a borrower email on the Overview tab first.</p>
+        ) : step === "select" ? (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              {shareable.map((t) => (
+                <label key={t.id} className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={selectedIds.has(t.id)} onCheckedChange={(v) => toggle(t.id, v === true)} />
+                  {t.lender.name} — {t.product.name}
+                </label>
+              ))}
+              {shareable.length === 0 && (
+                <p className="text-sm text-muted-foreground">Generate a term sheet first.</p>
+              )}
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button className="w-full" disabled={selectedIds.size === 0 || loading} onClick={handlePreview}>
+              {loading ? "Building…" : "Preview email"}
+            </Button>
+          </div>
+        ) : compose ? (
+          <div className="space-y-3">
+            <ComposeFields idPrefix="send-term-sheets" compose={compose} setCompose={setCompose} bodyRef={bodyRef} />
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => setStep("select")}>
+                Back
+              </Button>
+              <Button type="button" className="flex-1" disabled={sending} onClick={handleSend}>
+                {sending ? "Sending…" : "Send"}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function BookACallDialog({ dealId, hasBorrowerEmail }: { dealId: string; hasBorrowerEmail: boolean }) {
+  const router = useRouter();
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [sending, startSend] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [compose, setCompose] = useState<EmailComposeState | null>(null);
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (!next || !hasBorrowerEmail) return;
+    setError(null);
+    setLoading(true);
+    previewBookACallEmail(dealId)
+      .then(setCompose)
+      .catch((err) => setError(err instanceof Error ? err.message : "Couldn't build this email."))
+      .finally(() => setLoading(false));
+  }
+
+  function handleSend() {
+    if (!compose) return;
+    setError(null);
+    const finalBody = bodyRef.current?.innerHTML ?? compose.body;
+    startSend(async () => {
+      try {
+        await sendBookACallEmail(dealId, compose.to, compose.cc, compose.subject, finalBody);
+        setOpen(false);
+        toast.success("Email sent");
+        router.refresh();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Couldn't send this email.";
+        setError(message);
+        toast.error(message);
+      }
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button variant="outline">Send &ldquo;book a call&rdquo; email</Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>Book a call</DialogTitle>
+        </DialogHeader>
+        {!hasBorrowerEmail ? (
+          <p className="text-sm text-muted-foreground">Add a borrower email on the Overview tab first.</p>
+        ) : loading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : error && !compose ? (
+          <p className="text-sm text-destructive">{error}</p>
+        ) : compose ? (
+          <div className="space-y-3">
+            <ComposeFields idPrefix="book-a-call" compose={compose} setCompose={setCompose} bodyRef={bodyRef} />
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button type="button" className="w-full" disabled={sending} onClick={handleSend}>
+              {sending ? "Sending…" : "Send"}
+            </Button>
+          </div>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function TermSheetsTab({
   dealId,
   termSheets,
   products,
   isAdmin,
   hasBorrowerEmail,
+  purchasePrice = null,
+  estimatedAsIsValue = null,
 }: {
   dealId: string;
   termSheets: TermSheet[];
   products: ProductOption[];
   isAdmin: boolean;
   hasBorrowerEmail: boolean;
+  purchasePrice?: number | null;
+  estimatedAsIsValue?: number | null;
 }) {
-  const sendToBorrower = sendTermSheetsToBorrower.bind(null, dealId);
-  const bookACall = sendBookACallEmail.bind(null, dealId);
   const shareable = termSheets.filter((t) => t.status !== "draft");
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="outline">Send to borrower</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Send term sheets to borrower</DialogTitle>
-            </DialogHeader>
-            {!hasBorrowerEmail ? (
-              <p className="text-sm text-muted-foreground">
-                Add a borrower email on the Overview tab first.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                <form action={sendToBorrower} className="space-y-3">
-                  {shareable.map((t) => (
-                    <label key={t.id} className="flex items-center gap-2 text-sm">
-                      <Checkbox name="termSheetIds" value={t.id} defaultChecked />
-                      {t.lender.name} — {t.product.name}
-                    </label>
-                  ))}
-                  {shareable.length === 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      Generate a term sheet first.
-                    </p>
-                  )}
-                  <Button type="submit" className="w-full" disabled={shareable.length === 0}>
-                    Send directly
-                  </Button>
-                </form>
-                <form action={bookACall}>
-                  <Button type="submit" variant="secondary" className="w-full">
-                    Send &ldquo;book a call&rdquo; email instead
-                  </Button>
-                </form>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        <div className="flex flex-wrap gap-2">
+          <SendTermSheetsDialog dealId={dealId} shareable={shareable} hasBorrowerEmail={hasBorrowerEmail} />
+          <BookACallDialog dealId={dealId} hasBorrowerEmail={hasBorrowerEmail} />
+        </div>
 
         <Dialog>
           <DialogTrigger asChild>
             <Button>New Term Sheet</Button>
           </DialogTrigger>
-          <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
             <DialogHeader>
               <DialogTitle>New Term Sheet</DialogTitle>
             </DialogHeader>
-            <NewTermSheetForm dealId={dealId} products={products} isAdmin={isAdmin} />
+            <NewTermSheetForm
+              dealId={dealId}
+              products={products}
+              isAdmin={isAdmin}
+              purchasePrice={purchasePrice}
+              estimatedAsIsValue={estimatedAsIsValue}
+            />
           </DialogContent>
         </Dialog>
       </div>
@@ -113,12 +377,13 @@ export function TermSheetsTab({
       <div className="space-y-3">
         {termSheets.map((termSheet) => {
           const generate = generateTermSheet.bind(null, dealId, termSheet.id);
-          const accept = acceptTermSheet.bind(null, dealId, termSheet.id);
+          const sendForSignature = sendTermSheetForSignature.bind(null, dealId, termSheet.id);
           const updateFields = updateTermSheetFields.bind(null, dealId, termSheet.id);
           const fieldDefs = [
             ...termSheetFieldsFor(termSheet.product.category),
             ...(isAdmin ? ADMIN_ONLY_FIELDS : []),
           ];
+          const display = termSheetDisplayStatus(termSheet);
 
           return (
             <Card key={termSheet.id}>
@@ -126,17 +391,7 @@ export function TermSheetsTab({
                 <CardTitle className="text-base">
                   {termSheet.lender.name} — {termSheet.product.name}
                 </CardTitle>
-                <Badge
-                  variant={
-                    termSheet.status === "accepted"
-                      ? "default"
-                      : termSheet.status === "generated"
-                      ? "secondary"
-                      : "outline"
-                  }
-                >
-                  {termSheet.status}
-                </Badge>
+                <Badge variant={display.variant}>{display.label}</Badge>
               </CardHeader>
               <CardContent className="flex flex-wrap items-center gap-2">
                 <Dialog>
@@ -145,25 +400,27 @@ export function TermSheetsTab({
                       Edit fields
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-h-[85vh] overflow-y-auto">
+                  <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
                     <DialogHeader>
                       <DialogTitle>Edit term sheet fields</DialogTitle>
                     </DialogHeader>
-                    <form action={updateFields} className="space-y-4">
-                      <TermSheetFieldInputs fields={fieldDefs} values={termSheet.fields} />
-                      <Button type="submit" className="w-full">
-                        Save
-                      </Button>
-                    </form>
+                    <ActionForm action={updateFields} successMessage="Term sheet saved" className="space-y-4">
+                      <TermSheetFieldInputs
+                        fields={fieldDefs}
+                        values={termSheet.fields}
+                        category={termSheet.product.category}
+                        purchasePrice={purchasePrice}
+                        estimatedAsIsValue={estimatedAsIsValue}
+                      />
+                      <SubmitButton className="w-full">Save</SubmitButton>
+                    </ActionForm>
                   </DialogContent>
                 </Dialog>
 
                 {termSheet.status === "draft" && (
-                  <form action={generate}>
-                    <Button type="submit" size="sm">
-                      Generate PDF
-                    </Button>
-                  </form>
+                  <ActionForm action={generate} successMessage="PDF generated">
+                    <SubmitButton size="sm">Generate PDF</SubmitButton>
+                  </ActionForm>
                 )}
 
                 {termSheet.pdfUrl && (
@@ -175,11 +432,11 @@ export function TermSheetsTab({
                 )}
 
                 {termSheet.status !== "accepted" && termSheet.status !== "draft" && (
-                  <form action={accept}>
-                    <Button type="submit" size="sm" variant="default">
-                      Accept
-                    </Button>
-                  </form>
+                  <ActionForm action={sendForSignature} successMessage="Sent to the borrower for signature">
+                    <SubmitButton size="sm" variant="default" disabled={!hasBorrowerEmail}>
+                      Send for Signature
+                    </SubmitButton>
+                  </ActionForm>
                 )}
               </CardContent>
             </Card>

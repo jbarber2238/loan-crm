@@ -41,11 +41,6 @@ export async function updateUser(userId: string, formData: FormData) {
   const isAdmin = formData.get("isAdmin") === "on";
   const active = formData.get("active") === "on";
   const schedulingLink = formData.get("schedulingLink");
-  const assignedSelections = formData
-    .getAll("assignedLoanOfficerIds")
-    .filter((v): v is string => typeof v === "string" && v.length > 0);
-
-  const assignedLoanOfficerIds = assignedSelections.length ? assignedSelections : null;
 
   await db
     .update(users)
@@ -57,28 +52,50 @@ export async function updateUser(userId: string, formData: FormData) {
         typeof schedulingLink === "string" && schedulingLink.trim().length
           ? schedulingLink.trim()
           : null,
-      assignedLoanOfficerIds,
     })
     .where(eq(users.id, userId));
 
   revalidatePath("/settings/team");
 }
 
-// Self-service: any signed-in user can set their own scheduling link, but
-// nothing else (role/admin/active stay admin-only via updateUser above).
+// Self-service: any signed-in user can set their own scheduling link and
+// email signature, but nothing else (role/admin/active stay admin-only via
+// updateUser above). The profile page submits these from two separate
+// forms, so only touch a field if its form was the one actually submitted —
+// otherwise saving one would null out the other.
 export async function updateMyProfile(formData: FormData) {
   const user = await requireUser();
-  const schedulingLink = formData.get("schedulingLink");
+  const updates: Partial<typeof users.$inferInsert> = {};
 
-  await db
-    .update(users)
-    .set({
-      schedulingLink:
-        typeof schedulingLink === "string" && schedulingLink.trim().length
-          ? schedulingLink.trim()
-          : null,
-    })
-    .where(eq(users.id, user.id));
+  if (formData.has("schedulingLink")) {
+    const schedulingLink = formData.get("schedulingLink");
+    updates.schedulingLink =
+      typeof schedulingLink === "string" && schedulingLink.trim().length
+        ? schedulingLink.trim()
+        : null;
+  }
+
+  if (formData.has("phone")) {
+    const phone = formData.get("phone");
+    updates.phone = typeof phone === "string" && phone.trim().length ? phone.trim() : null;
+  }
+
+  if (formData.has("nmlsNumber")) {
+    const nmlsNumber = formData.get("nmlsNumber");
+    updates.nmlsNumber = typeof nmlsNumber === "string" && nmlsNumber.trim().length ? nmlsNumber.trim() : null;
+  }
+
+  if (formData.has("emailSignatureHtml")) {
+    const emailSignatureHtml = formData.get("emailSignatureHtml");
+    updates.emailSignatureHtml =
+      typeof emailSignatureHtml === "string" && emailSignatureHtml.trim().length
+        ? emailSignatureHtml
+        : null;
+  }
+
+  if (Object.keys(updates).length === 0) return;
+
+  await db.update(users).set(updates).where(eq(users.id, user.id));
 
   revalidatePath("/settings");
 }

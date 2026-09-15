@@ -32,6 +32,8 @@ export default async function DealTermSheetsPage({
       }))}
       isAdmin={user.isAdmin}
       hasBorrowerEmail={Boolean(deal.borrowerEmail)}
+      purchasePrice={deal.purchasePrice ? Number(deal.purchasePrice) : null}
+      estimatedAsIsValue={deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null}
     />
   );
 }

@@ -1,13 +1,19 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Pencil, Check, X } from "lucide-react";
+import { toast } from "sonner";
+import { FileText, Pencil, Check, X, Sparkles, Send } from "lucide-react";
 import {
   approveClientNeedDocuments,
   rejectClientNeedDocuments,
   renameClientNeedDocument,
 } from "@/server/actions/client-need-documents";
+import {
+  reviewClientNeedDocuments,
+  askAboutClientNeedDocuments,
+  type AiReviewFlag,
+} from "@/server/ai/client-need-document-review";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -27,6 +33,8 @@ export interface ReviewableDocument {
   mimeType: string;
   reviewStatus: "pending" | "approved" | "rejected";
   rejectionNote: string | null;
+  aiReviewFlags: { flags: AiReviewFlag[] } | null;
+  aiReviewedAt: Date | null;
 }
 
 const SUPPORTED_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]);
@@ -59,13 +67,82 @@ export function ClientNeedDocumentReviewDialog({
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [currentId, setCurrentId] = useState(initialDocumentId);
+  const [jumpPage, setJumpPage] = useState<number | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState("");
+  const [reviewPending, startReviewTransition] = useTransition();
+  const [asking, startAskTransition] = useTransition();
+  const [chatQuestion, setChatQuestion] = useState("");
+  const [chatHistory, setChatHistory] = useState<{ question: string; answer: string | null; error?: string }[]>([]);
+  const latestChatEntryRef = useRef<HTMLDivElement>(null);
 
   const current = documents.find((d) => d.id === currentId) ?? documents[0];
-  const fileUrl = current ? `/api/client-need-documents/${current.id}` : "";
+  const fileUrl = current
+    ? `/api/client-need-documents/${current.id}${jumpPage ? `#page=${jumpPage}` : ""}`
+    : "";
   const isImage = current ? SUPPORTED_IMAGE_TYPES.has(current.mimeType.toLowerCase()) : false;
+
+  function selectDocument(id: string) {
+    setCurrentId(id);
+    setJumpPage(null);
+  }
+
+  function jumpToFlag(docId: string, page: number | null) {
+    setCurrentId(docId);
+    setJumpPage(page);
+  }
+
+  function handleRunReview() {
+    setError(null);
+    startReviewTransition(async () => {
+      try {
+        const result = await reviewClientNeedDocuments(dealId, needId);
+        toast.success(
+          result.totalFlags > 0
+            ? `Reviewed — ${result.totalFlags} thing${result.totalFlags === 1 ? "" : "s"} flagged`
+            : "Reviewed — nothing flagged"
+        );
+        if (result.errors.length) toast.error(String(result.errors[0]));
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "AI review failed — try again.");
+      }
+    });
+  }
+
+  function handleAsk() {
+    const question = chatQuestion.trim();
+    if (!question) return;
+    setChatQuestion("");
+    // Show the question (and a "Thinking…" placeholder) immediately, scrolled
+    // into view right away — not after the round trip completes — so there's
+    // no hunting for what you asked once the answer lands. The placeholder is
+    // then updated in place rather than appended to.
+    setChatHistory((prev) => [...prev, { question, answer: null }]);
+    requestAnimationFrame(() => latestChatEntryRef.current?.scrollIntoView({ block: "start", behavior: "smooth" }));
+
+    startAskTransition(async () => {
+      try {
+        const { answer } = await askAboutClientNeedDocuments(dealId, needId, question);
+        setChatHistory((prev) => {
+          const next = [...prev];
+          next[next.length - 1] = { question, answer };
+          return next;
+        });
+      } catch (err) {
+        setChatHistory((prev) => {
+          const next = [...prev];
+          next[next.length - 1] = {
+            question,
+            answer: null,
+            error: err instanceof Error ? err.message : "Couldn't get an answer — try again.",
+          };
+          return next;
+        });
+      }
+    });
+  }
 
   function toggleChecked(id: string, checked: boolean) {
     setCheckedIds((prev) => {
@@ -117,7 +194,7 @@ export function ClientNeedDocumentReviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[90vh] w-[95vw] max-w-[calc(100%-2rem)] flex-col overflow-hidden sm:max-w-[1400px]">
+      <DialogContent className="flex h-[90vh] w-[95vw] max-w-[calc(100%-2rem)] flex-col overflow-hidden sm:max-w-[1700px]">
         <DialogHeader>
           <DialogTitle>
             Reviewing: {needName} ({documents.length} doc{documents.length === 1 ? "" : "s"})
@@ -145,7 +222,7 @@ export function ClientNeedDocumentReviewDialog({
                     {STATUS_BADGE[doc.reviewStatus].label}
                   </Badge>
                 </div>
-                <button type="button" onClick={() => setCurrentId(doc.id)} className="flex w-full flex-col items-center gap-1">
+                <button type="button" onClick={() => selectDocument(doc.id)} className="flex w-full flex-col items-center gap-1">
                   <FileText className="size-8 text-muted-foreground" />
                   <span className="line-clamp-2 text-[11px] leading-tight">{doc.fileName}</span>
                 </button>
@@ -169,7 +246,7 @@ export function ClientNeedDocumentReviewDialog({
 
           {/* Current-document panel */}
           {current && (
-            <div className="w-56 shrink-0 space-y-3 overflow-y-auto">
+            <div className="w-[420px] shrink-0 space-y-3 overflow-y-auto">
               <div>
                 {renamingId === current.id ? (
                   <div className="flex items-center gap-1">
@@ -270,6 +347,113 @@ export function ClientNeedDocumentReviewDialog({
                   </div>
                 </div>
               )}
+
+              <div className="space-y-2 rounded-md border p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <Sparkles className="size-3.5" />
+                    AI Review
+                  </p>
+                  <Button type="button" size="sm" variant="outline" disabled={reviewPending} onClick={handleRunReview}>
+                    {reviewPending
+                      ? "Reviewing…"
+                      : documents.some((d) => d.aiReviewedAt)
+                        ? "Re-run"
+                        : "Run AI Review"}
+                  </Button>
+                </div>
+                {documents.every((d) => !d.aiReviewedAt) ? (
+                  <p className="text-xs text-muted-foreground">
+                    Not reviewed yet — runs AI review on all {documents.length} document
+                    {documents.length === 1 ? "" : "s"} in this need.
+                  </p>
+                ) : (
+                  documents
+                    .filter((d) => d.aiReviewedAt)
+                    .map((doc) => {
+                      const flags = doc.aiReviewFlags?.flags ?? [];
+                      return (
+                        <div key={doc.id} className="space-y-1">
+                          <p className="truncate text-xs font-medium">{doc.fileName}</p>
+                          {flags.length === 0 ? (
+                            <p className="text-xs text-muted-foreground">No issues found.</p>
+                          ) : (
+                            <ul className="space-y-1">
+                              {flags.map((flag, i) => (
+                                <li key={i}>
+                                  <button
+                                    type="button"
+                                    onClick={() => jumpToFlag(doc.id, flag.page)}
+                                    className="w-full rounded-md border border-amber-200 bg-amber-50 p-1.5 text-left text-xs hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:hover:bg-amber-500/20"
+                                  >
+                                    <span className="font-medium">
+                                      {flag.page ? `Page ${flag.page}: ` : ""}
+                                    </span>
+                                    {flag.concern}
+                                    {flag.quote && (
+                                      <span className="mt-0.5 block italic text-muted-foreground">
+                                        &ldquo;{flag.quote}&rdquo;
+                                      </span>
+                                    )}
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      );
+                    })
+                )}
+              </div>
+
+              <div className="space-y-2 rounded-md border p-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Ask about these documents
+                </p>
+                {chatHistory.length > 0 && (
+                  <div className="max-h-48 space-y-2 overflow-y-auto">
+                    {chatHistory.map((qa, i) => (
+                      <div
+                        key={i}
+                        ref={i === chatHistory.length - 1 ? latestChatEntryRef : undefined}
+                        className="scroll-mt-1 space-y-0.5 text-xs"
+                      >
+                        <p className="font-medium">{qa.question}</p>
+                        {qa.answer !== null ? (
+                          <p className="whitespace-pre-wrap text-muted-foreground">{qa.answer}</p>
+                        ) : qa.error ? (
+                          <p className="text-destructive">{qa.error}</p>
+                        ) : (
+                          <p className="italic text-muted-foreground">Thinking…</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-1">
+                  <Input
+                    placeholder="e.g. Do these show $20k minimum liquidity?"
+                    value={chatQuestion}
+                    onChange={(e) => setChatQuestion(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAsk();
+                      }
+                    }}
+                    className="h-8 text-xs"
+                    disabled={asking}
+                  />
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    disabled={asking || !chatQuestion.trim()}
+                    onClick={handleAsk}
+                  >
+                    <Send className="size-3.5" />
+                  </Button>
+                </div>
+              </div>
             </div>
           )}
         </div>

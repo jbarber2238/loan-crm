@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { checkPricingRequestReply } from "@/server/actions/pricing";
 import { extractTermSheetFromReply } from "@/server/ai/term-sheet-extraction";
 import { createTermSheet } from "@/server/actions/term-sheets";
@@ -43,6 +44,8 @@ export function ReplyImportView({
   replyBodyText,
   attachments,
   products,
+  purchasePrice = null,
+  estimatedAsIsValue = null,
 }: {
   dealId: string;
   pricingRequestId: string;
@@ -54,6 +57,8 @@ export function ReplyImportView({
   replyBodyText: string | null;
   attachments: ReplyAttachment[];
   products: ProductOption[];
+  purchasePrice?: number | null;
+  estimatedAsIsValue?: number | null;
 }) {
   const router = useRouter();
   const checkReply = checkPricingRequestReply.bind(null, dealId, pricingRequestId);
@@ -77,9 +82,12 @@ export function ReplyImportView({
     startCheck(async () => {
       try {
         await checkReply();
+        toast.success("Checked for reply");
         router.refresh();
       } catch (err) {
-        setCheckError(err instanceof Error ? err.message : "Couldn't check for a reply.");
+        const message = err instanceof Error ? err.message : "Couldn't check for a reply.";
+        setCheckError(message);
+        toast.error(message);
       }
     });
   }
@@ -105,7 +113,9 @@ export function ReplyImportView({
           if (defaultProduct) setProductId(defaultProduct.id);
         }
       } catch (err) {
-        setExtractError(err instanceof Error ? err.message : "Extraction failed.");
+        const message = err instanceof Error ? err.message : "Extraction failed.";
+        setExtractError(message);
+        toast.error(message);
       }
     });
   }
@@ -114,12 +124,17 @@ export function ReplyImportView({
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     startCreate(async () => {
-      await createTermSheet(dealId, formData);
-      setExtracted(null);
-      setNotFoundKeys([]);
-      setExtractionNotes(null);
-      setCreated(true);
-      router.refresh();
+      try {
+        await createTermSheet(dealId, formData);
+        setExtracted(null);
+        setNotFoundKeys([]);
+        setExtractionNotes(null);
+        setCreated(true);
+        toast.success("Term sheet created");
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't create the term sheet.");
+      }
     });
   }
 
@@ -192,24 +207,32 @@ export function ReplyImportView({
               Couldn&apos;t find in the reply — fill these in manually: {notFoundKeys.join(", ")}
             </p>
           )}
-          <div className="space-y-1.5">
-            <Label htmlFor="productId">Lender / Product</Label>
-            <Select name="productId" value={productId} onValueChange={setProductId} required>
-              <SelectTrigger id="productId" className="w-full">
-                <SelectValue placeholder="Select a product" />
-              </SelectTrigger>
-              <SelectContent>
-                {lenderProducts.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           <form onSubmit={handleCreateTermSheet} className="space-y-3">
             <input type="hidden" name="productId" value={productId} />
-            <TermSheetFieldInputs fields={termSheetFieldsFor(loanCategory)} values={extracted} />
+            <TermSheetFieldInputs
+              fields={termSheetFieldsFor(loanCategory)}
+              values={extracted}
+              category={loanCategory}
+              purchasePrice={purchasePrice}
+              estimatedAsIsValue={estimatedAsIsValue}
+              productSelector={
+                <div className="space-y-1.5">
+                  <Label htmlFor="productId">Lender / Product</Label>
+                  <Select name="productId" value={productId} onValueChange={setProductId} required>
+                    <SelectTrigger id="productId" className="w-full">
+                      <SelectValue placeholder="Select a product" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {lenderProducts.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              }
+            />
             <Button type="submit" className="w-full" disabled={!productId || creating}>
               {creating ? "Saving…" : "Save as draft term sheet"}
             </Button>

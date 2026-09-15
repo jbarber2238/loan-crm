@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { createPricingRequests } from "@/server/actions/pricing";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -35,9 +36,12 @@ export function PriceLoanDialog({ dealId, lenders }: { dealId: string; lenders: 
       try {
         await createRequests(formData);
         setOpen(false);
+        toast.success("Draft emails created");
         router.refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Something went wrong.");
+        const message = err instanceof Error ? err.message : "Something went wrong.";
+        setError(message);
+        toast.error(message);
       }
     });
   }

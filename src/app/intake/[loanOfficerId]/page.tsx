@@ -3,7 +3,8 @@ import { db } from "@/server/db/client";
 import { users } from "@/server/db/schema";
 import { submitPublicIntake } from "@/server/actions/intake";
 import { IntakeFormFields } from "@/components/deals/intake-form-fields";
-import { Button } from "@/components/ui/button";
+import { ActionForm } from "@/components/forms/action-form";
+import { SubmitButton } from "@/components/forms/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getCompanyName } from "@/server/settings";
@@ -62,7 +63,7 @@ export default async function PublicIntakePage({
           </p>
         </CardHeader>
         <CardContent>
-          <form action={submitAction} className="space-y-6">
+          <ActionForm action={submitAction} className="space-y-6">
             <IntakeFormFields />
             <label className="flex items-start gap-2 text-xs text-muted-foreground">
               <Checkbox name="marketingConsent" className="mt-0.5" />
@@ -72,10 +73,8 @@ export default async function PublicIntakePage({
                 messages, including special offers, discounts, and product updates.
               </span>
             </label>
-            <Button type="submit" className="w-full">
-              Submit
-            </Button>
-          </form>
+            <SubmitButton className="w-full">Submit</SubmitButton>
+          </ActionForm>
         </CardContent>
       </Card>
     </div>

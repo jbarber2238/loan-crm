@@ -15,14 +15,15 @@ import { getAllProductOptions } from "@/server/actions/client-need-catalog";
 import { deleteLenderDocument } from "@/server/actions/lender-documents";
 import { AiMatrixUpload } from "@/components/lenders/ai-matrix-upload";
 import { ProductsChecklist } from "@/components/lenders/products-checklist";
-import { Button } from "@/components/ui/button";
-import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
+import { LenderSubmissionSection } from "@/components/lenders/lender-submission-section";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LOAN_CATEGORIES } from "@/lib/labels";
 import { formatFileSize } from "@/lib/format";
+import { ActionForm } from "@/components/forms/action-form";
+import { SubmitButton } from "@/components/forms/submit-button";
 
 export default async function LenderDetailPage({
   params,
@@ -87,28 +88,32 @@ export default async function LenderDetailPage({
         </CardHeader>
         <CardContent>
           {user.isAdmin ? (
-            <form action={updateLenderWithId} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="name">Name</Label>
-                <Input id="name" name="name" defaultValue={lender.name} required />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea id="notes" name="notes" rows={3} defaultValue={lender.notes ?? ""} />
-              </div>
-              <div className="flex items-center justify-between">
-                <Button type="submit">Save</Button>
-                <ConfirmSubmitButton
-                  type="submit"
-                  formAction={deleteLenderWithId}
-                  variant="ghost"
-                  className="text-destructive hover:text-destructive"
+            // Two sibling forms, not one form nested in another (invalid HTML) —
+            // Save owns the name/notes fields; Delete needs no fields at all.
+            <div className="space-y-3">
+              <ActionForm action={updateLenderWithId} successMessage="Lender saved" className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="name">Name</Label>
+                  <Input id="name" name="name" defaultValue={lender.name} required />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="notes">Notes</Label>
+                  <Textarea id="notes" name="notes" rows={3} defaultValue={lender.notes ?? ""} />
+                </div>
+                <SubmitButton>Save</SubmitButton>
+              </ActionForm>
+              <div className="flex justify-end">
+                <ActionForm
+                  action={deleteLenderWithId}
+                  successMessage="Lender deleted"
                   confirmMessage={`Delete ${lender.name} and all its rep, products, and documents? This can't be undone.`}
                 >
-                  Delete lender
-                </ConfirmSubmitButton>
+                  <SubmitButton variant="ghost" className="text-destructive hover:text-destructive">
+                    Delete lender
+                  </SubmitButton>
+                </ActionForm>
               </div>
-            </form>
+            </div>
           ) : (
             <div className="space-y-2 text-sm">
               <p className="font-medium">{lender.name}</p>
@@ -125,31 +130,39 @@ export default async function LenderDetailPage({
         <CardContent>
           {user.isAdmin ? (
             rep ? (
-              <form
-                action={updateLenderRep.bind(null, lenderId, rep.id)}
-                className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_1fr_auto_auto] md:items-end"
-              >
-                <div className="space-y-1.5">
-                  <Label htmlFor="rep-name">Name</Label>
-                  <Input id="rep-name" name="name" defaultValue={rep.name} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="rep-email">Email</Label>
-                  <Input id="rep-email" name="email" defaultValue={rep.email} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="rep-phone">Phone</Label>
-                  <Input id="rep-phone" name="phone" defaultValue={rep.phone ?? ""} />
-                </div>
-                <Button type="submit" variant="secondary">
-                  Save
-                </Button>
-                <Button type="submit" formAction={deleteLenderRep.bind(null, lenderId, rep.id)} variant="ghost">
-                  Remove
-                </Button>
-              </form>
+              // Two sibling forms — Save owns the name/email/phone fields, Remove needs none.
+              <div className="flex flex-col gap-2 md:flex-row md:items-end">
+                <ActionForm
+                  action={updateLenderRep.bind(null, lenderId, rep.id)}
+                  successMessage="Rep saved"
+                  className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-3"
+                >
+                  <div className="space-y-1.5">
+                    <Label htmlFor="rep-name">Name</Label>
+                    <Input id="rep-name" name="name" defaultValue={rep.name} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="rep-email">Email</Label>
+                    <Input id="rep-email" name="email" defaultValue={rep.email} />
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1 space-y-1.5">
+                      <Label htmlFor="rep-phone">Phone</Label>
+                      <Input id="rep-phone" name="phone" defaultValue={rep.phone ?? ""} />
+                    </div>
+                    <SubmitButton variant="secondary">Save</SubmitButton>
+                  </div>
+                </ActionForm>
+                <ActionForm action={deleteLenderRep.bind(null, lenderId, rep.id)} successMessage="Rep removed">
+                  <SubmitButton variant="ghost">Remove</SubmitButton>
+                </ActionForm>
+              </div>
             ) : (
-              <form action={addLenderRepWithId} className="grid grid-cols-1 gap-3 md:grid-cols-4 items-end">
+              <ActionForm
+                action={addLenderRepWithId}
+                successMessage="Rep added"
+                className="grid grid-cols-1 gap-3 md:grid-cols-4 items-end"
+              >
                 <div className="space-y-1.5">
                   <Label htmlFor="new-rep-name">Name</Label>
                   <Input id="new-rep-name" name="name" required />
@@ -162,8 +175,8 @@ export default async function LenderDetailPage({
                   <Label htmlFor="new-rep-phone">Phone</Label>
                   <Input id="new-rep-phone" name="phone" />
                 </div>
-                <Button type="submit">Add Rep</Button>
-              </form>
+                <SubmitButton>Add Rep</SubmitButton>
+              </ActionForm>
             )
           ) : rep ? (
             <div className="rounded-md border px-3 py-2 text-sm">
@@ -178,6 +191,17 @@ export default async function LenderDetailPage({
           )}
         </CardContent>
       </Card>
+
+      {user.isAdmin && (
+        <LenderSubmissionSection
+          lenderId={lenderId}
+          quickPricerUrl={lender.quickPricerUrl}
+          applicationSubmissionMethod={lender.applicationSubmissionMethod}
+          brokerPortalUrl={lender.brokerPortalUrl}
+          introEmailSubject={lender.introEmailSubject}
+          introEmailBody={lender.introEmailBody}
+        />
+      )}
 
       <ProductsChecklist
         lenderId={lenderId}
@@ -218,11 +242,11 @@ export default async function LenderDetailPage({
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-muted-foreground">{formatFileSize(doc.fileSize)}</span>
                     {user.isAdmin && (
-                      <form action={deleteDoc}>
-                        <Button type="submit" size="sm" variant="ghost">
+                      <ActionForm action={deleteDoc} successMessage="Document removed">
+                        <SubmitButton size="sm" variant="ghost">
                           Remove
-                        </Button>
-                      </form>
+                        </SubmitButton>
+                      </ActionForm>
                     )}
                   </div>
                 </div>

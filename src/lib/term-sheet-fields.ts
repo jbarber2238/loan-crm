@@ -5,6 +5,8 @@
  * PDF — add/remove a field here and both follow automatically.
  */
 
+import { rehabOrConstructionBudgetLabel, isInterestOnlyCategory } from "@/lib/loan-sections";
+
 export type TermSheetFieldType =
   | "text"
   | "textarea"
@@ -28,12 +30,22 @@ const DSCR_CATEGORIES = new Set(["dscr_purchase", "dscr_cash_out_refinance", "ds
 const BRIDGE_CATEGORIES = new Set(["bridge_purchase", "bridge_refinance"]);
 const HARD_MONEY_DRAW_CATEGORIES = new Set(["fix_and_flip", "new_construction"]);
 
+// Fix-and-flip/new-construction/bridge are short-term, interest-only loans
+// quoted in months ("12 Months"); DSCR/Portfolio are long-term amortizing
+// loans quoted in years ("30 Year Fixed"). Same underlying concept, two
+// different units depending on category.
+function loanTermField(category: string): TermSheetField {
+  return isInterestOnlyCategory(category)
+    ? { key: "loanTermMonths", label: "Loan Term (months)", type: "number" }
+    : { key: "loanTermYears", label: "Loan Term (years)", type: "number" };
+}
+
 // Fields on every term sheet, regardless of loan category.
-function baseFields(): TermSheetField[] {
+function baseFields(category: string): TermSheetField[] {
   return [
     { key: "loanAmount", label: "Total Loan Amount", type: "currency" },
     { key: "interestRate", label: "Interest Rate", type: "percent" },
-    { key: "loanTermYears", label: "Loan Term (years)", type: "number" },
+    loanTermField(category),
     {
       key: "amortizationType",
       label: "Amortization",
@@ -62,18 +74,46 @@ function baseFields(): TermSheetField[] {
 // a discretionary rate buydown on DSCR, or the lender's own origination
 // points on a hard money loan. Same storage key either way.
 function costToBorrowerField(category: string): TermSheetField {
-  const label = DSCR_CATEGORIES.has(category) || category === "portfolio" ? "Rate Buydown Fee" : "Lender Fee";
-  return { key: "costToBorrowerFee", label, type: "currency" };
+  const isRateBuydown = DSCR_CATEGORIES.has(category) || category === "portfolio";
+  const label = isRateBuydown ? "Rate Buydown Fee" : "Lender Fee";
+  return {
+    key: "costToBorrowerFee",
+    label,
+    type: "currency",
+    helperText: isRateBuydown ? "Rate Buydown Points × loan amount — computed automatically." : undefined,
+  };
 }
 
 function feesFields(category: string): TermSheetField[] {
+  const isRateBuydown = DSCR_CATEGORIES.has(category) || category === "portfolio";
+
   return [
+    {
+      key: "originationPoints",
+      label: "Origination Points",
+      type: "percent",
+      defaultValue: "2",
+      helperText: "Defaults to 2% — change it and Origination Fee below recalculates automatically ($2,500 minimum either way).",
+    },
     {
       key: "originationFee",
       label: "Origination Fee",
       type: "currency",
-      helperText: "Defaults to 2% of loan amount (or $2,500 minimum) — edit if you've negotiated a different rate for this borrower.",
+      helperText: "Origination Points × loan amount, $2,500 minimum — computed automatically.",
     },
+    // Only DSCR/Portfolio's "Rate Buydown Fee" is points-based — Bridge/hard
+    // money's "Lender Fee" is a flat quoted amount with no points concept.
+    ...(isRateBuydown
+      ? [
+          {
+            key: "rateBuydownPoints",
+            label: "Rate Buydown Points",
+            type: "percent" as const,
+            defaultValue: "0",
+            helperText: "Defaults to 0% (no buydown) — change it and Rate Buydown Fee below recalculates automatically.",
+          },
+        ]
+      : []),
     costToBorrowerField(category),
     {
       key: "underwritingDocFee",
@@ -84,29 +124,19 @@ function feesFields(category: string): TermSheetField[] {
   ];
 }
 
-function processingFeeFields(): TermSheetField[] {
-  return [
-    {
-      key: "processingFeePaymentLink",
-      label: "Processing Fee Payment Link",
-      type: "url",
-      helperText: "Our own $999 processing fee is added automatically — just paste a payment link here.",
-    },
-  ];
-}
-
-function hardMoneyDrawFields(): TermSheetField[] {
+function hardMoneyDrawFields(category: string): TermSheetField[] {
   return [
     { key: "initialAdvance", label: "Initial Advance", type: "currency" },
-    { key: "approvedRehabCost", label: "Approved Rehab / Construction Budget", type: "currency" },
+    { key: "approvedRehabCost", label: rehabOrConstructionBudgetLabel(category), type: "currency" },
     { key: "approvedArv", label: "Approved ARV (After Repair Value)", type: "currency" },
     {
       key: "interestType",
       label: "Interest Type",
       type: "select",
       options: ["Dutch", "Non-Dutch"],
+      defaultValue: "Non-Dutch",
       helperText:
-        "Dutch: interest on the full loan amount from day one. Non-Dutch: interest on the initial advance only, until draws increase it.",
+        "Dutch: interest on the full loan amount from day one. Non-Dutch (default): interest on the initial advance only, until draws increase it.",
     },
   ];
 }
@@ -151,16 +181,35 @@ export const ADMIN_ONLY_FIELDS: TermSheetField[] = [
 ];
 
 export function termSheetFieldsFor(category: string): TermSheetField[] {
-  const fields: TermSheetField[] = [...baseFields(), ...feesFields(category)];
+  const fields: TermSheetField[] = [...baseFields(category), ...feesFields(category)];
 
   if (HARD_MONEY_DRAW_CATEGORIES.has(category)) {
-    fields.push(...hardMoneyDrawFields());
+    fields.push(...hardMoneyDrawFields(category));
   } else if (BRIDGE_CATEGORIES.has(category)) {
     fields.push(...bridgeFields());
   }
 
   fields.push(...reservesFields(category));
-  fields.push(...processingFeeFields());
 
+  return fields;
+}
+
+// Shared by every place that accepts a submitted set of term-sheet fields —
+// creating one, updating one, and editing a deal's already-accepted terms —
+// so a value's type (number vs. text) is always interpreted the same way.
+export function extractTermSheetFields(
+  formData: FormData,
+  category: string,
+  isAdmin: boolean
+): Record<string, unknown> {
+  const fieldDefs = [...termSheetFieldsFor(category), ...(isAdmin ? ADMIN_ONLY_FIELDS : [])];
+  const fields: Record<string, unknown> = {};
+  for (const field of fieldDefs) {
+    const value = formData.get(field.key);
+    if (typeof value === "string" && value.trim().length) {
+      const isNumeric = field.type === "number" || field.type === "percent" || field.type === "currency";
+      fields[field.key] = isNumeric ? Number(value) : value.trim();
+    }
+  }
   return fields;
 }

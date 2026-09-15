@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   deletePricingRequest,
   sendAllPricingRequests,
@@ -8,16 +10,23 @@ import {
   updateDealPricingNote,
   updatePricingRequest,
 } from "@/server/actions/pricing";
+import { ActionForm } from "@/components/forms/action-form";
+import { SubmitButton } from "@/components/forms/submit-button";
 import { Button } from "@/components/ui/button";
-import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { PriceLoanDialog } from "@/components/deals/price-loan-dialog";
 import { ReplyImportView } from "@/components/deals/reply-import-view";
+import { QuickPricerCard } from "@/components/deals/quick-pricer-card";
 import { PricingAutoCheckReplies } from "@/components/deals/pricing-auto-check-replies";
 import { CollapsibleSection } from "@/components/email-templates/collapsible-section";
+import { RecipientLine } from "@/components/emails/recipient-line";
+import { SignaturePreview } from "@/components/emails/signature-preview";
+import { HtmlBodyEditor } from "@/components/emails/html-body-editor";
+import type { RecipientCandidate } from "@/lib/email-recipients";
 
 interface LenderWithReps {
   id: string;
@@ -29,11 +38,13 @@ interface PricingRequest {
   id: string;
   emailSubject: string;
   emailBody: string;
+  emailCc: string | null;
+  isQuickPricer: boolean;
   status: "draft" | "sent";
   sentAt: Date | null;
   gmailThreadId: string | null;
   lenderId: string;
-  lender: { name: string };
+  lender: { name: string; quickPricerUrl: string | null };
   lenderRep: { name: string; email: string };
   replyCheckedAt: Date | null;
   replyFrom: string | null;
@@ -51,6 +62,130 @@ interface ProductOption {
 
 function hasReply(request: PricingRequest) {
   return Boolean(request.replyBodyText || request.replyAttachments.length);
+}
+
+function PricingRequestCard({
+  dealId,
+  request,
+  signatureHtml,
+  candidates,
+  loanCategory,
+  products,
+  purchasePrice,
+  estimatedAsIsValue,
+}: {
+  dealId: string;
+  request: PricingRequest;
+  signatureHtml: string;
+  candidates: RecipientCandidate[];
+  loanCategory: string;
+  products: ProductOption[];
+  purchasePrice: number | null;
+  estimatedAsIsValue: number | null;
+}) {
+  const router = useRouter();
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [subject, setSubject] = useState(request.emailSubject);
+  const [cc, setCc] = useState(request.emailCc ?? "");
+  const [saving, startSave] = useTransition();
+  const send = sendPricingRequest.bind(null, dealId, request.id);
+  const deleteRequest = deletePricingRequest.bind(null, dealId, request.id);
+
+  function handleSaveDraft() {
+    const formData = new FormData();
+    formData.set("emailSubject", subject);
+    formData.set("emailCc", cc);
+    formData.set("emailBody", bodyRef.current?.innerHTML ?? request.emailBody);
+    startSave(async () => {
+      try {
+        await updatePricingRequest(dealId, request.id, formData);
+        toast.success("Draft saved");
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't save this draft.");
+      }
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle className="text-base">{request.lenderRep.name}</CardTitle>
+        <Badge variant={request.status === "sent" ? "default" : "secondary"}>
+          {request.status === "sent" ? "Sent" : "Draft"}
+        </Badge>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label>To</Label>
+            <p className="rounded-md border bg-muted/30 px-3 py-2 text-sm">{request.lenderRep.email}</p>
+          </div>
+          <RecipientLine
+            id={`cc-${request.id}`}
+            label="Cc"
+            value={cc}
+            onChange={setCc}
+            candidates={candidates}
+          />
+        </div>
+        <Input
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          disabled={request.status === "sent"}
+        />
+        {request.status === "draft" ? (
+          <div className="space-y-1.5">
+            <Label>Email preview — click any text below to edit it</Label>
+            <HtmlBodyEditor html={request.emailBody} bodyRef={bodyRef} />
+          </div>
+        ) : (
+          <div
+            className="rounded-lg border bg-muted/20 p-4 text-sm [&_table]:my-2"
+            dangerouslySetInnerHTML={{ __html: request.emailBody }}
+          />
+        )}
+        {request.status === "draft" && (
+          <Button type="button" variant="secondary" disabled={saving} onClick={handleSaveDraft}>
+            {saving ? "Saving…" : "Save draft"}
+          </Button>
+        )}
+        {request.status === "draft" && <SignaturePreview html={signatureHtml} />}
+        {request.status === "draft" ? (
+          <div className="flex gap-2">
+            <ActionForm action={send} successMessage="Pricing request sent">
+              <SubmitButton>Send</SubmitButton>
+            </ActionForm>
+            <ActionForm
+              action={deleteRequest}
+              successMessage="Draft deleted"
+              confirmMessage="Delete this draft pricing request?"
+            >
+              <SubmitButton variant="ghost">Delete draft</SubmitButton>
+            </ActionForm>
+          </div>
+        ) : (
+          <div className="w-full space-y-3">
+            <p className="text-xs text-muted-foreground">Sent {request.sentAt?.toLocaleString()}</p>
+            <ReplyImportView
+              dealId={dealId}
+              pricingRequestId={request.id}
+              lenderId={request.lenderId}
+              loanCategory={loanCategory}
+              replyCheckedAt={request.replyCheckedAt}
+              replyFrom={request.replyFrom}
+              replyReceivedAt={request.replyReceivedAt}
+              replyBodyText={request.replyBodyText}
+              attachments={request.replyAttachments}
+              products={products}
+              purchasePrice={purchasePrice}
+              estimatedAsIsValue={estimatedAsIsValue}
+            />
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function groupRequestsByLender(requests: PricingRequest[]) {
@@ -74,14 +209,22 @@ export function PricingTab({
   requests,
   pricingNoteToRep,
   loanCategory,
+  signatureHtml,
+  candidates,
   products,
+  purchasePrice = null,
+  estimatedAsIsValue = null,
 }: {
   dealId: string;
   lenders: LenderWithReps[];
   requests: PricingRequest[];
   pricingNoteToRep: string | null;
   loanCategory: string;
+  signatureHtml: string;
+  candidates: RecipientCandidate[];
   products: ProductOption[];
+  purchasePrice?: number | null;
+  estimatedAsIsValue?: number | null;
 }) {
   const updateNote = updateDealPricingNote.bind(null, dealId);
   const sendAll = sendAllPricingRequests.bind(null, dealId);
@@ -108,30 +251,28 @@ export function PricingTab({
           <CardTitle className="text-base">Note to Rep</CardTitle>
         </CardHeader>
         <CardContent>
-          <form action={updateNote} className="space-y-3">
+          <ActionForm action={updateNote} successMessage="Note saved" className="space-y-3">
             <p className="text-xs text-muted-foreground">
               A standing note for lender reps — a unique situation, something to flag up front.
               Included automatically on every new pricing email drafted below.
             </p>
             <Textarea name="pricingNoteToRep" rows={3} defaultValue={pricingNoteToRep ?? ""} />
-            <Button type="submit" size="sm" variant="outline">
+            <SubmitButton size="sm" variant="outline">
               Save note
-            </Button>
-          </form>
+            </SubmitButton>
+          </ActionForm>
         </CardContent>
       </Card>
 
       <div className="flex justify-end gap-2">
         {draftCount >= 2 && (
-          <form action={sendAll}>
-            <ConfirmSubmitButton
-              type="submit"
-              variant="secondary"
-              confirmMessage={`Send all ${draftCount} draft pricing emails now?`}
-            >
-              Send All Drafts ({draftCount})
-            </ConfirmSubmitButton>
-          </form>
+          <ActionForm
+            action={sendAll}
+            successMessage="Pricing emails sent"
+            confirmMessage={`Send all ${draftCount} draft pricing emails now?`}
+          >
+            <SubmitButton variant="secondary">Send All Drafts ({draftCount})</SubmitButton>
+          </ActionForm>
         )}
         <PriceLoanDialog dealId={dealId} lenders={lenders} />
       </div>
@@ -184,72 +325,33 @@ export function PricingTab({
             >
               <div className="space-y-3">
                 {group.requests.map((request) => {
-                  const updateRequest = updatePricingRequest.bind(null, dealId, request.id);
-                  const send = sendPricingRequest.bind(null, dealId, request.id);
-                  const deleteRequest = deletePricingRequest.bind(null, dealId, request.id);
+                  if (request.isQuickPricer && request.lender.quickPricerUrl) {
+                    return (
+                      <QuickPricerCard
+                        key={request.id}
+                        dealId={dealId}
+                        lenderId={request.lenderId}
+                        lenderName={request.lender.name}
+                        quickPricerUrl={request.lender.quickPricerUrl}
+                        loanCategory={loanCategory}
+                        products={products}
+                        purchasePrice={purchasePrice}
+                        estimatedAsIsValue={estimatedAsIsValue}
+                      />
+                    );
+                  }
                   return (
-                    <Card key={request.id}>
-                      <CardHeader className="flex flex-row items-center justify-between">
-                        <CardTitle className="text-base">{request.lenderRep.name}</CardTitle>
-                        <Badge variant={request.status === "sent" ? "default" : "secondary"}>
-                          {request.status === "sent" ? "Sent" : "Draft"}
-                        </Badge>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        <form action={updateRequest} className="space-y-3">
-                          <Input
-                            name="emailSubject"
-                            defaultValue={request.emailSubject}
-                            disabled={request.status === "sent"}
-                          />
-                          <Textarea
-                            name="emailBody"
-                            rows={8}
-                            defaultValue={request.emailBody}
-                            disabled={request.status === "sent"}
-                          />
-                          {request.status === "draft" && (
-                            <Button type="submit" variant="secondary">
-                              Save draft
-                            </Button>
-                          )}
-                        </form>
-                        {request.status === "draft" ? (
-                          <div className="flex gap-2">
-                            <form action={send}>
-                              <Button type="submit">Send</Button>
-                            </form>
-                            <form action={deleteRequest}>
-                              <ConfirmSubmitButton
-                                type="submit"
-                                variant="ghost"
-                                confirmMessage="Delete this draft pricing request?"
-                              >
-                                Delete draft
-                              </ConfirmSubmitButton>
-                            </form>
-                          </div>
-                        ) : (
-                          <div className="w-full space-y-3">
-                            <p className="text-xs text-muted-foreground">
-                              Sent {request.sentAt?.toLocaleString()}
-                            </p>
-                            <ReplyImportView
-                              dealId={dealId}
-                              pricingRequestId={request.id}
-                              lenderId={request.lenderId}
-                              loanCategory={loanCategory}
-                              replyCheckedAt={request.replyCheckedAt}
-                              replyFrom={request.replyFrom}
-                              replyReceivedAt={request.replyReceivedAt}
-                              replyBodyText={request.replyBodyText}
-                              attachments={request.replyAttachments}
-                              products={products}
-                            />
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
+                    <PricingRequestCard
+                      key={request.id}
+                      dealId={dealId}
+                      request={request}
+                      signatureHtml={signatureHtml}
+                      candidates={candidates}
+                      loanCategory={loanCategory}
+                      products={products}
+                      purchasePrice={purchasePrice}
+                      estimatedAsIsValue={estimatedAsIsValue}
+                    />
                   );
                 })}
               </div>

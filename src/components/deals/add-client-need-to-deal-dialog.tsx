@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { addCatalogItemsToDeal, addClientNeedToDeal } from "@/server/actions/client-needs";
 import { ClientNeedForm } from "@/components/client-needs/client-need-form";
 import { Button } from "@/components/ui/button";
@@ -51,9 +52,12 @@ export function AddClientNeedToDealDialog({
       try {
         await addCatalogItemsToDeal(dealId, formData);
         onOpenChange(false);
+        toast.success("Needs added");
         router.refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Couldn't add those needs.");
+        const message = err instanceof Error ? err.message : "Couldn't add those needs.";
+        setError(message);
+        toast.error(message);
       }
     });
   }
@@ -64,9 +68,12 @@ export function AddClientNeedToDealDialog({
       try {
         await addClientNeedToDeal(dealId, formData);
         onOpenChange(false);
+        toast.success("Need added");
         router.refresh();
       } catch (err) {
-        setCustomError(err instanceof Error ? err.message : "Something went wrong.");
+        const message = err instanceof Error ? err.message : "Something went wrong.";
+        setCustomError(message);
+        toast.error(message);
       }
     });
   }

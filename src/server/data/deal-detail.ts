@@ -13,13 +13,21 @@ export const getDealDetail = cache(async (id: string) => {
       assignedLoanOfficer: true,
       assignedProcessor: true,
       assignedAssistant: true,
-      lender: true,
+      lender: { with: { reps: true } },
       product: true,
       notes: { with: { author: true } },
       clientNeeds: true,
       termSheets: { with: { lender: true, product: true } },
       pricingRequests: { with: { lender: true, lenderRep: true, replyAttachments: true } },
       followers: true,
+      keyDateEvents: {
+        with: { createdBy: true },
+        // Same-day entries (the common case — someone clicks through several
+        // stages in one sitting) tie on eventDate; break ties by creation
+        // order so "most recent" is deterministic instead of whatever order
+        // Postgres happens to return.
+        orderBy: (e, { desc }) => [desc(e.eventDate), desc(e.createdAt)],
+      },
     },
   });
 });

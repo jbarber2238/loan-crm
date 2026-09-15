@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { createProduct } from "@/server/actions/lenders";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,9 +49,12 @@ export function AddProductDialog({
       try {
         await createWithId(formData);
         setOpen(false);
+        toast.success("Product created");
         router.refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Something went wrong.");
+        const message = err instanceof Error ? err.message : "Something went wrong.";
+        setError(message);
+        toast.error(message);
       }
     });
   }

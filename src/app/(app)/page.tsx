@@ -63,6 +63,8 @@ export default async function PipelinePage({
       borrowerName: deal.borrowerName,
       propertyAddress: deal.propertyAddress,
       loanAmountRequested: deal.loanAmountRequested,
+      approvedLoanAmount: deal.approvedLoanAmount,
+      originationPointsOverride: deal.originationPointsOverride,
       loanCategory: deal.loanCategory,
       stage: deal.stage,
       createdAt: deal.createdAt.toISOString(),

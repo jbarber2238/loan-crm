@@ -1,4 +1,5 @@
 import { conservativeValueBasis, calculateLtv } from "@/lib/term-sheet-calculations";
+import { isInterestOnlyCategory } from "@/lib/loan-sections";
 import type { deals, termSheets } from "@/server/db/schema";
 
 type Deal = typeof deals.$inferSelect;
@@ -44,6 +45,10 @@ function formatYears(n: number): string {
   return `${Number(n.toFixed(1))}-year`;
 }
 
+function formatMonths(n: number): string {
+  return `${Number(n.toFixed(0))}-month`;
+}
+
 function distinctJoin(values: (string | null)[]): string {
   const clean = Array.from(new Set(values.filter((v): v is string => Boolean(v))));
   return clean.length ? clean.join(", ") : "Not provided";
@@ -78,7 +83,7 @@ export function summarizeTermSheetsForBorrowerEmail(
       const ltv = calculateLtv(loanAmount, valueBasis);
       if (ltv !== null) ltvs.push(ltv);
     }
-    const term = numField(fields, "loanTermYears");
+    const term = numField(fields, isInterestOnlyCategory(deal.loanCategory) ? "loanTermMonths" : "loanTermYears");
     if (term !== null) terms.push(term);
     amortizationTypes.push(textField(fields, "amortizationType"));
     prepaymentPenalties.push(textField(fields, "prepaymentPenalty"));
@@ -87,7 +92,7 @@ export function summarizeTermSheetsForBorrowerEmail(
   return {
     loanAmountRange: formatRange(loanAmounts, formatMoney),
     ltvRange: formatRange(ltvs, formatPercent),
-    loanTermRange: formatRange(terms, formatYears),
+    loanTermRange: formatRange(terms, isInterestOnlyCategory(deal.loanCategory) ? formatMonths : formatYears),
     loanTypeOptions: distinctJoin(amortizationTypes),
     prepaymentPenaltyOptions: distinctJoin(prepaymentPenalties),
   };

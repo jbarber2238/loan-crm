@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { AppSidebar } from "@/components/layout/app-sidebar";
-import { getCompanyName } from "@/server/settings";
+import { getCompanyName, getCompanyLogo } from "@/server/settings";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const session = await auth();
@@ -19,11 +19,11 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     );
   }
 
-  const companyName = await getCompanyName();
+  const [companyName, logo] = await Promise.all([getCompanyName(), getCompanyLogo()]);
 
   return (
     <div>
-      <AppSidebar user={session.user} companyName={companyName} />
+      <AppSidebar user={session.user} companyName={companyName} logo={logo} />
       <main className="ml-60 min-h-screen p-4 md:p-6">{children}</main>
     </div>
   );

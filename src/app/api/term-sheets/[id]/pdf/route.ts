@@ -3,27 +3,45 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { db } from "@/server/db/client";
 import { termSheets } from "@/server/db/schema";
 import { TermSheetPdf } from "@/server/pdf/term-sheet";
-import { getCompanyName } from "@/server/settings";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const forSignature = new URL(request.url).searchParams.get("forSignature") === "1";
 
+  // Only the columns TermSheetPdf actually reads below — not the full deal
+  // row. The deals table has 100+ columns, and Postgres hard-caps functions
+  // like json_build_array (which Drizzle's relational query builder uses to
+  // embed a nested row) at 100 arguments; embedding the whole row here
+  // throws "cannot pass more than 100 arguments to a function" in production.
   const termSheet = await db.query.termSheets.findFirst({
     where: eq(termSheets.id, id),
-    with: { deal: true },
+    with: {
+      deal: {
+        columns: {
+          borrowerName: true,
+          borrowerEntityName: true,
+          propertyAddress: true,
+          loanCategory: true,
+          purchasePrice: true,
+          estimatedAsIsValue: true,
+          annualTaxes: true,
+          annualInsurance: true,
+          annualHoa: true,
+          currentRent: true,
+        },
+      },
+    },
   });
 
   if (!termSheet) {
     return new Response("Not found", { status: 404 });
   }
 
-  const companyName = await getCompanyName();
   const buffer = await renderToBuffer(
     TermSheetPdf({
-      companyName,
       borrowerName: termSheet.deal.borrowerName,
       borrowerEntityName: termSheet.deal.borrowerEntityName,
       propertyAddress: termSheet.deal.propertyAddress,
@@ -36,6 +54,7 @@ export async function GET(
       annualInsurance: termSheet.deal.annualInsurance ? Number(termSheet.deal.annualInsurance) : null,
       annualHoa: termSheet.deal.annualHoa ? Number(termSheet.deal.annualHoa) : null,
       currentRent: termSheet.deal.currentRent ? Number(termSheet.deal.currentRent) : null,
+      forSignature,
     })
   );
 

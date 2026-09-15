@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { ChevronDown, ChevronRight, Sparkles } from "lucide-react";
 import { updateEmailTemplate, deleteEmailTemplate } from "@/server/actions/email-templates";
 import { draftEmailTemplateWithAI } from "@/server/ai/email-template-draft";
 import { Button } from "@/components/ui/button";
-import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -21,13 +21,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { STAGES } from "@/lib/labels";
-import { tokensForCategory } from "@/lib/email-template-tokens";
+import { tokensForCategory, type EmailTemplateCategory } from "@/lib/email-template-tokens";
+import { MergeFieldPicker } from "@/components/email-templates/merge-field-picker";
 
 export interface EmailTemplateRow {
   id: string;
   key: string;
   name: string;
-  category: "pricing_request" | "borrower_lifecycle";
+  category: EmailTemplateCategory;
   subject: string;
   body: string;
   triggerStage: string | null;
@@ -39,13 +40,14 @@ export function EmailTemplateCard({ template }: { template: EmailTemplateRow }) 
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [showTokens, setShowTokens] = useState(false);
   const [triggerStage, setTriggerStage] = useState(template.triggerStage ?? "none");
 
   const [name, setName] = useState(template.name);
   const [subject, setSubject] = useState(template.subject);
   const [body, setBody] = useState(template.body);
   const [active, setActive] = useState(template.active);
+  const subjectRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiPending, startAiTransition] = useTransition();
@@ -90,14 +92,28 @@ export function EmailTemplateCard({ template }: { template: EmailTemplateRow }) 
     startTransition(async () => {
       try {
         await updateEmailTemplate(template.id, formData);
+        toast.success("Template saved");
         router.refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Couldn't save.");
+        const message = err instanceof Error ? err.message : "Couldn't save.";
+        setError(message);
+        toast.error(message);
       }
     });
   }
 
-  const boundDelete = deleteEmailTemplate.bind(null, template.id);
+  function handleDelete() {
+    if (!window.confirm(`Delete the "${template.name}" template? This can't be undone.`)) return;
+    startTransition(async () => {
+      try {
+        await deleteEmailTemplate(template.id);
+        toast.success("Template deleted");
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't delete.");
+      }
+    });
+  }
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="rounded-md border">
@@ -153,10 +169,14 @@ export function EmailTemplateCard({ template }: { template: EmailTemplateRow }) 
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor={`subject-${template.id}`}>Subject</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor={`subject-${template.id}`}>Subject</Label>
+                <MergeFieldPicker tokens={tokens} targetRef={subjectRef} value={subject} onChange={setSubject} />
+              </div>
               <Input
                 id={`subject-${template.id}`}
                 name="subject"
+                ref={subjectRef}
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 required
@@ -166,36 +186,18 @@ export function EmailTemplateCard({ template }: { template: EmailTemplateRow }) 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label htmlFor={`body-${template.id}`}>Body</Label>
-                <button
-                  type="button"
-                  onClick={() => setShowTokens((v) => !v)}
-                  className="text-xs text-muted-foreground underline"
-                >
-                  {showTokens ? "Hide" : "Show"} merge fields
-                </button>
+                <MergeFieldPicker tokens={tokens} targetRef={bodyRef} value={body} onChange={setBody} />
               </div>
               <Textarea
                 id={`body-${template.id}`}
                 name="body"
+                ref={bodyRef}
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
                 rows={10}
                 required
                 className="font-mono text-xs"
               />
-              {showTokens && (
-                <div className="flex flex-wrap gap-1 rounded-md bg-muted/40 p-2">
-                  {tokens.map((t) => (
-                    <code
-                      key={t.key}
-                      title={t.description}
-                      className="rounded bg-background px-1.5 py-0.5 text-[10px] border"
-                    >
-                      {`{{${t.key}}}`}
-                    </code>
-                  ))}
-                </div>
-              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-4">
@@ -229,17 +231,16 @@ export function EmailTemplateCard({ template }: { template: EmailTemplateRow }) 
             <div className="flex items-center gap-2">
               {isDirty && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
               {template.category === "borrower_lifecycle" && (
-                <form action={boundDelete}>
-                  <ConfirmSubmitButton
-                    type="submit"
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive"
-                    confirmMessage={`Delete the "${template.name}" template? This can't be undone.`}
-                  >
-                    Delete
-                  </ConfirmSubmitButton>
-                </form>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive"
+                  disabled={isPending}
+                  onClick={handleDelete}
+                >
+                  Delete
+                </Button>
               )}
             </div>
             <div className="flex items-center gap-2">

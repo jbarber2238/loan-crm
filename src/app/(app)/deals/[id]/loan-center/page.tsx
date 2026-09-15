@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/server/db/client";
 import { getDealDetail } from "@/server/data/deal-detail";
 import { getAllProductOptions } from "@/server/actions/client-need-catalog";
+import { requireUser } from "@/server/auth/guards";
 import { LoanCenterTab } from "@/components/deals/loan-center-tab";
 
 export default async function DealLoanCenterPage({
@@ -10,6 +11,7 @@ export default async function DealLoanCenterPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const user = await requireUser();
   const deal = await getDealDetail(id);
   if (!deal) notFound();
 
@@ -27,7 +29,15 @@ export default async function DealLoanCenterPage({
       where: (dcn, { eq }) => eq(dcn.dealId, id),
       with: {
         documents: {
-          columns: { id: true, fileName: true, mimeType: true, reviewStatus: true, rejectionNote: true },
+          columns: {
+            id: true,
+            fileName: true,
+            mimeType: true,
+            reviewStatus: true,
+            rejectionNote: true,
+            aiReviewFlags: true,
+            aiReviewedAt: true,
+          },
           orderBy: (d, { asc }) => asc(d.createdAt),
         },
         answers: {
@@ -72,11 +82,11 @@ export default async function DealLoanCenterPage({
       reminderIntervalHours={deal.clientNeedsReminderIntervalHours}
       hasAcceptedProduct={Boolean(deal.productId)}
       conditions={conditions}
-      notes={deal.notes}
-      appraisalOrderedDate={deal.appraisalOrderedDate}
+      notes={deal.notes.map((n) => ({
+        ...n,
+        canDelete: n.authorUserId === user.id || user.isAdmin,
+      }))}
       creditPullDate={deal.creditPullDate}
-      insuranceContactedDate={deal.insuranceContactedDate}
-      titleOrderedDate={deal.titleOrderedDate}
       driveLink={deal.driveLink}
       titleCompanyAgentName={deal.titleCompanyAgentName}
       titleAgentEmail={deal.titleAgentEmail}
@@ -85,6 +95,17 @@ export default async function DealLoanCenterPage({
       insuranceAgentName={deal.insuranceAgentName}
       insuranceAgentEmail={deal.insuranceAgentEmail}
       insuranceAgentPhone={deal.insuranceAgentPhone}
+      appraisalNotes={deal.appraisalNotes}
+      insuranceNotes={deal.insuranceNotes}
+      titleNotes={deal.titleNotes}
+      keyDateEvents={deal.keyDateEvents.map((e) => ({
+        id: e.id,
+        item: e.item,
+        status: e.status,
+        eventDate: e.eventDate,
+        createdAt: e.createdAt,
+        createdByName: e.createdBy?.name ?? null,
+      }))}
     />
   );
 }

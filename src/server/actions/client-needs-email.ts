@@ -6,11 +6,13 @@ import { db } from "@/server/db/client";
 import { deals, dealClientNeeds } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { sendGmailAs } from "@/server/gmail/send";
-import { getCompanyName } from "@/server/settings";
+import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
+import { getUserEmailSignatureHtml } from "@/server/users";
 import { getOrCreateBorrowerUploadLink } from "@/server/actions/deals";
 import { buildBorrowerEmail } from "@/server/borrower-templates";
 import { recomputeNeedStatus } from "@/server/client-need-status";
 import { createAndSendPandaDocForm } from "@/server/actions/client-needs";
+import { getEmailRecipientCandidates } from "@/server/email-recipient-candidates";
 import {
   escapeHtml,
   htmlBulletList,
@@ -63,7 +65,7 @@ function formatStatusList(
 async function loadDealForEmail(dealId: string) {
   const deal = await db.query.deals.findFirst({
     where: eq(deals.id, dealId),
-    with: { assignedLoanOfficer: true },
+    with: { assignedLoanOfficer: true, followers: true },
   });
   if (!deal?.borrowerEmail) throw new Error("This deal has no borrower email on file");
   return deal;
@@ -103,35 +105,46 @@ export async function previewClientNeedsUpdateEmail(dealId: string, needIds: str
 
   const companyName = await getCompanyName();
   const uploadUrl = await getOrCreateBorrowerUploadLink(dealId);
-  const { subject, body } = await buildBorrowerEmail("borrower_client_needs_update", deal, {
-    assignedLoanOfficerName: deal.assignedLoanOfficer?.name ?? "",
-    companyName,
-    senderName: user.name ?? "",
-    extra: {
-      clientNeedsStatusList: formatStatusList(rejectedNeeds, outstandingNeeds),
-      clientNeedsUploadUrl: uploadUrl,
-      clientNeedsUploadButton: htmlButton("Upload your documents", uploadUrl),
-    },
-  });
+  const [{ subject, body }, signatureHtml, candidates] = await Promise.all([
+    buildBorrowerEmail("borrower_client_needs_update", deal, {
+      assignedLoanOfficerName: deal.assignedLoanOfficer?.name ?? "",
+      companyName,
+      senderName: user.name ?? "",
+      extra: {
+        clientNeedsStatusList: formatStatusList(rejectedNeeds, outstandingNeeds),
+        clientNeedsUploadUrl: uploadUrl,
+        clientNeedsUploadButton: htmlButton("Upload your documents", uploadUrl),
+      },
+    }),
+    getUserEmailSignatureHtml(user.id),
+    getEmailRecipientCandidates(dealId, { includeAllStaff: true }),
+  ]);
 
-  return { subject, body, borrowerEmail: deal.borrowerEmail! };
+  // Followers are CC'd by default here, and only here — client-needs
+  // updates are the one email type they're always on unless removed.
+  const cc = deal.followers.map((f) => f.email).join(", ");
+
+  return { subject, body, to: deal.borrowerEmail!, cc, signatureHtml, candidates };
 }
 
 /**
- * Sends exactly the given (possibly hand-edited) subject/body — no
+ * Sends exactly the given (possibly hand-edited) to/cc/subject/body — no
  * re-rendering from the template — then marks the non-rejected, unsent needs
  * in the selection as sent.
  */
 export async function sendClientNeedsUpdateEmail(
   dealId: string,
   needIds: string[],
+  to: string,
+  cc: string,
   subject: string,
   body: string
 ) {
   const user = await requireUser();
   if (!user.email) throw new Error("Your account has no email on file");
+  if (!to.trim()) throw new Error("No recipient on file for this email");
   const ids = getNeedIds(needIds);
-  const deal = await loadDealForEmail(dealId);
+  await loadDealForEmail(dealId);
 
   if (!subject.trim() || !body.trim()) throw new Error("Subject and body can't be empty");
 
@@ -151,7 +164,17 @@ export async function sendClientNeedsUpdateEmail(
     await createAndSendPandaDocForm(dealId, need.id, need.pandadocTemplateUuid, need.itemName);
   }
 
-  await sendGmailAs(user.id, user.email, { to: deal.borrowerEmail!, subject, body, html: true });
+  const [logoHtml, signatureHtml] = await Promise.all([
+    getCompanyLogoHtml(),
+    getUserEmailSignatureHtml(user.id),
+  ]);
+  await sendGmailAs(user.id, user.email, {
+    to: to.trim(),
+    cc: cc.trim() || null,
+    subject,
+    body: logoHtml + body + signatureHtml,
+    html: true,
+  });
 
   await db
     .update(dealClientNeeds)

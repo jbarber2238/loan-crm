@@ -2,7 +2,8 @@ import { db } from "@/server/db/client";
 import { requireUser } from "@/server/auth/guards";
 import { createDeal } from "@/server/actions/deals";
 import { IntakeFormFields } from "@/components/deals/intake-form-fields";
-import { Button } from "@/components/ui/button";
+import { ActionForm } from "@/components/forms/action-form";
+import { SubmitButton } from "@/components/forms/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,7 +33,7 @@ export default async function NewDealPage() {
           <CardTitle>New Deal</CardTitle>
         </CardHeader>
         <CardContent>
-          <form action={createDeal} className="space-y-8">
+          <ActionForm action={createDeal} className="space-y-8">
             <section className="space-y-4">
               <h2 className="text-sm font-semibold text-muted-foreground">Assignment</h2>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -90,10 +91,8 @@ export default async function NewDealPage() {
 
             <IntakeFormFields />
 
-            <Button type="submit" className="w-full">
-              Create Deal
-            </Button>
-          </form>
+            <SubmitButton className="w-full">Create Deal</SubmitButton>
+          </ActionForm>
         </CardContent>
       </Card>
     </div>

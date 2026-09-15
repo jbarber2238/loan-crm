@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { attachClientNeedsToProduct, createClientNeed } from "@/server/actions/client-need-catalog";
 import { ClientNeedForm } from "@/components/client-needs/client-need-form";
 import { Button } from "@/components/ui/button";
@@ -54,9 +55,12 @@ export function AddClientNeedDialog({
       try {
         await attachClientNeedsToProduct(productId, formData);
         setOpen(false);
+        toast.success("Needs added");
         router.refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Couldn't add those needs.");
+        const message = err instanceof Error ? err.message : "Couldn't add those needs.";
+        setError(message);
+        toast.error(message);
       }
     });
   }
@@ -67,9 +71,12 @@ export function AddClientNeedDialog({
       try {
         await createClientNeed(formData, { attachToProductId: productId });
         setOpen(false);
+        toast.success("Need created");
         router.refresh();
       } catch (err) {
-        setCustomError(err instanceof Error ? err.message : "Something went wrong.");
+        const message = err instanceof Error ? err.message : "Something went wrong.";
+        setCustomError(message);
+        toast.error(message);
       }
     });
   }

@@ -1,30 +1,22 @@
 "use server";
 
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { dealClientNeeds, deals, products, termSheets } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { sendGmailAs } from "@/server/gmail/send";
-import { ADMIN_ONLY_FIELDS, termSheetFieldsFor } from "@/lib/term-sheet-fields";
-import { conservativeValueBasis } from "@/lib/term-sheet-calculations";
-import { getCompanyName, getDscrCalculatorLink } from "@/server/settings";
+import { extractTermSheetFields } from "@/lib/term-sheet-fields";
+import { createDocumentFromPdfUrl, waitUntilDraft, sendDocumentForSignature } from "@/server/pandadoc";
+import { syncProcessingFeeInvoice, sendProcessingFeeInvoiceEmail } from "@/server/billing";
+import { conservativeValueBasis, calculateLtarv, calculateLtc } from "@/lib/term-sheet-calculations";
+import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
+import { getUserEmailSignatureHtml } from "@/server/users";
 import { buildBorrowerEmail } from "@/server/borrower-templates";
+import { plainTextToHtml } from "@/lib/email-html";
 import { resolveTermSheetReadyTemplateKey, summarizeTermSheetsForBorrowerEmail } from "@/server/term-sheet-summary";
 import { populateClientNeedsFromProduct } from "@/server/actions/client-needs";
-
-function extractFields(formData: FormData, category: string, isAdmin: boolean) {
-  const fieldDefs = [...termSheetFieldsFor(category), ...(isAdmin ? ADMIN_ONLY_FIELDS : [])];
-  const fields: Record<string, unknown> = {};
-  for (const field of fieldDefs) {
-    const value = formData.get(field.key);
-    if (typeof value === "string" && value.trim().length) {
-      const isNumeric = field.type === "number" || field.type === "percent" || field.type === "currency";
-      fields[field.key] = isNumeric ? Number(value) : value.trim();
-    }
-  }
-  return fields;
-}
+import { getEmailRecipientCandidates } from "@/server/email-recipient-candidates";
 
 export async function createTermSheet(dealId: string, formData: FormData) {
   const user = await requireUser();
@@ -34,7 +26,7 @@ export async function createTermSheet(dealId: string, formData: FormData) {
   const product = await db.query.products.findFirst({ where: eq(products.id, productId) });
   if (!product) throw new Error("Product not found");
 
-  const fields = extractFields(formData, product.category, user.isAdmin);
+  const fields = extractTermSheetFields(formData, product.category, user.isAdmin);
 
   const [termSheet] = await db
     .insert(termSheets)
@@ -65,7 +57,7 @@ export async function updateTermSheetFields(
   });
   if (!termSheet) throw new Error("Term sheet not found");
 
-  const fields = extractFields(formData, termSheet.product.category, user.isAdmin);
+  const fields = extractTermSheetFields(formData, termSheet.product.category, user.isAdmin);
 
   await db.update(termSheets).set({ fields }).where(eq(termSheets.id, termSheetId));
 
@@ -86,15 +78,22 @@ function summarizeTerms(fields: Record<string, unknown>) {
   const parts = [
     fields.loanAmount ? `$${Number(fields.loanAmount).toLocaleString("en-US")}` : null,
     fields.interestRate ? `@ ${fields.interestRate}%` : null,
-    fields.loanTermMonths ? `${fields.loanTermMonths}mo term` : null,
+    fields.loanTermMonths
+      ? `${fields.loanTermMonths}mo term`
+      : fields.loanTermYears
+        ? `${fields.loanTermYears}yr term`
+        : null,
     fields.amortizationType ? String(fields.amortizationType) : null,
   ].filter(Boolean);
   return parts.join(", ") || "See term sheet for details";
 }
 
-export async function acceptTermSheet(dealId: string, termSheetId: string) {
-  await requireUser();
-
+// The actual acceptance logic, split out from the auth-gated action below so
+// the PandaDoc webhook (no user session — see
+// src/app/api/webhooks/pandadoc/route.ts) can trigger the exact same
+// promote-fields-to-the-deal behavior when a term sheet comes back signed,
+// instead of duplicating it.
+export async function performTermSheetAcceptance(dealId: string, termSheetId: string) {
   const [termSheet, deal] = await Promise.all([
     db.query.termSheets.findFirst({ where: eq(termSheets.id, termSheetId) }),
     db.query.deals.findFirst({ where: eq(deals.id, dealId) }),
@@ -110,19 +109,41 @@ export async function acceptTermSheet(dealId: string, termSheetId: string) {
   const rateValue = termSheet.fields.interestRate;
   const loanAmountValue = termSheet.fields.loanAmount;
   const costToBorrowerFeeValue = termSheet.fields.costToBorrowerFee;
+  const originationPointsValue = termSheet.fields.originationPoints;
+  const rateBuydownPointsValue = termSheet.fields.rateBuydownPoints;
   const amortizationTypeValue = termSheet.fields.amortizationType;
   const loanTermYearsValue = termSheet.fields.loanTermYears;
+  const loanTermMonthsValue = termSheet.fields.loanTermMonths;
+  const approvedRehabCostValue = termSheet.fields.approvedRehabCost;
+  const approvedArvValue = termSheet.fields.approvedArv;
+  const initialAdvanceValue = termSheet.fields.initialAdvance;
+  const interestTypeValue = termSheet.fields.interestType;
 
-  // No appraisal in yet at acceptance time, so the initial LTV uses the same
-  // conservative basis (lower of purchase price / as-is value) the deal
+  // No appraisal in yet at acceptance time, so the initial LTV/LTC uses the
+  // same conservative basis (lower of purchase price / as-is value) the deal
   // header shows pre-acceptance — the LTV-based-on-purchase-price toggle and
   // appraised value stay at their defaults until an appraisal comes back.
+  // Same story for LTARV: it starts from the lender-quoted approvedArv until
+  // the appraised ARV comes in and the ltarvBasedOnApprovedArv toggle is
+  // switched off.
   const valueBasis = conservativeValueBasis(
     deal.purchasePrice ? Number(deal.purchasePrice) : null,
     deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null
   );
   const approvedLtv =
     typeof loanAmountValue === "number" && valueBasis ? (loanAmountValue / valueBasis) * 100 : null;
+  const approvedLtarv =
+    typeof loanAmountValue === "number" && typeof approvedArvValue === "number"
+      ? calculateLtarv(loanAmountValue, approvedArvValue)
+      : null;
+  const approvedLtc =
+    typeof loanAmountValue === "number"
+      ? calculateLtc(
+          loanAmountValue,
+          valueBasis,
+          typeof approvedRehabCostValue === "number" ? approvedRehabCostValue : null
+        )
+      : null;
 
   await db
     .update(deals)
@@ -133,9 +154,18 @@ export async function acceptTermSheet(dealId: string, termSheetId: string) {
       finalTerms: summarizeTerms(termSheet.fields),
       finalAmortizationType: typeof amortizationTypeValue === "string" && amortizationTypeValue ? amortizationTypeValue : null,
       finalLoanTermYears: typeof loanTermYearsValue === "number" ? loanTermYearsValue : null,
+      finalLoanTermMonths: typeof loanTermMonthsValue === "number" ? loanTermMonthsValue : null,
       approvedLoanAmount: typeof loanAmountValue === "number" ? String(loanAmountValue) : null,
       approvedLtv: approvedLtv !== null ? String(approvedLtv) : null,
+      approvedRehabCost: typeof approvedRehabCostValue === "number" ? String(approvedRehabCostValue) : null,
+      approvedArv: typeof approvedArvValue === "number" ? String(approvedArvValue) : null,
+      approvedInitialAdvance: typeof initialAdvanceValue === "number" ? String(initialAdvanceValue) : null,
+      interestType: typeof interestTypeValue === "string" && interestTypeValue ? interestTypeValue : null,
+      approvedLtarv: approvedLtarv !== null ? String(approvedLtarv) : null,
+      approvedLtc: approvedLtc !== null ? String(approvedLtc) : null,
       costToBorrowerFee: typeof costToBorrowerFeeValue === "number" ? String(costToBorrowerFeeValue) : null,
+      originationPointsOverride: typeof originationPointsValue === "number" ? String(originationPointsValue) : null,
+      rateBuydownPointsOverride: typeof rateBuydownPointsValue === "number" ? String(rateBuydownPointsValue) : null,
       rateLocked: false,
       rateLockedAt: null,
       updatedAt: new Date(),
@@ -151,23 +181,92 @@ export async function acceptTermSheet(dealId: string, termSheetId: string) {
     await populateClientNeedsFromProduct(dealId, termSheet.productId);
   }
 
+  // At most one term sheet per deal is ever "accepted" — if the borrower
+  // opted for a different one than whatever was previously accepted here,
+  // that old one is now superseded rather than just silently stale.
+  await db
+    .update(termSheets)
+    .set({ status: "superseded" })
+    .where(and(eq(termSheets.dealId, dealId), eq(termSheets.status, "accepted"), ne(termSheets.id, termSheetId)));
+
+  // Creates the processing-fee invoice (or refreshes it if the fee changed
+  // and nothing's been paid yet) — see src/server/billing.ts. Never throws:
+  // Stripe issues are logged, not surfaced, so they never block acceptance.
+  await syncProcessingFeeInvoice(dealId);
+
   revalidatePath(`/deals/${dealId}`);
 }
 
-export async function sendTermSheetsToBorrower(dealId: string, formData: FormData) {
+/**
+ * Re-sends Stripe's "you have an invoice" email for the deal's current
+ * processing-fee invoice — for when a borrower says a few days later they
+ * never got it or lost it. Returns the hosted invoice page URL so it can
+ * also be copied and texted directly.
+ */
+export async function resendProcessingFeeInvoice(dealId: string): Promise<string> {
+  await requireUser();
+  const deal = await db.query.deals.findFirst({
+    where: eq(deals.id, dealId),
+    with: { assignedLoanOfficer: { columns: { id: true, name: true, email: true } } },
+  });
+  if (!deal) throw new Error("Deal not found");
+  if (!deal.stripeInvoiceId) throw new Error("No processing-fee invoice has been created for this deal yet");
+  if (deal.stripeInvoiceStatus === "paid") throw new Error("This invoice has already been paid");
+  if (!deal.stripeInvoiceUrl) throw new Error("No payment link is on file for this invoice");
+
+  await sendProcessingFeeInvoiceEmail(deal, Number(deal.stripeInvoiceAmount), deal.stripeInvoiceUrl);
+  return deal.stripeInvoiceUrl;
+}
+
+// Sends this specific term sheet's PDF to PandaDoc for the borrower to
+// e-sign, using PandaDoc's own delivery email (unlike the client-need
+// pandadoc_form flow, there's no borrower-portal page mediating this one —
+// the whole point is the borrower gets it immediately, e.g. while still on
+// a call). Once they sign, the webhook calls performTermSheetAcceptance
+// above automatically — no separate manual "Accept" click needed.
+export async function sendTermSheetForSignature(dealId: string, termSheetId: string) {
+  await requireUser();
+
+  const [termSheet, deal] = await Promise.all([
+    db.query.termSheets.findFirst({ where: eq(termSheets.id, termSheetId) }),
+    db.query.deals.findFirst({ where: eq(deals.id, dealId) }),
+  ]);
+  if (!termSheet) throw new Error("Term sheet not found");
+  if (!deal) throw new Error("Deal not found");
+  if (!deal.borrowerEmail) throw new Error("This deal has no borrower email on file yet");
+
+  const baseUrl = process.env.NEXTAUTH_URL ?? "";
+  const pdfUrl = `${baseUrl}/api/term-sheets/${termSheetId}/pdf?forSignature=1`;
+  const [firstName, ...rest] = deal.borrowerName.trim().split(/\s+/);
+
+  const { id } = await createDocumentFromPdfUrl({
+    pdfUrl,
+    name: `Term Sheet — ${deal.propertyAddress}`,
+    recipientEmail: deal.borrowerEmail,
+    recipientFirstName: firstName || deal.borrowerName,
+    recipientLastName: rest.join(" "),
+  });
+  await waitUntilDraft(id);
+  await sendDocumentForSignature(id);
+
+  await db
+    .update(termSheets)
+    .set({ pandadocDocumentId: id, pandadocStatus: "document.sent" })
+    .where(eq(termSheets.id, termSheetId));
+
+  revalidatePath(`/deals/${dealId}`);
+}
+
+/** Renders (but does not send) the "send to borrower" email for a given term-sheet selection. */
+export async function previewTermSheetsToBorrowerEmail(dealId: string, termSheetIds: string[]) {
   const user = await requireUser();
-  if (!user.email) throw new Error("Your account has no email on file");
+  if (!termSheetIds.length) throw new Error("Select at least one term sheet first");
 
   const deal = await db.query.deals.findFirst({
     where: eq(deals.id, dealId),
     with: { assignedLoanOfficer: true },
   });
   if (!deal?.borrowerEmail) throw new Error("This deal has no borrower email on file");
-
-  const termSheetIds = formData
-    .getAll("termSheetIds")
-    .filter((v): v is string => typeof v === "string");
-  if (!termSheetIds.length) return;
 
   const schedulingLink = deal.assignedLoanOfficer?.schedulingLink;
   if (!schedulingLink) {
@@ -180,34 +279,65 @@ export async function sendTermSheetsToBorrower(dealId: string, formData: FormDat
 
   const baseUrl = process.env.NEXTAUTH_URL ?? "";
   const links = termSheetIds.map((id) => `${baseUrl}/api/term-sheets/${id}/pdf`);
-  const [companyName, dscrCalculatorLink] = await Promise.all([getCompanyName(), getDscrCalculatorLink()]);
+  const companyName = await getCompanyName();
   const summary = summarizeTermSheetsForBorrowerEmail(deal, selectedTermSheets);
   const templateKey = resolveTermSheetReadyTemplateKey(deal.loanCategory);
 
-  const { subject, body } = await buildBorrowerEmail(templateKey, deal, {
-    assignedLoanOfficerName: deal.assignedLoanOfficer?.name ?? "",
-    companyName,
-    senderName: user.name ?? "",
-    extra: {
-      termSheetLinks: links.join("\n"),
-      schedulingLink,
-      dscrCalculatorLink: dscrCalculatorLink ?? "(add a DSCR calculator link in Company Settings)",
-      ...summary,
-    },
+  const [{ subject, body }, signatureHtml, candidates] = await Promise.all([
+    buildBorrowerEmail(templateKey, deal, {
+      assignedLoanOfficerName: deal.assignedLoanOfficer?.name ?? "",
+      companyName,
+      senderName: user.name ?? "",
+      extra: { termSheetLinks: links.join("\n"), schedulingLink, ...summary },
+    }),
+    getUserEmailSignatureHtml(user.id),
+    getEmailRecipientCandidates(dealId, { includeAllStaff: true }),
+  ]);
+
+  // Rendered to HTML once, here, so the compose dialog can offer real
+  // formatting (bold, bullet lists) on top of it — sendTermSheetsToBorrowerEmail
+  // sends whatever HTML comes back from that editing, unconverted.
+  return { subject, body: plainTextToHtml(body), to: deal.borrowerEmail, cc: "", signatureHtml, candidates };
+}
+
+export async function sendTermSheetsToBorrowerEmail(
+  dealId: string,
+  termSheetIds: string[],
+  to: string,
+  cc: string,
+  subject: string,
+  body: string
+) {
+  const user = await requireUser();
+  if (!user.email) throw new Error("Your account has no email on file");
+  if (!to.trim()) throw new Error("No recipient on file for this email");
+  if (!subject.trim() || !body.trim()) throw new Error("Subject and body can't be empty");
+
+  const [logoHtml, signatureHtml] = await Promise.all([
+    getCompanyLogoHtml(),
+    getUserEmailSignatureHtml(user.id),
+  ]);
+  await sendGmailAs(user.id, user.email, {
+    to: to.trim(),
+    cc: cc.trim() || null,
+    subject,
+    body: logoHtml + body + signatureHtml,
+    html: true,
   });
 
-  await sendGmailAs(user.id, user.email, {
-    to: deal.borrowerEmail,
-    subject,
-    body,
-  });
+  if (termSheetIds.length) {
+    await db
+      .update(termSheets)
+      .set({ sentForReviewAt: new Date() })
+      .where(inArray(termSheets.id, termSheetIds));
+  }
 
   revalidatePath(`/deals/${dealId}`);
 }
 
-export async function sendBookACallEmail(dealId: string) {
+/** Renders (but does not send) the "book a call" email. */
+export async function previewBookACallEmail(dealId: string) {
   const user = await requireUser();
-  if (!user.email) throw new Error("Your account has no email on file");
 
   const deal = await db.query.deals.findFirst({
     where: eq(deals.id, dealId),
@@ -221,17 +351,36 @@ export async function sendBookACallEmail(dealId: string) {
   }
 
   const companyName = await getCompanyName();
-  const { subject, body } = await buildBorrowerEmail("borrower_book_a_call", deal, {
-    assignedLoanOfficerName: deal.assignedLoanOfficer?.name ?? "",
-    companyName,
-    senderName: user.name ?? "",
-    extra: { schedulingLink },
-  });
+  const [{ subject, body }, signatureHtml, candidates] = await Promise.all([
+    buildBorrowerEmail("borrower_book_a_call", deal, {
+      assignedLoanOfficerName: deal.assignedLoanOfficer?.name ?? "",
+      companyName,
+      senderName: user.name ?? "",
+      extra: { schedulingLink },
+    }),
+    getUserEmailSignatureHtml(user.id),
+    getEmailRecipientCandidates(dealId, { includeAllStaff: true }),
+  ]);
 
+  return { subject, body: plainTextToHtml(body), to: deal.borrowerEmail, cc: "", signatureHtml, candidates };
+}
+
+export async function sendBookACallEmail(dealId: string, to: string, cc: string, subject: string, body: string) {
+  const user = await requireUser();
+  if (!user.email) throw new Error("Your account has no email on file");
+  if (!to.trim()) throw new Error("No recipient on file for this email");
+  if (!subject.trim() || !body.trim()) throw new Error("Subject and body can't be empty");
+
+  const [logoHtml, signatureHtml] = await Promise.all([
+    getCompanyLogoHtml(),
+    getUserEmailSignatureHtml(user.id),
+  ]);
   await sendGmailAs(user.id, user.email, {
-    to: deal.borrowerEmail,
+    to: to.trim(),
+    cc: cc.trim() || null,
     subject,
-    body,
+    body: logoHtml + body + signatureHtml,
+    html: true,
   });
 
   revalidatePath(`/deals/${dealId}`);

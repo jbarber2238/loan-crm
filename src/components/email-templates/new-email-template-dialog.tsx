@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
 import { createEmailTemplate } from "@/server/actions/email-templates";
 import { draftEmailTemplateWithAI } from "@/server/ai/email-template-draft";
@@ -25,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { STAGES } from "@/lib/labels";
 import { BORROWER_LIFECYCLE_TOKENS } from "@/lib/email-template-tokens";
+import { MergeFieldPicker } from "@/components/email-templates/merge-field-picker";
 
 export function NewEmailTemplateDialog() {
   const router = useRouter();
@@ -36,7 +38,8 @@ export function NewEmailTemplateDialog() {
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
-  const [showTokens, setShowTokens] = useState(false);
+  const subjectRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiPending, startAiTransition] = useTransition();
@@ -75,9 +78,12 @@ export function NewEmailTemplateDialog() {
         await createEmailTemplate(formData);
         setOpen(false);
         resetForm();
+        toast.success("Template created");
         router.refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Something went wrong.");
+        const message = err instanceof Error ? err.message : "Something went wrong.";
+        setError(message);
+        toast.error(message);
       }
     });
   }
@@ -137,10 +143,19 @@ export function NewEmailTemplateDialog() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="new-template-subject">Subject</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="new-template-subject">Subject</Label>
+              <MergeFieldPicker
+                tokens={BORROWER_LIFECYCLE_TOKENS}
+                targetRef={subjectRef}
+                value={subject}
+                onChange={setSubject}
+              />
+            </div>
             <Input
               id="new-template-subject"
               name="subject"
+              ref={subjectRef}
               required
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
@@ -149,36 +164,23 @@ export function NewEmailTemplateDialog() {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label htmlFor="new-template-body">Body</Label>
-              <button
-                type="button"
-                onClick={() => setShowTokens((v) => !v)}
-                className="text-xs text-muted-foreground underline"
-              >
-                {showTokens ? "Hide" : "Show"} merge fields
-              </button>
+              <MergeFieldPicker
+                tokens={BORROWER_LIFECYCLE_TOKENS}
+                targetRef={bodyRef}
+                value={body}
+                onChange={setBody}
+              />
             </div>
             <Textarea
               id="new-template-body"
               name="body"
+              ref={bodyRef}
               rows={8}
               required
               className="font-mono text-xs"
               value={body}
               onChange={(e) => setBody(e.target.value)}
             />
-            {showTokens && (
-              <div className="flex flex-wrap gap-1 rounded-md bg-muted/40 p-2">
-                {BORROWER_LIFECYCLE_TOKENS.map((t) => (
-                  <code
-                    key={t.key}
-                    title={t.description}
-                    className="rounded bg-background px-1.5 py-0.5 text-[10px] border"
-                  >
-                    {`{{${t.key}}}`}
-                  </code>
-                ))}
-              </div>
-            )}
           </div>
           <div className="space-y-1.5">
             <Label>Send at pipeline stage</Label>

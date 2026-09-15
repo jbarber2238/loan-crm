@@ -7,8 +7,10 @@ import { deals, lenderReps, pricingRequestReplyAttachments, pricingRequests } fr
 import { requireUser } from "@/server/auth/guards";
 import { sendGmailAs } from "@/server/gmail/send";
 import { getLatestThreadReply } from "@/server/gmail/read";
-import { getCompanyName } from "@/server/settings";
+import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
+import { getUserEmailSignatureHtml } from "@/server/users";
 import { buildPricingEmail } from "@/server/pricing-templates";
+import { plainTextToHtml } from "@/lib/email-html";
 
 export async function updateDealPricingNote(dealId: string, formData: FormData) {
   await requireUser();
@@ -34,8 +36,26 @@ export async function createPricingRequests(dealId: string, formData: FormData) 
   for (const repId of repIds) {
     const rep = await db.query.lenderReps.findFirst({
       where: eq(lenderReps.id, repId),
+      with: { lender: true },
     });
     if (!rep) continue;
+
+    // A lender with a quick pricer has nothing to email — the row just
+    // anchors a "go price it yourself" card (and an AI screenshot upload)
+    // in the same list instead of a drafted pricing email.
+    if (rep.lender.quickPricerUrl) {
+      await db.insert(pricingRequests).values({
+        dealId,
+        lenderId: rep.lenderId,
+        lenderRepId: rep.id,
+        emailSubject: "",
+        emailBody: "",
+        isQuickPricer: true,
+        status: "sent",
+        sentAt: new Date(),
+      });
+      continue;
+    }
 
     const { subject, body } = await buildPricingEmail(deal, {
       repName: rep.name,
@@ -44,12 +64,15 @@ export async function createPricingRequests(dealId: string, formData: FormData) 
       notes: deal.pricingNoteToRep,
     });
 
+    // Rendered to HTML once, here, so the draft can be edited with real
+    // formatting (bold, bullet lists) — everything downstream (save, send)
+    // treats emailBody as HTML from this point on.
     await db.insert(pricingRequests).values({
       dealId,
       lenderId: rep.lenderId,
       lenderRepId: rep.id,
       emailSubject: subject,
-      emailBody: body,
+      emailBody: plainTextToHtml(body),
       status: "draft",
     });
   }
@@ -65,12 +88,14 @@ export async function updatePricingRequest(
   await requireUser();
   const subject = formData.get("emailSubject");
   const body = formData.get("emailBody");
+  const cc = formData.get("emailCc");
 
   await db
     .update(pricingRequests)
     .set({
       emailSubject: typeof subject === "string" ? subject : "",
       emailBody: typeof body === "string" ? body : "",
+      emailCc: typeof cc === "string" && cc.trim() ? cc.trim() : null,
     })
     .where(eq(pricingRequests.id, requestId));
 
@@ -100,10 +125,16 @@ async function sendOnePricingRequest(user: { id: string; email: string }, reques
   if (!request) throw new Error("Pricing request not found");
   if (request.status === "sent") return;
 
+  const [logoHtml, signatureHtml] = await Promise.all([
+    getCompanyLogoHtml(),
+    getUserEmailSignatureHtml(user.id),
+  ]);
   const sent = await sendGmailAs(user.id, user.email, {
     to: request.lenderRep.email,
+    cc: request.emailCc || null,
     subject: request.emailSubject,
-    body: request.emailBody,
+    body: logoHtml + request.emailBody + signatureHtml,
+    html: true,
   });
 
   await db

@@ -58,6 +58,29 @@ export async function updateLender(lenderId: string, formData: FormData) {
   revalidatePath("/lenders");
 }
 
+// The page submits this from two separate forms (submission/pricing links,
+// and — only when method is "email" — the intro template), so only touch a
+// field if its form was the one actually submitted, same reasoning as
+// updateMyProfile: otherwise saving one form would null out the other's.
+export async function updateLenderSubmission(lenderId: string, formData: FormData) {
+  await requireAdmin();
+  const updates: Partial<typeof lenders.$inferInsert> = {};
+
+  if (formData.has("quickPricerUrl")) updates.quickPricerUrl = nullableStr(formData, "quickPricerUrl");
+  if (formData.has("applicationSubmissionMethod")) {
+    const method = str(formData, "applicationSubmissionMethod");
+    updates.applicationSubmissionMethod = method === "portal" || method === "email" ? method : null;
+  }
+  if (formData.has("brokerPortalUrl")) updates.brokerPortalUrl = nullableStr(formData, "brokerPortalUrl");
+  if (formData.has("introEmailSubject")) updates.introEmailSubject = nullableStr(formData, "introEmailSubject");
+  if (formData.has("introEmailBody")) updates.introEmailBody = nullableStr(formData, "introEmailBody");
+
+  if (Object.keys(updates).length === 0) return;
+
+  await db.update(lenders).set(updates).where(eq(lenders.id, lenderId));
+  revalidatePath(`/lenders/${lenderId}`);
+}
+
 export async function deleteLender(lenderId: string) {
   await requireAdmin();
   try {

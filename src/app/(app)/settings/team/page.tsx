@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { ActionForm } from "@/components/forms/action-form";
+import { SubmitButton } from "@/components/forms/submit-button";
 import {
   Select,
   SelectContent,
@@ -30,7 +32,6 @@ export default async function TeamSettingsPage() {
   const allUsers = await db.query.users.findMany({
     orderBy: (users, { asc }) => asc(users.name),
   });
-  const loanOfficers = allUsers.filter((u) => u.baseRole === "loan_officer");
 
   return (
     <div className="space-y-4">
@@ -49,7 +50,7 @@ export default async function TeamSettingsPage() {
             <DialogHeader>
               <DialogTitle>Invite Member</DialogTitle>
             </DialogHeader>
-            <form action={inviteUser} className="space-y-4">
+            <ActionForm action={inviteUser} successMessage="Invite sent" className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="invite-email">Email</Label>
                 <Input id="invite-email" name="email" type="email" required />
@@ -73,10 +74,8 @@ export default async function TeamSettingsPage() {
                 <Checkbox name="isAdmin" />
                 Admin
               </label>
-              <Button type="submit" className="w-full">
-                Send Invite
-              </Button>
-            </form>
+              <SubmitButton className="w-full">Send Invite</SubmitButton>
+            </ActionForm>
           </DialogContent>
         </Dialog>
       </div>
@@ -104,7 +103,7 @@ export default async function TeamSettingsPage() {
               )}
             </CardHeader>
             <CardContent>
-              <form action={action} className="space-y-4">
+              <ActionForm action={action} successMessage="Saved" className="space-y-4">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label htmlFor={`role-${user.id}`}>Role</Label>
@@ -131,25 +130,6 @@ export default async function TeamSettingsPage() {
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor={`assigned-${user.id}`}>
-                    Supports loan officers (assistants only — Cmd/Ctrl-click to select multiple)
-                  </Label>
-                  <select
-                    id={`assigned-${user.id}`}
-                    name="assignedLoanOfficerIds"
-                    multiple
-                    className="w-full rounded-md border bg-transparent p-2 text-sm"
-                    defaultValue={user.assignedLoanOfficerIds ?? []}
-                  >
-                    {loanOfficers.map((lo) => (
-                      <option key={lo.id} value={lo.id}>
-                        {lo.name ?? lo.email}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
                 <div className="flex items-center gap-6">
                   <label className="flex items-center gap-2 text-sm">
                     <Checkbox name="isAdmin" defaultChecked={user.isAdmin} />
@@ -161,8 +141,8 @@ export default async function TeamSettingsPage() {
                   </label>
                 </div>
 
-                <Button type="submit">Save</Button>
-              </form>
+                <SubmitButton>Save</SubmitButton>
+              </ActionForm>
             </CardContent>
           </Card>
         );

@@ -128,12 +128,11 @@ async function notifyBorrowerAndStaff(dealId: string, uploadedNeedNames: string[
         companyName,
         heading: "Got it — thanks for uploading",
         bodyHtml: `<p style="margin:0 0 16px;">Hi ${escapeHtml(firstName(deal.borrowerName))},</p><p style="margin:0 0 16px;">We received the following and it's now marked complete on our end:</p>${itemsHtml}`,
-        signOffName: sender.name ?? companyName,
       });
       await sendGmailAs(sender.id, sender.email, {
         to: deal.borrowerEmail,
         subject: `Received — ${deal.propertyAddress}`,
-        body: html,
+        body: html + (sender.emailSignatureHtml ?? ""),
         html: true,
       });
     } catch (err) {
@@ -151,7 +150,6 @@ async function notifyBorrowerAndStaff(dealId: string, uploadedNeedNames: string[
         companyName,
         heading: "New documents from your borrower",
         bodyHtml: `<p style="margin:0 0 16px;">${escapeHtml(deal.borrowerName)} just uploaded the following on ${escapeHtml(deal.propertyAddress)}:</p>${itemsHtml}`,
-        signOffName: companyName,
       });
       for (const to of staffEmails) {
         await sendGmailAs(sender.id, sender.email, {

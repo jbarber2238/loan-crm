@@ -11,6 +11,24 @@ export function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
+const URL_REGEX = /(https?:\/\/[^\s<]+)/g;
+
+/**
+ * Converts a plain-text template body (line breaks, bare URLs) into safe
+ * HTML that reads the same as the original plain-text email — used for
+ * templates authored as plain text (pricing requests, term sheet ready,
+ * book a call) now that outgoing mail needs to be HTML to carry the company
+ * logo. white-space:pre-wrap preserves line breaks without hand-converting
+ * every \n to <br/>.
+ */
+export function plainTextToHtml(text: string): string {
+  const html = escapeHtml(text).replace(
+    URL_REGEX,
+    (url) => `<a href="${url}" target="_blank" rel="noreferrer">${url}</a>`
+  );
+  return `<div style="white-space:pre-wrap; font-family:Arial,Helvetica,sans-serif; font-size:14px; color:#1f2937;">${html}</div>`;
+}
+
 export const EMAIL_LIST_STYLE = "margin:0; padding-left:20px;";
 export const EMAIL_ITEM_STYLE = "margin-bottom:12px; line-height:1.5;";
 export const EMAIL_SUBNOTE_STYLE = "color:#6b7280; font-size:13px;";
@@ -33,22 +51,24 @@ export function htmlBulletList(items: { name: string; note?: string | null }[]):
     .join("")}</ul>`;
 }
 
-/** Wraps inner content in the shared plain-letter shell used across borrower/staff emails. */
+/**
+ * Wraps inner content in the shared plain-letter shell used across
+ * borrower/staff emails. No baked-in sign-off — the sending user's own
+ * saved email signature (or nothing, for a purely internal notice) is
+ * appended by the caller instead.
+ */
 export function emailShell({
   companyName,
   heading,
   bodyHtml,
-  signOffName,
 }: {
   companyName: string;
   heading: string;
   bodyHtml: string;
-  signOffName: string;
 }): string {
   return `<div style="font-family:Arial,Helvetica,sans-serif; color:#1f2937; max-width:600px; font-size:14px;">
 <p style="margin:0 0 4px; font-size:12px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:#1d4ed8;">${escapeHtml(companyName)}</p>
 <h2 style="margin:0 0 20px; font-size:20px; font-weight:700; color:#111827;">${heading}</h2>
 ${bodyHtml}
-<p style="margin:20px 0 0;">${escapeHtml(signOffName)}<br/>${escapeHtml(companyName)}</p>
 </div>`;
 }

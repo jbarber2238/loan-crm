@@ -1,18 +1,25 @@
 import { requireAdmin } from "@/server/auth/guards";
-import { getPandaDocApiKey, getPandaDocWebhookSharedKey } from "@/server/settings";
-import { updatePandaDocSettings, disconnectPandaDoc } from "@/server/actions/settings";
+import { getPandaDocApiKey, getPandaDocWebhookSharedKey, getStripeSecretKey, getStripeWebhookSecret } from "@/server/settings";
+import { updatePandaDocSettings, disconnectPandaDoc, updateStripeSettings, disconnectStripe } from "@/server/actions/settings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { ActionForm } from "@/components/forms/action-form";
+import { SubmitButton } from "@/components/forms/submit-button";
 
 export default async function IntegrationsSettingsPage() {
   await requireAdmin();
-  const [apiKey, webhookSharedKey] = await Promise.all([getPandaDocApiKey(), getPandaDocWebhookSharedKey()]);
+  const [apiKey, webhookSharedKey, stripeSecretKey, stripeWebhookSecret] = await Promise.all([
+    getPandaDocApiKey(),
+    getPandaDocWebhookSharedKey(),
+    getStripeSecretKey(),
+    getStripeWebhookSecret(),
+  ]);
   const connected = Boolean(apiKey);
+  const stripeConnected = Boolean(stripeSecretKey);
   const webhookUrl = `${process.env.NEXTAUTH_URL ?? "http://localhost:3000"}/api/webhooks/pandadoc`;
+  const stripeWebhookUrl = `${process.env.NEXTAUTH_URL ?? "http://localhost:3000"}/api/webhooks/stripe`;
 
   return (
     <div className="space-y-6">
@@ -41,7 +48,7 @@ export default async function IntegrationsSettingsPage() {
             the borrower from their upload page.
           </p>
 
-          <form action={updatePandaDocSettings} className="max-w-sm space-y-4">
+          <ActionForm action={updatePandaDocSettings} successMessage="PandaDoc settings saved" className="max-w-sm space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="apiKey">API key</Label>
               <Input id="apiKey" name="apiKey" type="password" placeholder={apiKey ? "•••••••••••• (saved)" : "Paste your API key"} />
@@ -61,20 +68,73 @@ export default async function IntegrationsSettingsPage() {
                 deliveries really came from PandaDoc.
               </p>
             </div>
-            <Button type="submit">Save</Button>
-          </form>
+            <SubmitButton>Save</SubmitButton>
+          </ActionForm>
 
           {connected && (
-            <form action={disconnectPandaDoc}>
-              <ConfirmSubmitButton
-                type="submit"
-                variant="destructive"
-                size="sm"
-                confirmMessage="Disconnect PandaDoc? Any PandaDoc Form needs already sent to borrowers will stop being able to reach PandaDoc until you reconnect."
-              >
+            <ActionForm
+              action={disconnectPandaDoc}
+              successMessage="PandaDoc disconnected"
+              confirmMessage="Disconnect PandaDoc? Any PandaDoc Form needs already sent to borrowers will stop being able to reach PandaDoc until you reconnect."
+            >
+              <SubmitButton variant="destructive" size="sm">
                 Disconnect
-              </ConfirmSubmitButton>
-            </form>
+              </SubmitButton>
+            </ActionForm>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Stripe</CardTitle>
+          <Badge variant={stripeConnected ? "success" : "secondary"}>{stripeConnected ? "Connected" : "Not connected"}</Badge>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Auto-generates and sends the $999 processing-fee invoice the moment a borrower signs their accepted
+            term sheet. This is separate from any Stripe access used elsewhere — the app needs its own key to run
+            this in production.
+          </p>
+
+          <ActionForm action={updateStripeSettings} successMessage="Stripe settings saved" className="max-w-sm space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="secretKey">Secret key</Label>
+              <Input
+                id="secretKey"
+                name="secretKey"
+                type="password"
+                placeholder={stripeSecretKey ? "•••••••••••• (saved)" : "sk_live_..."}
+              />
+              <p className="text-xs text-muted-foreground">From Stripe&apos;s Dashboard → Developers → API keys.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="webhookSecret">Webhook signing secret</Label>
+              <Input
+                id="webhookSecret"
+                name="webhookSecret"
+                type="password"
+                placeholder={stripeWebhookSecret ? "•••••••••••• (saved)" : "whsec_..."}
+              />
+              <p className="text-xs text-muted-foreground">
+                Issued when you add a webhook endpoint pointing at{" "}
+                <code className="rounded bg-muted px-1 py-0.5">{stripeWebhookUrl}</code> listening for the{" "}
+                <code className="rounded bg-muted px-1 py-0.5">invoice.paid</code> event.
+              </p>
+            </div>
+            <SubmitButton>Save</SubmitButton>
+          </ActionForm>
+
+          {stripeConnected && (
+            <ActionForm
+              action={disconnectStripe}
+              successMessage="Stripe disconnected"
+              confirmMessage="Disconnect Stripe? Processing-fee invoices will stop being generated automatically until you reconnect."
+            >
+              <SubmitButton variant="destructive" size="sm">
+                Disconnect
+              </SubmitButton>
+            </ActionForm>
           )}
         </CardContent>
       </Card>

@@ -18,6 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LOAN_CATEGORIES, STAGES, labelFor } from "@/lib/labels";
 import { STAGES_REQUIRING_REASON } from "@/lib/deal-pipeline";
+import { leadValueFor } from "@/lib/term-sheet-calculations";
 import { updateDealStage } from "@/server/actions/deals";
 import { StageReasonDialog } from "@/components/deals/stage-reason-dialog";
 
@@ -27,6 +28,8 @@ export interface BoardDeal {
   borrowerName: string;
   propertyAddress: string;
   loanAmountRequested: string;
+  approvedLoanAmount: string | null;
+  originationPointsOverride: string | null;
   loanCategory: string;
   stage: string;
   createdAt: string;
@@ -59,10 +62,22 @@ function formatDate(dateStr: string) {
   });
 }
 
-function formatAmount(amount: string) {
+function formatAmount(amount: string | number) {
   const n = Number(amount);
-  if (Number.isNaN(n)) return amount;
+  if (Number.isNaN(n)) return String(amount);
   return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+}
+
+// 2% of the requested amount pre-acceptance, or the deal's real (possibly
+// negotiated) origination fee once a term sheet's been accepted — see
+// leadValueFor for the full rule. This is what a lead is actually worth to
+// close, tracked from intake all the way through to closed or lost.
+function dealLeadValue(deal: BoardDeal) {
+  return leadValueFor({
+    loanAmountRequested: Number(deal.loanAmountRequested),
+    approvedLoanAmount: deal.approvedLoanAmount !== null ? Number(deal.approvedLoanAmount) : null,
+    originationPointsOverride: deal.originationPointsOverride !== null ? Number(deal.originationPointsOverride) : null,
+  });
 }
 
 function DealCard({ deal }: { deal: BoardDeal }) {
@@ -73,6 +88,8 @@ function DealCard({ deal }: { deal: BoardDeal }) {
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
     : undefined;
+
+  const leadValue = dealLeadValue(deal);
 
   return (
     <div
@@ -95,8 +112,14 @@ function DealCard({ deal }: { deal: BoardDeal }) {
             </p>
             <div className="text-xs space-y-0.5 pt-0.5">
               <p>
-                <span className="text-muted-foreground">Requested Loan Amount: </span>
-                <span className="font-semibold">{formatAmount(deal.loanAmountRequested)}</span>
+                <span className="text-muted-foreground">{leadValue.basisLabel}: </span>
+                <span className="font-semibold">{formatAmount(leadValue.basisAmount)}</span>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Lead Value: </span>
+                <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                  {formatAmount(leadValue.amount)}
+                </span>
               </p>
               <p>
                 <span className="text-muted-foreground">Loan Type: </span>
@@ -154,6 +177,7 @@ function Column({
   deals: BoardDeal[];
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
+  const totalLeadValue = deals.reduce((sum, deal) => sum + dealLeadValue(deal).amount, 0);
 
   return (
     <div
@@ -162,9 +186,14 @@ function Column({
         isOver ? "ring-2 ring-primary" : ""
       }`}
     >
-      <div className="flex items-center justify-between px-3 py-2 border-b bg-background/60 rounded-t-lg">
-        <span className="text-sm font-medium">{label}</span>
-        <span className="text-xs text-muted-foreground">{deals.length}</span>
+      <div className="flex flex-col gap-0.5 px-3 py-2 border-b bg-background/60 rounded-t-lg">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium">{label}</span>
+          <span className="text-xs text-muted-foreground">{deals.length}</span>
+        </div>
+        <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
+          Pipeline Stage Value: {formatAmount(totalLeadValue)}
+        </span>
       </div>
       <div className="flex flex-col gap-2 p-2 min-h-24 overflow-y-auto max-h-[70vh]">
         {deals.map((deal) => (

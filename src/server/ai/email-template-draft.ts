@@ -2,7 +2,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { requireAdmin } from "@/server/auth/guards";
-import { tokensForCategory } from "@/lib/email-template-tokens";
+import { tokensForCategory, type EmailTemplateCategory } from "@/lib/email-template-tokens";
 import { STAGES } from "@/lib/labels";
 
 const anthropic = process.env.ANTHROPIC_API_KEY
@@ -16,15 +16,20 @@ export interface EmailTemplateDraft {
   triggerStage: string | null;
 }
 
-function systemPromptFor(category: "pricing_request" | "borrower_lifecycle"): string {
+const AUDIENCE_BY_CATEGORY: Record<EmailTemplateCategory, string> = {
+  pricing_request: "a lender's pricing rep, requesting terms on a deal",
+  borrower_lifecycle: "the borrower on a loan file",
+  insurance_request: "an insurance agent, requesting a binder for a property",
+  title_request: "a title agent, requesting title work be opened on a property",
+  application_submission: "a lender's rep, submitting a loan application for processing",
+};
+
+function systemPromptFor(category: EmailTemplateCategory): string {
   const tokens = tokensForCategory(category)
     .map((t) => `- {{${t.key}}} — ${t.description}`)
     .join("\n");
 
-  const audience =
-    category === "pricing_request"
-      ? "a lender's pricing rep, requesting terms on a deal"
-      : "the borrower on a loan file";
+  const audience = AUDIENCE_BY_CATEGORY[category];
 
   const stageGuidance =
     category === "borrower_lifecycle"
@@ -68,7 +73,7 @@ function extractJson(text: string): EmailTemplateDraft | null {
 
 export async function draftEmailTemplateWithAI(
   prompt: string,
-  category: "pricing_request" | "borrower_lifecycle"
+  category: EmailTemplateCategory
 ): Promise<EmailTemplateDraft> {
   await requireAdmin();
 

@@ -77,13 +77,18 @@ export const citizenshipStatusEnum = pgEnum("citizenship_status", [
 // options anywhere in the app).
 export const COMMERCIAL_PROPERTY_TYPES = ["multifamily_5plus", "mixed_use"] as const;
 
-// "pricing_request" templates are used by the app itself (rendered and sent
-// when pricing a deal) — their key/category are fixed, only content is
-// editable. "borrower_lifecycle" templates are ones Justin defines himself
-// for future automated sends to the borrower at a given pipeline stage.
+// "pricing_request", "insurance_request", "title_request", and
+// "application_submission" templates are used by the app itself (rendered
+// and sent at a fixed point in the deal flow) — their key/category are
+// fixed, only content is editable. "borrower_lifecycle" templates are ones
+// Justin defines himself for future automated sends to the borrower at a
+// given pipeline stage.
 export const emailTemplateCategoryEnum = pgEnum("email_template_category", [
   "pricing_request",
   "borrower_lifecycle",
+  "insurance_request",
+  "title_request",
+  "application_submission",
 ]);
 
 export const dealStageEnum = pgEnum("deal_stage", [
@@ -152,10 +157,15 @@ export const pricingRequestStatusEnum = pgEnum("pricing_request_status", [
   "sent",
 ]);
 
+// "superseded" = this term sheet was accepted at some point, but the
+// borrower/Justin later accepted a different one on the same deal instead —
+// set automatically by performTermSheetAcceptance so at most one term sheet
+// per deal is ever "accepted" at a time.
 export const termSheetStatusEnum = pgEnum("term_sheet_status", [
   "draft",
   "generated",
   "accepted",
+  "superseded",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -173,9 +183,13 @@ export const users = pgTable("user", {
   googleId: text("google_id"),
   baseRole: baseRoleEnum("base_role").notNull().default("loan_officer"),
   isAdmin: boolean("is_admin").notNull().default(false),
-  assignedLoanOfficerIds: uuid("assigned_loan_officer_ids").array(),
   active: boolean("active").notNull().default(true),
   schedulingLink: text("scheduling_link"),
+  emailSignatureHtml: text("email_signature_html"),
+  // Shown in the Loan Originator Information section on generated term
+  // sheets. NMLS is nullable — Justin doesn't have one yet.
+  phone: text("phone"),
+  nmlsNumber: text("nmls_number"),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 
@@ -184,15 +198,32 @@ export const users = pgTable("user", {
 export const companySettings = pgTable("company_settings", {
   id: text("id").primaryKey().default("default"),
   name: text("name").notNull(),
-  // A shareable link to Justin's DSCR PITI calculator tool — included as a
-  // P.S. in the DSCR "term sheet ready" borrower email. Null until he adds one.
-  dscrCalculatorLink: text("dscr_calculator_link"),
+  // Shown on every outgoing email template (pricing requests, borrower
+  // lifecycle emails) — base64, same storage pattern as every other file
+  // in this app. Null until Justin uploads one.
+  logoFileName: text("logo_file_name"),
+  logoMimeType: text("logo_mime_type"),
+  logoData: text("logo_data"),
+  // Computed at upload time (average luminance of the logo's own visible —
+  // non-transparent — pixels) so the sidebar, the settings preview, and
+  // outgoing emails can each pick a backdrop that contrasts with whatever
+  // color the logo actually is, instead of assuming every uploaded logo is
+  // dark. See computeLogoIsLight in src/server/actions/settings.ts.
+  logoIsLight: boolean("logo_is_light").notNull().default(false),
   // PandaDoc integration (Settings → Integrations) — the API key for
   // creating/sending documents, and the shared key PandaDoc issues when the
   // webhook subscription pointing at /api/webhooks/pandadoc is created,
   // used to verify those webhook deliveries are genuinely from PandaDoc.
   pandadocApiKey: text("pandadoc_api_key"),
   pandadocWebhookSharedKey: text("pandadoc_webhook_shared_key"),
+  // Stripe integration (Settings → Integrations) — this app's own secret key
+  // for creating customers/invoices server-side, and the webhook signing
+  // secret for verifying deliveries to /api/webhooks/stripe are genuinely
+  // from Stripe. Separate from any Stripe access used elsewhere (e.g. an
+  // MCP connection) — the deployed app needs its own credentials to run
+  // this automatically in production.
+  stripeSecretKey: text("stripe_secret_key"),
+  stripeWebhookSecret: text("stripe_webhook_secret"),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });
 
@@ -240,10 +271,22 @@ export const verificationTokens = pgTable(
 // Lenders / products / criteria / client-need templates
 // ---------------------------------------------------------------------------
 
+export const lenderSubmissionMethodEnum = pgEnum("lender_submission_method", ["portal", "email"]);
+
 export const lenders = pgTable("lenders", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   notes: text("notes"),
+  // A link to the lender's own instant-pricing tool — when set, the Pricing
+  // tab offers this instead of a drafted pricing email, since there's
+  // nothing to send; you just go price it yourself.
+  quickPricerUrl: text("quick_pricer_url"),
+  // Null = not configured yet. "portal" needs brokerPortalUrl; "email" uses
+  // introEmailSubject/introEmailBody as the Submit Application starting point.
+  applicationSubmissionMethod: lenderSubmissionMethodEnum("application_submission_method"),
+  brokerPortalUrl: text("broker_portal_url"),
+  introEmailSubject: text("intro_email_subject"),
+  introEmailBody: text("intro_email_body"),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 
@@ -282,6 +325,46 @@ export const lenderCriteria = pgTable("lender_criteria", {
   statesAllowed: text("states_allowed").array(),
   propertyTypesAllowed: text("property_types_allowed").array(),
   otherNotes: text("other_notes"),
+  // --- AI-extracted structured criteria (see extract-lender-criteria.ts) ---
+  // These flat fields cover a product whose whole matrix is one set of
+  // thresholds; a matrix with a FICO/experience-tiered grid (different
+  // LTC/LTARV caps per tier — the common case for hard-money/construction)
+  // stores its rows in lenderCriteriaTiers instead, with these left null.
+  maxLtc: numeric("max_ltc"),
+  maxLtarv: numeric("max_ltarv"),
+  minExperienceCount: integer("min_experience_count"),
+  entityOnlyRequired: boolean("entity_only_required"),
+  gcLicenseRequired: boolean("gc_license_required"),
+  msaPopulationMinimum: integer("msa_population_minimum"),
+  // Provenance/review — this data now drives matching decisions by itself
+  // (no more re-reading the source document every time), so a wrong
+  // extraction is a real, silent liability until someone checks it.
+  extractedAt: timestamp("extracted_at", { withTimezone: true }),
+  extractedFromDocumentId: uuid("extracted_from_document_id").references(() => lenderDocuments.id, {
+    onDelete: "set null",
+  }),
+  needsReview: boolean("needs_review").notNull().default(false),
+  extractionNotes: text("extraction_notes"),
+});
+
+// One row per FICO/experience tier on a matrix whose leverage caps vary by
+// tier (e.g. "700-739 FICO, 8+ deals -> 90% LTC / 70% LTARV") — the shape
+// every real hard-money/construction matrix we've read actually uses,
+// rather than a single flat max. A product with a flat (non-tiered) matrix
+// simply has no rows here and uses lenderCriteria's own maxLtc/maxLtarv/
+// maxLtv instead.
+export const lenderCriteriaTiers = pgTable("lender_criteria_tiers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  criteriaId: uuid("criteria_id")
+    .notNull()
+    .references(() => lenderCriteria.id, { onDelete: "cascade" }),
+  ficoMin: integer("fico_min"),
+  ficoMax: integer("fico_max"),
+  experienceMin: integer("experience_min"),
+  maxLtc: numeric("max_ltc"),
+  maxLtarv: numeric("max_ltarv"),
+  maxLtv: numeric("max_ltv"),
+  notes: text("notes"),
 });
 
 // The shared client-need catalog — every "kind" of borrower ask (Bank
@@ -454,6 +537,10 @@ export const deals = pgTable("deals", {
   // Loan term in years, copied from the accepted term sheet — needed to
   // estimate a fully-amortizing PITIA payment (see term-sheet-calculations.ts).
   finalLoanTermYears: integer("final_loan_term_years"),
+  // Fix-and-flip/new-construction/bridge quote their term in months, not
+  // years — same "final term" concept as finalLoanTermYears above, just the
+  // unit hard-money/bridge lenders actually use.
+  finalLoanTermMonths: integer("final_loan_term_months"),
   // The accepted loan amount can shift after acceptance (appraisal,
   // underwriting) — distinct from the borrower's original ask.
   approvedLoanAmount: numeric("approved_loan_amount"),
@@ -464,22 +551,69 @@ export const deals = pgTable("deals", {
   appraisedValue: numeric("appraised_value"),
   // true = LTV/loan amount are based on purchase price (the default — most
   // lenders anchor to the lower of purchase price/appraised value); false =
-  // based on appraisedValue once it's in.
+  // based on appraisedValue once it's in. On fix-and-flip/new-construction
+  // deals this same flag/column doubles as the LTC as-is-value basis — a
+  // deal is only ever one shape or the other, so one column covers both.
   ltvBasedOnPurchasePrice: boolean("ltv_based_on_purchase_price").notNull().default(true),
+  // Fix-and-flip/new-construction only, promoted from the accepted term
+  // sheet's approvedRehabCost/approvedArv fields — the lender-quoted budget
+  // and ARV used for LTC/LTARV before an appraisal comes back. Editable
+  // afterward like the rest of the accepted terms.
+  approvedRehabCost: numeric("approved_rehab_cost"),
+  approvedArv: numeric("approved_arv"),
+  // Also fix-and-flip/new-construction only, promoted from the term sheet's
+  // initialAdvance/interestType fields — needed for the accepted-terms
+  // header's Initial Advance tile and its Dutch-vs-Non-Dutch monthly
+  // payment display.
+  approvedInitialAdvance: numeric("approved_initial_advance"),
+  interestType: text("interest_type"),
+  // The appraised after-repair value, once the appraisal comes in — null
+  // until then. LTARV uses this instead of approvedArv when
+  // ltarvBasedOnApprovedArv is false.
+  appraisedArv: numeric("appraised_arv"),
+  // true = LTARV is based on the lender-quoted approvedArv (the default);
+  // false = based on appraisedArv once it's in. Same pattern as
+  // ltvBasedOnPurchasePrice above, just for the ARV side instead of the
+  // as-is side.
+  ltarvBasedOnApprovedArv: boolean("ltarv_based_on_approved_arv").notNull().default(true),
+  // Stored/editable like approvedLtv — LTARV = approvedLoanAmount ÷
+  // (appraisedArv or approvedArv, per the toggle above).
+  approvedLtarv: numeric("approved_ltarv"),
+  // Stored/editable like approvedLtv — LTC = approvedLoanAmount ÷
+  // (as-is value basis + approvedRehabCost).
+  approvedLtc: numeric("approved_ltc"),
   // Lender points / rate buydown fee on the accepted terms — separate from
-  // our own origination fee and processing fee.
+  // our own origination fee and processing fee. On DSCR/Portfolio deals this
+  // is a derived display (loanAmount × rateBuydownPointsOverride ÷ 100, no
+  // floor) rather than entered directly; still stored/edited directly for
+  // Bridge/hard-money ("Lender Fee"), which isn't a points-based concept.
   costToBorrowerFee: numeric("cost_to_borrower_fee"),
+  // Null = no buydown (0%). Only meaningful on DSCR/Portfolio deals, where
+  // costToBorrowerFee ("Rate Buydown Fee") is always derived from this
+  // rather than entered directly — seeded from the term sheet's own Rate
+  // Buydown Points field at acceptance; editable afterward.
+  rateBuydownPointsOverride: numeric("rate_buydown_points_override"),
   // Null = use the standard $999 (STANDARD_PROCESSING_FEE) — only set this
   // when the borrower actually negotiated something different.
   processingFeeOverride: numeric("processing_fee_override"),
+  // Null = the standard 2%. The dollar origination fee is always derived
+  // from this (loanAmount × points/100, $2,500 floor) rather than entered
+  // directly — set only when negotiated to something else. Seeded from the
+  // term sheet's own Origination Points field at acceptance; editable
+  // afterward. This is the basis for a deal's Lead Value once a term sheet
+  // is accepted.
+  originationPointsOverride: numeric("origination_points_override"),
   // Rate lock timing varies by lender (some lock at application, some only
   // after appraisal) — this is a plain manual toggle, not tied to a stage.
   rateLocked: boolean("rate_locked").notNull().default(false),
   rateLockedAt: timestamp("rate_locked_at", { mode: "date" }),
-  appraisalOrderedDate: timestamp("appraisal_ordered_date", { mode: "date" }),
   creditPullDate: timestamp("credit_pull_date", { mode: "date" }),
-  insuranceContactedDate: timestamp("insurance_contacted_date", { mode: "date" }),
-  titleOrderedDate: timestamp("title_ordered_date", { mode: "date" }),
+  // A running note per key-date-tracker item — not itself part of the audit
+  // trail (see dealKeyDateEvents below), just a plain field a processor can
+  // jot anything into ("agent said binder will be backdated to closing").
+  appraisalNotes: text("appraisal_notes"),
+  insuranceNotes: text("insurance_notes"),
+  titleNotes: text("title_notes"),
   clientNeedsRemindersPaused: boolean("client_needs_reminders_paused")
     .notNull()
     .default(false),
@@ -489,6 +623,23 @@ export const deals = pgTable("deals", {
     .notNull()
     .default(24),
   driveLink: text("drive_link"),
+
+  // Processing-fee invoice, auto-generated via Stripe right after the
+  // borrower signs their accepted term sheet (see performTermSheetAcceptance
+  // in src/server/actions/term-sheets.ts and src/server/stripe.ts).
+  // stripeCustomerId is reused across a deal's lifetime; stripeInvoiceId is
+  // set once the invoice is created and stripeInvoiceStatus tracks it via
+  // the Stripe webhook (src/app/api/webhooks/stripe/route.ts) so we know
+  // when it's been paid.
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeInvoiceId: text("stripe_invoice_id"),
+  stripeInvoiceStatus: text("stripe_invoice_status"),
+  // The amount actually invoiced (not necessarily today's processingFeeOverride)
+  // — compared against the live fee to decide whether a changed fee needs a
+  // fresh invoice. hosted_invoice_url is stored so Justin can copy/text the
+  // payment link without an extra Stripe API call every time he wants it.
+  stripeInvoiceAmount: numeric("stripe_invoice_amount"),
+  stripeInvoiceUrl: text("stripe_invoice_url"),
 
   // On Hold / Follow-up are themselves stage values, so this is the only
   // record of which "real" pipeline stage to resume to (and to dim the
@@ -597,6 +748,26 @@ export const dealStageHistory = pgTable("deal_stage_history", {
   // user to attribute it to) can still log a history row.
   changedByUserId: uuid("changed_by_user_id").references(() => users.id),
   changedAt: timestamp("changed_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const keyDateItemEnum = pgEnum("key_date_item", ["appraisal", "insurance", "title"]);
+
+// The Key Date Tracker's audit trail — one row per status change. There's no
+// separate "current status" column anywhere: the tracker's current status
+// and date for an item is just its most recent row here, so the log and the
+// display can never drift out of sync with each other.
+export const dealKeyDateEvents = pgTable("deal_key_date_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  dealId: uuid("deal_id")
+    .notNull()
+    .references(() => deals.id, { onDelete: "cascade" }),
+  item: keyDateItemEnum("item").notNull(),
+  status: text("status").notNull(),
+  // The date the status actually took effect (editable/backdatable at entry
+  // time) — distinct from createdAt, which is just when the row was logged.
+  eventDate: timestamp("event_date", { mode: "date" }).notNull(),
+  createdByUserId: uuid("created_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 
 export const dealClientNeeds = pgTable("deal_client_needs", {
@@ -722,7 +893,14 @@ export const pricingRequests = pgTable("pricing_requests", {
     .references(() => lenderReps.id),
   emailSubject: text("email_subject").notNull(),
   emailBody: text("email_body").notNull(),
+  // Editable, defaults to blank — a processor/LOA/other CRM person can be
+  // added on before sending, but the lender rep is always the sole default To.
+  emailCc: text("email_cc"),
   loNote: text("lo_note"),
+  // This lender has a quick pricer instead of taking pricing by email — the
+  // row exists to keep the card in the same grouped-by-lender list (and to
+  // anchor an AI screenshot extraction), but has no real subject/body/send.
+  isQuickPricer: boolean("is_quick_pricer").notNull().default(false),
   status: pricingRequestStatusEnum("status").notNull().default("draft"),
   sentAt: timestamp("sent_at", { mode: "date" }),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
@@ -772,6 +950,20 @@ export const termSheets = pgTable("term_sheets", {
   pdfUrl: text("pdf_url"),
   status: termSheetStatusEnum("status").notNull().default("draft"),
   acceptedAt: timestamp("accepted_at", { mode: "date" }),
+  // Set when this term sheet is included in a "Send to borrower" email
+  // (sendTermSheetsToBorrowerEmail) — distinct from being sent for
+  // e-signature via PandaDoc, so the two can show different statuses
+  // ("Sent for Review" vs "Pending Signature") instead of collapsing into
+  // one ambiguous "Sent".
+  sentForReviewAt: timestamp("sent_for_review_at", { mode: "date" }),
+  // Set when this term sheet is sent to PandaDoc for e-signature — mirrors
+  // the same two columns on dealClientNeeds. The webhook (see
+  // src/app/api/webhooks/pandadoc/route.ts) checks both tables by
+  // pandadocDocumentId; when a term sheet's document completes, it's
+  // accepted automatically instead of going through the document-review
+  // pipeline a client-need upload does.
+  pandadocDocumentId: text("pandadoc_document_id"),
+  pandadocStatus: text("pandadoc_status"),
   createdBy: uuid("created_by")
     .notNull()
     .references(() => users.id),
@@ -853,10 +1045,22 @@ export const lenderDocumentsRelations = relations(lenderDocuments, ({ one }) => 
   }),
 }));
 
-export const lenderCriteriaRelations = relations(lenderCriteria, ({ one }) => ({
+export const lenderCriteriaRelations = relations(lenderCriteria, ({ one, many }) => ({
   product: one(products, {
     fields: [lenderCriteria.productId],
     references: [products.id],
+  }),
+  extractedFromDocument: one(lenderDocuments, {
+    fields: [lenderCriteria.extractedFromDocumentId],
+    references: [lenderDocuments.id],
+  }),
+  tiers: many(lenderCriteriaTiers),
+}));
+
+export const lenderCriteriaTiersRelations = relations(lenderCriteriaTiers, ({ one }) => ({
+  criteria: one(lenderCriteria, {
+    fields: [lenderCriteriaTiers.criteriaId],
+    references: [lenderCriteria.id],
   }),
 }));
 
@@ -910,6 +1114,7 @@ export const dealsRelations = relations(deals, ({ one, many }) => ({
   lender: one(lenders, { fields: [deals.lenderId], references: [lenders.id] }),
   product: one(products, { fields: [deals.productId], references: [products.id] }),
   stageHistory: many(dealStageHistory),
+  keyDateEvents: many(dealKeyDateEvents),
   clientNeeds: many(dealClientNeeds),
   conditions: many(dealConditions),
   notes: many(dealNotes),
@@ -947,6 +1152,14 @@ export const dealStageHistoryRelations = relations(dealStageHistory, ({ one }) =
   deal: one(deals, { fields: [dealStageHistory.dealId], references: [deals.id] }),
   changedBy: one(users, {
     fields: [dealStageHistory.changedByUserId],
+    references: [users.id],
+  }),
+}));
+
+export const dealKeyDateEventsRelations = relations(dealKeyDateEvents, ({ one }) => ({
+  deal: one(deals, { fields: [dealKeyDateEvents.dealId], references: [deals.id] }),
+  createdBy: one(users, {
+    fields: [dealKeyDateEvents.createdByUserId],
     references: [users.id],
   }),
 }));

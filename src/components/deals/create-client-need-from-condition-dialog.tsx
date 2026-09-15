@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { createClientNeedFromCondition } from "@/server/actions/conditions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,9 +42,12 @@ export function CreateClientNeedFromConditionDialog({
       try {
         await create(formData);
         setOpen(false);
+        toast.success("Need added");
         router.refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Couldn't create the client need.");
+        const message = err instanceof Error ? err.message : "Couldn't create the client need.";
+        setError(message);
+        toast.error(message);
       }
     });
   }
