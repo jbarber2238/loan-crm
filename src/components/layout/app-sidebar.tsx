@@ -46,7 +46,7 @@ export function AppSidebar({
   const pathname = usePathname();
 
   const mainLinks = [
-    { href: "/", label: "Pipeline", icon: LayoutDashboard, exact: true },
+    { href: "/pipeline", label: "Pipeline", icon: LayoutDashboard, exact: true },
     { href: "/deals/new", label: "New Deal", icon: FilePlus, exact: true },
     { href: "/lenders", label: "Lenders", icon: Landmark, exact: false },
     ...(user.isAdmin
@@ -74,7 +74,7 @@ export function AppSidebar({
   return (
     <aside className="fixed inset-y-0 left-0 z-20 flex w-60 flex-col bg-[#111318] text-zinc-300">
       <div className="flex min-h-14 flex-col justify-center gap-1.5 border-b border-white/10 px-4 py-3">
-        <Link href="/" className="flex flex-col items-start gap-1.5">
+        <Link href="/pipeline" className="flex flex-col items-start gap-1.5">
           {logo ? (
             <>
               {/* A light logo already contrasts fine against this sidebar's
@@ -101,7 +101,7 @@ export function AppSidebar({
         {dealId ? (
           <>
             <Link
-              href="/"
+              href="/pipeline"
               className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
             >
               <ArrowLeft className="size-4" />

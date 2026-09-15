@@ -7,7 +7,7 @@ import { getCompanyName } from "@/server/settings";
 export default async function SignInPage() {
   const session = await auth();
   if (session?.user) {
-    redirect("/");
+    redirect("/pipeline");
   }
   const companyName = await getCompanyName();
 
@@ -22,7 +22,7 @@ export default async function SignInPage() {
           <form
             action={async () => {
               "use server";
-              await signIn("google", { redirectTo: "/" });
+              await signIn("google", { redirectTo: "/pipeline" });
             }}
           >
             <Button type="submit" className="w-full">
