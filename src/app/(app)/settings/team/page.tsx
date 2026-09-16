@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { BASE_ROLES } from "@/lib/labels";
 import { CopyIntakeLinkButton } from "@/components/deals/copy-intake-link-button";
+import { CopyEmbedCodeButton } from "@/components/deals/copy-embed-code-button";
 
 export default async function TeamSettingsPage() {
   await requireAdmin();
@@ -99,7 +100,10 @@ export default async function TeamSettingsPage() {
                 )}
               </CardTitle>
               {user.baseRole === "loan_officer" && (
-                <CopyIntakeLinkButton loanOfficerId={user.id} />
+                <div className="flex gap-2">
+                  <CopyIntakeLinkButton loanOfficerId={user.id} />
+                  <CopyEmbedCodeButton loanOfficerId={user.id} />
+                </div>
               )}
             </CardHeader>
             <CardContent>

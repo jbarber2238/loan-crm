@@ -6,7 +6,13 @@ import { db } from "@/server/db/client";
 import { users } from "@/server/db/schema";
 import { createDealFromIntake } from "@/server/actions/deals";
 
-export async function submitPublicIntake(loanOfficerId: string, formData: FormData) {
+export async function submitPublicIntake(
+  loanOfficerId: string,
+  formData: FormData,
+  // Lets the embeddable /embed/intake route reuse this same action and land
+  // back on its own branded "thanks" screen instead of the plain public one.
+  redirectBasePath: string = "/intake"
+) {
   const loanOfficer = await db.query.users.findFirst({
     where: eq(users.id, loanOfficerId),
   });
@@ -23,5 +29,5 @@ export async function submitPublicIntake(loanOfficerId: string, formData: FormDa
     stageChangedByUserId: loanOfficerId,
   });
 
-  redirect(`/intake/${loanOfficerId}?submitted=1`);
+  redirect(`${redirectBasePath}/${loanOfficerId}?submitted=1`);
 }
