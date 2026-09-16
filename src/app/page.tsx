@@ -36,35 +36,78 @@ const TRACK_RECORD = [
 
 const HOW_WE_LEND = ["No Tax Returns Required", "No Income Verification", "No Prepayment Penalty"];
 
-const DSCR_PROGRAM = {
-  name: "DSCR Rental Loans",
-  subtitle: "Purchase | Cash-Out Refinance | Rate & Term Refinance",
-  image: "https://images.unsplash.com/photo-1625603736199-775425d2890a?auto=format&fit=crop&w=1200&q=80",
-  intro: "No tax returns. No income verification. We qualify the property, not your paycheck.",
-  bullets: [
-    "Loan amounts from $50K to $3.5M+ — single properties or full portfolios",
-    "Up to 85% LTV on purchase, up to 80% on cash-out",
-    "Credit flexibility down to 600 FICO, including no-ratio and negative-cash-flow options",
-    "30-year fixed and interest-only terms, with no-prepay options available",
-    "Single-family through 8-unit multifamily, plus foreign national, ITIN, and short-term rental programs",
-  ],
-  bestFor: "Buy-and-hold investors who want to qualify on rental income rather than personal income.",
-};
-
-const BRIDGE_PROGRAM = {
-  name: "Hard Money / Bridge Loans",
-  subtitle: "Fix & Flip | Ground-Up Construction | Bridge Financing",
-  image: "https://images.unsplash.com/photo-1778438387124-b304a43a710b?auto=format&fit=crop&w=1200&q=80",
-  intro: "Fast, flexible capital for investors who move quicker than traditional lending allows.",
-  bullets: [
-    "Loan amounts from $75K to $7M+, including larger construction and bridge deals",
-    "Up to 100% of project cost on qualified flips, 90-95% LTC on light rehab",
-    "Up to 100% LTC on qualified ground-up construction, leverage to 75% of ARV",
-    "No-experience-required construction financing, alongside high-leverage programs for seasoned investors",
-    "Interest-only, no prepay, fast closings — including no-appraisal options on qualifying deals",
-  ],
-  bestFor: "Investors flipping, building, or bridging into a stabilized rental exit.",
-};
+const PROGRAMS = [
+  {
+    name: "DSCR Purchase",
+    subtitle: "Long-Term Rental Financing",
+    image: "https://images.unsplash.com/photo-1625603736199-775425d2890a?auto=format&fit=crop&w=1200&q=80",
+    intro: "No tax returns. No income verification. We qualify the property, not your paycheck.",
+    bullets: [
+      "Loan amounts from $50K to $3.5M+ — single properties or full portfolios",
+      "Up to 85% LTV on purchase",
+      "Credit flexibility down to 600 FICO, including no-ratio and negative-cash-flow options",
+      "30-year fixed and interest-only terms, with no-prepay options available",
+      "Single-family through 8-unit multifamily, plus foreign national, ITIN, and short-term rental programs",
+    ],
+    bestFor: "First-time and repeat investors purchasing a buy-and-hold rental property.",
+  },
+  {
+    name: "DSCR Refinance",
+    subtitle: "Cash-Out & Rate/Term Refinance",
+    image: "https://images.unsplash.com/photo-1646446528565-c7c4f2e759a0?auto=format&fit=crop&w=1200&q=80",
+    intro: "Pull cash out or reposition your rate — still qualified on the property's income, not yours.",
+    bullets: [
+      "Cash-out refinance up to 80% LTV, or rate-and-term to reprice an existing loan",
+      "Loan amounts from $50K to $3.5M+ — single properties or full portfolios",
+      "Credit flexibility down to 600 FICO, including no-ratio and negative-cash-flow options",
+      "30-year fixed and interest-only terms, with no-prepay options available",
+      "Single-family through 8-unit multifamily, plus foreign national and ITIN programs",
+    ],
+    bestFor: "Investors pulling equity out of a rental or repricing an existing loan.",
+  },
+  {
+    name: "Fix & Flip",
+    subtitle: "Purchase + Rehab Financing",
+    image: "https://images.unsplash.com/photo-1618832515490-e181c4794a45?auto=format&fit=crop&w=1200&q=80",
+    intro: "Fast capital for the purchase and rehab, sized against what the property is worth once you're done.",
+    bullets: [
+      "Loan amounts from $75K to $7M+",
+      "Up to 100% of project cost on qualified flips",
+      "Up to 90-95% loan-to-cost on light rehab and cosmetic renovation",
+      "Leverage up to 75% of after-repair value",
+      "Interest-only, no prepay, fast closings — including no-appraisal options on qualifying deals",
+    ],
+    bestFor: "Investors buying, renovating, and selling on a short timeline.",
+  },
+  {
+    name: "Ground-Up Construction",
+    subtitle: "New Build Financing",
+    image: "https://images.unsplash.com/photo-1778438387124-b304a43a710b?auto=format&fit=crop&w=1200&q=80",
+    intro: "Financing to build vertically on land you own or are acquiring.",
+    bullets: [
+      "Loan amounts from $75K to $7M+",
+      "Up to 100% loan-to-cost on qualified ground-up construction projects",
+      "Leverage up to 75% of after-completion value",
+      "No-experience-required financing for first-time builders, alongside high-leverage programs for seasoned investors",
+      "Interest-only structures with no prepayment penalties",
+    ],
+    bestFor: "Builders and developers taking a project from land to finished property.",
+  },
+  {
+    name: "Bridge Financing",
+    subtitle: "Bridge & Acquisition Loans",
+    image: "https://images.unsplash.com/photo-1782024743263-bb153ea077e1?auto=format&fit=crop&w=1200&q=80",
+    intro: "Fast, flexible capital for investors who need to move quicker than traditional lending allows.",
+    bullets: [
+      "Loan amounts from $75K to $7M+",
+      "Straight bridge/acquisition financing to move quickly on a purchase",
+      "Purchase + rehab and bridge-to-rent strategies available under one program",
+      "Sized against current value or after-repair value, depending on structure",
+      "Interest-only, no prepay, fast closings — including no-appraisal options on qualifying deals",
+    ],
+    bestFor: "Investors acting fast on a time-sensitive purchase or bridging into a stabilized exit.",
+  },
+];
 
 const STEPS = [
   { n: "01", title: "Submit your deal", body: "A short form on the property, the numbers, and your experience — five minutes, no obligation." },
@@ -72,7 +115,7 @@ const STEPS = [
   { n: "03", title: "Close on your timeline", body: "Underwriting moves at the pace of the deal, not a committee — because the capital is private." },
 ];
 
-function ProgramCard({ program }: { program: typeof DSCR_PROGRAM }) {
+function ProgramCard({ program }: { program: (typeof PROGRAMS)[number] }) {
   return (
     <div className="overflow-hidden rounded-sm border bg-white" style={{ borderColor: "rgba(20,61,74,0.15)" }}>
       <div
@@ -231,9 +274,10 @@ export default async function MarketingHomePage() {
             Every deal is matched against our lending network to find the best fit for your credit, experience,
             and exit strategy.
           </p>
-          <div className="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-2">
-            <ProgramCard program={DSCR_PROGRAM} />
-            <ProgramCard program={BRIDGE_PROGRAM} />
+          <div className="mt-12 grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-3">
+            {PROGRAMS.map((program) => (
+              <ProgramCard key={program.name} program={program} />
+            ))}
           </div>
           <div className="mt-12 border-t pt-8" style={{ borderColor: "rgba(20,61,74,0.15)" }}>
             <h3 className="text-lg font-medium" style={{ color: TEAL }}>
