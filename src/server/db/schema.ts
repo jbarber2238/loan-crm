@@ -190,6 +190,11 @@ export const users = pgTable("user", {
   // sheets. NMLS is nullable — Justin doesn't have one yet.
   phone: text("phone"),
   nmlsNumber: text("nmls_number"),
+  // Null until the person finishes the first-login setup wizard (name,
+  // scheduling link, email signature) — gates the (app) layout's redirect
+  // to /onboarding. Backfilled to createdAt for everyone who predates the
+  // wizard so they're never sent through it retroactively.
+  onboardedAt: timestamp("onboarded_at", { mode: "date" }),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 

@@ -74,6 +74,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         emailSignatureHtml: string | null;
         phone: string | null;
         nmlsNumber: string | null;
+        onboardedAt: Date | null;
       };
       session.user.id = dbUser.id;
       session.user.isAdmin = dbUser.isAdmin;
@@ -83,6 +84,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.emailSignatureHtml = dbUser.emailSignatureHtml;
       session.user.phone = dbUser.phone;
       session.user.nmlsNumber = dbUser.nmlsNumber;
+      session.user.onboardedAt = dbUser.onboardedAt?.toISOString() ?? null;
       return session;
     },
   },

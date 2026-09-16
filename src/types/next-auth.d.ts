@@ -11,6 +11,7 @@ declare module "next-auth" {
       emailSignatureHtml: string | null;
       phone: string | null;
       nmlsNumber: string | null;
+      onboardedAt: string | null;
     } & DefaultSession["user"];
   }
 }

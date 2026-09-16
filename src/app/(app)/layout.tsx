@@ -19,6 +19,10 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     );
   }
 
+  if (!session.user.onboardedAt) {
+    redirect("/onboarding");
+  }
+
   const [companyName, logo] = await Promise.all([getCompanyName(), getCompanyLogo()]);
 
   return (

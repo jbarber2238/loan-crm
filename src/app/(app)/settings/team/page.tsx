@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/server/auth/guards";
 import { db } from "@/server/db/client";
-import { inviteUser, updateUser } from "@/server/actions/users";
+import { inviteUser, updateUser, deleteUser } from "@/server/actions/users";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -28,7 +28,7 @@ import { CopyIntakeLinkButton } from "@/components/deals/copy-intake-link-button
 import { CopyEmbedCodeButton } from "@/components/deals/copy-embed-code-button";
 
 export default async function TeamSettingsPage() {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const allUsers = await db.query.users.findMany({
     orderBy: (users, { asc }) => asc(users.name),
@@ -99,12 +99,29 @@ export default async function TeamSettingsPage() {
                   </>
                 )}
               </CardTitle>
-              {user.baseRole === "loan_officer" && (
-                <div className="flex gap-2">
-                  <CopyIntakeLinkButton loanOfficerId={user.id} />
-                  <CopyEmbedCodeButton loanOfficerId={user.id} />
-                </div>
-              )}
+              <div className="flex gap-2">
+                {user.baseRole === "loan_officer" && (
+                  <>
+                    <CopyIntakeLinkButton loanOfficerId={user.id} />
+                    <CopyEmbedCodeButton loanOfficerId={user.id} />
+                  </>
+                )}
+                {user.id !== admin.id && (
+                  <ActionForm
+                    action={deleteUser.bind(null, user.id)}
+                    successMessage="Removed"
+                    confirmMessage={
+                      pending
+                        ? `Withdraw the invite for ${user.email}?`
+                        : `Remove ${user.name} from the team? This can't be undone — if they have any deals or records, removal will be blocked and you'll need to deactivate them instead.`
+                    }
+                  >
+                    <SubmitButton variant="destructive" size="sm">
+                      {pending ? "Withdraw invite" : "Remove"}
+                    </SubmitButton>
+                  </ActionForm>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <ActionForm action={action} successMessage="Saved" className="space-y-4">

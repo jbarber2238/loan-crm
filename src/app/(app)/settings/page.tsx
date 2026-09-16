@@ -34,8 +34,14 @@ export default async function MyProfilePage() {
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          Your name and photo come from your Google account. Contact an admin to change your role.
+          Your photo comes from your Google account. Contact an admin to change your role.
         </p>
+
+        <ActionForm action={updateMyProfile} successMessage="Name saved" className="space-y-1.5 border-t pt-4 max-w-sm">
+          <Label htmlFor="name">Name</Label>
+          <Input id="name" name="name" defaultValue={user.name ?? ""} />
+          <SubmitButton>Save</SubmitButton>
+        </ActionForm>
 
         {user.baseRole === "loan_officer" && (
           <ActionForm
