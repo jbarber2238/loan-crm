@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Archivo } from "next/font/google";
-import { redirect } from "next/navigation";
 import Link from "next/link";
-import { auth } from "@/server/auth";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { SiteFooter } from "@/components/marketing/site-footer";
 
@@ -107,12 +105,7 @@ function ProgramCard({ program }: { program: (typeof PROGRAMS)[number] }) {
   );
 }
 
-export default async function MarketingHomePage() {
-  const session = await auth();
-  if (session?.user) {
-    redirect("/pipeline");
-  }
-
+export default function MarketingHomePage() {
   return (
     <div className={`${archivo.variable} font-sans`} style={{ fontFamily: "var(--font-archivo), Archivo, sans-serif" }}>
       <SiteHeader />
