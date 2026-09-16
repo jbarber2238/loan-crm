@@ -40,32 +40,26 @@ const HOW_WE_LEND = ["No Tax Returns Required", "No Income Verification", "No Pr
 const PROGRAMS = [
   {
     name: "DSCR Purchase",
-    image: "https://images.unsplash.com/photo-1625603736199-775425d2890a?auto=format&fit=crop&w=800&q=80",
     bullets: ["$50K–$3.5M loan amounts", "Up to 85% LTV", "600 FICO minimum", "30-yr fixed or interest-only"],
   },
   {
     name: "DSCR Cash-Out Refi",
-    image: "https://images.unsplash.com/photo-1646446528565-c7c4f2e759a0?auto=format&fit=crop&w=800&q=80",
     bullets: ["Up to 80% LTV", "$50K–$3.5M loan amounts", "600 FICO minimum", "No income verification"],
   },
   {
     name: "DSCR Rate & Term Refi",
-    image: "https://images.unsplash.com/photo-1572120360610-d971b9d7767c?auto=format&fit=crop&w=800&q=80",
     bullets: ["Reprice an existing loan", "$50K–$3.5M loan amounts", "600 FICO minimum", "30-yr fixed or interest-only"],
   },
   {
     name: "Fix & Flip",
-    image: "https://images.unsplash.com/photo-1618832515490-e181c4794a45?auto=format&fit=crop&w=800&q=80",
     bullets: ["$75K–$7M+ loan amounts", "Up to 100% of project cost", "90–95% LTC on light rehab", "Interest-only, no prepay"],
   },
   {
     name: "Ground-Up Construction",
-    image: "https://images.unsplash.com/photo-1778438387124-b304a43a710b?auto=format&fit=crop&w=800&q=80",
     bullets: ["$75K–$7M+ loan amounts", "Up to 100% loan-to-cost", "75% of after-completion value", "No experience required"],
   },
   {
     name: "Bridge Financing",
-    image: "https://images.unsplash.com/photo-1782024743263-bb153ea077e1?auto=format&fit=crop&w=800&q=80",
     bullets: ["$75K–$7M+ loan amounts", "Fast, flexible closings", "Purchase, rehab, or bridge-to-rent", "No appraisal on qualifying deals"],
   },
 ];
@@ -78,30 +72,20 @@ const STEPS = [
 
 function ProgramCard({ program }: { program: (typeof PROGRAMS)[number] }) {
   return (
-    <div className="overflow-hidden rounded-sm border bg-white" style={{ borderColor: "rgba(20,61,74,0.15)" }}>
-      <div
-        className="h-20 bg-cover bg-center"
-        style={{
-          backgroundImage: `linear-gradient(0deg, rgba(20,61,74,0.2), rgba(20,61,74,0.05)), url('${program.image}')`,
-        }}
-        role="img"
-        aria-label={program.name}
-      />
-      <div className="p-5">
-        <h3 className="text-base font-medium" style={{ color: TEAL }}>
-          {program.name}
-        </h3>
-        <ul className="mt-2.5 space-y-1">
-          {program.bullets.map((b) => (
-            <li key={b} className="flex gap-2 text-xs leading-snug" style={{ color: BASALT }}>
-              <span aria-hidden="true" style={{ color: TEAL }}>
-                —
-              </span>
-              <span>{b}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+    <div className="rounded-sm p-5 shadow-[0_8px_24px_rgba(20,61,74,0.25)]" style={{ backgroundColor: OFF_WHITE }}>
+      <h3 className="text-base font-medium" style={{ color: TEAL }}>
+        {program.name}
+      </h3>
+      <ul className="mt-2.5 space-y-1">
+        {program.bullets.map((b) => (
+          <li key={b} className="flex gap-2 text-xs leading-snug" style={{ color: BASALT }}>
+            <span aria-hidden="true" style={{ color: TEAL }}>
+              —
+            </span>
+            <span>{b}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -207,16 +191,25 @@ export default async function MarketingHomePage() {
         </div>
       </section>
 
-      {/* Programs */}
-      <section id="programs" style={{ backgroundColor: OFF_WHITE }}>
+      {/* Programs — one real photo behind the whole section, cards
+          floating on top, instead of a tiny thumbnail stuffed into each
+          card (which read as cluttered and "almost useless" at that size). */}
+      <section
+        id="programs"
+        className="bg-cover bg-center"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(20,61,74,0.9), rgba(20,61,74,0.88)), url('https://images.unsplash.com/photo-1571979622878-622d38ec238c?auto=format&fit=crop&w=2400&q=80')",
+        }}
+      >
         <div className="mx-auto max-w-6xl px-6 py-20 md:py-24">
-          <p className="text-xs font-medium tracking-[0.2em]" style={{ color: MOSS }}>
+          <p className="text-xs font-medium tracking-[0.2em]" style={{ color: SAND }}>
             LOAN PROGRAMS
           </p>
-          <h2 className="mt-3 max-w-2xl text-2xl font-normal md:text-3xl" style={{ color: BASALT }}>
+          <h2 className="mt-3 max-w-2xl text-2xl font-normal md:text-3xl" style={{ color: OFF_WHITE }}>
             We fund real estate investors — from your first rental to your next ground-up build.
           </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed" style={{ color: BASALT }}>
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed" style={{ color: "rgba(250,247,242,0.85)" }}>
             Every deal is matched against our lending network to find the best fit for your credit, experience,
             and exit strategy.
           </p>
@@ -225,19 +218,22 @@ export default async function MarketingHomePage() {
               <ProgramCard key={program.name} program={program} />
             ))}
           </div>
-          <div className="mt-12 border-t pt-8" style={{ borderColor: "rgba(20,61,74,0.15)" }}>
-            <h3 className="text-lg font-medium" style={{ color: TEAL }}>
-              One Lending Partner, Every Stage of the Deal
-            </h3>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed" style={{ color: BASALT }}>
-              From acquisition to stabilized rental, we structure financing across the full investment
-              lifecycle — so you&apos;re not rebuilding a lender relationship every time your strategy changes.
-            </p>
-            <p className="mt-4 text-xs leading-relaxed" style={{ color: MOSS }}>
-              Terms vary by program and are subject to underwriting approval. Contact us to discuss your
-              specific scenario.
-            </p>
-          </div>
+        </div>
+      </section>
+
+      <section style={{ backgroundColor: OFF_WHITE }}>
+        <div className="mx-auto max-w-6xl px-6 py-14">
+          <h3 className="text-lg font-medium" style={{ color: TEAL }}>
+            One Lending Partner, Every Stage of the Deal
+          </h3>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed" style={{ color: BASALT }}>
+            From acquisition to stabilized rental, we structure financing across the full investment
+            lifecycle — so you&apos;re not rebuilding a lender relationship every time your strategy changes.
+          </p>
+          <p className="mt-4 text-xs leading-relaxed" style={{ color: MOSS }}>
+            Terms vary by program and are subject to underwriting approval. Contact us to discuss your
+            specific scenario.
+          </p>
         </div>
       </section>
 
