@@ -33,7 +33,7 @@ const TRACK_RECORD = [
   { value: "50", label: "States we lend in" },
 ];
 
-const HOW_WE_LEND = ["No Tax Returns Required", "No Income Verification", "No Prepayment Penalty"];
+const HOW_WE_LEND = ["No Tax Returns Required", "No Income Verification", "Asset-Based Underwriting"];
 
 const PROGRAMS = [
   {
