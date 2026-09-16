@@ -11,6 +11,12 @@ const adminEmails = (process.env.ADMIN_EMAILS ?? "")
   .filter(Boolean);
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  // This app is reachable at more than one host (the custom domain and the
+  // default *.vercel.app one) — without this, Auth.js can set an OAuth
+  // check cookie (e.g. the PKCE verifier) under one trusted-origin
+  // assumption and fail to read it back during the callback, surfacing as
+  // an opaque "Configuration" / InvalidCheck error.
+  trustHost: true,
   adapter: DrizzleAdapter(db, {
     usersTable: users,
     accountsTable: accounts,
