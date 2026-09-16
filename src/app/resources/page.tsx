@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { MannaLogo } from "@/components/marketing/manna-logo";
+import { SiteFooter } from "@/components/marketing/site-footer";
 import { DscrCalculator, LtarvCalculator, LtcCalculator } from "@/components/marketing/loan-calculators";
 
 export const metadata: Metadata = {
@@ -50,14 +51,15 @@ export default function ResourcesPage() {
         </div>
       </section>
 
-      <footer style={{ backgroundColor: TEAL }}>
-        <div className="mx-auto max-w-6xl px-6 py-10">
+      <div style={{ backgroundColor: TEAL }}>
+        <div className="mx-auto max-w-6xl px-6 pt-10">
           <p className="text-xs" style={{ color: "rgba(250,247,242,0.7)" }}>
             These calculators are estimates for planning purposes only and are not a quote, pre-qualification, or
             commitment to lend. Terms vary by program and are subject to underwriting approval.
           </p>
         </div>
-      </footer>
+      </div>
+      <SiteFooter />
     </div>
   );
 }

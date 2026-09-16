@@ -3,7 +3,8 @@ import { Archivo } from "next/font/google";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/server/auth";
-import { MannaLogo, MannaIcon } from "@/components/marketing/manna-logo";
+import { MannaLogo } from "@/components/marketing/manna-logo";
+import { SiteFooter } from "@/components/marketing/site-footer";
 
 const archivo = Archivo({
   subsets: ["latin"],
@@ -291,35 +292,7 @@ export default async function MarketingHomePage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer style={{ backgroundColor: TEAL }}>
-        <div className="mx-auto max-w-6xl px-6 py-12">
-          <div className="flex flex-col items-start justify-between gap-8 md:flex-row">
-            <div>
-              <MannaIcon variant="reversed" className="h-8 w-8" />
-              <p className="mt-4 text-xs leading-relaxed" style={{ color: "rgba(250,247,242,0.7)" }}>
-                Lending nationwide — all 50 states.
-              </p>
-            </div>
-            <div className="text-xs leading-relaxed" style={{ color: "rgba(250,247,242,0.7)" }}>
-              <p>269-267-7506</p>
-              <p>Monday – Friday, 9:00 AM – 5:00 PM EST</p>
-            </div>
-            <div className="text-xs leading-relaxed">
-              <Link href="/resources" style={{ color: "rgba(250,247,242,0.7)" }} className="hover:underline">
-                Investor Resources
-              </Link>
-              <br />
-              <Link href="/sign-in" style={{ color: "rgba(250,247,242,0.5)" }} className="hover:underline">
-                Team Login
-              </Link>
-            </div>
-          </div>
-          <p className="mt-8 border-t pt-6 text-xs tracking-wide" style={{ borderColor: "rgba(250,247,242,0.15)", color: "rgba(250,247,242,0.5)" }}>
-            © {new Date().getFullYear()} Manna Lending. Private real estate lending for investors.
-          </p>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
