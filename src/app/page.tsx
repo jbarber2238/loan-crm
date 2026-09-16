@@ -65,21 +65,25 @@ const PROGRAMS = [
 ];
 
 const STEPS = [
-  { n: "01", title: "Submit your deal", body: "A short form on the property, the numbers, and your experience — five minutes, no obligation." },
+  {
+    n: "01",
+    title: "Submit your deal",
+    body: "A short form on the property, numbers, and your experience — five minutes, no obligation.",
+  },
   {
     n: "02",
     title: "Get matched and priced",
-    body: "We check your deal against real, active lender guidelines to find the right fit, then price it out and prepare term sheet estimates.",
+    body: "We check your deal against real, active lender guidelines and prepare term sheet estimates.",
   },
   {
     n: "03",
     title: "Walk through your terms",
-    body: "We schedule a call to go through your term sheet options together, so every question is answered and you know exactly what's next.",
+    body: "We schedule a call to review your options together, so you know exactly what's next.",
   },
   {
     n: "04",
     title: "Document review, done right",
-    body: "Once you pick a term sheet, we review every document before it reaches the lender — catching issues here instead of after submission, so the loan gets to the finish line without hiccups.",
+    body: "We review every document before it reaches the lender, catching issues early so your loan closes without hiccups.",
   },
 ];
 
