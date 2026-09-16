@@ -42,12 +42,9 @@ const DSCR_PROGRAM = {
   bullets: [
     "Loan amounts from $50K to $3.5M+ — single properties or full portfolios",
     "Up to 85% LTV on purchase, up to 80% on cash-out",
-    "Credit flexibility down to 600 FICO, with no-ratio and negative-cash-flow options available",
-    "30-year fixed and interest-only terms, with no-prepay options",
-    "Eligible property types: single-family, 2-4 units, condos, condotels, manufactured homes, and 5-8+ unit multifamily",
-    "Short-term rental income accepted using market data on qualifying purchase transactions",
-    "Programs for foreign nationals and ITIN borrowers",
-    "Niche coverage: co-living, rural properties, and first-time investors",
+    "Credit flexibility down to 600 FICO, including no-ratio and negative-cash-flow options",
+    "30-year fixed and interest-only terms, with no-prepay options available",
+    "Single-family through 8-unit multifamily, plus foreign national, ITIN, and short-term rental programs",
   ],
   bestFor: "Buy-and-hold investors who want to qualify on rental income rather than personal income.",
 };
@@ -58,14 +55,10 @@ const BRIDGE_PROGRAM = {
   intro: "Fast, flexible capital for investors who move quicker than traditional lending allows.",
   bullets: [
     "Loan amounts from $75K to $7M+, including larger construction and bridge deals",
-    "Up to 100% of project cost on qualified flips",
-    "Up to 90-95% loan-to-cost on light rehab and cosmetic renovation projects",
-    "Up to 100% loan-to-cost on qualified ground-up construction projects",
-    "Leverage up to 75% of after-repair or after-completion value",
-    "No-experience-required construction financing for first-time builders, alongside high-leverage programs for seasoned investors",
-    "Interest-only structures with no prepayment penalties",
-    "Fast closings, including no-appraisal options on qualifying deals",
-    "Straight bridge/acquisition, purchase + rehab, ground-up construction, and bridge-to-rent strategies — all under one roof",
+    "Up to 100% of project cost on qualified flips, 90-95% LTC on light rehab",
+    "Up to 100% LTC on qualified ground-up construction, leverage to 75% of ARV",
+    "No-experience-required construction financing, alongside high-leverage programs for seasoned investors",
+    "Interest-only, no prepay, fast closings — including no-appraisal options on qualifying deals",
   ],
   bestFor: "Investors flipping, building, or bridging into a stabilized rental exit.",
 };
@@ -141,47 +134,54 @@ export default async function MarketingHomePage() {
         </div>
       </header>
 
-      {/* Hero */}
-      <section style={{ backgroundColor: SAND }}>
+      {/* Hero — a real property behind the pitch, not another flat color
+          block; every competitor site we looked at leads with a photo. */}
+      <section
+        className="relative bg-cover bg-center"
+        style={{
+          backgroundImage:
+            "linear-gradient(100deg, rgba(20,61,74,0.94) 0%, rgba(20,61,74,0.86) 38%, rgba(20,61,74,0.45) 75%), url('https://images.unsplash.com/photo-1577618163295-29d57a40e2b2?auto=format&fit=crop&w=2400&q=80')",
+        }}
+      >
         <div className="mx-auto max-w-6xl px-6 py-20 md:py-28">
           <div className="max-w-2xl">
-            <p className="text-xs font-medium tracking-[0.2em]" style={{ color: TEAL }}>
+            <p className="text-xs font-medium tracking-[0.2em]" style={{ color: SAND }}>
               DSCR &amp; HARD MONEY LOANS
             </p>
             <h1
               className="mt-4 text-4xl leading-[1.1] font-normal text-balance md:text-5xl"
-              style={{ color: BASALT }}
+              style={{ color: OFF_WHITE }}
             >
               Capital that shows up when it&apos;s needed.
             </h1>
-            <p className="mt-6 max-w-lg text-base leading-relaxed md:text-lg" style={{ color: BASALT }}>
+            <p className="mt-6 max-w-lg text-base leading-relaxed md:text-lg" style={{ color: "rgba(250,247,242,0.88)" }}>
               Manna Lending provides private capital to real estate investors, underwritten on the
               strength of the deal rather than a lengthy approval process.
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-4">
               <Link
                 href={APPLY_HREF}
-                className="rounded-sm px-7 py-3.5 text-sm font-medium tracking-wide text-white transition-opacity hover:opacity-90"
-                style={{ backgroundColor: TEAL }}
+                className="rounded-sm px-7 py-3.5 text-sm font-medium tracking-wide transition-opacity hover:opacity-90"
+                style={{ backgroundColor: SAND, color: TEAL }}
               >
                 Get Pre-Qualified
               </Link>
               <a
                 href="#programs"
                 className="text-sm font-medium tracking-wide underline underline-offset-4"
-                style={{ color: BASALT }}
+                style={{ color: OFF_WHITE }}
               >
                 See loan programs
               </a>
             </div>
           </div>
-          <div className="mt-16 grid grid-cols-3 gap-6 border-t pt-8" style={{ borderColor: "rgba(20,61,74,0.2)" }}>
+          <div className="mt-16 grid grid-cols-3 gap-6 border-t pt-8" style={{ borderColor: "rgba(250,247,242,0.25)" }}>
             {STATS.map((s) => (
               <div key={s.label}>
-                <p className="text-2xl font-medium md:text-3xl" style={{ color: TEAL }}>
+                <p className="text-2xl font-medium md:text-3xl" style={{ color: SAND }}>
                   {s.value}
                 </p>
-                <p className="mt-1 text-xs leading-snug" style={{ color: BASALT }}>
+                <p className="mt-1 text-xs leading-snug" style={{ color: "rgba(250,247,242,0.85)" }}>
                   {s.label}
                 </p>
               </div>
