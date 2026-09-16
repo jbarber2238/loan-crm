@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { users } from "@/server/db/schema";
 import { BrandedIntakeForm } from "@/components/marketing/branded-intake-form";
+import { SiteHeader } from "@/components/marketing/site-header";
 
 const archivo = Archivo({
   subsets: ["latin"],
@@ -30,11 +31,15 @@ export default async function PublicIntakePage({
   });
 
   return (
-    <BrandedIntakeForm
-      loanOfficer={loanOfficer}
-      submitted={submitted === "1"}
-      redirectBasePath="/intake"
-      fontVariable={archivo.variable}
-    />
+    <>
+      <SiteHeader />
+      <BrandedIntakeForm
+        loanOfficer={loanOfficer}
+        submitted={submitted === "1"}
+        redirectBasePath="/intake"
+        fontVariable={archivo.variable}
+        showLogo={false}
+      />
+    </>
   );
 }

@@ -3,7 +3,7 @@ import { Archivo } from "next/font/google";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/server/auth";
-import { MannaLogo } from "@/components/marketing/manna-logo";
+import { SiteHeader } from "@/components/marketing/site-header";
 import { SiteFooter } from "@/components/marketing/site-footer";
 
 const archivo = Archivo({
@@ -115,27 +115,7 @@ export default async function MarketingHomePage() {
 
   return (
     <div className={`${archivo.variable} font-sans`} style={{ fontFamily: "var(--font-archivo), Archivo, sans-serif" }}>
-      {/* Header */}
-      <header className="border-b" style={{ backgroundColor: OFF_WHITE, borderColor: "rgba(20,61,74,0.12)" }}>
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-          <MannaLogo className="h-9 w-auto" />
-          <nav className="flex items-center gap-6">
-            <a href="#programs" className="hidden text-sm font-medium tracking-wide sm:inline" style={{ color: BASALT }}>
-              Programs
-            </a>
-            <Link href="/resources" className="hidden text-sm font-medium tracking-wide sm:inline" style={{ color: BASALT }}>
-              Resources
-            </Link>
-            <Link
-              href={APPLY_HREF}
-              className="rounded-sm px-5 py-2.5 text-sm font-medium tracking-wide text-white transition-opacity hover:opacity-90"
-              style={{ backgroundColor: TEAL }}
-            >
-              Apply Now
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <SiteHeader />
 
       {/* Hero — a real property behind the pitch, not another flat color
           block; every competitor site we looked at leads with a photo. */}
