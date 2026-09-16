@@ -230,6 +230,13 @@ export default async function MarketingHomePage() {
             Every deal is matched against our lending network to find the best fit for your credit, experience,
             and exit strategy.
           </p>
+          <Link
+            href={APPLY_HREF}
+            className="mt-7 inline-block rounded-sm px-7 py-3.5 text-sm font-medium tracking-wide text-white transition-opacity hover:opacity-90"
+            style={{ backgroundColor: TEAL }}
+          >
+            Get Quick Pricing
+          </Link>
           <div className="mt-12 grid grid-cols-2 gap-5 md:grid-cols-3">
             {PROGRAMS.map((program) => (
               <ProgramCard key={program.name} program={program} />
