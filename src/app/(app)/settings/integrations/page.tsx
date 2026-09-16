@@ -18,8 +18,8 @@ export default async function IntegrationsSettingsPage() {
   ]);
   const connected = Boolean(apiKey);
   const stripeConnected = Boolean(stripeSecretKey);
-  const webhookUrl = `${process.env.NEXTAUTH_URL ?? "http://localhost:3000"}/api/webhooks/pandadoc`;
-  const stripeWebhookUrl = `${process.env.NEXTAUTH_URL ?? "http://localhost:3000"}/api/webhooks/stripe`;
+  const webhookUrl = `${process.env.APP_URL ?? "http://localhost:3000"}/api/webhooks/pandadoc`;
+  const stripeWebhookUrl = `${process.env.APP_URL ?? "http://localhost:3000"}/api/webhooks/stripe`;
 
   return (
     <div className="space-y-6">

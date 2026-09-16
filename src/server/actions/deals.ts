@@ -568,7 +568,7 @@ export async function getOrCreateBorrowerUploadLink(dealId: string): Promise<str
     await db.update(deals).set({ borrowerUploadToken: token }).where(eq(deals.id, dealId));
   }
 
-  const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+  const baseUrl = process.env.APP_URL ?? "http://localhost:3000";
   return `${baseUrl}/borrower-upload/${token}`;
 }
 

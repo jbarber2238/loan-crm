@@ -235,7 +235,7 @@ export async function sendTermSheetForSignature(dealId: string, termSheetId: str
   if (!deal) throw new Error("Deal not found");
   if (!deal.borrowerEmail) throw new Error("This deal has no borrower email on file yet");
 
-  const baseUrl = process.env.NEXTAUTH_URL ?? "";
+  const baseUrl = process.env.APP_URL ?? "";
   const pdfUrl = `${baseUrl}/api/term-sheets/${termSheetId}/pdf?forSignature=1`;
   const [firstName, ...rest] = deal.borrowerName.trim().split(/\s+/);
 
@@ -277,7 +277,7 @@ export async function previewTermSheetsToBorrowerEmail(dealId: string, termSheet
     where: inArray(termSheets.id, termSheetIds),
   });
 
-  const baseUrl = process.env.NEXTAUTH_URL ?? "";
+  const baseUrl = process.env.APP_URL ?? "";
   const links = termSheetIds.map((id) => `${baseUrl}/api/term-sheets/${id}/pdf`);
   const companyName = await getCompanyName();
   const summary = summarizeTermSheetsForBorrowerEmail(deal, selectedTermSheets);

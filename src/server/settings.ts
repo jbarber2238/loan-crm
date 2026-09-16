@@ -34,7 +34,7 @@ export async function getCompanyLogoHtml(): Promise<string> {
     where: eq(companySettings.id, "default"),
   });
   if (!row?.logoData) return "";
-  const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+  const baseUrl = process.env.APP_URL ?? "http://localhost:3000";
   const src = `${baseUrl}/api/company-logo?v=${row.updatedAt.getTime()}`;
   const img = `<img src="${src}" alt="" style="max-height:56px; display:block;" />`;
   if (!row.logoIsLight) return `<div style="margin-bottom:16px;">${img}</div>`;
