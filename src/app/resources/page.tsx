@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { MannaLogo } from "@/components/marketing/manna-logo";
 import { SiteFooter } from "@/components/marketing/site-footer";
-import { DscrCalculator, LtarvCalculator, LtcCalculator } from "@/components/marketing/loan-calculators";
+import { DscrCalculator, HardMoneyLeverageCalculator } from "@/components/marketing/loan-calculators";
 
 export const metadata: Metadata = {
   title: "Investor Resources — Manna Lending",
@@ -46,8 +46,7 @@ export default function ResourcesPage() {
       <section style={{ backgroundColor: OFF_WHITE }}>
         <div className="mx-auto max-w-6xl space-y-8 px-6 py-16 md:py-20">
           <DscrCalculator />
-          <LtcCalculator />
-          <LtarvCalculator />
+          <HardMoneyLeverageCalculator />
         </div>
       </section>
 

@@ -1,17 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import {
-  calculateDscrRatio,
-  calculateLtarv,
-  calculateLtc,
-  estimatedMonthlyPI,
-  estimatedMonthlyPitia,
-} from "@/lib/term-sheet-calculations";
+import { Slider } from "@/components/ui/slider";
+import { calculateDscrRatio, estimatedMonthlyPI, estimatedMonthlyPitia } from "@/lib/term-sheet-calculations";
 
 const TEAL = "#143D4A";
 const MOSS = "#68735F";
 const BASALT = "#1E1E1E";
+const SAND = "#CBB8A0";
 
 function money(n: number): string {
   return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -125,71 +121,128 @@ export function DscrCalculator() {
   );
 }
 
-export function LtcCalculator() {
-  const [purchasePrice, setPurchasePrice] = useState("");
-  const [rehabCost, setRehabCost] = useState("");
-  const [loanAmount, setLoanAmount] = useState("");
-
-  const ltc = calculateLtc(num(loanAmount), num(purchasePrice) || null, num(rehabCost) || null);
-  const hasInputs = purchasePrice && loanAmount;
-
+function SliderField({
+  label,
+  value,
+  onChange,
+  min,
+  max,
+  caption,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  min: number;
+  max: number;
+  caption: string;
+}) {
   return (
-    <div className="rounded-sm border bg-white p-6 md:p-8" style={{ borderColor: "rgba(20,61,74,0.15)" }}>
-      <h3 className="text-lg font-medium" style={{ color: TEAL }}>
-        Loan-to-Cost (LTC) Calculator
-      </h3>
-      <p className="mt-1.5 text-sm leading-relaxed" style={{ color: BASALT }}>
-        Loan-to-Cost compares your loan amount to the total cost of the project — purchase price plus rehab or
-        construction budget. It&apos;s the number fix &amp; flip and ground-up construction loans size against.
-      </p>
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Purchase Price" value={purchasePrice} onChange={setPurchasePrice} placeholder="200,000" />
-        <Field label="Rehab / Construction Budget" value={rehabCost} onChange={setRehabCost} placeholder="80,000" />
-        <Field label="Loan Amount" value={loanAmount} onChange={setLoanAmount} placeholder="240,000" />
+    <div>
+      <div className="flex items-baseline justify-between">
+        <span className="text-xs font-medium tracking-wide" style={{ color: BASALT }}>
+          {label}
+        </span>
+        <span className="text-sm font-medium" style={{ color: TEAL }}>
+          {value}%
+        </span>
       </div>
-      {hasInputs && (
-        <div className="mt-6 flex items-baseline justify-between border-t py-3" style={{ borderColor: "rgba(20,61,74,0.15)" }}>
-          <span className="text-sm font-medium" style={{ color: BASALT }}>
-            Your LTC
-          </span>
-          <span className="text-2xl font-medium" style={{ color: TEAL }}>
-            {ltc !== null ? `${ltc.toFixed(1)}%` : "—"}
-          </span>
-        </div>
-      )}
+      <div className="mt-3">
+        <Slider value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={1} />
+      </div>
+      <p className="mt-2 text-xs leading-relaxed" style={{ color: MOSS }}>
+        {caption}
+      </p>
     </div>
   );
 }
 
-export function LtarvCalculator() {
+export function HardMoneyLeverageCalculator() {
+  const [purchasePrice, setPurchasePrice] = useState("");
+  const [rehabCost, setRehabCost] = useState("");
   const [arv, setArv] = useState("");
-  const [loanAmount, setLoanAmount] = useState("");
+  // Most lenders cap ground-up/fix-and-flip leverage around 75% of ARV
+  // regardless of experience — that's the number people actually quote, so
+  // it's the sensible starting point rather than the slider's own midpoint.
+  const [ltarvPct, setLtarvPct] = useState(75);
+  // 80-85% is what a lender typically offers someone without a deep track
+  // record; 90-100% is reserved for experienced borrowers. 85% is a
+  // reasonable "average investor" default to start from.
+  const [ltcPct, setLtcPct] = useState(85);
 
-  const ltarv = calculateLtarv(num(loanAmount), num(arv) || null);
-  const hasInputs = arv && loanAmount;
+  const totalCost = purchasePrice ? num(purchasePrice) + num(rehabCost) : null;
+  const maxByLtc = totalCost !== null ? totalCost * (ltcPct / 100) : null;
+  const maxByLtarv = arv ? num(arv) * (ltarvPct / 100) : null;
+  const hasInputs = purchasePrice && arv;
+
+  let maxLoan: number | null = null;
+  let binding: "LTC" | "LTARV" | null = null;
+  if (maxByLtc !== null && maxByLtarv !== null) {
+    if (maxByLtc <= maxByLtarv) {
+      maxLoan = maxByLtc;
+      binding = "LTC";
+    } else {
+      maxLoan = maxByLtarv;
+      binding = "LTARV";
+    }
+  }
 
   return (
     <div className="rounded-sm border bg-white p-6 md:p-8" style={{ borderColor: "rgba(20,61,74,0.15)" }}>
       <h3 className="text-lg font-medium" style={{ color: TEAL }}>
-        Loan-to-ARV (LTARV) Calculator
+        Hard Money Leverage Calculator
       </h3>
       <p className="mt-1.5 text-sm leading-relaxed" style={{ color: BASALT }}>
-        Loan-to-After-Repair-Value compares your loan amount to what the property will be worth once repairs or
-        construction are complete — the leverage ceiling most hard money and construction programs are capped
-        against.
+        A fix &amp; flip or ground-up construction loan is sized two ways at once — against total project cost
+        (Loan-to-Cost) and against the finished value (Loan-to-ARV). A lender always offers the{" "}
+        <span className="font-medium">lower</span> of the two, so seeing both side by side is what actually shows
+        you what a lender will approve.
       </p>
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Field label="Purchase Price" value={purchasePrice} onChange={setPurchasePrice} placeholder="200,000" />
+        <Field label="Rehab / Construction Budget" value={rehabCost} onChange={setRehabCost} placeholder="80,000" />
         <Field label="After-Repair Value (ARV)" value={arv} onChange={setArv} placeholder="400,000" />
-        <Field label="Loan Amount" value={loanAmount} onChange={setLoanAmount} placeholder="280,000" />
       </div>
+
+      <div className="mt-8 space-y-6">
+        <SliderField
+          label="Loan-to-ARV"
+          value={ltarvPct}
+          onChange={setLtarvPct}
+          min={50}
+          max={85}
+          caption="Most lenders cap ground-up and fix & flip leverage at 75% of after-repair value, regardless of experience."
+        />
+        <SliderField
+          label="Loan-to-Cost"
+          value={ltcPct}
+          onChange={setLtcPct}
+          min={50}
+          max={100}
+          caption="LTC is based on experience. You typically need a track record to qualify for 90% or 100% LTC — with less experience, expect somewhere between 80% and 85%."
+        />
+      </div>
+
       {hasInputs && (
-        <div className="mt-6 flex items-baseline justify-between border-t py-3" style={{ borderColor: "rgba(20,61,74,0.15)" }}>
-          <span className="text-sm font-medium" style={{ color: BASALT }}>
-            Your LTARV
-          </span>
-          <span className="text-2xl font-medium" style={{ color: TEAL }}>
-            {ltarv !== null ? `${ltarv.toFixed(1)}%` : "—"}
-          </span>
+        <div className="mt-8">
+          <ResultRow label={`Max loan by LTARV (${ltarvPct}% of ARV)`} value={money(maxByLtarv ?? 0)} />
+          <ResultRow label={`Max loan by LTC (${ltcPct}% of project cost)`} value={money(maxByLtc ?? 0)} />
+          {maxLoan !== null && (
+            <div className="mt-4 rounded-sm p-5" style={{ backgroundColor: `${SAND}30` }}>
+              <div className="flex items-baseline justify-between">
+                <span className="text-sm font-medium" style={{ color: BASALT }}>
+                  Your max loan amount
+                </span>
+                <span className="text-2xl font-medium" style={{ color: TEAL }}>
+                  {money(maxLoan)}
+                </span>
+              </div>
+              <p className="mt-1.5 text-xs leading-relaxed" style={{ color: MOSS }}>
+                Limited by {binding === "LTC" ? "Loan-to-Cost" : "Loan-to-ARV"} — a lender always uses whichever
+                number is lower.
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>
