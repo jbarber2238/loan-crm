@@ -66,8 +66,21 @@ const PROGRAMS = [
 
 const STEPS = [
   { n: "01", title: "Submit your deal", body: "A short form on the property, the numbers, and your experience — five minutes, no obligation." },
-  { n: "02", title: "Get matched and priced", body: "Your deal is checked against active lender programs and priced against real, current terms." },
-  { n: "03", title: "Close on your timeline", body: "Underwriting moves at the pace of the deal, not a committee — because the capital is private." },
+  {
+    n: "02",
+    title: "Get matched and priced",
+    body: "We check your deal against real, active lender guidelines to find the right fit, then price it out and prepare term sheet estimates.",
+  },
+  {
+    n: "03",
+    title: "Walk through your terms",
+    body: "We schedule a call to go through your term sheet options together, so every question is answered and you know exactly what's next.",
+  },
+  {
+    n: "04",
+    title: "Document review, done right",
+    body: "Once you pick a term sheet, we review every document before it reaches the lender — catching issues here instead of after submission, so the loan gets to the finish line without hiccups.",
+  },
 ];
 
 function ProgramCard({ program }: { program: (typeof PROGRAMS)[number] }) {
@@ -261,7 +274,7 @@ export default async function MarketingHomePage() {
           <p className="text-xs font-medium tracking-[0.2em]" style={{ color: TEAL }}>
             HOW IT WORKS
           </p>
-          <div className="mt-10 grid grid-cols-1 gap-10 md:grid-cols-3">
+          <div className="mt-10 grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((s) => (
               <div key={s.n}>
                 <span className="text-sm font-medium" style={{ color: MOSS }}>
