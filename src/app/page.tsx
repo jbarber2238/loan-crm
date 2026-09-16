@@ -39,73 +39,33 @@ const HOW_WE_LEND = ["No Tax Returns Required", "No Income Verification", "No Pr
 const PROGRAMS = [
   {
     name: "DSCR Purchase",
-    subtitle: "Long-Term Rental Financing",
-    image: "https://images.unsplash.com/photo-1625603736199-775425d2890a?auto=format&fit=crop&w=1200&q=80",
-    intro: "No tax returns. No income verification. We qualify the property, not your paycheck.",
-    bullets: [
-      "Loan amounts from $50K to $3.5M+ — single properties or full portfolios",
-      "Up to 85% LTV on purchase",
-      "Credit flexibility down to 600 FICO, including no-ratio and negative-cash-flow options",
-      "30-year fixed and interest-only terms, with no-prepay options available",
-      "Single-family through 8-unit multifamily, plus foreign national, ITIN, and short-term rental programs",
-    ],
-    bestFor: "First-time and repeat investors purchasing a buy-and-hold rental property.",
+    image: "https://images.unsplash.com/photo-1625603736199-775425d2890a?auto=format&fit=crop&w=800&q=80",
+    bullets: ["$50K–$3.5M loan amounts", "Up to 85% LTV", "600 FICO minimum", "30-yr fixed or interest-only"],
   },
   {
-    name: "DSCR Refinance",
-    subtitle: "Cash-Out & Rate/Term Refinance",
-    image: "https://images.unsplash.com/photo-1646446528565-c7c4f2e759a0?auto=format&fit=crop&w=1200&q=80",
-    intro: "Pull cash out or reposition your rate — still qualified on the property's income, not yours.",
-    bullets: [
-      "Cash-out refinance up to 80% LTV, or rate-and-term to reprice an existing loan",
-      "Loan amounts from $50K to $3.5M+ — single properties or full portfolios",
-      "Credit flexibility down to 600 FICO, including no-ratio and negative-cash-flow options",
-      "30-year fixed and interest-only terms, with no-prepay options available",
-      "Single-family through 8-unit multifamily, plus foreign national and ITIN programs",
-    ],
-    bestFor: "Investors pulling equity out of a rental or repricing an existing loan.",
+    name: "DSCR Cash-Out Refi",
+    image: "https://images.unsplash.com/photo-1646446528565-c7c4f2e759a0?auto=format&fit=crop&w=800&q=80",
+    bullets: ["Up to 80% LTV", "$50K–$3.5M loan amounts", "600 FICO minimum", "No income verification"],
+  },
+  {
+    name: "DSCR Rate & Term Refi",
+    image: "https://images.unsplash.com/photo-1572120360610-d971b9d7767c?auto=format&fit=crop&w=800&q=80",
+    bullets: ["Reprice an existing loan", "$50K–$3.5M loan amounts", "600 FICO minimum", "30-yr fixed or interest-only"],
   },
   {
     name: "Fix & Flip",
-    subtitle: "Purchase + Rehab Financing",
-    image: "https://images.unsplash.com/photo-1618832515490-e181c4794a45?auto=format&fit=crop&w=1200&q=80",
-    intro: "Fast capital for the purchase and rehab, sized against what the property is worth once you're done.",
-    bullets: [
-      "Loan amounts from $75K to $7M+",
-      "Up to 100% of project cost on qualified flips",
-      "Up to 90-95% loan-to-cost on light rehab and cosmetic renovation",
-      "Leverage up to 75% of after-repair value",
-      "Interest-only, no prepay, fast closings — including no-appraisal options on qualifying deals",
-    ],
-    bestFor: "Investors buying, renovating, and selling on a short timeline.",
+    image: "https://images.unsplash.com/photo-1618832515490-e181c4794a45?auto=format&fit=crop&w=800&q=80",
+    bullets: ["$75K–$7M+ loan amounts", "Up to 100% of project cost", "90–95% LTC on light rehab", "Interest-only, no prepay"],
   },
   {
     name: "Ground-Up Construction",
-    subtitle: "New Build Financing",
-    image: "https://images.unsplash.com/photo-1778438387124-b304a43a710b?auto=format&fit=crop&w=1200&q=80",
-    intro: "Financing to build vertically on land you own or are acquiring.",
-    bullets: [
-      "Loan amounts from $75K to $7M+",
-      "Up to 100% loan-to-cost on qualified ground-up construction projects",
-      "Leverage up to 75% of after-completion value",
-      "No-experience-required financing for first-time builders, alongside high-leverage programs for seasoned investors",
-      "Interest-only structures with no prepayment penalties",
-    ],
-    bestFor: "Builders and developers taking a project from land to finished property.",
+    image: "https://images.unsplash.com/photo-1778438387124-b304a43a710b?auto=format&fit=crop&w=800&q=80",
+    bullets: ["$75K–$7M+ loan amounts", "Up to 100% loan-to-cost", "75% of after-completion value", "No experience required"],
   },
   {
     name: "Bridge Financing",
-    subtitle: "Bridge & Acquisition Loans",
-    image: "https://images.unsplash.com/photo-1782024743263-bb153ea077e1?auto=format&fit=crop&w=1200&q=80",
-    intro: "Fast, flexible capital for investors who need to move quicker than traditional lending allows.",
-    bullets: [
-      "Loan amounts from $75K to $7M+",
-      "Straight bridge/acquisition financing to move quickly on a purchase",
-      "Purchase + rehab and bridge-to-rent strategies available under one program",
-      "Sized against current value or after-repair value, depending on structure",
-      "Interest-only, no prepay, fast closings — including no-appraisal options on qualifying deals",
-    ],
-    bestFor: "Investors acting fast on a time-sensitive purchase or bridging into a stabilized exit.",
+    image: "https://images.unsplash.com/photo-1782024743263-bb153ea077e1?auto=format&fit=crop&w=800&q=80",
+    bullets: ["$75K–$7M+ loan amounts", "Fast, flexible closings", "Purchase, rehab, or bridge-to-rent", "No appraisal on qualifying deals"],
   },
 ];
 
@@ -119,29 +79,20 @@ function ProgramCard({ program }: { program: (typeof PROGRAMS)[number] }) {
   return (
     <div className="overflow-hidden rounded-sm border bg-white" style={{ borderColor: "rgba(20,61,74,0.15)" }}>
       <div
-        className="h-40 bg-cover bg-center md:h-48"
+        className="h-20 bg-cover bg-center"
         style={{
-          backgroundImage: `linear-gradient(0deg, rgba(20,61,74,0.25), rgba(20,61,74,0.05)), url('${program.image}')`,
+          backgroundImage: `linear-gradient(0deg, rgba(20,61,74,0.2), rgba(20,61,74,0.05)), url('${program.image}')`,
         }}
         role="img"
         aria-label={program.name}
       />
-      <div className="p-7 md:p-9">
-        <h3 className="text-xl font-medium" style={{ color: TEAL }}>
+      <div className="p-5">
+        <h3 className="text-base font-medium" style={{ color: TEAL }}>
           {program.name}
         </h3>
-        <p className="mt-1.5 text-xs font-medium tracking-wide" style={{ color: MOSS }}>
-          {program.subtitle}
-        </p>
-        <p className="mt-4 text-sm leading-relaxed" style={{ color: BASALT }}>
-          {program.intro}
-        </p>
-        <p className="mt-5 text-xs font-medium tracking-[0.15em]" style={{ color: MOSS }}>
-          WHAT WE OFFER
-        </p>
-        <ul className="mt-3 space-y-2">
+        <ul className="mt-2.5 space-y-1">
           {program.bullets.map((b) => (
-            <li key={b} className="flex gap-2.5 text-sm leading-relaxed" style={{ color: BASALT }}>
+            <li key={b} className="flex gap-2 text-xs leading-snug" style={{ color: BASALT }}>
               <span aria-hidden="true" style={{ color: TEAL }}>
                 —
               </span>
@@ -149,12 +100,6 @@ function ProgramCard({ program }: { program: (typeof PROGRAMS)[number] }) {
             </li>
           ))}
         </ul>
-        <p className="mt-5 border-t pt-4 text-sm leading-relaxed" style={{ borderColor: "rgba(20,61,74,0.15)", color: BASALT }}>
-          <span className="font-medium" style={{ color: TEAL }}>
-            Best for:
-          </span>{" "}
-          {program.bestFor}
-        </p>
       </div>
     </div>
   );
@@ -274,7 +219,7 @@ export default async function MarketingHomePage() {
             Every deal is matched against our lending network to find the best fit for your credit, experience,
             and exit strategy.
           </p>
-          <div className="mt-12 grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-12 grid grid-cols-2 gap-5 md:grid-cols-3">
             {PROGRAMS.map((program) => (
               <ProgramCard key={program.name} program={program} />
             ))}
