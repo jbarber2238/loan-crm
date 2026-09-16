@@ -1,10 +1,9 @@
 import { requireAdmin } from "@/server/auth/guards";
 import { db } from "@/server/db/client";
-import { inviteUser, updateUser, deleteUser } from "@/server/actions/users";
+import { updateUser, deleteUser } from "@/server/actions/users";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ActionForm } from "@/components/forms/action-form";
@@ -16,16 +15,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { BASE_ROLES } from "@/lib/labels";
 import { CopyIntakeLinkButton } from "@/components/deals/copy-intake-link-button";
 import { CopyEmbedCodeButton } from "@/components/deals/copy-embed-code-button";
+import { InviteMemberDialog } from "@/components/settings/invite-member-dialog";
 
 export default async function TeamSettingsPage() {
   const admin = await requireAdmin();
@@ -43,42 +36,7 @@ export default async function TeamSettingsPage() {
           members who sign in first without an invite show up here too, defaulted to
           Loan Officer.
         </p>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button className="shrink-0">+ Invite Member</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Invite Member</DialogTitle>
-            </DialogHeader>
-            <ActionForm action={inviteUser} successMessage="Invite sent" className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="invite-email">Email</Label>
-                <Input id="invite-email" name="email" type="email" required />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="invite-role">Role</Label>
-                <Select name="baseRole" defaultValue="loan_officer">
-                  <SelectTrigger id="invite-role" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {BASE_ROLES.map((role) => (
-                      <SelectItem key={role.value} value={role.value}>
-                        {role.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox name="isAdmin" />
-                Admin
-              </label>
-              <SubmitButton className="w-full">Send Invite</SubmitButton>
-            </ActionForm>
-          </DialogContent>
-        </Dialog>
+        <InviteMemberDialog />
       </div>
 
       {allUsers.map((user) => {

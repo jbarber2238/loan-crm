@@ -6,9 +6,13 @@ import { redirect } from "next/navigation";
 import { db } from "@/server/db/client";
 import { users } from "@/server/db/schema";
 import { requireAdmin, requireUser } from "@/server/auth/guards";
+import { sendGmailAs } from "@/server/gmail/send";
+import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
+import { getUserEmailSignatureHtml } from "@/server/users";
+import { BASE_ROLES, labelFor } from "@/lib/labels";
 
 export async function inviteUser(formData: FormData) {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const email = formData.get("email");
   const baseRole = formData.get("baseRole");
@@ -25,12 +29,44 @@ export async function inviteUser(formData: FormData) {
     throw new Error("A user with that email already exists — edit them in the list below.");
   }
 
+  const normalizedEmail = email.trim().toLowerCase();
+  const role = baseRole as (typeof users.baseRole.enumValues)[number];
+
   await db.insert(users).values({
-    email: email.trim().toLowerCase(),
-    baseRole: baseRole as (typeof users.baseRole.enumValues)[number],
+    email: normalizedEmail,
+    baseRole: role,
     isAdmin,
     active: true,
   });
+
+  // Best-effort — the invite itself (the row above) is what actually grants
+  // access ahead of sign-in, so a failure here (e.g. the admin's own Gmail
+  // send access hasn't been (re-)granted) shouldn't block the invite, just
+  // skip the notification silently.
+  if (admin.email) {
+    try {
+      const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+      const [companyName, logoHtml, signatureHtml] = await Promise.all([
+        getCompanyName(),
+        getCompanyLogoHtml(),
+        getUserEmailSignatureHtml(admin.id),
+      ]);
+      const roleLabel = labelFor(BASE_ROLES, role);
+      const body = `
+        <p>Hi,</p>
+        <p>${admin.name ?? "Your team"} has invited you to join ${companyName}'s CRM as a ${roleLabel}.</p>
+        <p><a href="${appUrl}/sign-in">Sign in with your Google account</a> to get set up — it takes about a minute.</p>
+      `;
+      await sendGmailAs(admin.id, admin.email, {
+        to: normalizedEmail,
+        subject: `You've been invited to ${companyName}'s CRM`,
+        body: logoHtml + body + signatureHtml,
+        html: true,
+      });
+    } catch (err) {
+      console.error("Failed to send invite email:", err);
+    }
+  }
 
   revalidatePath("/settings/team");
 }
