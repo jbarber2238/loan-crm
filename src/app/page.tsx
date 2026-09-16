@@ -199,17 +199,17 @@ export default async function MarketingHomePage() {
         className="bg-cover bg-center"
         style={{
           backgroundImage:
-            "linear-gradient(rgba(20,61,74,0.9), rgba(20,61,74,0.88)), url('https://images.unsplash.com/photo-1571979622878-622d38ec238c?auto=format&fit=crop&w=2400&q=80')",
+            "linear-gradient(rgba(203,184,160,0.92), rgba(203,184,160,0.9)), url('https://images.unsplash.com/photo-1571979622878-622d38ec238c?auto=format&fit=crop&w=2400&q=80')",
         }}
       >
         <div className="mx-auto max-w-6xl px-6 py-20 md:py-24">
-          <p className="text-xs font-medium tracking-[0.2em]" style={{ color: SAND }}>
+          <p className="text-xs font-medium tracking-[0.2em]" style={{ color: TEAL }}>
             LOAN PROGRAMS
           </p>
-          <h2 className="mt-3 max-w-2xl text-2xl font-normal md:text-3xl" style={{ color: OFF_WHITE }}>
+          <h2 className="mt-3 max-w-2xl text-2xl font-normal md:text-3xl" style={{ color: BASALT }}>
             We fund real estate investors — from your first rental to your next ground-up build.
           </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed" style={{ color: "rgba(250,247,242,0.85)" }}>
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed" style={{ color: BASALT }}>
             Every deal is matched against our lending network to find the best fit for your credit, experience,
             and exit strategy.
           </p>
