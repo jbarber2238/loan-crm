@@ -16,13 +16,13 @@ const MOSS = "#68735F";
 
 const CALCULATORS = [
   {
-    name: "DSCR Calculator",
+    nameLines: ["DSCR Calculator"],
     href: "/resources/dscr-calculator",
     description:
       "See whether a rental property's income covers its debt — the core number a DSCR loan qualifies against instead of your personal income.",
   },
   {
-    name: "Hard Money Leverage Calculator",
+    nameLines: ["Hard Money", "Leverage Calculator"],
     href: "/resources/hard-money-calculator",
     description:
       "Size a fix & flip, ground-up construction, or bridge loan by both Loan-to-Cost and Loan-to-After-Repair Value, and see which one a lender will use.",
@@ -60,7 +60,11 @@ export default function ResourcesPage() {
                 style={{ borderColor: "rgba(20,61,74,0.15)" }}
               >
                 <h2 className="text-lg font-medium" style={{ color: TEAL }}>
-                  {calc.name}
+                  {calc.nameLines.map((line) => (
+                    <span key={line} className="block">
+                      {line}
+                    </span>
+                  ))}
                 </h2>
                 <p className="mt-2 text-sm leading-relaxed" style={{ color: BASALT }}>
                   {calc.description}

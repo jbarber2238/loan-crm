@@ -24,7 +24,8 @@ export default function HardMoneyCalculatorPage() {
             INVESTOR RESOURCES
           </p>
           <h1 className="mt-4 max-w-2xl text-3xl leading-[1.15] font-normal md:text-4xl" style={{ color: BASALT }}>
-            Hard Money Leverage Calculator
+            <span className="block">Hard Money</span>
+            <span className="block">Leverage Calculator</span>
           </h1>
           <p className="mt-4 max-w-xl text-base leading-relaxed" style={{ color: BASALT }}>
             The same math our own underwriting runs on — use it to size a fix &amp; flip, ground-up construction, or

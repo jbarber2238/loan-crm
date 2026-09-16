@@ -3,12 +3,6 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { MannaLogo } from "@/components/marketing/manna-logo";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 const TEAL = "#143D4A";
 const BASALT = "#1E1E1E";
@@ -24,6 +18,11 @@ const APPLY_HREF = `/intake/${LOAN_OFFICER_ID}`;
  * the header never drifts between pages. "Programs" always links back to
  * the homepage's anchor rather than a bare `#programs`, since this header
  * now renders on pages other than the homepage too.
+ *
+ * The Resources menu is a plain hover dropdown, not Radix's DropdownMenu —
+ * Radix's own click-to-open handling fought with hover-to-open (causing an
+ * open/close flicker loop) and pinned the menu's width to the trigger's own
+ * width, which mangled the longer "Hard Money Leverage Calculator" label.
  */
 export function SiteHeader() {
   const [resourcesOpen, setResourcesOpen] = useState(false);
@@ -49,22 +48,32 @@ export function SiteHeader() {
           <Link href="/#programs" className="hidden text-sm font-medium tracking-wide sm:inline" style={{ color: BASALT }}>
             Programs
           </Link>
-          <div onMouseEnter={openNow} onMouseLeave={closeSoon}>
-            <DropdownMenu open={resourcesOpen} onOpenChange={setResourcesOpen}>
-              <DropdownMenuTrigger asChild>
-                <Link href="/resources" className="hidden text-sm font-medium tracking-wide outline-none sm:inline" style={{ color: BASALT }}>
-                  Resources
+          <div className="relative hidden sm:block" onMouseEnter={openNow} onMouseLeave={closeSoon}>
+            <Link href="/resources" className="text-sm font-medium tracking-wide" style={{ color: BASALT }}>
+              Resources
+            </Link>
+            {resourcesOpen && (
+              <div
+                className="absolute left-0 top-full z-50 mt-3 w-64 overflow-hidden rounded-sm border bg-white shadow-[0_12px_32px_rgba(20,61,74,0.18)]"
+                style={{ borderColor: "rgba(20,61,74,0.12)" }}
+              >
+                <Link
+                  href="/resources/dscr-calculator"
+                  className="block px-4 py-3 text-sm font-medium transition-colors hover:bg-[rgba(20,61,74,0.06)]"
+                  style={{ color: BASALT }}
+                >
+                  DSCR Calculator
                 </Link>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" onMouseEnter={openNow} onMouseLeave={closeSoon}>
-                <DropdownMenuItem asChild>
-                  <Link href="/resources/dscr-calculator">DSCR Calculator</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/resources/hard-money-calculator">Hard Money Leverage Calculator</Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <Link
+                  href="/resources/hard-money-calculator"
+                  className="block px-4 py-3 text-sm leading-snug font-medium transition-colors hover:bg-[rgba(20,61,74,0.06)]"
+                  style={{ color: BASALT }}
+                >
+                  <span className="block">Hard Money</span>
+                  <span className="block">Leverage Calculator</span>
+                </Link>
+              </div>
+            )}
           </div>
           <Link
             href={APPLY_HREF}
