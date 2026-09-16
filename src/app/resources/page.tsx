@@ -1,32 +1,38 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { MannaLogo } from "@/components/marketing/manna-logo";
+import { SiteHeader } from "@/components/marketing/site-header";
 import { SiteFooter } from "@/components/marketing/site-footer";
-import { DscrCalculator, HardMoneyLeverageCalculator } from "@/components/marketing/loan-calculators";
 
 export const metadata: Metadata = {
   title: "Investor Resources — Manna Lending",
-  description: "Free DSCR, LTC, and LTARV calculators for real estate investors, from Manna Lending.",
+  description: "Free DSCR and hard money leverage calculators for real estate investors, from Manna Lending.",
 };
 
 const OFF_WHITE = "#FAF7F2";
 const SAND = "#CBB8A0";
 const TEAL = "#143D4A";
 const BASALT = "#1E1E1E";
+const MOSS = "#68735F";
+
+const CALCULATORS = [
+  {
+    name: "DSCR Calculator",
+    href: "/resources/dscr-calculator",
+    description:
+      "See whether a rental property's income covers its debt — the core number a DSCR loan qualifies against instead of your personal income.",
+  },
+  {
+    name: "Hard Money Leverage Calculator",
+    href: "/resources/hard-money-calculator",
+    description:
+      "Size a fix & flip, ground-up construction, or bridge loan by both Loan-to-Cost and Loan-to-After-Repair Value, and see which one a lender will use.",
+  },
+];
 
 export default function ResourcesPage() {
   return (
     <div style={{ fontFamily: "var(--font-archivo), Archivo, sans-serif" }}>
-      <header className="border-b" style={{ backgroundColor: OFF_WHITE, borderColor: "rgba(20,61,74,0.12)" }}>
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-          <Link href="/">
-            <MannaLogo className="h-9 w-auto" />
-          </Link>
-          <Link href="/" className="text-sm font-medium tracking-wide" style={{ color: TEAL }}>
-            ← Back to home
-          </Link>
-        </div>
-      </header>
+      <SiteHeader />
 
       <section style={{ backgroundColor: SAND }}>
         <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
@@ -44,20 +50,30 @@ export default function ResourcesPage() {
       </section>
 
       <section style={{ backgroundColor: OFF_WHITE }}>
-        <div className="mx-auto max-w-6xl space-y-8 px-6 py-16 md:py-20">
-          <DscrCalculator />
-          <HardMoneyLeverageCalculator />
+        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            {CALCULATORS.map((calc) => (
+              <Link
+                key={calc.href}
+                href={calc.href}
+                className="rounded-sm border bg-white p-6 shadow-[0_8px_24px_rgba(20,61,74,0.08)] transition-shadow hover:shadow-[0_8px_24px_rgba(20,61,74,0.16)] md:p-8"
+                style={{ borderColor: "rgba(20,61,74,0.15)" }}
+              >
+                <h2 className="text-lg font-medium" style={{ color: TEAL }}>
+                  {calc.name}
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed" style={{ color: BASALT }}>
+                  {calc.description}
+                </p>
+                <span className="mt-4 inline-block text-sm font-medium tracking-wide" style={{ color: MOSS }}>
+                  Open calculator →
+                </span>
+              </Link>
+            ))}
+          </div>
         </div>
       </section>
 
-      <div style={{ backgroundColor: TEAL }}>
-        <div className="mx-auto max-w-6xl px-6 pt-10">
-          <p className="text-xs" style={{ color: "rgba(250,247,242,0.7)" }}>
-            These calculators are estimates for planning purposes only and are not a quote, pre-qualification, or
-            commitment to lend. Terms vary by program and are subject to underwriting approval.
-          </p>
-        </div>
-      </div>
       <SiteFooter />
     </div>
   );

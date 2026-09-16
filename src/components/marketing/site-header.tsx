@@ -1,5 +1,11 @@
 import Link from "next/link";
 import { MannaLogo } from "@/components/marketing/manna-logo";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const TEAL = "#143D4A";
 const BASALT = "#1E1E1E";
@@ -27,9 +33,19 @@ export function SiteHeader() {
           <Link href="/#programs" className="hidden text-sm font-medium tracking-wide sm:inline" style={{ color: BASALT }}>
             Programs
           </Link>
-          <Link href="/resources" className="hidden text-sm font-medium tracking-wide sm:inline" style={{ color: BASALT }}>
-            Resources
-          </Link>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="hidden text-sm font-medium tracking-wide outline-none sm:inline" style={{ color: BASALT }}>
+              Resources
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem asChild>
+                <Link href="/resources/dscr-calculator">DSCR Calculator</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/resources/hard-money-calculator">Hard Money Leverage Calculator</Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Link
             href={APPLY_HREF}
             className="rounded-sm px-5 py-2.5 text-sm font-medium tracking-wide text-white transition-opacity hover:opacity-90"

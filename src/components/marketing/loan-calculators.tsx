@@ -146,8 +146,8 @@ function SliderField({
           {value}%
         </span>
       </div>
-      <div className="mt-3">
-        <Slider value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={1} />
+      <div className="mt-3 max-w-xs">
+        <Slider value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={5} />
       </div>
       <p className="mt-2 text-xs leading-relaxed" style={{ color: MOSS }}>
         {caption}
@@ -206,18 +206,18 @@ export function HardMoneyLeverageCalculator() {
 
       <div className="mt-8 space-y-6">
         <SliderField
-          label="Loan-to-ARV"
+          label="Loan-to-After-Repair Value (LTARV)"
           value={ltarvPct}
           onChange={setLtarvPct}
           min={50}
-          max={85}
+          max={75}
           caption="Most lenders cap ground-up and fix & flip leverage at 75% of after-repair value, regardless of experience."
         />
         <SliderField
-          label="Loan-to-Cost"
+          label="Loan-to-Cost (LTC)"
           value={ltcPct}
           onChange={setLtcPct}
-          min={50}
+          min={80}
           max={100}
           caption="LTC is based on experience. You typically need a track record to qualify for 90% or 100% LTC — with less experience, expect somewhere between 80% and 85%."
         />
@@ -238,8 +238,8 @@ export function HardMoneyLeverageCalculator() {
                 </span>
               </div>
               <p className="mt-1.5 text-xs leading-relaxed" style={{ color: MOSS }}>
-                Limited by {binding === "LTC" ? "Loan-to-Cost" : "Loan-to-ARV"} — a lender always uses whichever
-                number is lower.
+                Limited by {binding === "LTC" ? "Loan-to-Cost (LTC)" : "Loan-to-After-Repair Value (LTARV)"} — a
+                lender always uses whichever number is lower.
               </p>
             </div>
           )}
