@@ -29,15 +29,17 @@ const MOSS = "#68735F";
 const BASALT = "#1E1E1E";
 const OFF_WHITE = "#FAF7F2";
 
-const STATS = [
+const TRACK_RECORD = [
   { value: "$60M+", label: "Funded to date" },
   { value: "50", label: "States we lend in" },
-  { value: "Investor-run", label: "Not just a broker" },
 ];
+
+const HOW_WE_LEND = ["No Tax Returns Required", "No Income Verification", "No Prepayment Penalty"];
 
 const DSCR_PROGRAM = {
   name: "DSCR Rental Loans",
   subtitle: "Purchase | Cash-Out Refinance | Rate & Term Refinance",
+  image: "https://images.unsplash.com/photo-1625603736199-775425d2890a?auto=format&fit=crop&w=1200&q=80",
   intro: "No tax returns. No income verification. We qualify the property, not your paycheck.",
   bullets: [
     "Loan amounts from $50K to $3.5M+ — single properties or full portfolios",
@@ -52,6 +54,7 @@ const DSCR_PROGRAM = {
 const BRIDGE_PROGRAM = {
   name: "Hard Money / Bridge Loans",
   subtitle: "Fix & Flip | Ground-Up Construction | Bridge Financing",
+  image: "https://images.unsplash.com/photo-1778438387124-b304a43a710b?auto=format&fit=crop&w=1200&q=80",
   intro: "Fast, flexible capital for investors who move quicker than traditional lending allows.",
   bullets: [
     "Loan amounts from $75K to $7M+, including larger construction and bridge deals",
@@ -71,35 +74,45 @@ const STEPS = [
 
 function ProgramCard({ program }: { program: typeof DSCR_PROGRAM }) {
   return (
-    <div className="rounded-sm border bg-white p-7 md:p-9" style={{ borderColor: "rgba(20,61,74,0.15)" }}>
-      <h3 className="text-xl font-medium" style={{ color: TEAL }}>
-        {program.name}
-      </h3>
-      <p className="mt-1.5 text-xs font-medium tracking-wide" style={{ color: MOSS }}>
-        {program.subtitle}
-      </p>
-      <p className="mt-4 text-sm leading-relaxed" style={{ color: BASALT }}>
-        {program.intro}
-      </p>
-      <p className="mt-5 text-xs font-medium tracking-[0.15em]" style={{ color: MOSS }}>
-        WHAT WE OFFER
-      </p>
-      <ul className="mt-3 space-y-2">
-        {program.bullets.map((b) => (
-          <li key={b} className="flex gap-2.5 text-sm leading-relaxed" style={{ color: BASALT }}>
-            <span aria-hidden="true" style={{ color: TEAL }}>
-              —
-            </span>
-            <span>{b}</span>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-5 border-t pt-4 text-sm leading-relaxed" style={{ borderColor: "rgba(20,61,74,0.15)", color: BASALT }}>
-        <span className="font-medium" style={{ color: TEAL }}>
-          Best for:
-        </span>{" "}
-        {program.bestFor}
-      </p>
+    <div className="overflow-hidden rounded-sm border bg-white" style={{ borderColor: "rgba(20,61,74,0.15)" }}>
+      <div
+        className="h-40 bg-cover bg-center md:h-48"
+        style={{
+          backgroundImage: `linear-gradient(0deg, rgba(20,61,74,0.25), rgba(20,61,74,0.05)), url('${program.image}')`,
+        }}
+        role="img"
+        aria-label={program.name}
+      />
+      <div className="p-7 md:p-9">
+        <h3 className="text-xl font-medium" style={{ color: TEAL }}>
+          {program.name}
+        </h3>
+        <p className="mt-1.5 text-xs font-medium tracking-wide" style={{ color: MOSS }}>
+          {program.subtitle}
+        </p>
+        <p className="mt-4 text-sm leading-relaxed" style={{ color: BASALT }}>
+          {program.intro}
+        </p>
+        <p className="mt-5 text-xs font-medium tracking-[0.15em]" style={{ color: MOSS }}>
+          WHAT WE OFFER
+        </p>
+        <ul className="mt-3 space-y-2">
+          {program.bullets.map((b) => (
+            <li key={b} className="flex gap-2.5 text-sm leading-relaxed" style={{ color: BASALT }}>
+              <span aria-hidden="true" style={{ color: TEAL }}>
+                —
+              </span>
+              <span>{b}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-5 border-t pt-4 text-sm leading-relaxed" style={{ borderColor: "rgba(20,61,74,0.15)", color: BASALT }}>
+          <span className="font-medium" style={{ color: TEAL }}>
+            Best for:
+          </span>{" "}
+          {program.bestFor}
+        </p>
+      </div>
     </div>
   );
 }
@@ -164,7 +177,7 @@ export default async function MarketingHomePage() {
                 className="rounded-sm px-7 py-3.5 text-sm font-medium tracking-wide transition-opacity hover:opacity-90"
                 style={{ backgroundColor: SAND, color: TEAL }}
               >
-                Get Pre-Qualified
+                Get Quick Pricing
               </Link>
               <a
                 href="#programs"
@@ -175,17 +188,32 @@ export default async function MarketingHomePage() {
               </a>
             </div>
           </div>
-          <div className="mt-16 grid grid-cols-3 gap-6 border-t pt-8" style={{ borderColor: "rgba(250,247,242,0.25)" }}>
-            {STATS.map((s) => (
-              <div key={s.label}>
-                <p className="text-2xl font-medium md:text-3xl" style={{ color: SAND }}>
-                  {s.value}
-                </p>
-                <p className="mt-1 text-xs leading-snug" style={{ color: "rgba(250,247,242,0.85)" }}>
-                  {s.label}
-                </p>
-              </div>
-            ))}
+
+          <div className="mt-16 border-t pt-8" style={{ borderColor: "rgba(250,247,242,0.25)" }}>
+            <div className="grid grid-cols-2 gap-6 sm:w-fit sm:grid-cols-2 sm:gap-16">
+              {TRACK_RECORD.map((s) => (
+                <div key={s.label}>
+                  <p className="text-2xl font-medium md:text-3xl" style={{ color: SAND }}>
+                    {s.value}
+                  </p>
+                  <p className="mt-1 text-xs leading-snug" style={{ color: "rgba(250,247,242,0.85)" }}>
+                    {s.label}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-8 flex flex-col gap-3 border-t pt-6 sm:flex-row sm:flex-wrap sm:gap-x-10 sm:gap-y-3" style={{ borderColor: "rgba(250,247,242,0.15)" }}>
+              {HOW_WE_LEND.map((item) => (
+                <div key={item} className="flex items-center gap-2">
+                  <span aria-hidden="true" style={{ color: SAND }}>
+                    ✓
+                  </span>
+                  <span className="text-sm font-medium" style={{ color: OFF_WHITE }}>
+                    {item}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -230,12 +258,13 @@ export default async function MarketingHomePage() {
             WHY MANNA LENDING
           </p>
           <h2 className="mt-3 max-w-2xl text-2xl font-normal md:text-3xl" style={{ color: OFF_WHITE }}>
-            Run by an investor, not just a broker.
+            The access of a broker. The eye of an investor.
           </h2>
           <p className="mt-4 max-w-2xl text-sm leading-relaxed md:text-base" style={{ color: "rgba(250,247,242,0.85)" }}>
-            Many brokers have never invested in real estate themselves. Manna Lending has. We own multiple
-            doors, so we understand the pain and the upside of different financing structures firsthand — and
-            how to underwrite a deal so it actually works, not just how to process an application.
+            Manna Lending is run by an active real estate investor — someone who owns multiple doors and has
+            felt the pain and the upside of different financing structures firsthand. That experience shapes
+            every deal we place: full access to our lending network, underwritten by someone who knows how to
+            structure a deal so it actually works.
           </p>
         </div>
       </section>
