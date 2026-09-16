@@ -1,3 +1,6 @@
+"use client";
+
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { MannaLogo } from "@/components/marketing/manna-logo";
 import {
@@ -23,6 +26,19 @@ const APPLY_HREF = `/intake/${LOAN_OFFICER_ID}`;
  * now renders on pages other than the homepage too.
  */
 export function SiteHeader() {
+  const [resourcesOpen, setResourcesOpen] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function openNow() {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    setResourcesOpen(true);
+  }
+
+  function closeSoon() {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    closeTimer.current = setTimeout(() => setResourcesOpen(false), 150);
+  }
+
   return (
     <header className="border-b" style={{ backgroundColor: OFF_WHITE, borderColor: "rgba(20,61,74,0.12)" }}>
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
@@ -33,19 +49,23 @@ export function SiteHeader() {
           <Link href="/#programs" className="hidden text-sm font-medium tracking-wide sm:inline" style={{ color: BASALT }}>
             Programs
           </Link>
-          <DropdownMenu>
-            <DropdownMenuTrigger className="hidden text-sm font-medium tracking-wide outline-none sm:inline" style={{ color: BASALT }}>
-              Resources
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem asChild>
-                <Link href="/resources/dscr-calculator">DSCR Calculator</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/resources/hard-money-calculator">Hard Money Leverage Calculator</Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div onMouseEnter={openNow} onMouseLeave={closeSoon}>
+            <DropdownMenu open={resourcesOpen} onOpenChange={setResourcesOpen}>
+              <DropdownMenuTrigger asChild>
+                <Link href="/resources" className="hidden text-sm font-medium tracking-wide outline-none sm:inline" style={{ color: BASALT }}>
+                  Resources
+                </Link>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" onMouseEnter={openNow} onMouseLeave={closeSoon}>
+                <DropdownMenuItem asChild>
+                  <Link href="/resources/dscr-calculator">DSCR Calculator</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/resources/hard-money-calculator">Hard Money Leverage Calculator</Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
           <Link
             href={APPLY_HREF}
             className="rounded-sm px-5 py-2.5 text-sm font-medium tracking-wide text-white transition-opacity hover:opacity-90"
