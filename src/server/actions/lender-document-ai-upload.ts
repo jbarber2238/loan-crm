@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { lenderDocuments } from "@/server/db/schema";
 import { requireAdmin } from "@/server/auth/guards";
-import { classifyLenderDocument } from "@/server/ai/lender-document-classify";
+import { extractLenderCriteria } from "@/server/ai/extract-lender-criteria";
+import { extractAndStoreCriteria } from "@/server/actions/lender-documents";
 import { findOrCreateProduct } from "@/server/actions/lenders";
 import { LOAN_CATEGORIES, labelFor } from "@/lib/labels";
 
@@ -17,10 +18,14 @@ export interface AiFiledDocument {
 
 /**
  * The primary way matrices/guidelines get uploaded now: no "applies to"
- * picker — AI reads the file, decides which product category(ies) it
- * belongs to, and files it there (creating the product if it doesn't exist
- * yet). Falls back to an unscoped lender-wide document when it can't
- * confidently tell, rather than guessing.
+ * picker — one AI pass reads the file, decides which product category it
+ * belongs to, and extracts its underwriting criteria, all in the same call.
+ * The document gets filed under that category's product (creating the
+ * product if it doesn't exist yet) with its criteria already populated, so
+ * AI Lender Match can use the cheap stored-data path immediately instead of
+ * falling back to re-reading the raw document. Falls back to an unscoped
+ * lender-wide document (no extraction) when the category can't be
+ * confidently determined, rather than guessing.
  */
 export async function uploadLenderDocumentsWithAI(
   lenderId: string,
@@ -42,11 +47,18 @@ export async function uploadLenderDocumentsWithAI(
   for (const file of files) {
     const dataBase64 = Buffer.from(await file.arrayBuffer()).toString("base64");
     const mimeType = file.type || "application/octet-stream";
+    const draft = { fileName: file.name, mimeType, data: dataBase64 };
 
-    const classification = await classifyLenderDocument({ fileName: file.name, mimeType, dataBase64 });
-    const categories = classification.confidence === "high" ? classification.categories : [];
+    let extracted;
+    try {
+      extracted = await extractLenderCriteria(draft);
+    } catch (err) {
+      extracted = null;
+      console.error("Lender document classification/extraction failed:", err);
+    }
+    const category = extracted?.detectedCategory as (typeof LOAN_CATEGORIES)[number]["value"] | null | undefined;
 
-    if (categories.length === 0) {
+    if (!category) {
       await db.insert(lenderDocuments).values({
         lenderId,
         productId: null,
@@ -60,10 +72,10 @@ export async function uploadLenderDocumentsWithAI(
       continue;
     }
 
-    const filedUnder: string[] = [];
-    for (const category of categories) {
-      const product = await findOrCreateProduct(lenderId, category);
-      await db.insert(lenderDocuments).values({
+    const product = await findOrCreateProduct(lenderId, category);
+    const [doc] = await db
+      .insert(lenderDocuments)
+      .values({
         lenderId,
         productId: product.id,
         fileName: file.name,
@@ -71,10 +83,15 @@ export async function uploadLenderDocumentsWithAI(
         fileSize: file.size,
         data: dataBase64,
         uploadedBy: user.id,
-      });
-      filedUnder.push(labelFor(LOAN_CATEGORIES, category));
-    }
-    results.push({ fileName: file.name, filedUnder });
+      })
+      .returning();
+
+    // Reuse the extraction already run above for classification — no need
+    // to pay for a second AI pass over the same document.
+    await extractAndStoreCriteria(product.id, doc, extracted);
+
+    results.push({ fileName: file.name, filedUnder: [labelFor(LOAN_CATEGORIES, category)] });
+    revalidatePath(`/products/${product.id}`);
   }
 
   revalidatePath(`/lenders/${lenderId}`);

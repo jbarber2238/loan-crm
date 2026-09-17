@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { resolveDocContent } from "@/server/lender-documents/resolve-content";
+import { LOAN_CATEGORIES } from "@/lib/labels";
 
 const anthropic = process.env.ANTHROPIC_API_KEY
   ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -31,7 +32,10 @@ export interface ExtractedCriteria {
   msaPopulationMinimum: number | null;
   tiers: ExtractedCriteriaTier[];
   extractionNotes: string | null;
+  detectedCategory: string | null;
 }
+
+const CATEGORY_VALUES: string[] = LOAN_CATEGORIES.map((c) => c.value);
 
 const SYSTEM_PROMPT = `You extract structured underwriting criteria from ONE lender's rate matrix or guideline document, for a mortgage broker's internal database. You are given the document as text or as image(s) of its pages.
 
@@ -48,13 +52,14 @@ Extract these fields where the document states them; use null for anything not s
 - msaPopulationMinimum: a minimum MSA/metro population threshold, if stated (as a plain number, e.g. 150000).
 - tiers: if the matrix has a grid of rows (e.g. FICO band x experience level, each with its own max LTC/LTARV/LTV), one entry per row with whichever of ficoMin/ficoMax/experienceMin/maxLtc/maxLtarv/maxLtv that row states (null for whatever that row doesn't state), plus "notes" for anything about that specific row worth keeping in plain English. Empty array if the matrix isn't tiered.
 - extractionNotes: 1-3 sentences of anything important you read that doesn't fit the fields above (unusual overlays, exclusions, special programs) — this is shown to a human reviewer, so be concrete and cite the actual numbers/terms.
+- detectedCategory: which ONE loan program this document's matrix/guideline is for, chosen from EXACTLY this list of values: ${CATEGORY_VALUES.join(", ")}. Use null if the document isn't clearly about a single one of these programs (e.g. it's a general company overview, a multi-program summary, or genuinely ambiguous) — never guess.
 
 CONSISTENCY REQUIREMENT: before writing extractionNotes, check every one of the structured fields above (minFico, minLoanAmount, maxLoanAmount, minDscr, maxLtv, maxLtc, maxLtarv, minExperienceCount, msaPopulationMinimum) — if the document states an overall (non-tiered) value for one of them, that value MUST be set in the structured field itself, not only mentioned in extractionNotes prose. Never describe a concrete overall limit in extractionNotes while leaving its own structured field null.
 
 If the document doesn't contain usable underwriting criteria at all (e.g. it's a servicing guide, a cover page, or genuinely illegible), return every field null/empty and say why in extractionNotes.
 
 Respond with ONLY a JSON object, no prose outside it, matching this shape exactly:
-{"minFico":null,"minLoanAmount":null,"maxLoanAmount":null,"statesAllowed":null,"propertyTypesAllowed":null,"minDscr":null,"maxLtv":null,"maxLtc":null,"maxLtarv":null,"minExperienceCount":null,"entityOnlyRequired":null,"gcLicenseRequired":null,"msaPopulationMinimum":null,"tiers":[],"extractionNotes":null}`;
+{"minFico":null,"minLoanAmount":null,"maxLoanAmount":null,"statesAllowed":null,"propertyTypesAllowed":null,"minDscr":null,"maxLtv":null,"maxLtc":null,"maxLtarv":null,"minExperienceCount":null,"entityOnlyRequired":null,"gcLicenseRequired":null,"msaPopulationMinimum":null,"tiers":[],"extractionNotes":null,"detectedCategory":null}`;
 
 function isNumOrNull(v: unknown): v is number | null {
   return v === null || typeof v === "number";
@@ -114,12 +119,18 @@ function parseExtraction(text: string): ExtractedCriteria | null {
       !isBoolOrNull(p.gcLicenseRequired) ||
       !isNumOrNull(p.msaPopulationMinimum) ||
       !isStrOrNull(p.extractionNotes) ||
-      !Array.isArray(p.tiers)
+      !Array.isArray(p.tiers) ||
+      !isStrOrNull(p.detectedCategory)
     ) {
       return null;
     }
     const tiers = p.tiers.map(parseTier);
     if (tiers.some((t) => t === null)) return null;
+
+    const detectedCategory =
+      typeof p.detectedCategory === "string" && CATEGORY_VALUES.includes(p.detectedCategory)
+        ? p.detectedCategory
+        : null;
 
     return {
       minFico: p.minFico,
@@ -137,6 +148,7 @@ function parseExtraction(text: string): ExtractedCriteria | null {
       msaPopulationMinimum: p.msaPopulationMinimum,
       tiers: tiers as ExtractedCriteriaTier[],
       extractionNotes: p.extractionNotes,
+      detectedCategory,
     };
   } catch {
     return null;
@@ -178,6 +190,7 @@ export async function extractLenderCriteria(doc: {
       msaPopulationMinimum: null,
       tiers: [],
       extractionNotes: "Couldn't extract any readable text or images from this document.",
+      detectedCategory: null,
     };
   }
 
@@ -213,6 +226,7 @@ export async function extractLenderCriteria(doc: {
       msaPopulationMinimum: null,
       tiers: [],
       extractionNotes: "Extraction ran but the response couldn't be parsed — needs a manual look or a re-run.",
+      detectedCategory: null,
     };
   }
   return parsed;

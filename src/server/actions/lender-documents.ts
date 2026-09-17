@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { lenderCriteria, lenderCriteriaTiers, lenderDocuments } from "@/server/db/schema";
 import { requireAdmin } from "@/server/auth/guards";
-import { extractLenderCriteria } from "@/server/ai/extract-lender-criteria";
+import { extractLenderCriteria, type ExtractedCriteria } from "@/server/ai/extract-lender-criteria";
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB — plenty for rate sheets/matrices
 
@@ -16,13 +16,23 @@ const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB — plenty for rate sheets/matri
 // re-uploading a corrected matrix shouldn't lose the upload itself just
 // because this pass hit a parsing hiccup — it just leaves the product
 // flagged for review instead.
-export async function extractAndStoreCriteria(productId: string, document: { id: string; fileName: string; mimeType: string; data: string }) {
-  let extracted;
-  try {
-    extracted = await extractLenderCriteria(document);
-  } catch (err) {
-    extracted = null;
-    console.error("Lender criteria extraction failed:", err);
+// `precomputed` lets a caller that already ran extraction for its own reasons
+// (the bulk auto-detect upload runs it once to classify the document's loan
+// category) pass that same result through instead of paying for a second,
+// redundant AI call on the same document.
+export async function extractAndStoreCriteria(
+  productId: string,
+  document: { id: string; fileName: string; mimeType: string; data: string },
+  precomputed?: ExtractedCriteria | null
+) {
+  let extracted = precomputed;
+  if (extracted === undefined) {
+    try {
+      extracted = await extractLenderCriteria(document);
+    } catch (err) {
+      extracted = null;
+      console.error("Lender criteria extraction failed:", err);
+    }
   }
 
   const values = {
