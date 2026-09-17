@@ -156,9 +156,24 @@ export async function runLenderMatch(deal: Deal): Promise<LenderMatchResult> {
     db.query.products.findMany({
       where: and(eq(products.active, true), eq(products.category, deal.loanCategory)),
       with: {
-        lender: { with: { documents: true } },
+        // Only the single most recent lender-wide doc (and, per product,
+        // only its own single most recent doc) is ever read below — pulling
+        // every historical re-upload's full base64 blob for every lender in
+        // the category was turning what should be a cheap lookup into a
+        // multi-second query as documents piled up over time. Pushing the
+        // "most recent" filter into the query itself means only the two
+        // rows actually used cross the wire, not the whole document history.
+        lender: {
+          with: {
+            documents: {
+              where: (docs, { isNull }) => isNull(docs.productId),
+              orderBy: (docs, { desc }) => desc(docs.createdAt),
+              limit: 1,
+            },
+          },
+        },
         criteria: { with: { tiers: true } },
-        documents: { orderBy: (docs, { desc }) => desc(docs.createdAt) },
+        documents: { orderBy: (docs, { desc }) => desc(docs.createdAt), limit: 1 },
       },
     }),
     db.query.lenderDocuments.findMany({
@@ -198,10 +213,7 @@ export async function runLenderMatch(deal: Deal): Promise<LenderMatchResult> {
   for (const p of activeProducts) {
     if (!firstProductIdForLender.has(p.lenderId)) firstProductIdForLender.set(p.lenderId, p.id);
     if (uniqueLenderWideDocs.has(p.lenderId)) continue;
-    const lenderWideDoc = p.lender.documents
-      .filter((d) => d.productId === null)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
-    uniqueLenderWideDocs.set(p.lenderId, lenderWideDoc ?? null);
+    uniqueLenderWideDocs.set(p.lenderId, p.lender.documents[0] ?? null);
   }
 
   await Promise.all(
