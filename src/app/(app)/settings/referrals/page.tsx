@@ -15,6 +15,10 @@ export default async function ReferralsSettingsPage() {
   const [affiliates, loanOfficerId] = await Promise.all([
     db.query.referralAffiliates.findMany({
       orderBy: (a, { desc }) => desc(a.createdAt),
+      with: {
+        deals: { columns: { id: true } },
+        paymentDocuments: { orderBy: (d, { desc }) => desc(d.createdAt) },
+      },
     }),
     getDefaultLoanOfficerId(),
   ]);
@@ -74,8 +78,27 @@ export default async function ReferralsSettingsPage() {
               </div>
             </CardHeader>
             {!pending && (
-              <CardContent>
+              <CardContent className="space-y-2">
                 <p className="text-sm text-muted-foreground">Phone: {affiliate.phone}</p>
+                <p className="text-sm text-muted-foreground">
+                  Referrals to date: <span className="font-medium text-foreground">{affiliate.deals.length}</span>
+                </p>
+                {affiliate.paymentDocuments.length > 0 && (
+                  <div className="text-sm text-muted-foreground">
+                    Payment info on file:{" "}
+                    {affiliate.paymentDocuments.map((doc, i) => (
+                      <span key={doc.id}>
+                        {i > 0 && ", "}
+                        <a
+                          href={`/api/affiliate-payment-documents/${doc.id}`}
+                          className="text-foreground underline underline-offset-2"
+                        >
+                          {doc.fileName}
+                        </a>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             )}
           </Card>

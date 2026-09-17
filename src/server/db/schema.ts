@@ -216,11 +216,41 @@ export const referralAffiliates = pgTable("referral_affiliate", {
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   // Null until they submit the public completion form.
   completedAt: timestamp("completed_at", { mode: "date" }),
+  // Unguessable token driving the public, unauthenticated
+  // /affiliate-payment-upload/[token] page — generated lazily the first time
+  // we're about to send the "your deal closed" email, not at invite time.
+  // That page is upload-only: no listing, no download, nothing readable
+  // through it at all, only through the authenticated admin Settings page.
+  wireInstructionsUploadToken: text("wire_instructions_upload_token").unique(),
 });
 
 export const referralAffiliatesRelations = relations(referralAffiliates, ({ one, many }) => ({
   invitedBy: one(users, { fields: [referralAffiliates.invitedByUserId], references: [users.id] }),
   deals: many(deals),
+  paymentDocuments: many(affiliatePaymentDocuments),
+}));
+
+// One row per uploaded ACH/wire instructions file — base64 in Postgres, same
+// storage pattern as lenderDocuments/dealClientNeedDocuments elsewhere in
+// this app. Only ever written by the affiliate's own one-way upload link,
+// only ever read by an admin from Settings > Referrals.
+export const affiliatePaymentDocuments = pgTable("affiliate_payment_document", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  affiliateId: uuid("affiliate_id")
+    .notNull()
+    .references(() => referralAffiliates.id, { onDelete: "cascade" }),
+  fileName: text("file_name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  fileSize: integer("file_size").notNull(),
+  data: text("data").notNull(), // base64
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const affiliatePaymentDocumentsRelations = relations(affiliatePaymentDocuments, ({ one }) => ({
+  affiliate: one(referralAffiliates, {
+    fields: [affiliatePaymentDocuments.affiliateId],
+    references: [referralAffiliates.id],
+  }),
 }));
 
 // Singleton row (id is always "default") — company-wide settings editable
@@ -558,9 +588,20 @@ export const deals = pgTable("deals", {
   // answer). Set when the deal came in through a referral affiliate's own
   // link/embed code.
   referredByAffiliateId: uuid("referred_by_affiliate_id").references(() => referralAffiliates.id),
+  // False when this borrower (matched by email) already had an earlier deal
+  // referred by the same affiliate — no perpetual referral fees for repeat
+  // business from the same borrower, only the first deal counts. Set once at
+  // creation and never changed afterward.
+  referralFeeEligible: boolean("referral_fee_eligible").notNull().default(true),
   // Null = no fee owed yet, or owed but not yet paid; set once Justin has
   // actually issued payment to the affiliate for this specific deal.
   referralFeePaidAt: timestamp("referral_fee_paid_at", { mode: "date" }),
+  // Each set the first time (and only the first time) the deal reaches that
+  // stage, so a deal bouncing back and forth between stages never sends the
+  // affiliate a duplicate notification.
+  referralApplicationEmailSentAt: timestamp("referral_application_email_sent_at", { mode: "date" }),
+  referralClosedEmailSentAt: timestamp("referral_closed_email_sent_at", { mode: "date" }),
+  referralLostEmailSentAt: timestamp("referral_lost_email_sent_at", { mode: "date" }),
   // A standing note the LO can jot down for lender reps — unique
   // situations, things to flag up front — included on new pricing emails.
   pricingNoteToRep: text("pricing_note_to_rep"),

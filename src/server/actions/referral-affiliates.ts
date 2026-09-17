@@ -3,11 +3,14 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
-import { deals, referralAffiliates, users } from "@/server/db/schema";
+import { affiliatePaymentDocuments, deals, referralAffiliates, users } from "@/server/db/schema";
 import { requireAdmin } from "@/server/auth/guards";
 import { sendGmailAs } from "@/server/gmail/send";
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
+import { htmlButton } from "@/lib/email-html";
+
+const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB, matches the borrower-upload limit
 
 // Referral links always route to this one loan officer regardless of who
 // invited the affiliate — the only one this brokerage has today. Revisit if
@@ -52,10 +55,8 @@ export async function inviteAffiliate(formData: FormData) {
       const body = `
         <p>Hi,</p>
         <p>${admin.name ?? "Our team"} invited you to join ${companyName}'s referral program.</p>
-        <p>
-          <a href="${appUrl}/affiliate/${affiliate.id}">Complete your quick sign-up here</a> to get your own
-          referral link — it takes less than a minute.
-        </p>
+        <p>Complete your quick sign-up to get your own referral link — it takes less than a minute.</p>
+        <p>${htmlButton("Complete your sign-up", `${appUrl}/affiliate/${affiliate.id}`)}</p>
       `;
       await sendGmailAs(admin.id, admin.email, {
         to: normalizedEmail,
@@ -168,4 +169,142 @@ export async function markReferralFeePaid(dealId: string) {
   await db.update(deals).set({ referralFeePaidAt: new Date() }).where(eq(deals.id, dealId));
 
   revalidatePath(`/deals/${dealId}`);
+}
+
+// Shared by every affiliate lifecycle email below — same shape sendGmailAs
+// needs, best-effort (a failed send never blocks the deal action that
+// triggered it).
+async function sendAffiliateEmail(affiliateInvitedByUserId: string, affiliateInvitedByEmail: string | null, to: string, subject: string, bodyHtml: string) {
+  if (!affiliateInvitedByEmail) return;
+  const [companyName, logoHtml, signatureHtml] = await Promise.all([
+    getCompanyName(),
+    getCompanyLogoHtml(),
+    getUserEmailSignatureHtml(affiliateInvitedByUserId),
+  ]);
+  await sendGmailAs(affiliateInvitedByUserId, affiliateInvitedByEmail, {
+    to,
+    subject: subject.replace("{company}", companyName),
+    body: logoHtml + bodyHtml + signatureHtml,
+    html: true,
+  });
+}
+
+// Fires once, immediately, the moment a deal comes in through an affiliate's
+// referral link — regardless of fee eligibility, since this is just letting
+// them know activity happened, not a payment notice.
+export async function notifyAffiliateOfNewDeal(dealId: string) {
+  const deal = await db.query.deals.findFirst({
+    where: eq(deals.id, dealId),
+    with: { referredByAffiliate: { with: { invitedBy: true } } },
+  });
+  if (!deal?.referredByAffiliate) return;
+  const affiliate = deal.referredByAffiliate;
+
+  const body = `
+    <p>A deal was submitted to your referral link.</p>
+    <p>
+      Borrower: ${deal.borrowerName}<br />
+      Property: ${deal.propertyAddress}
+    </p>
+    <p>We'll keep you posted as it moves forward.</p>
+  `;
+  await sendAffiliateEmail(affiliate.invitedByUserId, affiliate.invitedBy.email, affiliate.email, "A deal was submitted to your referral link", body);
+}
+
+// Fires at most once per deal per stage — "application" and "lost" are pure
+// status updates; "closed" is the one that actually asks for payment info,
+// and only when the deal is still fee-eligible (see the no-perpetual-
+// referrals rule in createDealFromIntake).
+export async function notifyAffiliateOfStageChange(dealId: string, newStage: string) {
+  if (newStage !== "application" && newStage !== "closed" && newStage !== "lost") return;
+
+  const deal = await db.query.deals.findFirst({
+    where: eq(deals.id, dealId),
+    with: { referredByAffiliate: { with: { invitedBy: true } } },
+  });
+  if (!deal?.referredByAffiliate) return;
+  const affiliate = deal.referredByAffiliate;
+
+  if (newStage === "application") {
+    if (deal.referralApplicationEmailSentAt) return;
+    const body = `
+      <p>Good news — ${deal.borrowerName} has decided to move forward with a loan on ${deal.propertyAddress}.</p>
+      <p>We'll let you know as soon as it closes.</p>
+    `;
+    await sendAffiliateEmail(affiliate.invitedByUserId, affiliate.invitedBy.email, affiliate.email, "Your referral is moving forward", body);
+    await db.update(deals).set({ referralApplicationEmailSentAt: new Date() }).where(eq(deals.id, dealId));
+    return;
+  }
+
+  if (newStage === "lost") {
+    if (deal.referralLostEmailSentAt) return;
+    const body = `
+      <p>Unfortunately, this deal is no longer moving forward.</p>
+      <p>
+        Borrower: ${deal.borrowerName}<br />
+        Property: ${deal.propertyAddress}
+      </p>
+    `;
+    await sendAffiliateEmail(affiliate.invitedByUserId, affiliate.invitedBy.email, affiliate.email, "Update on your referral", body);
+    await db.update(deals).set({ referralLostEmailSentAt: new Date() }).where(eq(deals.id, dealId));
+    return;
+  }
+
+  // closed
+  if (deal.referralClosedEmailSentAt || !deal.referralFeeEligible) return;
+  const uploadToken = await getOrCreateWireUploadToken(affiliate.id);
+  const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+  const body = `
+    <p>Great news — the deal you referred for ${deal.borrowerName} at ${deal.propertyAddress} has officially closed!</p>
+    <p>To get your referral fee sent out, please upload your ACH or wire instructions.</p>
+    <p>${htmlButton("Upload payment info", `${appUrl}/affiliate-payment-upload/${uploadToken}`)}</p>
+    <p>Once we have it on file, we'll get your payment issued.</p>
+  `;
+  await sendAffiliateEmail(affiliate.invitedByUserId, affiliate.invitedBy.email, affiliate.email, "Your referral closed — send us your payment info", body);
+  await db.update(deals).set({ referralClosedEmailSentAt: new Date() }).where(eq(deals.id, dealId));
+}
+
+async function getOrCreateWireUploadToken(affiliateId: string): Promise<string> {
+  const affiliate = await db.query.referralAffiliates.findFirst({
+    where: eq(referralAffiliates.id, affiliateId),
+    columns: { wireInstructionsUploadToken: true },
+  });
+  if (affiliate?.wireInstructionsUploadToken) return affiliate.wireInstructionsUploadToken;
+
+  const token = crypto.randomUUID();
+  await db.update(referralAffiliates).set({ wireInstructionsUploadToken: token }).where(eq(referralAffiliates.id, affiliateId));
+  return token;
+}
+
+// Public — no auth. One-way: this is the only code path that can ever write
+// to affiliatePaymentDocuments, and there is deliberately no matching
+// read/list/download action exposed anywhere in the public app — only the
+// authenticated admin Settings page can read these rows back.
+export async function uploadAffiliatePaymentInfo(token: string, formData: FormData) {
+  const affiliate = await db.query.referralAffiliates.findFirst({
+    where: eq(referralAffiliates.wireInstructionsUploadToken, token),
+  });
+  if (!affiliate) throw new Error("This upload link isn't valid.");
+
+  const files = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
+  if (!files.length) throw new Error("Choose a file to upload");
+
+  for (const file of files) {
+    if (file.size > MAX_FILE_SIZE) {
+      throw new Error(`${file.name} is larger than 15MB — please upload a smaller file`);
+    }
+  }
+
+  for (const file of files) {
+    const data = Buffer.from(await file.arrayBuffer()).toString("base64");
+    await db.insert(affiliatePaymentDocuments).values({
+      affiliateId: affiliate.id,
+      fileName: file.name,
+      mimeType: file.type || "application/octet-stream",
+      fileSize: file.size,
+      data,
+    });
+  }
+
+  revalidatePath("/settings/referrals");
 }

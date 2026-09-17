@@ -10,6 +10,7 @@ import { sendGmailAs } from "@/server/gmail/send";
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
 import { BASE_ROLES, labelFor } from "@/lib/labels";
+import { htmlButton } from "@/lib/email-html";
 
 export async function inviteUser(formData: FormData) {
   const admin = await requireAdmin();
@@ -55,7 +56,8 @@ export async function inviteUser(formData: FormData) {
       const body = `
         <p>Hi,</p>
         <p>${admin.name ?? "Your team"} has invited you to join ${companyName}'s CRM as a ${roleLabel}.</p>
-        <p><a href="${appUrl}/sign-in">Sign in with your Google account</a> to get set up — it takes about a minute.</p>
+        <p>Sign in with your Google account to get set up — it takes about a minute.</p>
+        <p>${htmlButton("Sign in", `${appUrl}/sign-in`)}</p>
       `;
       await sendGmailAs(admin.id, admin.email, {
         to: normalizedEmail,

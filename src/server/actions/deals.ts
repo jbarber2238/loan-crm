@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { CLIENT_NEEDS_REMINDER_INTERVAL_HOURS } from "@/lib/client-needs-reminders";
@@ -25,6 +25,7 @@ import {
 import { extractTermSheetFields } from "@/lib/term-sheet-fields";
 import { conservativeValueBasis, calculateLtarv, calculateLtc } from "@/lib/term-sheet-calculations";
 import { syncProcessingFeeInvoice } from "@/server/billing";
+import { notifyAffiliateOfNewDeal, notifyAffiliateOfStageChange } from "@/server/actions/referral-affiliates";
 
 const HARD_MONEY_DRAW_CATEGORIES = new Set(["fix_and_flip", "new_construction"]);
 
@@ -110,6 +111,21 @@ export async function createDealFromIntake(
     }
   }
 
+  // No perpetual referral fees for repeat business from the same borrower —
+  // only their first deal through a given affiliate's link counts. Matched
+  // by borrower email since that's the one stable identifier the intake
+  // form always collects.
+  let referralFeeEligible = true;
+  if (options.referredByAffiliateId && parsed.borrowerEmail) {
+    const priorDeal = await db.query.deals.findFirst({
+      where: and(
+        eq(deals.referredByAffiliateId, options.referredByAffiliateId),
+        eq(deals.borrowerEmail, parsed.borrowerEmail)
+      ),
+    });
+    if (priorDeal) referralFeeEligible = false;
+  }
+
   const borrowerName = `${parsed.firstName} ${parsed.lastName}`.trim();
   const propertyAddress =
     parsed.loanCategory === "portfolio"
@@ -137,6 +153,7 @@ export async function createDealFromIntake(
       assignedAssistantId: options.assignedAssistantId,
       source: parsed.source,
       referredByAffiliateId: options.referredByAffiliateId ?? null,
+      referralFeeEligible,
       driveLink: options.driveLink,
       stage: "new",
       ...intakeToDealFields(parsed),
@@ -177,6 +194,12 @@ export async function createDealFromIntake(
       authorUserId: options.noteAuthorUserId,
       source: "user",
       body: parsed.additionalNotes,
+    });
+  }
+
+  if (options.referredByAffiliateId) {
+    await notifyAffiliateOfNewDeal(deal.id).catch((err) => {
+      console.error("Failed to send affiliate deal-submitted email:", err);
     });
   }
 
@@ -500,6 +523,12 @@ export async function updateDealStage(dealId: string, stage: string, reason?: st
     stage: newStage,
     changedByUserId: user.id,
   });
+
+  if (deal.referredByAffiliateId) {
+    await notifyAffiliateOfStageChange(dealId, newStage).catch((err) => {
+      console.error("Failed to send affiliate stage-change email:", err);
+    });
+  }
 
   revalidatePath("/");
   revalidatePath(`/deals/${dealId}`);
