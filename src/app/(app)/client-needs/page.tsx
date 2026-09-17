@@ -1,10 +1,10 @@
-import { requireAdmin } from "@/server/auth/guards";
+import { requireAdminOrProcessor } from "@/server/auth/guards";
 import { db } from "@/server/db/client";
 import { getAllProductOptions } from "@/server/actions/client-need-catalog";
 import { ClientNeedsBrowser, type BrowsableClientNeed } from "@/components/client-needs/client-needs-browser";
 
 export default async function ClientNeedsPage() {
-  await requireAdmin();
+  await requireAdminOrProcessor();
 
   const [items, allProducts] = await Promise.all([
     db.query.clientNeeds.findMany({

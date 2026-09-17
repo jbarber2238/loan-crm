@@ -17,13 +17,18 @@ export async function requireAdmin() {
   return user;
 }
 
-// Client-need catalog entries get added/edited by processors as part of
-// normal deal work, not just by admins — but only for entries they're
-// allowed to touch (custom ones; standard ones stay admin-curated).
-export async function requireClientNeedsEditor() {
+// Processors get admin-level access to a few specific areas they own
+// day-to-day (client needs, a lender's submission/pricing setup) without
+// being full admins otherwise.
+export async function requireAdminOrProcessor() {
   const user = await requireUser();
   if (!user.isAdmin && user.baseRole !== "processor") {
-    throw new Error("Only admins and processors can manage client needs");
+    throw new Error("Only admins and processors can do this");
   }
   return user;
 }
+
+// Client-need catalog entries get added/edited by processors as part of
+// normal deal work, not just by admins — full parity with admin, standard
+// entries included (see requireAdminOrProcessor).
+export const requireClientNeedsEditor = requireAdminOrProcessor;

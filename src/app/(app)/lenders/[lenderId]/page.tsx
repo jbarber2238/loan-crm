@@ -196,7 +196,7 @@ export default async function LenderDetailPage({
         </CardContent>
       </Card>
 
-      {user.isAdmin && (
+      {(user.isAdmin || user.baseRole === "processor") && (
         <LenderSubmissionSection
           lenderId={lenderId}
           quickPricerUrl={lender.quickPricerUrl}

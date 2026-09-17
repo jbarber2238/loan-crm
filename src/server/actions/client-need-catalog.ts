@@ -4,7 +4,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { clientNeedQuestions, clientNeeds, productClientNeeds, categoryClientNeeds, loanCategoryEnum, products } from "@/server/db/schema";
-import { requireAdmin, requireClientNeedsEditor, requireUser } from "@/server/auth/guards";
+import { requireClientNeedsEditor, requireUser } from "@/server/auth/guards";
 
 type LoanCategory = (typeof loanCategoryEnum.enumValues)[number];
 const VALID_LOAN_CATEGORIES = new Set<string>(loanCategoryEnum.enumValues);
@@ -202,12 +202,9 @@ export async function createClientNeed(formData: FormData, { attachToProductId }
 }
 
 export async function updateClientNeed(clientNeedId: string, formData: FormData) {
-  const user = await requireClientNeedsEditor();
+  await requireClientNeedsEditor();
   const existing = await db.query.clientNeeds.findFirst({ where: eq(clientNeeds.id, clientNeedId) });
   if (!existing) throw new Error("Client need not found");
-  if (!existing.isCustom && !user.isAdmin) {
-    throw new Error("Only admins can edit a standard client need — clone it as custom instead.");
-  }
 
   const itemName = str(formData, "itemName");
   if (!itemName) throw new Error("Item name is required");
@@ -250,7 +247,7 @@ export async function updateClientNeed(clientNeedId: string, formData: FormData)
 }
 
 export async function deleteClientNeed(clientNeedId: string) {
-  await requireAdmin();
+  await requireClientNeedsEditor();
   await db.delete(clientNeeds).where(eq(clientNeeds.id, clientNeedId));
   revalidatePath("/client-needs");
 }

@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/server/db/client";
 import { lenderCriteria, lenderReps, lenderWideCriteria, lenders, products } from "@/server/db/schema";
-import { requireAdmin } from "@/server/auth/guards";
+import { requireAdmin, requireAdminOrProcessor } from "@/server/auth/guards";
 import { LOAN_CATEGORIES, labelFor } from "@/lib/labels";
 
 function str(formData: FormData, key: string) {
@@ -95,7 +95,7 @@ export async function updateLender(lenderId: string, formData: FormData) {
 // field if its form was the one actually submitted, same reasoning as
 // updateMyProfile: otherwise saving one form would null out the other's.
 export async function updateLenderSubmission(lenderId: string, formData: FormData) {
-  await requireAdmin();
+  await requireAdminOrProcessor();
   const updates: Partial<typeof lenders.$inferInsert> = {};
 
   if (formData.has("quickPricerUrl")) updates.quickPricerUrl = nullableStr(formData, "quickPricerUrl");

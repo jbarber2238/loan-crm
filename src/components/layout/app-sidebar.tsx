@@ -49,12 +49,10 @@ export function AppSidebar({
     { href: "/pipeline", label: "Pipeline", icon: LayoutDashboard, exact: true },
     { href: "/deals/new", label: "New Deal", icon: FilePlus, exact: true },
     { href: "/lenders", label: "Lenders", icon: Landmark, exact: false },
-    ...(user.isAdmin
-      ? [
-          { href: "/client-needs", label: "Client Needs", icon: ClipboardList, exact: true },
-          { href: "/email-templates", label: "Email Templates", icon: Mail, exact: true },
-        ]
+    ...(user.isAdmin || user.baseRole === "processor"
+      ? [{ href: "/client-needs", label: "Client Needs", icon: ClipboardList, exact: true }]
       : []),
+    ...(user.isAdmin ? [{ href: "/email-templates", label: "Email Templates", icon: Mail, exact: true }] : []),
   ];
 
   // "/deals/new" is a static route (the staff new-deal form), not a deal id —
