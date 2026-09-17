@@ -43,8 +43,12 @@ export default async function LendersPage() {
         products: true,
         reps: true,
         documents: {
-          where: isNull(lenderDocuments.productId),
+          // Every document tied to this lender, whether it's a lender-wide
+          // guideline (no product) or a specific product's own matrix —
+          // matrices are inherently product-specific, so filtering those
+          // out here made real uploads look like they'd vanished.
           columns: { id: true, lenderId: true, productId: true, fileName: true, mimeType: true, fileSize: true, createdAt: true },
+          with: { product: { columns: { name: true } } },
         },
       },
       orderBy: (lenders, { asc }) => asc(lenders.name),
@@ -182,7 +186,7 @@ export default async function LendersPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Lender-specific matrices</CardTitle>
+              <CardTitle>Lender-Specific Guidelines and Matrices</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
@@ -243,6 +247,9 @@ export default async function LendersPage() {
                               className="hover:underline"
                             >
                               {doc.fileName}
+                              {doc.product && (
+                                <span className="ml-1.5 text-xs text-muted-foreground">— {doc.product.name}</span>
+                              )}
                             </a>
                             <div className="flex items-center gap-3">
                               <span className="text-xs text-muted-foreground">
