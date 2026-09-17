@@ -804,16 +804,9 @@ export const deals = pgTable("deals", {
   borrowerLiquidity: numeric("borrower_liquidity"),
   marketingConsent: boolean("marketing_consent"),
 
-  // Manually-triggered AI assessments (button click, never automatic) — each
-  // stores its own result blob plus when it last ran, so the section can show
-  // stale results with their timestamp instead of re-running on every visit.
-  aiValueAssessment: jsonb("ai_value_assessment").$type<{
-    low: number | null;
-    median: number | null;
-    high: number | null;
-    note: string | null;
-    ranAt: string;
-  }>(),
+  // Manually-triggered (button click, never automatic) — stores its own
+  // result blob plus when it last ran, so the section can show stale results
+  // with their timestamp instead of re-running on every visit.
   aiLenderMatch: jsonb("ai_lender_match").$type<{
     dealFlags: string[];
     matches: {

@@ -245,7 +245,7 @@ export function AcceptedTermsHeader({
   // column instead.
   const cashToCloseField = (
     <Field
-      label="Cash to Close"
+      label="Cash to Show"
       value={money(estimatedCashToClose)}
       hint="down payment + fees, excl. reserves"
       className="w-full"

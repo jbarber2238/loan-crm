@@ -25,7 +25,6 @@ import {
 } from "@/lib/labels";
 import { DscrCalculator } from "@/components/deals/dscr-calculator";
 import { CollapseAllButton } from "@/components/deals/collapse-all-button";
-import { AiValueAssessmentSection } from "@/components/deals/ai-value-assessment-section";
 import { AiLenderMatchSection } from "@/components/deals/ai-lender-match-section";
 import { sectionsFor, rehabOrConstructionBudgetLabel } from "@/lib/loan-sections";
 import type { deals as dealsTable } from "@/server/db/schema";
@@ -574,15 +573,6 @@ export function OverviewTab({ deal }: { deal: Deal }) {
 
         <SubmitButton>Save</SubmitButton>
       </ActionForm>
-
-      <AiValueAssessmentSection
-        dealId={deal.id}
-        loanCategory={deal.loanCategory}
-        purchasePrice={purchasePrice}
-        estimatedAsIsValue={deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null}
-        estimatedArv={deal.estimatedArv ? Number(deal.estimatedArv) : null}
-        initialResult={deal.aiValueAssessment}
-      />
 
       <AiLenderMatchSection dealId={deal.id} initialResult={deal.aiLenderMatch} />
     </div>
