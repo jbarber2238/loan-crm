@@ -28,6 +28,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      // Admins invite someone by creating their user row (email + role)
+      // before that person has ever signed in — Auth.js's default behavior
+      // refuses to auto-link a first-time Google sign-in to a pre-existing
+      // user row with the same email (an anti-account-takeover guard for
+      // apps with untrusted signup), which surfaces as an
+      // "OAuthAccountNotLinked" loop and defeats the whole point of
+      // inviting someone in advance. Safe to disable here specifically
+      // because Google is the only provider and always supplies a verified
+      // email — the only way an unlinked row like this exists is our own
+      // admin-created invite, never an attacker.
+      allowDangerousEmailAccountLinking: true,
       authorization: {
         params: {
           access_type: "offline",
