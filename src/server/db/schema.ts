@@ -396,9 +396,39 @@ export const lenderCriteria = pgTable("lender_criteria", {
   entityOnlyRequired: boolean("entity_only_required"),
   gcLicenseRequired: boolean("gc_license_required"),
   msaPopulationMinimum: integer("msa_population_minimum"),
+  // Cross-cutting borrower/property eligibility flags — the quick yes/no
+  // questions that decide whether a lender is even in play for a deal
+  // before any of the numeric criteria matter.
+  foreignNationalEligible: boolean("foreign_national_eligible"),
+  itinEligible: boolean("itin_eligible"),
+  ruralEligible: boolean("rural_eligible"),
   // Provenance/review — this data now drives matching decisions by itself
   // (no more re-reading the source document every time), so a wrong
   // extraction is a real, silent liability until someone checks it.
+  extractedAt: timestamp("extracted_at", { withTimezone: true }),
+  extractedFromDocumentId: uuid("extracted_from_document_id").references(() => lenderDocuments.id, {
+    onDelete: "set null",
+  }),
+  needsReview: boolean("needs_review").notNull().default(false),
+  extractionNotes: text("extraction_notes"),
+});
+
+// A lender-wide document (a cross-program overlay like a foreign-national
+// matrix, or a general guideline sheet) isn't scoped to one product/category
+// the way lenderCriteria is — it applies across everything that lender
+// offers. One row per lender, extracted the same one-time way as product
+// criteria, so a lender-match run can reference these plain facts instead of
+// re-reading that document's images/text on every single run.
+export const lenderWideCriteria = pgTable("lender_wide_criteria", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  lenderId: uuid("lender_id")
+    .notNull()
+    .unique()
+    .references(() => lenders.id, { onDelete: "cascade" }),
+  foreignNationalEligible: boolean("foreign_national_eligible"),
+  itinEligible: boolean("itin_eligible"),
+  ruralEligible: boolean("rural_eligible"),
+  otherNotes: text("other_notes"),
   extractedAt: timestamp("extracted_at", { withTimezone: true }),
   extractedFromDocumentId: uuid("extracted_from_document_id").references(() => lenderDocuments.id, {
     onDelete: "set null",
@@ -1095,10 +1125,22 @@ export const usersRelations = relations(users, ({ many }) => ({
   dealsAsAssistant: many(deals, { relationName: "assistantDeals" }),
 }));
 
-export const lendersRelations = relations(lenders, ({ many }) => ({
+export const lendersRelations = relations(lenders, ({ one, many }) => ({
   products: many(products),
   reps: many(lenderReps),
   documents: many(lenderDocuments),
+  wideCriteria: one(lenderWideCriteria, {
+    fields: [lenders.id],
+    references: [lenderWideCriteria.lenderId],
+  }),
+}));
+
+export const lenderWideCriteriaRelations = relations(lenderWideCriteria, ({ one }) => ({
+  lender: one(lenders, { fields: [lenderWideCriteria.lenderId], references: [lenders.id] }),
+  extractedFromDocument: one(lenderDocuments, {
+    fields: [lenderWideCriteria.extractedFromDocumentId],
+    references: [lenderDocuments.id],
+  }),
 }));
 
 export const lenderRepsRelations = relations(lenderReps, ({ one }) => ({

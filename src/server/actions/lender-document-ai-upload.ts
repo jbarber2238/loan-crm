@@ -5,7 +5,7 @@ import { db } from "@/server/db/client";
 import { lenderDocuments } from "@/server/db/schema";
 import { requireAdmin } from "@/server/auth/guards";
 import { extractLenderCriteria } from "@/server/ai/extract-lender-criteria";
-import { extractAndStoreCriteria } from "@/server/actions/lender-documents";
+import { extractAndStoreCriteria, extractAndStoreLenderWideCriteria } from "@/server/actions/lender-documents";
 import { findOrCreateProduct } from "@/server/actions/lenders";
 import { LOAN_CATEGORIES, labelFor } from "@/lib/labels";
 
@@ -59,15 +59,23 @@ export async function uploadLenderDocumentsWithAI(
     const category = extracted?.detectedCategory as (typeof LOAN_CATEGORIES)[number]["value"] | null | undefined;
 
     if (!category) {
-      await db.insert(lenderDocuments).values({
-        lenderId,
-        productId: null,
-        fileName: file.name,
-        mimeType,
-        fileSize: file.size,
-        data: dataBase64,
-        uploadedBy: user.id,
-      });
+      const [doc] = await db
+        .insert(lenderDocuments)
+        .values({
+          lenderId,
+          productId: null,
+          fileName: file.name,
+          mimeType,
+          fileSize: file.size,
+          data: dataBase64,
+          uploadedBy: user.id,
+        })
+        .returning();
+      // Couldn't pin this to one product category, but it may still be a
+      // real cross-program overlay (a foreign-national matrix, a general
+      // guideline) — extract lender-wide eligibility facts from it too,
+      // reusing the same extraction pass rather than paying for another one.
+      await extractAndStoreLenderWideCriteria(lenderId, doc, extracted);
       results.push({ fileName: file.name, filedUnder: ["General (couldn't confidently categorize)"] });
       continue;
     }

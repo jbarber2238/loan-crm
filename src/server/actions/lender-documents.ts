@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
-import { lenderCriteria, lenderCriteriaTiers, lenderDocuments } from "@/server/db/schema";
+import { lenderCriteria, lenderCriteriaTiers, lenderDocuments, lenderWideCriteria } from "@/server/db/schema";
 import { requireAdmin } from "@/server/auth/guards";
 import { extractLenderCriteria, type ExtractedCriteria } from "@/server/ai/extract-lender-criteria";
 
@@ -49,6 +49,9 @@ export async function extractAndStoreCriteria(
     entityOnlyRequired: extracted?.entityOnlyRequired ?? null,
     gcLicenseRequired: extracted?.gcLicenseRequired ?? null,
     msaPopulationMinimum: extracted?.msaPopulationMinimum ?? null,
+    foreignNationalEligible: extracted?.foreignNationalEligible ?? null,
+    itinEligible: extracted?.itinEligible ?? null,
+    ruralEligible: extracted?.ruralEligible ?? null,
     extractedAt: new Date(),
     extractedFromDocumentId: document.id,
     // Nothing usable came out of this pass (extraction failed outright, or
@@ -89,6 +92,56 @@ export async function extractAndStoreCriteria(
   }
 }
 
+// Same one-time extraction idea as extractAndStoreCriteria, but for a
+// lender-wide document (a cross-program overlay like a foreign-national
+// matrix, or a general guideline sheet) that isn't scoped to one product —
+// stored per-lender in lenderWideCriteria instead of per-product, so a
+// lender-match run can reference these plain facts instead of re-reading
+// that document's images/text on every single run.
+export async function extractAndStoreLenderWideCriteria(
+  lenderId: string,
+  document: { id: string; fileName: string; mimeType: string; data: string },
+  precomputed?: ExtractedCriteria | null
+) {
+  let extracted = precomputed;
+  if (extracted === undefined) {
+    try {
+      extracted = await extractLenderCriteria(document);
+    } catch (err) {
+      extracted = null;
+      console.error("Lender-wide criteria extraction failed:", err);
+    }
+  }
+
+  // Unlike product criteria, a lender-wide doc having nothing to say about
+  // foreign national/ITIN/rural eligibility is normal (most rate matrices
+  // simply don't address it) — that alone isn't grounds for review. But
+  // extractLenderCriteria's own couldn't-read/couldn't-parse fallbacks are
+  // real failures wearing the same "everything null" shape, so those two
+  // exact sentinel notes (the only ones it ever emits for those cases) are
+  // what actually mean "a human should look at this."
+  const genuineFailure =
+    extracted?.extractionNotes === "Couldn't extract any readable text or images from this document." ||
+    extracted?.extractionNotes === "Extraction ran but the response couldn't be parsed — needs a manual look or a re-run.";
+
+  const values = {
+    foreignNationalEligible: extracted?.foreignNationalEligible ?? null,
+    itinEligible: extracted?.itinEligible ?? null,
+    ruralEligible: extracted?.ruralEligible ?? null,
+    extractedAt: new Date(),
+    extractedFromDocumentId: document.id,
+    needsReview: !extracted || genuineFailure,
+    extractionNotes: extracted?.extractionNotes ?? "Extraction failed to run.",
+  };
+
+  const existing = await db.query.lenderWideCriteria.findFirst({ where: eq(lenderWideCriteria.lenderId, lenderId) });
+  if (existing) {
+    await db.update(lenderWideCriteria).set(values).where(eq(lenderWideCriteria.lenderId, lenderId));
+  } else {
+    await db.insert(lenderWideCriteria).values({ lenderId, ...values });
+  }
+}
+
 async function insertLenderDocuments({
   lenderId,
   productId,
@@ -126,15 +179,21 @@ async function insertLenderDocuments({
     )
     .returning();
 
-  // Structured-criteria extraction only applies to a specific product's own
-  // document (that's what lenderCriteria is scoped to) — a lender-wide or
-  // master document (productId null) stays on the existing document-based
-  // read path in lender-match for now.
   if (productId) {
     for (const doc of inserted) {
       await extractAndStoreCriteria(productId, doc);
     }
+  } else if (lenderId) {
+    // A lender-wide document (a cross-program overlay, not master/org-wide)
+    // gets the same one-time extraction treatment, scoped per-lender instead
+    // of per-product.
+    for (const doc of inserted) {
+      await extractAndStoreLenderWideCriteria(lenderId, doc);
+    }
   }
+  // A master document (lenderId and productId both null) stays on the
+  // existing per-run document-reading path — it spans every lender, so
+  // there's no single lender/product row to store extracted criteria on.
 }
 
 export async function uploadLenderDocument(lenderId: string, formData: FormData) {
@@ -184,6 +243,22 @@ export async function reextractProductCriteria(lenderId: string, productId: stri
   if (!doc) throw new Error("This product has no uploaded document to extract from.");
 
   await extractAndStoreCriteria(productId, doc);
+
+  revalidatePath(`/lenders/${lenderId}`);
+}
+
+// Mirrors reextractProductCriteria, but for a lender's own most recent
+// lender-wide document instead of a specific product's.
+export async function reextractLenderWideCriteria(lenderId: string) {
+  await requireAdmin();
+
+  const doc = await db.query.lenderDocuments.findFirst({
+    where: (d, { and, eq: eqOp, isNull }) => and(eqOp(d.lenderId, lenderId), isNull(d.productId)),
+    orderBy: (d, { desc }) => desc(d.createdAt),
+  });
+  if (!doc) throw new Error("This lender has no lender-wide document to extract from.");
+
+  await extractAndStoreLenderWideCriteria(lenderId, doc);
 
   revalidatePath(`/lenders/${lenderId}`);
 }

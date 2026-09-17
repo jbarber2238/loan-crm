@@ -10,9 +10,10 @@ import {
   deleteLenderRep,
   updateLender,
   updateLenderRep,
+  updateLenderWideCriteria,
 } from "@/server/actions/lenders";
 import { getAllProductOptions } from "@/server/actions/client-need-catalog";
-import { deleteLenderDocument } from "@/server/actions/lender-documents";
+import { deleteLenderDocument, reextractLenderWideCriteria } from "@/server/actions/lender-documents";
 import { AiMatrixUpload } from "@/components/lenders/ai-matrix-upload";
 import { ProductsChecklist } from "@/components/lenders/products-checklist";
 import { LenderSubmissionSection } from "@/components/lenders/lender-submission-section";
@@ -20,6 +21,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LOAN_CATEGORIES } from "@/lib/labels";
 import { formatFileSize } from "@/lib/format";
 import { ActionForm } from "@/components/forms/action-form";
@@ -46,6 +49,7 @@ export default async function LenderDetailPage({
       documents: {
         columns: { id: true, lenderId: true, productId: true, fileName: true, mimeType: true, fileSize: true, createdAt: true },
       },
+      wideCriteria: true,
     },
   });
 
@@ -258,6 +262,141 @@ export default async function LenderDetailPage({
           </div>
 
           {user.isAdmin && <AiMatrixUpload lenderId={lenderId} />}
+
+          {(user.isAdmin || lender.wideCriteria) && (
+            <div className="border-t pt-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Cross-Program Eligibility (for AI Matching)
+                </p>
+                <div className="flex items-center gap-2">
+                  {lender.wideCriteria?.needsReview && <Badge variant="destructive">Needs review</Badge>}
+                  {user.isAdmin && generalDocs.length > 0 && (
+                    <ActionForm
+                      action={reextractLenderWideCriteria.bind(null, lenderId)}
+                      successMessage="Re-extracted from the latest general document"
+                    >
+                      <SubmitButton size="sm" variant="outline">
+                        Re-extract from document
+                      </SubmitButton>
+                    </ActionForm>
+                  )}
+                </div>
+              </div>
+
+              {lender.wideCriteria?.extractedAt && (
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Last extracted {new Date(lender.wideCriteria.extractedAt).toLocaleDateString()} — quick yes/no
+                  facts that apply across every {lender.name} product, pulled from a general document above (a
+                  foreign-national matrix, an overlay guideline, etc).
+                </p>
+              )}
+
+              {user.isAdmin ? (
+                <ActionForm
+                  action={updateLenderWideCriteria.bind(null, lenderId)}
+                  successMessage="Eligibility saved"
+                  className="space-y-3"
+                >
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="foreignNationalEligible">Foreign national eligible?</Label>
+                      <Select
+                        name="foreignNationalEligible"
+                        defaultValue={
+                          lender.wideCriteria?.foreignNationalEligible === true
+                            ? "yes"
+                            : lender.wideCriteria?.foreignNationalEligible === false
+                              ? "no"
+                              : "unstated"
+                        }
+                      >
+                        <SelectTrigger id="foreignNationalEligible" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unstated">Not stated</SelectItem>
+                          <SelectItem value="yes">Yes</SelectItem>
+                          <SelectItem value="no">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="itinEligible">ITIN borrower eligible?</Label>
+                      <Select
+                        name="itinEligible"
+                        defaultValue={
+                          lender.wideCriteria?.itinEligible === true
+                            ? "yes"
+                            : lender.wideCriteria?.itinEligible === false
+                              ? "no"
+                              : "unstated"
+                        }
+                      >
+                        <SelectTrigger id="itinEligible" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unstated">Not stated</SelectItem>
+                          <SelectItem value="yes">Yes</SelectItem>
+                          <SelectItem value="no">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="ruralEligible">Rural property eligible?</Label>
+                      <Select
+                        name="ruralEligible"
+                        defaultValue={
+                          lender.wideCriteria?.ruralEligible === true
+                            ? "yes"
+                            : lender.wideCriteria?.ruralEligible === false
+                              ? "no"
+                              : "unstated"
+                        }
+                      >
+                        <SelectTrigger id="ruralEligible" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unstated">Not stated</SelectItem>
+                          <SelectItem value="yes">Yes</SelectItem>
+                          <SelectItem value="no">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {lender.wideCriteria?.extractionNotes && (
+                    <p className="rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">AI notes: </span>
+                      {lender.wideCriteria.extractionNotes}
+                    </p>
+                  )}
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="wideOtherNotes">Notes for AI matching</Label>
+                    <Textarea
+                      id="wideOtherNotes"
+                      name="otherNotes"
+                      rows={2}
+                      defaultValue={lender.wideCriteria?.otherNotes ?? ""}
+                      placeholder="Anything worth calling out that isn't obvious from the uploaded documents"
+                    />
+                  </div>
+
+                  <SubmitButton size="sm">Save</SubmitButton>
+                </ActionForm>
+              ) : (
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  {lender.wideCriteria?.otherNotes && (
+                    <p className="whitespace-pre-wrap">{lender.wideCriteria.otherNotes}</p>
+                  )}
+                  {lender.wideCriteria?.extractionNotes && <p>{lender.wideCriteria.extractionNotes}</p>}
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

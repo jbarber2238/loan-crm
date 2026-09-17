@@ -30,6 +30,9 @@ export interface ExtractedCriteria {
   entityOnlyRequired: boolean | null;
   gcLicenseRequired: boolean | null;
   msaPopulationMinimum: number | null;
+  foreignNationalEligible: boolean | null;
+  itinEligible: boolean | null;
+  ruralEligible: boolean | null;
   tiers: ExtractedCriteriaTier[];
   extractionNotes: string | null;
   detectedCategory: string | null;
@@ -50,6 +53,9 @@ Extract these fields where the document states them; use null for anything not s
 - entityOnlyRequired: true if the document requires the borrower to be an entity (LLC/corp), false if individuals are explicitly fine, null if not addressed.
 - gcLicenseRequired: true if a licensed general contractor is required, false if explicitly not required, null if not addressed.
 - msaPopulationMinimum: a minimum MSA/metro population threshold, if stated (as a plain number, e.g. 150000).
+- foreignNationalEligible: true if the document explicitly says foreign nationals are eligible borrowers, false if explicitly excluded/not eligible, null if not addressed at all.
+- itinEligible: true if the document explicitly says ITIN borrowers (no SSN, tax ID only) are eligible, false if explicitly excluded, null if not addressed at all.
+- ruralEligible: true if the document explicitly says rural properties are eligible, false if rural properties are explicitly excluded/ineligible, null if not addressed at all.
 - tiers: if the matrix has a grid of rows (e.g. FICO band x experience level, each with its own max LTC/LTARV/LTV), one entry per row with whichever of ficoMin/ficoMax/experienceMin/maxLtc/maxLtarv/maxLtv that row states (null for whatever that row doesn't state), plus "notes" for anything about that specific row worth keeping in plain English. Empty array if the matrix isn't tiered.
 - extractionNotes: 1-3 sentences of anything important you read that doesn't fit the fields above (unusual overlays, exclusions, special programs) — this is shown to a human reviewer, so be concrete and cite the actual numbers/terms.
 - detectedCategory: which ONE loan program this document's matrix/guideline is for, chosen from EXACTLY this list of values: ${CATEGORY_VALUES.join(", ")}. Use null if the document isn't clearly about a single one of these programs (e.g. it's a general company overview, a multi-program summary, or genuinely ambiguous) — never guess.
@@ -59,7 +65,7 @@ CONSISTENCY REQUIREMENT: before writing extractionNotes, check every one of the 
 If the document doesn't contain usable underwriting criteria at all (e.g. it's a servicing guide, a cover page, or genuinely illegible), return every field null/empty and say why in extractionNotes.
 
 Respond with ONLY a JSON object, no prose outside it, matching this shape exactly:
-{"minFico":null,"minLoanAmount":null,"maxLoanAmount":null,"statesAllowed":null,"propertyTypesAllowed":null,"minDscr":null,"maxLtv":null,"maxLtc":null,"maxLtarv":null,"minExperienceCount":null,"entityOnlyRequired":null,"gcLicenseRequired":null,"msaPopulationMinimum":null,"tiers":[],"extractionNotes":null,"detectedCategory":null}`;
+{"minFico":null,"minLoanAmount":null,"maxLoanAmount":null,"statesAllowed":null,"propertyTypesAllowed":null,"minDscr":null,"maxLtv":null,"maxLtc":null,"maxLtarv":null,"minExperienceCount":null,"entityOnlyRequired":null,"gcLicenseRequired":null,"msaPopulationMinimum":null,"foreignNationalEligible":null,"itinEligible":null,"ruralEligible":null,"tiers":[],"extractionNotes":null,"detectedCategory":null}`;
 
 function isNumOrNull(v: unknown): v is number | null {
   return v === null || typeof v === "number";
@@ -118,6 +124,9 @@ function parseExtraction(text: string): ExtractedCriteria | null {
       !isBoolOrNull(p.entityOnlyRequired) ||
       !isBoolOrNull(p.gcLicenseRequired) ||
       !isNumOrNull(p.msaPopulationMinimum) ||
+      !isBoolOrNull(p.foreignNationalEligible) ||
+      !isBoolOrNull(p.itinEligible) ||
+      !isBoolOrNull(p.ruralEligible) ||
       !isStrOrNull(p.extractionNotes) ||
       !Array.isArray(p.tiers) ||
       !isStrOrNull(p.detectedCategory)
@@ -146,6 +155,9 @@ function parseExtraction(text: string): ExtractedCriteria | null {
       entityOnlyRequired: p.entityOnlyRequired,
       gcLicenseRequired: p.gcLicenseRequired,
       msaPopulationMinimum: p.msaPopulationMinimum,
+      foreignNationalEligible: p.foreignNationalEligible,
+      itinEligible: p.itinEligible,
+      ruralEligible: p.ruralEligible,
       tiers: tiers as ExtractedCriteriaTier[],
       extractionNotes: p.extractionNotes,
       detectedCategory,
@@ -188,6 +200,9 @@ export async function extractLenderCriteria(doc: {
       entityOnlyRequired: null,
       gcLicenseRequired: null,
       msaPopulationMinimum: null,
+      foreignNationalEligible: null,
+      itinEligible: null,
+      ruralEligible: null,
       tiers: [],
       extractionNotes: "Couldn't extract any readable text or images from this document.",
       detectedCategory: null,
@@ -224,6 +239,9 @@ export async function extractLenderCriteria(doc: {
       entityOnlyRequired: null,
       gcLicenseRequired: null,
       msaPopulationMinimum: null,
+      foreignNationalEligible: null,
+      itinEligible: null,
+      ruralEligible: null,
       tiers: [],
       extractionNotes: "Extraction ran but the response couldn't be parsed — needs a manual look or a re-run.",
       detectedCategory: null,

@@ -67,6 +67,7 @@ export function buildDealSummaryForAi(deal: Deal): string {
 ${ratioLines.join("\n")}
 - Estimated FICO: ${deal.estimatedFico ?? "not provided"}
 - Property type: ${deal.propertyType ? labelFor(PROPERTY_TYPES, deal.propertyType) : "not provided"}
+- Rural property: ${yesNo(deal.rural)}
 - Unit count: ${deal.unitCount ?? "not provided"}
 - Exit strategy: ${deal.exitStrategy ? labelFor(EXIT_STRATEGIES, deal.exitStrategy) : "not provided"}
 - Borrower experience: ${deal.numFlips ?? 0} flips, ${deal.numRentals ?? 0} rentals, ${deal.numNewConstruction ?? 0} new construction (completed, last 36mo)

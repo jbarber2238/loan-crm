@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/server/db/client";
-import { lenderCriteria, lenderReps, lenders, products } from "@/server/db/schema";
+import { lenderCriteria, lenderReps, lenderWideCriteria, lenders, products } from "@/server/db/schema";
 import { requireAdmin } from "@/server/auth/guards";
 import { LOAN_CATEGORIES, labelFor } from "@/lib/labels";
 
@@ -305,6 +305,9 @@ export async function updateLenderCriteria(productId: string, formData: FormData
     entityOnlyRequired: nullableBool(formData, "entityOnlyRequired"),
     gcLicenseRequired: nullableBool(formData, "gcLicenseRequired"),
     msaPopulationMinimum: nullableInt(formData, "msaPopulationMinimum"),
+    foreignNationalEligible: nullableBool(formData, "foreignNationalEligible"),
+    itinEligible: nullableBool(formData, "itinEligible"),
+    ruralEligible: nullableBool(formData, "ruralEligible"),
     // A human correction is itself a review — clears the flag so it stops
     // showing as needing attention.
     needsReview: false,
@@ -324,5 +327,29 @@ export async function updateLenderCriteria(productId: string, formData: FormData
   }
 
   await revalidateProductsLender(productId);
+}
+
+export async function updateLenderWideCriteria(lenderId: string, formData: FormData) {
+  await requireAdmin();
+
+  const values = {
+    foreignNationalEligible: nullableBool(formData, "foreignNationalEligible"),
+    itinEligible: nullableBool(formData, "itinEligible"),
+    ruralEligible: nullableBool(formData, "ruralEligible"),
+    otherNotes: nullableStr(formData, "otherNotes"),
+    needsReview: false,
+  };
+
+  const existing = await db.query.lenderWideCriteria.findFirst({
+    where: eq(lenderWideCriteria.lenderId, lenderId),
+  });
+
+  if (existing) {
+    await db.update(lenderWideCriteria).set(values).where(eq(lenderWideCriteria.lenderId, lenderId));
+  } else {
+    await db.insert(lenderWideCriteria).values({ lenderId, ...values });
+  }
+
+  revalidatePath(`/lenders/${lenderId}`);
 }
 

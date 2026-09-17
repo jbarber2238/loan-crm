@@ -60,6 +60,9 @@ interface Criteria {
   entityOnlyRequired: boolean | null;
   gcLicenseRequired: boolean | null;
   msaPopulationMinimum: number | null;
+  foreignNationalEligible: boolean | null;
+  itinEligible: boolean | null;
+  ruralEligible: boolean | null;
   extractedAt: Date | string | null;
   needsReview: boolean;
   extractionNotes: string | null;
@@ -390,6 +393,72 @@ export function ProductsChecklist({
                               }
                             >
                               <SelectTrigger id={`gcLicenseRequired-${product.id}`} className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="unstated">Not stated</SelectItem>
+                                <SelectItem value="yes">Yes</SelectItem>
+                                <SelectItem value="no">No</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`foreignNationalEligible-${product.id}`}>Foreign national eligible?</Label>
+                            <Select
+                              name="foreignNationalEligible"
+                              defaultValue={
+                                product.criteria?.foreignNationalEligible === true
+                                  ? "yes"
+                                  : product.criteria?.foreignNationalEligible === false
+                                    ? "no"
+                                    : "unstated"
+                              }
+                            >
+                              <SelectTrigger id={`foreignNationalEligible-${product.id}`} className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="unstated">Not stated</SelectItem>
+                                <SelectItem value="yes">Yes</SelectItem>
+                                <SelectItem value="no">No</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`itinEligible-${product.id}`}>ITIN borrower eligible?</Label>
+                            <Select
+                              name="itinEligible"
+                              defaultValue={
+                                product.criteria?.itinEligible === true
+                                  ? "yes"
+                                  : product.criteria?.itinEligible === false
+                                    ? "no"
+                                    : "unstated"
+                              }
+                            >
+                              <SelectTrigger id={`itinEligible-${product.id}`} className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="unstated">Not stated</SelectItem>
+                                <SelectItem value="yes">Yes</SelectItem>
+                                <SelectItem value="no">No</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`ruralEligible-${product.id}`}>Rural property eligible?</Label>
+                            <Select
+                              name="ruralEligible"
+                              defaultValue={
+                                product.criteria?.ruralEligible === true
+                                  ? "yes"
+                                  : product.criteria?.ruralEligible === false
+                                    ? "no"
+                                    : "unstated"
+                              }
+                            >
+                              <SelectTrigger id={`ruralEligible-${product.id}`} className="w-full">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>

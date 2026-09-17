@@ -37,6 +37,8 @@ Only use "poor" when the deal data actually violates a stated criterion. A crite
 
 The deal's "Borrower entity" field tells you whether this loan is closing in an entity's name — if it names a real entity (not "not provided"), a lender's "Entity Only" / "U.S. Legal Entity borrower" requirement is satisfied; don't flag it as unconfirmed just because the borrower's personal name is also shown. Only flag entity type as a genuine open item when that field says "not provided."
 
+Only check a lender's "Foreign national eligible" / "ITIN borrower eligible" fact against the deal's own Citizenship field, and only when that field actually says "Foreign National" or "ITIN" — for a US citizen/permanent/non-permanent resident alien deal, ignore these facts entirely, they're irrelevant. Same for "Rural property eligible": only check it against the deal's own Rural field, and only when that field says yes. A lender stating "no" on any of these, when the deal's own field says it applies, is a "poor" — clear and immediate, not "close." When the deal doesn't trigger the question at all, don't mention it in "reason."
+
 If a product has no criteria or documents on file, or the excerpt/image doesn't cover something you'd need to judge, say so plainly in "reason" rather than guessing a fit level you can't support.
 
 On a New Construction / ground-up-construction deal, a lender's "ineligible property: land" (or "raw land") note refers to a speculative land-only loan with no construction — it does NOT disqualify a construction loan just because the deal includes acquiring the lot, since every ground-up construction loan by definition starts with land. Don't flag land ineligibility against a New Construction deal for that reason alone.
@@ -98,6 +100,9 @@ function formatCriteriaSummary(criteria: {
   entityOnlyRequired: boolean | null;
   gcLicenseRequired: boolean | null;
   msaPopulationMinimum: number | null;
+  foreignNationalEligible: boolean | null;
+  itinEligible: boolean | null;
+  ruralEligible: boolean | null;
   statesAllowed: string[] | null;
   propertyTypesAllowed: string[] | null;
   otherNotes: string | null;
@@ -125,6 +130,9 @@ function formatCriteriaSummary(criteria: {
   if (criteria.entityOnlyRequired != null) lines.push(`Entity-only borrower required: ${criteria.entityOnlyRequired ? "yes" : "no"}`);
   if (criteria.gcLicenseRequired != null) lines.push(`Licensed GC required: ${criteria.gcLicenseRequired ? "yes" : "no"}`);
   if (criteria.msaPopulationMinimum) lines.push(`Min MSA population: ${criteria.msaPopulationMinimum.toLocaleString()}`);
+  if (criteria.foreignNationalEligible != null) lines.push(`Foreign national eligible: ${criteria.foreignNationalEligible ? "yes" : "no"}`);
+  if (criteria.itinEligible != null) lines.push(`ITIN borrower eligible: ${criteria.itinEligible ? "yes" : "no"}`);
+  if (criteria.ruralEligible != null) lines.push(`Rural property eligible: ${criteria.ruralEligible ? "yes" : "no"}`);
   if (criteria.statesAllowed?.length) lines.push(`Eligible states: ${criteria.statesAllowed.join(", ")}`);
   if (criteria.propertyTypesAllowed?.length) lines.push(`Eligible property types: ${criteria.propertyTypesAllowed.join(", ")}`);
   if (criteria.tiers.length) {
@@ -145,6 +153,25 @@ function formatCriteriaSummary(criteria: {
   if (criteria.otherNotes) lines.push(`Broker's own notes: ${criteria.otherNotes}`);
   if (criteria.extractionNotes) lines.push(`Other details from the lender's document: ${criteria.extractionNotes}`);
   return lines.join("\n  ") || "no criteria captured";
+}
+
+// Same idea as formatCriteriaSummary, but for a lender-wide overlay document
+// (e.g. a foreign-national matrix) that isn't scoped to one product — a few
+// plain facts instead of re-attaching that document's images/text.
+function formatLenderWideCriteriaSummary(criteria: {
+  foreignNationalEligible: boolean | null;
+  itinEligible: boolean | null;
+  ruralEligible: boolean | null;
+  otherNotes: string | null;
+  extractionNotes: string | null;
+}): string {
+  const lines: string[] = [];
+  if (criteria.foreignNationalEligible != null) lines.push(`Foreign national eligible: ${criteria.foreignNationalEligible ? "yes" : "no"}`);
+  if (criteria.itinEligible != null) lines.push(`ITIN borrower eligible: ${criteria.itinEligible ? "yes" : "no"}`);
+  if (criteria.ruralEligible != null) lines.push(`Rural property eligible: ${criteria.ruralEligible ? "yes" : "no"}`);
+  if (criteria.otherNotes) lines.push(`Broker's own notes: ${criteria.otherNotes}`);
+  if (criteria.extractionNotes) lines.push(`Other details from the lender's document: ${criteria.extractionNotes}`);
+  return lines.join("; ") || "no lender-wide eligibility notes captured";
 }
 
 export async function runLenderMatch(deal: Deal): Promise<LenderMatchResult> {
@@ -170,6 +197,7 @@ export async function runLenderMatch(deal: Deal): Promise<LenderMatchResult> {
               orderBy: (docs, { desc }) => desc(docs.createdAt),
               limit: 1,
             },
+            wideCriteria: true,
           },
         },
         criteria: { with: { tiers: true } },
@@ -191,16 +219,18 @@ export async function runLenderMatch(deal: Deal): Promise<LenderMatchResult> {
     };
   }
 
-  // A lender-wide doc is shared across every one of that lender's products in
-  // this category — resolve it once per lender, not once per product, so a
-  // lender with three products here doesn't triple the same matrix (tripling
-  // cost for images especially) in the prompt. Resolved up front, in a plain
-  // sequential pass, rather than by mutating shared state from inside the
-  // concurrent Promise.all below — that would depend on exactly when each
-  // product's async work happens to interleave, which is fragile to reason
-  // about and easy to break with an unrelated future change.
+  // A lender-wide doc/criteria set is shared across every one of that
+  // lender's products in this category — resolve it once per lender, not
+  // once per product, so a lender with three products here doesn't triple
+  // the same matrix (tripling cost for images especially) in the prompt.
+  // Resolved up front, in a plain sequential pass, rather than by mutating
+  // shared state from inside the concurrent Promise.all below — that would
+  // depend on exactly when each product's async work happens to interleave,
+  // which is fragile to reason about and easy to break with an unrelated
+  // future change.
   const lenderWideContent = new Map<string, { doc: (typeof activeProducts)[number]["lender"]["documents"][number]; content: DocContent } | null>();
   const firstProductIdForLender = new Map<string, string>();
+  const lenderWideCriteriaByLender = new Map<string, (typeof activeProducts)[number]["lender"]["wideCriteria"]>();
 
   // Which lender-wide doc belongs to each lender is a plain synchronous
   // lookup — resolving what's actually IN that doc (extraction, or
@@ -214,11 +244,18 @@ export async function runLenderMatch(deal: Deal): Promise<LenderMatchResult> {
     if (!firstProductIdForLender.has(p.lenderId)) firstProductIdForLender.set(p.lenderId, p.id);
     if (uniqueLenderWideDocs.has(p.lenderId)) continue;
     uniqueLenderWideDocs.set(p.lenderId, p.lender.documents[0] ?? null);
+    lenderWideCriteriaByLender.set(p.lenderId, p.lender.wideCriteria);
   }
 
   await Promise.all(
     Array.from(uniqueLenderWideDocs.entries()).map(async ([lenderId, doc]) => {
-      if (!doc) {
+      const wc = lenderWideCriteriaByLender.get(lenderId);
+      const hasGoodLenderWideData = Boolean(wc?.extractedAt) && !wc?.needsReview;
+      // The whole point of extracting lender-wide criteria once at upload
+      // time: a lender with good, reviewed structured data never needs its
+      // raw document (images especially) resolved/attached again — the same
+      // saving already applied to product-level documents.
+      if (!doc || hasGoodLenderWideData) {
         lenderWideContent.set(lenderId, null);
         return;
       }
@@ -246,6 +283,12 @@ export async function runLenderMatch(deal: Deal): Promise<LenderMatchResult> {
         headerParts.push(formatCriteriaSummary(c));
       } else if (c?.otherNotes) {
         headerParts.push(`notes: ${c.otherNotes}`);
+      }
+
+      const lenderWideCriteria = lenderWideCriteriaByLender.get(p.lenderId);
+      const hasGoodLenderWideData = Boolean(lenderWideCriteria?.extractedAt) && !lenderWideCriteria?.needsReview;
+      if (hasGoodLenderWideData && lenderWideCriteria) {
+        headerParts.push(`lender-wide: ${formatLenderWideCriteriaSummary(lenderWideCriteria)}`);
       }
 
       const lenderWide = lenderWideContent.get(p.lenderId);
