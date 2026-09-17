@@ -136,7 +136,13 @@ export async function completeAffiliateSignup(affiliateId: string, formData: For
         ]);
         const body = `
           <p>Welcome to our affiliate program!</p>
-          <p>Here's your own personal referral link — anyone who submits a deal through it is automatically tracked as your referral:</p>
+          <p>Here's what we have on file for you:</p>
+          <p>
+            Name: ${name.trim()}<br />
+            Phone: ${phone.trim()}<br />
+            Email: ${email.trim().toLowerCase()}
+          </p>
+          <p>And here's your own personal referral link — anyone who submits a deal through it is automatically tracked as your referral:</p>
           <p><a href="${intakeLink}">${intakeLink}</a></p>
           <p>If you'd rather embed it directly on your own website, here's the embed code:</p>
           <p><code>${embedSnippet}</code></p>
