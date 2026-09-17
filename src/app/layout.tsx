@@ -20,6 +20,9 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: `${companyName} CRM`,
     description: "Internal loan pipeline CRM",
+    // Proves domain ownership to Google Search Console — required before
+    // Google will verify this app's OAuth branding (home page URL).
+    verification: { google: "1xvzhMZlrORRsO6eb4Q5uQc4K8qNhYGs-cL2UZim_fY" },
   };
 }
 
