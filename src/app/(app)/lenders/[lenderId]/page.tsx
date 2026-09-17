@@ -39,7 +39,7 @@ export default async function LenderDetailPage({
       reps: true,
       products: {
         with: {
-          criteria: true,
+          criteria: { with: { tiers: true } },
           clientNeeds: { with: { clientNeed: { with: { questions: true, categoryLinks: true } } } },
         },
       },

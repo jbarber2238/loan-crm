@@ -49,6 +49,8 @@ Extract these fields where the document states them; use null for anything not s
 - tiers: if the matrix has a grid of rows (e.g. FICO band x experience level, each with its own max LTC/LTARV/LTV), one entry per row with whichever of ficoMin/ficoMax/experienceMin/maxLtc/maxLtarv/maxLtv that row states (null for whatever that row doesn't state), plus "notes" for anything about that specific row worth keeping in plain English. Empty array if the matrix isn't tiered.
 - extractionNotes: 1-3 sentences of anything important you read that doesn't fit the fields above (unusual overlays, exclusions, special programs) — this is shown to a human reviewer, so be concrete and cite the actual numbers/terms.
 
+CONSISTENCY REQUIREMENT: before writing extractionNotes, check every one of the structured fields above (minFico, minLoanAmount, maxLoanAmount, minDscr, maxLtv, maxLtc, maxLtarv, minExperienceCount, msaPopulationMinimum) — if the document states an overall (non-tiered) value for one of them, that value MUST be set in the structured field itself, not only mentioned in extractionNotes prose. Never describe a concrete overall limit in extractionNotes while leaving its own structured field null.
+
 If the document doesn't contain usable underwriting criteria at all (e.g. it's a servicing guide, a cover page, or genuinely illegible), return every field null/empty and say why in extractionNotes.
 
 Respond with ONLY a JSON object, no prose outside it, matching this shape exactly:

@@ -19,6 +19,38 @@ function nullableStr(formData: FormData, key: string) {
   return value.length ? value : null;
 }
 
+function nullableInt(formData: FormData, key: string) {
+  const value = str(formData, key);
+  if (!value.length) return null;
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+function nullableNumericStr(formData: FormData, key: string) {
+  const value = str(formData, key);
+  if (!value.length) return null;
+  return Number.isFinite(Number(value)) ? value : null;
+}
+
+function nullableStrArray(formData: FormData, key: string) {
+  const value = str(formData, key);
+  if (!value.length) return null;
+  return value
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+// Tri-state select: "" (not stated) / "yes" / "no" — a plain checkbox can't
+// represent "not addressed by the document" the way the AI extraction itself
+// distinguishes null from false.
+function nullableBool(formData: FormData, key: string) {
+  const value = str(formData, key);
+  if (value === "yes") return true;
+  if (value === "no") return false;
+  return null;
+}
+
 // --- Lenders ---------------------------------------------------------------
 
 const lenderSchema = z.object({
@@ -251,11 +283,31 @@ async function revalidateProductsLender(productId: string) {
   if (product) revalidatePath(`/lenders/${product.lenderId}`);
 }
 
+// "otherNotes" is Justin's own free-text add-on; everything else here is
+// AI-extracted (see extract-lender-criteria.ts) and only meant to be
+// corrected here, not typed up from scratch — he uploads the real document
+// and lets extraction do the first pass.
 export async function updateLenderCriteria(productId: string, formData: FormData) {
   await requireAdmin();
 
   const values = {
     otherNotes: nullableStr(formData, "otherNotes"),
+    minFico: nullableInt(formData, "minFico"),
+    minLoanAmount: nullableNumericStr(formData, "minLoanAmount"),
+    maxLoanAmount: nullableNumericStr(formData, "maxLoanAmount"),
+    statesAllowed: nullableStrArray(formData, "statesAllowed"),
+    propertyTypesAllowed: nullableStrArray(formData, "propertyTypesAllowed"),
+    minDscr: nullableNumericStr(formData, "minDscr"),
+    maxLtv: nullableNumericStr(formData, "maxLtv"),
+    maxLtc: nullableNumericStr(formData, "maxLtc"),
+    maxLtarv: nullableNumericStr(formData, "maxLtarv"),
+    minExperienceCount: nullableInt(formData, "minExperienceCount"),
+    entityOnlyRequired: nullableBool(formData, "entityOnlyRequired"),
+    gcLicenseRequired: nullableBool(formData, "gcLicenseRequired"),
+    msaPopulationMinimum: nullableInt(formData, "msaPopulationMinimum"),
+    // A human correction is itself a review — clears the flag so it stops
+    // showing as needing attention.
+    needsReview: false,
   };
 
   const existing = await db.query.lenderCriteria.findFirst({

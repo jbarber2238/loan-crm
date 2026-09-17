@@ -16,7 +16,7 @@ const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB — plenty for rate sheets/matri
 // re-uploading a corrected matrix shouldn't lose the upload itself just
 // because this pass hit a parsing hiccup — it just leaves the product
 // flagged for review instead.
-async function extractAndStoreCriteria(productId: string, document: { id: string; fileName: string; mimeType: string; data: string }) {
+export async function extractAndStoreCriteria(productId: string, document: { id: string; fileName: string; mimeType: string; data: string }) {
   let extracted;
   try {
     extracted = await extractLenderCriteria(document);
@@ -158,6 +158,24 @@ export async function uploadLenderMatrixDocument(formData: FormData) {
 
   revalidatePath(`/lenders/${lenderId}`);
   revalidatePath("/lenders");
+}
+
+// Lets an admin re-run extraction against the product's current document
+// without re-uploading it — useful after a prompt fix, or if the first pass
+// got flagged needsReview. Re-extracts from whichever document is most
+// recent for this product, same "latest upload wins" rule as everywhere else.
+export async function reextractProductCriteria(lenderId: string, productId: string) {
+  await requireAdmin();
+
+  const doc = await db.query.lenderDocuments.findFirst({
+    where: eq(lenderDocuments.productId, productId),
+    orderBy: (d, { desc }) => desc(d.createdAt),
+  });
+  if (!doc) throw new Error("This product has no uploaded document to extract from.");
+
+  await extractAndStoreCriteria(productId, doc);
+
+  revalidatePath(`/lenders/${lenderId}`);
 }
 
 export async function deleteLenderDocument(lenderId: string, documentId: string) {

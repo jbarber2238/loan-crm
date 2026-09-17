@@ -79,6 +79,74 @@ function extractJson(text: string): Omit<LenderMatchResult, "ranAt"> | null {
   }
 }
 
+// Renders a product's stored structured criteria (flat fields + any tiers)
+// as a short plain-text block instead of attaching its raw document —
+// this is the entire point of extracting criteria once at upload time
+// instead of re-reading/re-rendering the same scanned PDF into images on
+// every single lender-match run. Only used for a product whose extraction
+// actually succeeded and isn't flagged needsReview; anything else falls
+// back to the old raw-document path below exactly as before.
+function formatCriteriaSummary(criteria: {
+  minFico: number | null;
+  minLoanAmount: string | null;
+  maxLoanAmount: string | null;
+  minDscr: string | null;
+  maxLtv: string | null;
+  maxLtc: string | null;
+  maxLtarv: string | null;
+  minExperienceCount: number | null;
+  entityOnlyRequired: boolean | null;
+  gcLicenseRequired: boolean | null;
+  msaPopulationMinimum: number | null;
+  statesAllowed: string[] | null;
+  propertyTypesAllowed: string[] | null;
+  otherNotes: string | null;
+  extractionNotes: string | null;
+  tiers: {
+    ficoMin: number | null;
+    ficoMax: number | null;
+    experienceMin: number | null;
+    maxLtc: string | null;
+    maxLtarv: string | null;
+    maxLtv: string | null;
+    notes: string | null;
+  }[];
+}): string {
+  const lines: string[] = [];
+  if (criteria.minFico) lines.push(`Min FICO: ${criteria.minFico}`);
+  if (criteria.minLoanAmount || criteria.maxLoanAmount) {
+    lines.push(`Loan amount: $${criteria.minLoanAmount ?? "no min"}–$${criteria.maxLoanAmount ?? "no max"}`);
+  }
+  if (criteria.minDscr) lines.push(`Min DSCR: ${criteria.minDscr}`);
+  if (criteria.maxLtv) lines.push(`Max LTV: ${criteria.maxLtv}%`);
+  if (criteria.maxLtc) lines.push(`Max LTC: ${criteria.maxLtc}%`);
+  if (criteria.maxLtarv) lines.push(`Max LTARV: ${criteria.maxLtarv}%`);
+  if (criteria.minExperienceCount != null) lines.push(`Min experience: ${criteria.minExperienceCount} completed deals`);
+  if (criteria.entityOnlyRequired != null) lines.push(`Entity-only borrower required: ${criteria.entityOnlyRequired ? "yes" : "no"}`);
+  if (criteria.gcLicenseRequired != null) lines.push(`Licensed GC required: ${criteria.gcLicenseRequired ? "yes" : "no"}`);
+  if (criteria.msaPopulationMinimum) lines.push(`Min MSA population: ${criteria.msaPopulationMinimum.toLocaleString()}`);
+  if (criteria.statesAllowed?.length) lines.push(`Eligible states: ${criteria.statesAllowed.join(", ")}`);
+  if (criteria.propertyTypesAllowed?.length) lines.push(`Eligible property types: ${criteria.propertyTypesAllowed.join(", ")}`);
+  if (criteria.tiers.length) {
+    const tierLines = criteria.tiers.map((t) => {
+      const range = `FICO ${t.ficoMin ?? "any"}${t.ficoMax ? `-${t.ficoMax}` : t.ficoMin ? "+" : ""}`;
+      const exp = t.experienceMin ? `, ${t.experienceMin}+ deals experience` : "";
+      const caps = [
+        t.maxLtc && `max LTC ${t.maxLtc}%`,
+        t.maxLtarv && `max LTARV ${t.maxLtarv}%`,
+        t.maxLtv && `max LTV ${t.maxLtv}%`,
+      ]
+        .filter(Boolean)
+        .join(", ");
+      return `    - ${range}${exp}: ${caps || "no cap stated"}${t.notes ? ` (${t.notes})` : ""}`;
+    });
+    lines.push(`Tiered by FICO/experience:\n${tierLines.join("\n")}`);
+  }
+  if (criteria.otherNotes) lines.push(`Broker's own notes: ${criteria.otherNotes}`);
+  if (criteria.extractionNotes) lines.push(`Other details from the lender's document: ${criteria.extractionNotes}`);
+  return lines.join("\n  ") || "no criteria captured";
+}
+
 export async function runLenderMatch(deal: Deal): Promise<LenderMatchResult> {
   if (!anthropic) {
     throw new Error("AI lender match isn't configured (missing ANTHROPIC_API_KEY).");
@@ -89,7 +157,7 @@ export async function runLenderMatch(deal: Deal): Promise<LenderMatchResult> {
       where: and(eq(products.active, true), eq(products.category, deal.loanCategory)),
       with: {
         lender: { with: { documents: true } },
-        criteria: true,
+        criteria: { with: { tiers: true } },
         documents: { orderBy: (docs, { desc }) => desc(docs.createdAt) },
       },
     }),
@@ -155,7 +223,18 @@ export async function runLenderMatch(deal: Deal): Promise<LenderMatchResult> {
       const blocks: Anthropic.ContentBlockParam[] = [];
       const headerParts: string[] = [];
 
-      if (c?.otherNotes) headerParts.push(`notes: ${c.otherNotes}`);
+      // The whole point of extracting criteria once at upload time: a
+      // product with good, reviewed structured data gets a few lines of
+      // plain text here instead of re-resolving (and, for a scanned PDF,
+      // re-rendering to images and re-sending) its raw document on every
+      // single match run. Only products where extraction never ran, or
+      // came back flagged for review, still pay that cost below.
+      const hasGoodStructuredData = Boolean(c?.extractedAt) && !c?.needsReview;
+      if (hasGoodStructuredData && c) {
+        headerParts.push(formatCriteriaSummary(c));
+      } else if (c?.otherNotes) {
+        headerParts.push(`notes: ${c.otherNotes}`);
+      }
 
       const lenderWide = lenderWideContent.get(p.lenderId);
       let attachLenderWideImages = false;
@@ -175,7 +254,7 @@ export async function runLenderMatch(deal: Deal): Promise<LenderMatchResult> {
       }
 
       let productDocContent: DocContent | null = null;
-      if (productDoc) {
+      if (productDoc && !hasGoodStructuredData) {
         productDocContent = await resolveDocContent(productDoc);
         const note = headerNoteFor(productDocContent, productDoc.fileName, "product document");
         if (note) headerParts.push(note);

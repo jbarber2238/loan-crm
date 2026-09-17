@@ -6,7 +6,7 @@ import {
   cloneClientNeedsToProduct,
   detachClientNeedFromProduct,
 } from "@/server/actions/client-need-catalog";
-import { deleteLenderDocument, uploadLenderDocument } from "@/server/actions/lender-documents";
+import { deleteLenderDocument, uploadLenderDocument, reextractProductCriteria } from "@/server/actions/lender-documents";
 import { toggleProductActive, deleteProduct, updateProduct, updateLenderCriteria } from "@/server/actions/lenders";
 import { AddProductDialog } from "@/components/lenders/add-product-dialog";
 import { AddClientNeedDialog } from "@/components/client-needs/add-client-need-dialog";
@@ -34,13 +34,45 @@ interface ProductLink {
   clientNeed: NeedForProduct;
 }
 
+interface CriteriaTier {
+  id: string;
+  ficoMin: number | null;
+  ficoMax: number | null;
+  experienceMin: number | null;
+  maxLtc: string | null;
+  maxLtarv: string | null;
+  maxLtv: string | null;
+  notes: string | null;
+}
+
+interface Criteria {
+  otherNotes: string | null;
+  minFico: number | null;
+  minLoanAmount: string | null;
+  maxLoanAmount: string | null;
+  statesAllowed: string[] | null;
+  propertyTypesAllowed: string[] | null;
+  minDscr: string | null;
+  maxLtv: string | null;
+  maxLtc: string | null;
+  maxLtarv: string | null;
+  minExperienceCount: number | null;
+  entityOnlyRequired: boolean | null;
+  gcLicenseRequired: boolean | null;
+  msaPopulationMinimum: number | null;
+  extractedAt: Date | string | null;
+  needsReview: boolean;
+  extractionNotes: string | null;
+  tiers: CriteriaTier[];
+}
+
 interface ProductWithRelations {
   id: string;
   name: string;
   active: boolean;
   notes: string | null;
   category: string;
-  criteria: { otherNotes: string | null } | null;
+  criteria: Criteria | null;
   clientNeeds: ProductLink[];
 }
 
@@ -200,29 +232,259 @@ export function ProductsChecklist({
                   )}
                 </div>
 
-                {(isAdmin || product.criteria?.otherNotes) && (
+                {(isAdmin || product.criteria) && (
                   <div>
-                    <p className="mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      Notes for AI Matching
-                    </p>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Underwriting Criteria (for AI Matching)
+                      </p>
+                      <div className="flex items-center gap-2">
+                        {product.criteria?.needsReview && <Badge variant="destructive">Needs review</Badge>}
+                        {isAdmin && productDocs.length > 0 && (
+                          <ActionForm
+                            action={reextractProductCriteria.bind(null, lenderId, product.id)}
+                            successMessage="Re-extracted from the latest document"
+                          >
+                            <SubmitButton size="sm" variant="outline">
+                              Re-extract from document
+                            </SubmitButton>
+                          </ActionForm>
+                        )}
+                      </div>
+                    </div>
+
+                    {product.criteria?.extractedAt && (
+                      <p className="mb-3 text-xs text-muted-foreground">
+                        Last extracted {new Date(product.criteria.extractedAt).toLocaleDateString()} — correct
+                        anything wrong below, or re-upload the document and re-extract.
+                      </p>
+                    )}
+
                     {isAdmin ? (
                       <ActionForm
                         action={updateLenderCriteria.bind(null, product.id)}
-                        successMessage="Notes saved"
-                        className="space-y-2"
+                        successMessage="Criteria saved"
+                        className="space-y-3"
                       >
-                        <Textarea
-                          name="otherNotes"
-                          rows={2}
-                          defaultValue={product.criteria?.otherNotes ?? ""}
-                          placeholder="Anything worth calling out that isn't obvious from the uploaded documents"
-                        />
+                        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`minFico-${product.id}`}>Min FICO</Label>
+                            <Input
+                              id={`minFico-${product.id}`}
+                              name="minFico"
+                              type="number"
+                              defaultValue={product.criteria?.minFico ?? ""}
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`minLoanAmount-${product.id}`}>Min loan amount</Label>
+                            <Input
+                              id={`minLoanAmount-${product.id}`}
+                              name="minLoanAmount"
+                              type="number"
+                              defaultValue={product.criteria?.minLoanAmount ?? ""}
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`maxLoanAmount-${product.id}`}>Max loan amount</Label>
+                            <Input
+                              id={`maxLoanAmount-${product.id}`}
+                              name="maxLoanAmount"
+                              type="number"
+                              defaultValue={product.criteria?.maxLoanAmount ?? ""}
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`minDscr-${product.id}`}>Min DSCR</Label>
+                            <Input
+                              id={`minDscr-${product.id}`}
+                              name="minDscr"
+                              type="number"
+                              step="0.01"
+                              defaultValue={product.criteria?.minDscr ?? ""}
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`maxLtv-${product.id}`}>Max LTV %</Label>
+                            <Input
+                              id={`maxLtv-${product.id}`}
+                              name="maxLtv"
+                              type="number"
+                              step="0.1"
+                              defaultValue={product.criteria?.maxLtv ?? ""}
+                              placeholder={product.criteria?.tiers.length ? "Tiered — see below" : ""}
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`maxLtc-${product.id}`}>Max LTC %</Label>
+                            <Input
+                              id={`maxLtc-${product.id}`}
+                              name="maxLtc"
+                              type="number"
+                              step="0.1"
+                              defaultValue={product.criteria?.maxLtc ?? ""}
+                              placeholder={product.criteria?.tiers.length ? "Tiered — see below" : ""}
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`maxLtarv-${product.id}`}>Max LTARV %</Label>
+                            <Input
+                              id={`maxLtarv-${product.id}`}
+                              name="maxLtarv"
+                              type="number"
+                              step="0.1"
+                              defaultValue={product.criteria?.maxLtarv ?? ""}
+                              placeholder={product.criteria?.tiers.length ? "Tiered — see below" : ""}
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`minExperienceCount-${product.id}`}>Min experience (deals)</Label>
+                            <Input
+                              id={`minExperienceCount-${product.id}`}
+                              name="minExperienceCount"
+                              type="number"
+                              defaultValue={product.criteria?.minExperienceCount ?? ""}
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`msaPopulationMinimum-${product.id}`}>Min MSA population</Label>
+                            <Input
+                              id={`msaPopulationMinimum-${product.id}`}
+                              name="msaPopulationMinimum"
+                              type="number"
+                              defaultValue={product.criteria?.msaPopulationMinimum ?? ""}
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`entityOnlyRequired-${product.id}`}>Entity only?</Label>
+                            <Select
+                              name="entityOnlyRequired"
+                              defaultValue={
+                                product.criteria?.entityOnlyRequired === true
+                                  ? "yes"
+                                  : product.criteria?.entityOnlyRequired === false
+                                    ? "no"
+                                    : "unstated"
+                              }
+                            >
+                              <SelectTrigger id={`entityOnlyRequired-${product.id}`} className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="unstated">Not stated</SelectItem>
+                                <SelectItem value="yes">Yes</SelectItem>
+                                <SelectItem value="no">No</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`gcLicenseRequired-${product.id}`}>GC license required?</Label>
+                            <Select
+                              name="gcLicenseRequired"
+                              defaultValue={
+                                product.criteria?.gcLicenseRequired === true
+                                  ? "yes"
+                                  : product.criteria?.gcLicenseRequired === false
+                                    ? "no"
+                                    : "unstated"
+                              }
+                            >
+                              <SelectTrigger id={`gcLicenseRequired-${product.id}`} className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="unstated">Not stated</SelectItem>
+                                <SelectItem value="yes">Yes</SelectItem>
+                                <SelectItem value="no">No</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`statesAllowed-${product.id}`}>Eligible states (comma-separated)</Label>
+                            <Input
+                              id={`statesAllowed-${product.id}`}
+                              name="statesAllowed"
+                              defaultValue={product.criteria?.statesAllowed?.join(", ") ?? ""}
+                              placeholder="e.g. TX, FL, GA — blank if not restricted"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`propertyTypesAllowed-${product.id}`}>Eligible property types</Label>
+                            <Input
+                              id={`propertyTypesAllowed-${product.id}`}
+                              name="propertyTypesAllowed"
+                              defaultValue={product.criteria?.propertyTypesAllowed?.join(", ") ?? ""}
+                              placeholder="e.g. Single Family, 2-4 Unit"
+                            />
+                          </div>
+                        </div>
+
+                        {product.criteria && product.criteria.tiers.length > 0 && (
+                          <div className="overflow-x-auto rounded-md border">
+                            <table className="w-full text-xs">
+                              <thead className="bg-muted/50 text-muted-foreground">
+                                <tr>
+                                  <th className="p-2 text-left font-medium">FICO</th>
+                                  <th className="p-2 text-left font-medium">Experience</th>
+                                  <th className="p-2 text-left font-medium">Max LTC</th>
+                                  <th className="p-2 text-left font-medium">Max LTARV</th>
+                                  <th className="p-2 text-left font-medium">Max LTV</th>
+                                  <th className="p-2 text-left font-medium">Notes</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {product.criteria.tiers.map((tier) => (
+                                  <tr key={tier.id} className="border-t">
+                                    <td className="p-2">
+                                      {tier.ficoMin ?? "—"}
+                                      {tier.ficoMax ? `–${tier.ficoMax}` : "+"}
+                                    </td>
+                                    <td className="p-2">{tier.experienceMin ?? "—"}</td>
+                                    <td className="p-2">{tier.maxLtc ? `${tier.maxLtc}%` : "—"}</td>
+                                    <td className="p-2">{tier.maxLtarv ? `${tier.maxLtarv}%` : "—"}</td>
+                                    <td className="p-2">{tier.maxLtv ? `${tier.maxLtv}%` : "—"}</td>
+                                    <td className="p-2 text-muted-foreground">{tier.notes ?? ""}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                            <p className="border-t bg-muted/30 p-2 text-[11px] text-muted-foreground">
+                              Tiered matrix — re-upload the document and re-extract to change these rows rather than
+                              editing them by hand.
+                            </p>
+                          </div>
+                        )}
+
+                        {product.criteria?.extractionNotes && (
+                          <p className="rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground">
+                            <span className="font-medium text-foreground">AI notes: </span>
+                            {product.criteria.extractionNotes}
+                          </p>
+                        )}
+
+                        <div className="space-y-1.5">
+                          <Label htmlFor={`otherNotes-${product.id}`}>Notes for AI matching</Label>
+                          <Textarea
+                            id={`otherNotes-${product.id}`}
+                            name="otherNotes"
+                            rows={2}
+                            defaultValue={product.criteria?.otherNotes ?? ""}
+                            placeholder="Anything worth calling out that isn't obvious from the uploaded documents"
+                          />
+                        </div>
+
                         <SubmitButton size="sm">Save</SubmitButton>
                       </ActionForm>
                     ) : (
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                        {product.criteria?.otherNotes}
-                      </p>
+                      <div className="space-y-2 text-sm text-muted-foreground">
+                        {product.criteria?.otherNotes && (
+                          <p className="whitespace-pre-wrap">{product.criteria.otherNotes}</p>
+                        )}
+                        {product.criteria?.extractionNotes && <p>{product.criteria.extractionNotes}</p>}
+                      </div>
                     )}
                   </div>
                 )}
