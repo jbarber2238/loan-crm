@@ -23,7 +23,7 @@ export default async function EmbeddableIntakePage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { loanOfficerId } = await params;
-  const { submitted } = await searchParams;
+  const { submitted, aff } = await searchParams;
 
   const loanOfficer = await db.query.users.findFirst({
     where: eq(users.id, loanOfficerId),
@@ -35,6 +35,7 @@ export default async function EmbeddableIntakePage({
       submitted={submitted === "1"}
       redirectBasePath="/embed/intake"
       fontVariable={archivo.variable}
+      affiliateId={typeof aff === "string" ? aff : undefined}
     />
   );
 }

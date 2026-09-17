@@ -13,6 +13,7 @@ export const getDealDetail = cache(async (id: string) => {
       assignedLoanOfficer: true,
       assignedProcessor: true,
       assignedAssistant: true,
+      referredByAffiliate: true,
       lender: { with: { reps: true } },
       product: true,
       notes: { with: { author: true } },

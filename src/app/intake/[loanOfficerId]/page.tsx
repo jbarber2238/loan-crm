@@ -24,7 +24,7 @@ export default async function PublicIntakePage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { loanOfficerId } = await params;
-  const { submitted } = await searchParams;
+  const { submitted, aff } = await searchParams;
 
   const loanOfficer = await db.query.users.findFirst({
     where: eq(users.id, loanOfficerId),
@@ -39,6 +39,7 @@ export default async function PublicIntakePage({
         redirectBasePath="/intake"
         fontVariable={archivo.variable}
         showLogo={false}
+        affiliateId={typeof aff === "string" ? aff : undefined}
       />
     </>
   );

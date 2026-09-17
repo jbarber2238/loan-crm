@@ -54,12 +54,17 @@ export function BrandedIntakeForm({
   redirectBasePath,
   fontVariable,
   showLogo = true,
+  affiliateId,
 }: {
   loanOfficer: { id: string; name: string | null; active: boolean } | undefined;
   submitted: boolean;
   redirectBasePath: string;
   fontVariable: string;
   showLogo?: boolean;
+  // Tags the resulting deal as this referral affiliate's, when the intake
+  // link/embed was copied from Settings > Referrals rather than a plain
+  // loan-officer intake link.
+  affiliateId?: string;
 }) {
   if (!loanOfficer || !loanOfficer.active) {
     return (
@@ -90,7 +95,7 @@ export function BrandedIntakeForm({
   const loanOfficerId = loanOfficer.id;
   async function submitAction(formData: FormData) {
     "use server";
-    await submitPublicIntake(loanOfficerId, formData, redirectBasePath);
+    await submitPublicIntake(loanOfficerId, formData, redirectBasePath, affiliateId);
   }
 
   return (

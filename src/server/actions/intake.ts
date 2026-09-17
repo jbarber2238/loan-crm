@@ -11,7 +11,11 @@ export async function submitPublicIntake(
   formData: FormData,
   // Lets the embeddable /embed/intake route reuse this same action and land
   // back on its own branded "thanks" screen instead of the plain public one.
-  redirectBasePath: string = "/intake"
+  redirectBasePath: string = "/intake",
+  // Present when this link/embed came from a referral affiliate's own copy
+  // of the intake link (Settings > Referrals) rather than a plain
+  // loan-officer link — tags the resulting deal as their referral.
+  referredByAffiliateId?: string
 ) {
   const loanOfficer = await db.query.users.findFirst({
     where: eq(users.id, loanOfficerId),
@@ -27,6 +31,7 @@ export async function submitPublicIntake(
     driveLink: null,
     noteAuthorUserId: null,
     stageChangedByUserId: loanOfficerId,
+    referredByAffiliateId: referredByAffiliateId ?? null,
   });
 
   redirect(`${redirectBasePath}/${loanOfficerId}?submitted=1`);

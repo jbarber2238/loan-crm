@@ -3,6 +3,7 @@ import { StageSelect } from "@/components/deals/stage-select";
 import { PipelineStepper } from "@/components/deals/pipeline-stepper";
 import { AcceptedTermsHeader } from "@/components/deals/accepted-terms-header";
 import { ProcessingFeeInvoiceStatus } from "@/components/deals/processing-fee-invoice-status";
+import { ReferralFeeBanner } from "@/components/deals/referral-fee-banner";
 import { labelFor, LOAN_CATEGORIES, STAGES } from "@/lib/labels";
 import { conservativeValueBasis } from "@/lib/term-sheet-calculations";
 import { PAUSED_STAGES } from "@/lib/deal-pipeline";
@@ -104,6 +105,14 @@ export function DealHeader({ deal }: { deal: DealDetail }) {
 
       <PipelineStepper stage={deal.stage} pausedFromStage={deal.pausedFromStage} />
       <StageReasonBanner deal={deal} />
+
+      {deal.stage === "closed" && deal.referredByAffiliate && (
+        <ReferralFeeBanner
+          dealId={deal.id}
+          affiliateName={deal.referredByAffiliate.name ?? deal.referredByAffiliate.email}
+          paid={Boolean(deal.referralFeePaidAt)}
+        />
+      )}
 
       {deal.stripeInvoiceStatus && deal.stripeInvoiceAmount && (
         <ProcessingFeeInvoiceStatus

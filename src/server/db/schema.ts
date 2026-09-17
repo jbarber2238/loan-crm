@@ -198,6 +198,31 @@ export const users = pgTable("user", {
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 
+// Referral partners — never get CRM login access (deliberately a separate
+// table from `users`, since the whole app grants access purely by matching
+// a signed-in Google email against a `users` row; keeping affiliates out of
+// that table is what guarantees they can never sign in). An admin invites
+// one by email (row created with just email + who invited them), the
+// affiliate completes their own name/phone at the public /affiliate/[id]
+// form, and only then is their referral link considered "live."
+export const referralAffiliates = pgTable("referral_affiliate", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull().unique(),
+  name: text("name"),
+  phone: text("phone"),
+  invitedByUserId: uuid("invited_by_user_id")
+    .notNull()
+    .references(() => users.id),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  // Null until they submit the public completion form.
+  completedAt: timestamp("completed_at", { mode: "date" }),
+});
+
+export const referralAffiliatesRelations = relations(referralAffiliates, ({ one, many }) => ({
+  invitedBy: one(users, { fields: [referralAffiliates.invitedByUserId], references: [users.id] }),
+  deals: many(deals),
+}));
+
 // Singleton row (id is always "default") — company-wide settings editable
 // from Settings → Company.
 export const companySettings = pgTable("company_settings", {
@@ -528,6 +553,14 @@ export const deals = pgTable("deals", {
   assignedAssistantId: uuid("assigned_assistant_id").references(() => users.id),
   stage: dealStageEnum("stage").notNull().default("new"),
   source: text("source"),
+  // Structured referral tracking — separate from the free-text `source`
+  // field above (which stays as the borrower's own "Who referred you?"
+  // answer). Set when the deal came in through a referral affiliate's own
+  // link/embed code.
+  referredByAffiliateId: uuid("referred_by_affiliate_id").references(() => referralAffiliates.id),
+  // Null = no fee owed yet, or owed but not yet paid; set once Justin has
+  // actually issued payment to the affiliate for this specific deal.
+  referralFeePaidAt: timestamp("referral_fee_paid_at", { mode: "date" }),
   // A standing note the LO can jot down for lender reps — unique
   // situations, things to flag up front — included on new pricing emails.
   pricingNoteToRep: text("pricing_note_to_rep"),
@@ -1118,6 +1151,10 @@ export const dealsRelations = relations(deals, ({ one, many }) => ({
   }),
   lender: one(lenders, { fields: [deals.lenderId], references: [lenders.id] }),
   product: one(products, { fields: [deals.productId], references: [products.id] }),
+  referredByAffiliate: one(referralAffiliates, {
+    fields: [deals.referredByAffiliateId],
+    references: [referralAffiliates.id],
+  }),
   stageHistory: many(dealStageHistory),
   keyDateEvents: many(dealKeyDateEvents),
   clientNeeds: many(dealClientNeeds),

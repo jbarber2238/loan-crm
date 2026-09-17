@@ -95,6 +95,7 @@ export async function createDealFromIntake(
     driveLink: string | null;
     noteAuthorUserId: string | null;
     stageChangedByUserId: string;
+    referredByAffiliateId?: string | null;
   }
 ) {
   const parsed = parseIntakeFormData(formData);
@@ -135,6 +136,7 @@ export async function createDealFromIntake(
       assignedProcessorId: options.assignedProcessorId,
       assignedAssistantId: options.assignedAssistantId,
       source: parsed.source,
+      referredByAffiliateId: options.referredByAffiliateId ?? null,
       driveLink: options.driveLink,
       stage: "new",
       ...intakeToDealFields(parsed),
