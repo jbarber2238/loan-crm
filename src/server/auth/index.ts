@@ -32,8 +32,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         params: {
           access_type: "offline",
           prompt: "consent",
-          scope:
-            "openid email profile https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly",
+          // gmail.readonly (used only by the lender-reply auto-check
+          // feature) is a Google "restricted" scope requiring an annual paid
+          // CASA security assessment to verify — not worth it for this
+          // team's size. gmail.send alone is "sensitive," which only needs
+          // a privacy policy + a normal (free) Google review, and — unlike
+          // staying unverified — doesn't come with Google's short
+          // refresh-token lifetime for Testing-mode apps.
+          scope: "openid email profile https://www.googleapis.com/auth/gmail.send",
         },
       },
     }),

@@ -30,6 +30,10 @@ export function SiteFooter() {
               Investor Resources
             </Link>
             <br />
+            <Link href="/privacy" style={{ color: "rgba(250,247,242,0.5)" }} className="hover:underline">
+              Privacy Policy
+            </Link>
+            <br />
             <Link href="/sign-in" style={{ color: "rgba(250,247,242,0.5)" }} className="hover:underline">
               Team Login
             </Link>
