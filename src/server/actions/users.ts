@@ -160,6 +160,15 @@ export async function updateMyProfile(formData: FormData) {
     updates.nmlsNumber = typeof nmlsNumber === "string" && nmlsNumber.trim().length ? nmlsNumber.trim() : null;
   }
 
+  // Personal texting/calling hours — a blank value means "no restriction,"
+  // not "midnight," so each is nulled out rather than defaulted.
+  for (const key of ["inboundHoursStart", "inboundHoursEnd", "outboundHoursStart", "outboundHoursEnd"] as const) {
+    if (formData.has(key)) {
+      const value = formData.get(key);
+      updates[key] = typeof value === "string" && value.trim().length ? value.trim() : null;
+    }
+  }
+
   if (formData.has("emailSignatureHtml")) {
     const emailSignatureHtml = formData.get("emailSignatureHtml");
     updates.emailSignatureHtml =

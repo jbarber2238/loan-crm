@@ -8,6 +8,7 @@ import {
   pgTable,
   primaryKey,
   text,
+  time,
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -190,6 +191,17 @@ export const users = pgTable("user", {
   // sheets. NMLS is nullable — Justin doesn't have one yet.
   phone: text("phone"),
   nmlsNumber: text("nmls_number"),
+  // Personal texting/calling hours (My Profile) — purely a work/life
+  // boundary preference for INBOUND (a borrower calling this person), fully
+  // freeform, null meaning "no restriction, always reachable." OUTBOUND
+  // hours use the same shape but get clamped to companySettings'
+  // tcpaOutboundStart/End at the point a call/text is actually sent — this
+  // column is just this person's own preference within that ceiling, not a
+  // legal boundary itself.
+  inboundHoursStart: time("inbound_hours_start"),
+  inboundHoursEnd: time("inbound_hours_end"),
+  outboundHoursStart: time("outbound_hours_start"),
+  outboundHoursEnd: time("outbound_hours_end"),
   // Null until the person finishes the first-login setup wizard (name,
   // scheduling link, email signature) — gates the (app) layout's redirect
   // to /onboarding. Backfilled to createdAt for everyone who predates the
@@ -284,6 +296,20 @@ export const companySettings = pgTable("company_settings", {
   // this automatically in production.
   stripeSecretKey: text("stripe_secret_key"),
   stripeWebhookSecret: text("stripe_webhook_secret"),
+  // Borrower texting & calling (Settings → Phone) — one shared company
+  // number for the whole org, same "credentials live in this table, not env
+  // vars" pattern as PandaDoc/Stripe above.
+  twilioAccountSid: text("twilio_account_sid"),
+  twilioAuthToken: text("twilio_auth_token"),
+  twilioPhoneNumber: text("twilio_phone_number"),
+  // The hard TCPA-safe ceiling for OUTBOUND calls/texts — "reasonable hours"
+  // is measured against the person being called, not the staff member, so
+  // this is an org-wide cap that a user's own outboundHoursStart/End (below)
+  // can narrow but never exceed. Seeded to a conservative 8am-9pm; nullable
+  // only until an admin sets it the first time (application code treats an
+  // unset ceiling as "not configured yet," not "no limit").
+  tcpaOutboundStart: time("tcpa_outbound_start"),
+  tcpaOutboundEnd: time("tcpa_outbound_end"),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });
 
@@ -1241,6 +1267,7 @@ export const dealsRelations = relations(deals, ({ one, many }) => ({
   portfolioProperties: many(dealPortfolioProperties),
   followers: many(dealFollowers),
   survey: one(surveys, { fields: [deals.id], references: [surveys.dealId] }),
+  conversations: many(dealConversations),
 }));
 
 // People who want visibility into a deal's client-needs progress without
@@ -1356,4 +1383,155 @@ export const emailTemplatesRelations = relations(emailTemplates, ({ one }) => ({
     fields: [emailTemplates.updatedByUserId],
     references: [users.id],
   }),
+}));
+
+// --- Borrower texting & calling (scoped 2026-09-17, see the plan doc) -----
+
+export const messageDirectionEnum = pgEnum("message_direction", ["inbound", "outbound"]);
+export const callStatusEnum = pgEnum("call_status", [
+  "ringing",
+  "in_progress",
+  "completed",
+  "no_answer",
+  "busy",
+  "failed",
+  "voicemail",
+]);
+// Which bucket of staff an inbound call/text for a deal in this stage should
+// route to — "loan_officer" means the LOA-first-then-LO chain, not literally
+// only the loan officer. See resolveInboundRoute in src/server/phone-routing.ts.
+export const phoneRoutingRoleEnum = pgEnum("phone_routing_role", ["loan_officer", "processor"]);
+
+// A "conversation" is keyed by the other party's phone number, not by deal —
+// dealId is nullable so a call/text can exist (and show up in the Inbox)
+// before it's ever matched to a deal, either because it's a brand-new lead
+// or because the caller used a number that isn't the one on file. Attaching
+// to a deal later is just setting this column, not moving message rows.
+export const dealConversations = pgTable("deal_conversations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  dealId: uuid("deal_id").references(() => deals.id, { onDelete: "set null" }),
+  // The other party's own number — usually the borrower's, but could be
+  // whoever first texted/called in before any deal was matched.
+  primaryPhone: text("primary_phone").notNull(),
+  lastMessageAt: timestamp("last_message_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  // Named startedAt, not createdAt — see the withTimezone note below, this
+  // rename turned out to be unrelated to the actual bug but is a reasonable
+  // name regardless and harmless to keep.
+  startedAt: timestamp("started_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
+export const dealMessages = pgTable("deal_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  conversationId: uuid("conversation_id")
+    .notNull()
+    .references(() => dealConversations.id, { onDelete: "cascade" }),
+  direction: messageDirectionEnum("direction").notNull(),
+  body: text("body").notNull(),
+  fromNumber: text("from_number").notNull(),
+  toNumber: text("to_number").notNull(),
+  // Null for inbound (the borrower doesn't have a user row) and for any
+  // outbound message sent by automation rather than a person.
+  sentByUserId: uuid("sent_by_user_id").references(() => users.id),
+  twilioSid: text("twilio_sid"),
+  status: text("status"),
+  // withTimezone: true is required here — the raw-SQL migration for this
+  // table created the column as `timestamptz`, and Drizzle's relational
+  // query API silently produces an Invalid Date (which then serializes to
+  // null) when the schema's declared type doesn't match the actual column
+  // type. Confirmed directly: the raw SQL Drizzle generates returns the
+  // correct value; only the JS-side date decoding was wrong. Every
+  // timestamp column added for texting/calling needs this.
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
+// Ad-hoc extra numbers added to one specific conversation (a co-signer, a
+// spouse) — deliberately not a permanent column on deals; see the plan doc's
+// "group texts are ad-hoc" decision.
+export const dealConversationParticipants = pgTable("deal_conversation_participants", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  conversationId: uuid("conversation_id")
+    .notNull()
+    .references(() => dealConversations.id, { onDelete: "cascade" }),
+  name: text("name"),
+  phone: text("phone").notNull(),
+  addedAt: timestamp("added_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
+export const dealCallLogs = pgTable("deal_call_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  conversationId: uuid("conversation_id")
+    .notNull()
+    .references(() => dealConversations.id, { onDelete: "cascade" }),
+  direction: messageDirectionEnum("direction").notNull(),
+  // Outbound: who clicked "call." Inbound: who the call was ultimately
+  // routed to/connected with (null if it never connected to anyone).
+  initiatedByUserId: uuid("initiated_by_user_id").references(() => users.id),
+  counterpartyNumber: text("counterparty_number").notNull(),
+  startedAt: timestamp("started_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  answeredAt: timestamp("answered_at", { mode: "date", withTimezone: true }),
+  endedAt: timestamp("ended_at", { mode: "date", withTimezone: true }),
+  durationSeconds: integer("duration_seconds"),
+  status: callStatusEnum("status").notNull().default("ringing"),
+  twilioCallSid: text("twilio_call_sid"),
+  // Set only for a missed inbound call that went to voicemail — Twilio's
+  // hosted recording URL (see twilio-voice-recording webhook). No
+  // transcription yet.
+  recordingUrl: text("recording_url"),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
+// Which role bucket an inbound call/text routes to, by the deal's current
+// stage — admin-editable (Settings → Phone), seeded with Justin's own rule:
+// everything pre-Application (plus anything that fell out the back —
+// on_hold/lost/follow_up/disqualified) goes to the LOA-then-LO chain;
+// Application through Clear to Close goes to the processor.
+export const phoneStageRouting = pgTable("phone_stage_routing", {
+  stage: dealStageEnum("stage").primaryKey(),
+  targetRole: phoneRoutingRoleEnum("target_role").notNull(),
+});
+
+// Fallback chain for a call/text that doesn't match any deal at all (wrong
+// number, or a brand-new lead calling in before anyone's assigned) — a real
+// ordered sequence from day one, even though it's just Justin today. See
+// resolveUnmatchedRoute in src/server/phone-routing.ts.
+export const phoneUnmatchedRouting = pgTable("phone_unmatched_routing", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  sortOrder: integer("sort_order").notNull(),
+});
+
+export const dealConversationsRelations = relations(dealConversations, ({ one, many }) => ({
+  deal: one(deals, { fields: [dealConversations.dealId], references: [deals.id] }),
+  messages: many(dealMessages),
+  participants: many(dealConversationParticipants),
+  callLogs: many(dealCallLogs),
+}));
+
+export const dealMessagesRelations = relations(dealMessages, ({ one }) => ({
+  conversation: one(dealConversations, {
+    fields: [dealMessages.conversationId],
+    references: [dealConversations.id],
+  }),
+  sentByUser: one(users, { fields: [dealMessages.sentByUserId], references: [users.id] }),
+}));
+
+export const dealConversationParticipantsRelations = relations(dealConversationParticipants, ({ one }) => ({
+  conversation: one(dealConversations, {
+    fields: [dealConversationParticipants.conversationId],
+    references: [dealConversations.id],
+  }),
+}));
+
+export const dealCallLogsRelations = relations(dealCallLogs, ({ one }) => ({
+  conversation: one(dealConversations, {
+    fields: [dealCallLogs.conversationId],
+    references: [dealConversations.id],
+  }),
+  initiatedByUser: one(users, { fields: [dealCallLogs.initiatedByUserId], references: [users.id] }),
+}));
+
+export const phoneUnmatchedRoutingRelations = relations(phoneUnmatchedRouting, ({ one }) => ({
+  user: one(users, { fields: [phoneUnmatchedRouting.userId], references: [users.id] }),
 }));

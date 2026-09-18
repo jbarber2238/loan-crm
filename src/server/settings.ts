@@ -83,3 +83,26 @@ export async function getStripeWebhookSecret(): Promise<string | null> {
   });
   return row?.stripeWebhookSecret ?? null;
 }
+
+export interface TwilioSettings {
+  accountSid: string;
+  authToken: string;
+  phoneNumber: string;
+}
+
+export async function getTwilioSettings(): Promise<TwilioSettings | null> {
+  const row = await db.query.companySettings.findFirst({
+    where: eq(companySettings.id, "default"),
+  });
+  if (!row?.twilioAccountSid || !row.twilioAuthToken || !row.twilioPhoneNumber) return null;
+  return { accountSid: row.twilioAccountSid, authToken: row.twilioAuthToken, phoneNumber: row.twilioPhoneNumber };
+}
+
+/** The org-wide TCPA-safe ceiling for outbound calls/texts — "HH:MM" 24h strings, or null if never configured. */
+export async function getTcpaOutboundWindow(): Promise<{ start: string; end: string } | null> {
+  const row = await db.query.companySettings.findFirst({
+    where: eq(companySettings.id, "default"),
+  });
+  if (!row?.tcpaOutboundStart || !row.tcpaOutboundEnd) return null;
+  return { start: row.tcpaOutboundStart, end: row.tcpaOutboundEnd };
+}

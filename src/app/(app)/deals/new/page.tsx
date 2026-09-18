@@ -15,8 +15,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export default async function NewDealPage() {
+export default async function NewDealPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ phone?: string; conversationId?: string }>;
+}) {
   const user = await requireUser();
+  const { phone, conversationId } = await searchParams;
 
   const allUsers = await db.query.users.findMany({
     where: (users, { eq }) => eq(users.active, true),
@@ -89,7 +94,8 @@ export default async function NewDealPage() {
               </div>
             </section>
 
-            <IntakeFormFields />
+            {conversationId && <input type="hidden" name="conversationId" value={conversationId} />}
+            <IntakeFormFields defaultBorrowerPhone={phone} />
 
             <SubmitButton className="w-full">Create Deal</SubmitButton>
           </ActionForm>

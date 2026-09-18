@@ -12,6 +12,10 @@ declare module "next-auth" {
       phone: string | null;
       nmlsNumber: string | null;
       onboardedAt: string | null;
+      inboundHoursStart: string | null;
+      inboundHoursEnd: string | null;
+      outboundHoursStart: string | null;
+      outboundHoursEnd: string | null;
     } & DefaultSession["user"];
   }
 }

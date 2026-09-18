@@ -92,6 +92,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         phone: string | null;
         nmlsNumber: string | null;
         onboardedAt: Date | null;
+        inboundHoursStart: string | null;
+        inboundHoursEnd: string | null;
+        outboundHoursStart: string | null;
+        outboundHoursEnd: string | null;
       };
       session.user.id = dbUser.id;
       session.user.isAdmin = dbUser.isAdmin;
@@ -102,6 +106,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.phone = dbUser.phone;
       session.user.nmlsNumber = dbUser.nmlsNumber;
       session.user.onboardedAt = dbUser.onboardedAt?.toISOString() ?? null;
+      session.user.inboundHoursStart = dbUser.inboundHoursStart;
+      session.user.inboundHoursEnd = dbUser.inboundHoursEnd;
+      session.user.outboundHoursStart = dbUser.outboundHoursStart;
+      session.user.outboundHoursEnd = dbUser.outboundHoursEnd;
       return session;
     },
   },

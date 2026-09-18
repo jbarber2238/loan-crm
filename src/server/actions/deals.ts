@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { CLIENT_NEEDS_REMINDER_INTERVAL_HOURS } from "@/lib/client-needs-reminders";
 import { db } from "@/server/db/client";
 import {
+  dealConversations,
   dealFollowers,
   dealNotes,
   dealPortfolioProperties,
@@ -76,6 +77,14 @@ export async function createDeal(formData: FormData) {
     noteAuthorUserId: user.id,
     stageChangedByUserId: user.id,
   });
+
+  // Started from an Inbox conversation (a call/text that didn't match any
+  // deal) — attach it now that the deal exists, so the conversation moves
+  // out of the Inbox and onto this deal's own Messages tab.
+  const conversationId = nullableStr(formData, "conversationId");
+  if (conversationId) {
+    await db.update(dealConversations).set({ dealId }).where(eq(dealConversations.id, conversationId));
+  }
 
   revalidatePath("/");
   redirect(`/deals/${dealId}`);

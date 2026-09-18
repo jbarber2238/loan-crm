@@ -70,10 +70,6 @@ export default async function MyProfilePage() {
             className="space-y-3 border-t pt-4 max-w-sm"
           >
             <div className="space-y-1.5">
-              <Label htmlFor="phone">Phone</Label>
-              <Input id="phone" name="phone" type="tel" defaultValue={user.phone ?? ""} placeholder="(555) 555-5555" />
-            </div>
-            <div className="space-y-1.5">
               <Label htmlFor="nmlsNumber">NMLS #</Label>
               <Input id="nmlsNumber" name="nmlsNumber" defaultValue={user.nmlsNumber ?? ""} placeholder="Not yet licensed" />
             </div>
@@ -84,6 +80,64 @@ export default async function MyProfilePage() {
             <SubmitButton>Save</SubmitButton>
           </ActionForm>
         )}
+
+        <ActionForm action={updateMyProfile} successMessage="Phone saved" className="space-y-1.5 border-t pt-4 max-w-sm">
+          <Label htmlFor="phone">Your phone number</Label>
+          <Input id="phone" name="phone" type="tel" defaultValue={user.phone ?? ""} placeholder="(555) 555-5555" />
+          <p className="text-xs text-muted-foreground pb-2">
+            Used for click-to-call — when you call a borrower from a deal, this is the number that rings first,
+            before you're bridged to them. Also shown on term sheets if you&apos;re a loan officer.
+          </p>
+          <SubmitButton>Save</SubmitButton>
+        </ActionForm>
+
+        <ActionForm action={updateMyProfile} successMessage="Hours saved" className="space-y-4 border-t pt-4 max-w-sm">
+          <div>
+            <Label className="mb-1.5 block">Inbound hours</Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              When a borrower's call should ring your phone. Purely your own preference — leave blank for no
+              restriction (always reachable).
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                aria-label="Inbound hours start"
+                name="inboundHoursStart"
+                type="time"
+                defaultValue={user.inboundHoursStart?.slice(0, 5) ?? ""}
+              />
+              <span className="text-sm text-muted-foreground">to</span>
+              <Input
+                aria-label="Inbound hours end"
+                name="inboundHoursEnd"
+                type="time"
+                defaultValue={user.inboundHoursEnd?.slice(0, 5) ?? ""}
+              />
+            </div>
+          </div>
+          <div>
+            <Label className="mb-1.5 block">Outbound hours</Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              When you can call/text a borrower from the app. Capped to the company&apos;s TCPA-safe window
+              regardless of what you set here — this can only narrow it, not widen it.
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                aria-label="Outbound hours start"
+                name="outboundHoursStart"
+                type="time"
+                defaultValue={user.outboundHoursStart?.slice(0, 5) ?? ""}
+              />
+              <span className="text-sm text-muted-foreground">to</span>
+              <Input
+                aria-label="Outbound hours end"
+                name="outboundHoursEnd"
+                type="time"
+                defaultValue={user.outboundHoursEnd?.slice(0, 5) ?? ""}
+              />
+            </div>
+          </div>
+          <SubmitButton>Save</SubmitButton>
+        </ActionForm>
 
         <ActionForm action={updateMyProfile} successMessage="Signature saved" className="space-y-1.5 border-t pt-4">
           <Label>Email signature</Label>

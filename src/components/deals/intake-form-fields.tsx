@@ -184,7 +184,7 @@ function PortfolioPropertyBlock({ index }: { index: number }) {
   );
 }
 
-export function IntakeFormFields() {
+export function IntakeFormFields({ defaultBorrowerPhone }: { defaultBorrowerPhone?: string } = {}) {
   const [category, setCategory] = useState("");
   const [fixFlipOwned, setFixFlipOwned] = useState(false);
   const [constructionOwnsLand, setConstructionOwnsLand] = useState(false);
@@ -259,7 +259,7 @@ export function IntakeFormFields() {
                   Phone
                   <Req />
                 </Label>
-                <Input id="borrowerPhone" name="borrowerPhone" type="tel" required />
+                <Input id="borrowerPhone" name="borrowerPhone" type="tel" defaultValue={defaultBorrowerPhone} required />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="borrowerEmail">
