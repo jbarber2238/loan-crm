@@ -27,6 +27,7 @@ import { extractTermSheetFields } from "@/lib/term-sheet-fields";
 import { conservativeValueBasis, calculateLtarv, calculateLtc } from "@/lib/term-sheet-calculations";
 import { syncProcessingFeeInvoice } from "@/server/billing";
 import { notifyAffiliateOfNewDeal, notifyAffiliateOfStageChange } from "@/server/actions/referral-affiliates";
+import { notifyAdminOfNewDeal } from "@/server/deal-notifications";
 
 const HARD_MONEY_DRAW_CATEGORIES = new Set(["fix_and_flip", "new_construction"]);
 
@@ -211,6 +212,10 @@ export async function createDealFromIntake(
       console.error("Failed to send affiliate deal-submitted email:", err);
     });
   }
+
+  await notifyAdminOfNewDeal(deal.id).catch((err) => {
+    console.error("Failed to send admin new-deal notification:", err);
+  });
 
   return deal.id;
 }
