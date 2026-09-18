@@ -116,6 +116,7 @@ export async function buildAllDealTokens(deal: Deal): Promise<Record<string, str
 
     // Financial
     purchasePrice: money(deal.purchasePrice),
+    didRehabSincePurchase: yesNo(deal.didRehabSincePurchase),
     rehabBudget: money(deal.estimatedRehabCost),
     rehabDone: textOr(deal.rehabDescription),
     arv: money(deal.estimatedArv),

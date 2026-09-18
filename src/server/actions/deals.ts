@@ -263,6 +263,7 @@ export async function updateDealDetails(dealId: string, formData: FormData) {
       numNewConstruction: nullableInt(formData, "numNewConstruction"),
       propertyAlreadyOwned: boolField(formData, "propertyAlreadyOwned"),
       propertyPurchaseDate: dateOrNull(formData, "propertyPurchaseDate"),
+      didRehabSincePurchase: yesNoOrNull(formData, "didRehabSincePurchase"),
       estimatedRehabCost: nullableStr(formData, "estimatedRehabCost"),
       rehabDescription: nullableStr(formData, "rehabDescription"),
       estimatedArv: nullableStr(formData, "estimatedArv"),

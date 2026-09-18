@@ -188,6 +188,7 @@ export function IntakeFormFields({ defaultBorrowerPhone }: { defaultBorrowerPhon
   const [category, setCategory] = useState("");
   const [fixFlipOwned, setFixFlipOwned] = useState(false);
   const [constructionOwnsLand, setConstructionOwnsLand] = useState(false);
+  const [didCashOutRehab, setDidCashOutRehab] = useState(false);
   const [addressType, setAddressType] = useState<"address" | "parcel">("address");
   const [portfolioCount, setPortfolioCount] = useState<number | null>(null);
 
@@ -566,6 +567,50 @@ export function IntakeFormFields({ defaultBorrowerPhone }: { defaultBorrowerPhon
                     <Req />
                   </Label>
                   <Textarea id="rehabDescription" name="rehabDescription" rows={3} required />
+                </div>
+              )}
+
+              {s.showCashOutRefiRehabQuestion && (
+                <div className="space-y-4">
+                  <div className="space-y-1.5 max-w-xs">
+                    <Label htmlFor="didRehabSincePurchase">
+                      Did you do any rehab to the property since purchasing it?
+                      <Req />
+                    </Label>
+                    <Select
+                      name="didRehabSincePurchase"
+                      required
+                      onValueChange={(v) => setDidCashOutRehab(v === "yes")}
+                    >
+                      <SelectTrigger id="didRehabSincePurchase" className="w-full">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="yes">Yes</SelectItem>
+                        <SelectItem value="no">No</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {didCashOutRehab && (
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="estimatedRehabCost">
+                          Estimated Rehab Cost
+                          <Req />
+                        </Label>
+                        <Input id="estimatedRehabCost" name="estimatedRehabCost" type="number" required />
+                      </div>
+                    </div>
+                  )}
+                  {didCashOutRehab && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="rehabDescription">
+                        Brief Description of Rehab
+                        <Req />
+                      </Label>
+                      <Textarea id="rehabDescription" name="rehabDescription" rows={3} required />
+                    </div>
+                  )}
                 </div>
               )}
 

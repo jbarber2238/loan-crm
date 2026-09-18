@@ -806,6 +806,14 @@ export const deals = pgTable("deals", {
   // land?" branch — same underlying question, different label per category.
   propertyAlreadyOwned: boolean("property_already_owned"),
   propertyPurchaseDate: timestamp("property_purchase_date", { mode: "date" }),
+  // DSCR Cash-Out Refinance only — whether rehab was done since purchase is
+  // asked explicitly there (unlike Fix & Flip/New Construction, where rehab
+  // is a given); estimatedRehabCost/rehabDescription below are shared with
+  // those categories and only required here when this is true. Lenders use
+  // this alongside propertyPurchaseDate to judge cash-out eligibility — a
+  // recent purchase with no rehab reads very differently than one with real
+  // value-add work behind it.
+  didRehabSincePurchase: boolean("did_rehab_since_purchase"),
   estimatedRehabCost: numeric("estimated_rehab_cost"),
   rehabDescription: text("rehab_description"),
   estimatedArv: numeric("estimated_arv"),

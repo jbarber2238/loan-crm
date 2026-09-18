@@ -553,6 +553,15 @@ export function OverviewTab({ deal }: { deal: Deal }) {
           <Section title="Refinance">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-1.5">
+                <Label htmlFor="propertyPurchaseDate">Property purchase date</Label>
+                <Input
+                  id="propertyPurchaseDate"
+                  name="propertyPurchaseDate"
+                  type="date"
+                  defaultValue={toDateInputValue(deal.propertyPurchaseDate)}
+                />
+              </div>
+              <div className="space-y-1.5">
                 <Label htmlFor="mortgagePayoffAmount">Mortgage payoff amount</Label>
                 <Input
                   id="mortgagePayoffAmount"
@@ -575,6 +584,43 @@ export function OverviewTab({ deal }: { deal: Deal }) {
               <Checkbox name="propertyListedOnMarket" defaultChecked={deal.propertyListedOnMarket ?? false} />
               Property currently listed on the market
             </label>
+
+            {s.showCashOutRefiRehabQuestion && (
+              <div className="space-y-4 border-t pt-4">
+                <div className="max-w-xs space-y-1.5">
+                  <Label htmlFor="didRehabSincePurchase">Did they do rehab since purchasing?</Label>
+                  <Select name="didRehabSincePurchase" defaultValue={yesNoDefault(deal.didRehabSincePurchase)}>
+                    <SelectTrigger id="didRehabSincePurchase" className="w-full">
+                      <SelectValue placeholder="Not set" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yes">Yes</SelectItem>
+                      <SelectItem value="no">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="estimatedRehabCost">Rehab cost</Label>
+                    <Input
+                      id="estimatedRehabCost"
+                      name="estimatedRehabCost"
+                      type="number"
+                      defaultValue={deal.estimatedRehabCost ?? ""}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="rehabDescription">Rehab description</Label>
+                  <Textarea
+                    id="rehabDescription"
+                    name="rehabDescription"
+                    rows={3}
+                    defaultValue={deal.rehabDescription ?? ""}
+                  />
+                </div>
+              </div>
+            )}
           </Section>
         )}
         </div>

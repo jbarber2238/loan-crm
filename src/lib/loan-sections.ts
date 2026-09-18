@@ -42,6 +42,11 @@ export function sectionsFor(category: string) {
     showRental: rental.has(category),
     showFixFlipOwnership: category === "fix_and_flip",
     showConstructionLandOwnership: category === "new_construction",
+    // Unlike Fix & Flip/New Construction (where rehab is a given), a DSCR
+    // Cash-Out Refinance may or may not have had rehab done since purchase
+    // — asked explicitly, gating the shared estimatedRehabCost/
+    // rehabDescription fields rather than always requiring them.
+    showCashOutRefiRehabQuestion: category === "dscr_cash_out_refinance",
     // Fix-and-flip and new construction are sized against ARV/total project
     // cost (LTARV/LTC), not a straight purchase-price LTV. Bridge deals keep
     // plain LTV even though they share the same rehab-cost/ARV fields.

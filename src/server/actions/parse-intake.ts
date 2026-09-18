@@ -25,6 +25,16 @@ function yesNo(formData: FormData, key: string): boolean {
   return formData.get(key) === "yes";
 }
 
+// Same as yesNo, but for a field that isn't always asked (e.g. only shown
+// for one loan category) — "not asked" (null) needs to stay distinct from
+// an explicit "No".
+function yesNoOrNull(formData: FormData, key: string): boolean | null {
+  const value = formData.get(key);
+  if (value === "yes") return true;
+  if (value === "no") return false;
+  return null;
+}
+
 function date(formData: FormData, key: string): Date | null {
   const value = str(formData, key);
   return value ? new Date(value) : null;
@@ -74,6 +84,7 @@ export interface ParsedIntake {
   purchasePrice: string | null;
   estimatedAsIsValue: string | null;
   estimatedAsIsLotValue: string | null;
+  didRehabSincePurchase: boolean | null;
   estimatedRehabCost: string | null;
   estimatedArv: string | null;
   rehabDescription: string | null;
@@ -146,6 +157,7 @@ export function parseIntakeFormData(formData: FormData): ParsedIntake {
     purchasePrice: num(formData, "purchasePrice"),
     estimatedAsIsValue: num(formData, "estimatedAsIsValue"),
     estimatedAsIsLotValue: num(formData, "estimatedAsIsLotValue"),
+    didRehabSincePurchase: yesNoOrNull(formData, "didRehabSincePurchase"),
     estimatedRehabCost: num(formData, "estimatedRehabCost"),
     estimatedArv: num(formData, "estimatedArv"),
     rehabDescription: str(formData, "rehabDescription"),
@@ -190,6 +202,7 @@ export function intakeToDealFields(parsed: ParsedIntake) {
     numNewConstruction: parsed.numNewConstruction,
     propertyAlreadyOwned: parsed.propertyAlreadyOwned,
     propertyPurchaseDate: parsed.propertyPurchaseDate,
+    didRehabSincePurchase: parsed.didRehabSincePurchase,
     estimatedRehabCost: parsed.estimatedRehabCost,
     rehabDescription: parsed.rehabDescription,
     estimatedArv: parsed.estimatedArv,
