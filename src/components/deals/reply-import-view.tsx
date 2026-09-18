@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { checkPricingRequestReply } from "@/server/actions/pricing";
+import { saveManualPricingReply } from "@/server/actions/pricing";
 import { extractTermSheetFromReply } from "@/server/ai/term-sheet-extraction";
 import { createTermSheet } from "@/server/actions/term-sheets";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { TermSheetFieldInputs } from "@/components/deals/term-sheet-field-inputs";
 import { termSheetFieldsFor } from "@/lib/term-sheet-fields";
 import { originationFeeSuggestion } from "@/lib/term-sheet-calculations";
@@ -38,8 +40,6 @@ export function ReplyImportView({
   pricingRequestId,
   lenderId,
   loanCategory,
-  replyCheckedAt,
-  replyFrom,
   replyReceivedAt,
   replyBodyText,
   attachments,
@@ -51,8 +51,6 @@ export function ReplyImportView({
   pricingRequestId: string;
   lenderId: string;
   loanCategory: string;
-  replyCheckedAt: Date | null;
-  replyFrom: string | null;
   replyReceivedAt: Date | null;
   replyBodyText: string | null;
   attachments: ReplyAttachment[];
@@ -61,9 +59,11 @@ export function ReplyImportView({
   estimatedAsIsValue?: number | null;
 }) {
   const router = useRouter();
-  const checkReply = checkPricingRequestReply.bind(null, dealId, pricingRequestId);
-  const [checking, startCheck] = useTransition();
-  const [checkError, setCheckError] = useState<string | null>(null);
+  const saveReply = saveManualPricingReply.bind(null, dealId, pricingRequestId);
+  const [saving, startSave] = useTransition();
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [editingReply, setEditingReply] = useState(false);
+  const replyFormRef = useRef<HTMLFormElement>(null);
 
   const [extracting, startExtract] = useTransition();
   const [extractError, setExtractError] = useState<string | null>(null);
@@ -77,16 +77,19 @@ export function ReplyImportView({
   const lenderProducts = products.filter((p) => p.lenderId === lenderId);
   const hasReply = Boolean(replyBodyText || attachments.length);
 
-  function handleCheck() {
-    setCheckError(null);
-    startCheck(async () => {
+  function handleSaveReply(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSaveError(null);
+    const formData = new FormData(e.currentTarget);
+    startSave(async () => {
       try {
-        await checkReply();
-        toast.success("Checked for reply");
+        await saveReply(formData);
+        toast.success("Reply saved");
+        setEditingReply(false);
         router.refresh();
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Couldn't check for a reply.";
-        setCheckError(message);
+        const message = err instanceof Error ? err.message : "Couldn't save the reply.";
+        setSaveError(message);
         toast.error(message);
       }
     });
@@ -142,28 +145,53 @@ export function ReplyImportView({
     <div className="space-y-3 rounded-md border p-3">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium">Lender Reply</p>
-        <Button type="button" size="sm" variant="outline" onClick={handleCheck} disabled={checking}>
-          {checking ? "Checking…" : "Check for reply"}
-        </Button>
+        {hasReply && !editingReply && (
+          <Button type="button" size="sm" variant="ghost" onClick={() => setEditingReply(true)}>
+            Replace
+          </Button>
+        )}
       </div>
 
-      {checkError && <p className="text-sm text-destructive">{checkError}</p>}
-
-      {replyCheckedAt && (
-        <p className="text-xs text-muted-foreground">
-          Last checked {new Date(replyCheckedAt).toLocaleString()}
-          {!hasReply && " — no reply yet."}
-        </p>
+      {(!hasReply || editingReply) && (
+        <form ref={replyFormRef} onSubmit={handleSaveReply} className="space-y-2">
+          <div className="space-y-1.5">
+            <Label htmlFor={`replyBodyText-${pricingRequestId}`}>Paste the lender&apos;s email</Label>
+            <Textarea
+              id={`replyBodyText-${pricingRequestId}`}
+              name="replyBodyText"
+              rows={5}
+              defaultValue={replyBodyText ?? ""}
+              placeholder="Paste the reply text here..."
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`replyFile-${pricingRequestId}`}>Or upload the PDF/screenshot they sent</Label>
+            <Input id={`replyFile-${pricingRequestId}`} name="file" type="file" multiple />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button type="submit" size="sm" disabled={saving}>
+              {saving ? "Saving…" : "Save reply"}
+            </Button>
+            {editingReply && (
+              <Button type="button" size="sm" variant="ghost" onClick={() => setEditingReply(false)}>
+                Cancel
+              </Button>
+            )}
+          </div>
+          {saveError && <p className="text-sm text-destructive">{saveError}</p>}
+        </form>
       )}
 
-      {hasReply && (
+      {hasReply && !editingReply && (
         <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">
-            From {replyFrom} {replyReceivedAt && `— ${new Date(replyReceivedAt).toLocaleString()}`}
-          </p>
-          <div className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-xs">
-            {replyBodyText || "(no plain text body — see attachments)"}
-          </div>
+          {replyReceivedAt && (
+            <p className="text-xs text-muted-foreground">Added {new Date(replyReceivedAt).toLocaleString()}</p>
+          )}
+          {replyBodyText && (
+            <div className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-xs">
+              {replyBodyText}
+            </div>
+          )}
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {attachments.map((a) => (

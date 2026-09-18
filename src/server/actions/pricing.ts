@@ -6,7 +6,6 @@ import { db } from "@/server/db/client";
 import { deals, lenderReps, pricingRequestReplyAttachments, pricingRequests } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { sendGmailAs } from "@/server/gmail/send";
-import { getLatestThreadReply } from "@/server/gmail/read";
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
 import { buildPricingEmail } from "@/server/pricing-templates";
@@ -129,7 +128,7 @@ async function sendOnePricingRequest(user: { id: string; email: string }, reques
     getCompanyLogoHtml(),
     getUserEmailSignatureHtml(user.id),
   ]);
-  const sent = await sendGmailAs(user.id, user.email, {
+  await sendGmailAs(user.id, user.email, {
     to: request.lenderRep.email,
     cc: request.emailCc || null,
     subject: request.emailSubject,
@@ -139,12 +138,7 @@ async function sendOnePricingRequest(user: { id: string; email: string }, reques
 
   await db
     .update(pricingRequests)
-    .set({
-      status: "sent",
-      sentAt: new Date(),
-      gmailMessageId: sent.id ?? null,
-      gmailThreadId: sent.threadId ?? null,
-    })
+    .set({ status: "sent", sentAt: new Date() })
     .where(eq(pricingRequests.id, requestId));
 }
 
@@ -172,47 +166,49 @@ export async function sendAllPricingRequests(dealId: string) {
   revalidatePath(`/deals/${dealId}`);
 }
 
-export async function checkPricingRequestReply(dealId: string, requestId: string) {
-  const user = await requireUser();
+const MAX_REPLY_ATTACHMENT_SIZE = 15 * 1024 * 1024; // 15MB
 
-  const request = await db.query.pricingRequests.findFirst({
-    where: eq(pricingRequests.id, requestId),
-  });
-  if (!request) throw new Error("Pricing request not found");
-  if (!request.gmailThreadId) {
-    throw new Error("This request has no Gmail thread on file — it may predate this feature.");
+/**
+ * The lender's reply, entered by hand — paste the email text and/or upload
+ * the PDF/screenshot they sent. Feeds the exact same replyBodyText/
+ * attachments storage (and the same AI extraction — see
+ * extractTermSheetFromReply) that an auto-fetched Gmail reply used to,
+ * deliberately: reading a lender reply straight out of Gmail would need the
+ * gmail.readonly scope, which Google classifies as "restricted" and
+ * requires an annual paid security audit on top of the usual verification —
+ * not worth it for this.
+ */
+export async function saveManualPricingReply(dealId: string, requestId: string, formData: FormData) {
+  await requireUser();
+
+  const bodyText = formData.get("replyBodyText");
+  const files = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
+  const tooLarge = files.find((f) => f.size > MAX_REPLY_ATTACHMENT_SIZE);
+  if (tooLarge) {
+    throw new Error(`${tooLarge.name} is too large (15MB max)`);
   }
 
-  const reply = await getLatestThreadReply(user.id, request.gmailThreadId);
-
-  if (!reply) {
-    await db
-      .update(pricingRequests)
-      .set({ replyCheckedAt: new Date() })
-      .where(eq(pricingRequests.id, requestId));
-    revalidatePath(`/deals/${dealId}`);
-    return;
+  const text = typeof bodyText === "string" && bodyText.trim() ? bodyText.trim() : null;
+  if (!text && !files.length) {
+    throw new Error("Paste the reply text or upload a file — at least one is needed.");
   }
 
   await db
     .update(pricingRequests)
-    .set({
-      replyCheckedAt: new Date(),
-      replyFrom: reply.from,
-      replyReceivedAt: reply.receivedAt,
-      replyBodyText: reply.bodyText,
-    })
+    .set({ replyReceivedAt: new Date(), replyBodyText: text })
     .where(eq(pricingRequests.id, requestId));
 
   await db.delete(pricingRequestReplyAttachments).where(eq(pricingRequestReplyAttachments.pricingRequestId, requestId));
-  if (reply.attachments.length) {
+  if (files.length) {
     await db.insert(pricingRequestReplyAttachments).values(
-      reply.attachments.map((a) => ({
-        pricingRequestId: requestId,
-        fileName: a.fileName,
-        mimeType: a.mimeType,
-        data: a.dataBase64,
-      }))
+      await Promise.all(
+        files.map(async (file) => ({
+          pricingRequestId: requestId,
+          fileName: file.name,
+          mimeType: file.type || "application/octet-stream",
+          data: Buffer.from(await file.arrayBuffer()).toString("base64"),
+        }))
+      )
     );
   }
 

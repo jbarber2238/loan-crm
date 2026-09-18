@@ -1033,11 +1033,14 @@ export const pricingRequests = pgTable("pricing_requests", {
   sentAt: timestamp("sent_at", { mode: "date" }),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 
-  // Gmail thread this was sent in, so a reply can be found later.
-  gmailMessageId: text("gmail_message_id"),
-  gmailThreadId: text("gmail_thread_id"),
-  replyCheckedAt: timestamp("reply_checked_at", { mode: "date" }),
-  replyFrom: text("reply_from"),
+  // The lender's reply, entered manually (pasted email text and/or an
+  // uploaded PDF/screenshot) — not read from Gmail. Reading a lender's
+  // actual reply out of the loan officer's inbox would need Gmail's
+  // gmail.readonly scope, which Google classifies as "restricted": on top
+  // of the usual verification, that requires an annual third-party
+  // security audit (a real recurring cost), which isn't worth it for this.
+  // replyReceivedAt is "when this was added," not literally an email
+  // timestamp.
   replyReceivedAt: timestamp("reply_received_at", { mode: "date" }),
   replyBodyText: text("reply_body_text"),
 });

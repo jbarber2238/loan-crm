@@ -21,7 +21,6 @@ import { Label } from "@/components/ui/label";
 import { PriceLoanDialog } from "@/components/deals/price-loan-dialog";
 import { ReplyImportView } from "@/components/deals/reply-import-view";
 import { QuickPricerCard } from "@/components/deals/quick-pricer-card";
-import { PricingAutoCheckReplies } from "@/components/deals/pricing-auto-check-replies";
 import { CollapsibleSection } from "@/components/email-templates/collapsible-section";
 import { RecipientLine } from "@/components/emails/recipient-line";
 import { SignaturePreview } from "@/components/emails/signature-preview";
@@ -42,12 +41,9 @@ interface PricingRequest {
   isQuickPricer: boolean;
   status: "draft" | "sent";
   sentAt: Date | null;
-  gmailThreadId: string | null;
   lenderId: string;
   lender: { name: string; quickPricerUrl: string | null };
   lenderRep: { name: string; email: string };
-  replyCheckedAt: Date | null;
-  replyFrom: string | null;
   replyReceivedAt: Date | null;
   replyBodyText: string | null;
   replyAttachments: { id: string; fileName: string; mimeType: string }[];
@@ -172,8 +168,6 @@ function PricingRequestCard({
               pricingRequestId={request.id}
               lenderId={request.lenderId}
               loanCategory={loanCategory}
-              replyCheckedAt={request.replyCheckedAt}
-              replyFrom={request.replyFrom}
               replyReceivedAt={request.replyReceivedAt}
               replyBodyText={request.replyBodyText}
               attachments={request.replyAttachments}
@@ -229,9 +223,6 @@ export function PricingTab({
   const updateNote = updateDealPricingNote.bind(null, dealId);
   const sendAll = sendAllPricingRequests.bind(null, dealId);
   const draftCount = requests.filter((r) => r.status === "draft").length;
-  const pendingReplyCheckIds = requests
-    .filter((r) => r.status === "sent" && r.gmailThreadId && !hasReply(r))
-    .map((r) => r.id);
 
   // null = no override yet, respect each group's own defaultOpen (a draft or
   // a fresh reply). Forcing all open/closed remounts every section (via the
@@ -245,7 +236,6 @@ export function PricingTab({
 
   return (
     <div className="space-y-4">
-      <PricingAutoCheckReplies dealId={dealId} pendingRequestIds={pendingReplyCheckIds} />
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Note to Rep</CardTitle>
