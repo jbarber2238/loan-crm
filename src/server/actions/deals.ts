@@ -27,7 +27,7 @@ import { extractTermSheetFields } from "@/lib/term-sheet-fields";
 import { conservativeValueBasis, calculateLtarv, calculateLtc } from "@/lib/term-sheet-calculations";
 import { syncProcessingFeeInvoice } from "@/server/billing";
 import { notifyAffiliateOfNewDeal, notifyAffiliateOfStageChange } from "@/server/actions/referral-affiliates";
-import { notifyAdminOfNewDeal } from "@/server/deal-notifications";
+import { notifyAdminOfNewDeal, notifyBorrowerOfSubmission } from "@/server/deal-notifications";
 
 const HARD_MONEY_DRAW_CATEGORIES = new Set(["fix_and_flip", "new_construction"]);
 
@@ -215,6 +215,10 @@ export async function createDealFromIntake(
 
   await notifyAdminOfNewDeal(deal.id).catch((err) => {
     console.error("Failed to send admin new-deal notification:", err);
+  });
+
+  await notifyBorrowerOfSubmission(deal.id).catch((err) => {
+    console.error("Failed to send borrower deal-received notification:", err);
   });
 
   return deal.id;
@@ -475,11 +479,41 @@ export async function updateDealDates(dealId: string, formData: FormData) {
   revalidatePath(`/deals/${dealId}`);
 }
 
-// The one place a deal's stage ever changes (header dropdown + kanban
-// drag-and-drop both call this). On Hold/Follow-up/Lost/Disqualified all
-// require a reason — the UI is expected to have already collected it via
-// StageReasonDialog before calling this, but it's re-validated here too
-// since this is a callable server action.
+// Automatic forward-progression hook for a handful of specific staff/system
+// actions (pricing a loan, generating a term sheet PDF, sending it to the
+// borrower, the processing-fee invoice getting paid) — see each call site.
+// The `where stage = fromStage` guard makes this safe to call from a
+// webhook with no session and idempotent against retries/double-clicks: if
+// the deal has already moved on (by this same trigger firing twice, or a
+// staffer manually changing the stage themselves), it's a no-op rather than
+// a regression or a duplicate notification. `changedByUserId` is null for
+// the one webhook-triggered case (invoice paid — no signed-in user).
+export async function advanceDealStage(
+  dealId: string,
+  fromStage: (typeof dealStageEnum.enumValues)[number],
+  toStage: (typeof dealStageEnum.enumValues)[number],
+  changedByUserId: string | null
+): Promise<boolean> {
+  const [updated] = await db
+    .update(deals)
+    .set({ stage: toStage, updatedAt: new Date() })
+    .where(and(eq(deals.id, dealId), eq(deals.stage, fromStage)))
+    .returning({ id: deals.id });
+  if (!updated) return false;
+
+  await db.insert(dealStageHistory).values({ dealId, stage: toStage, changedByUserId });
+  revalidatePath("/");
+  revalidatePath(`/deals/${dealId}`);
+  return true;
+}
+
+// The one place a deal's stage ever changes via direct staff choice (header
+// dropdown + kanban drag-and-drop both call this) — distinct from
+// advanceDealStage above, which is for automatic forward progression only.
+// On Hold/Follow-up/Lost/Disqualified all require a reason — the UI is
+// expected to have already collected it via StageReasonDialog before
+// calling this, but it's re-validated here too since this is a callable
+// server action.
 export async function updateDealStage(dealId: string, stage: string, reason?: string) {
   const user = await requireUser();
   if (!dealStageEnum.enumValues.includes(stage as (typeof dealStageEnum.enumValues)[number])) {

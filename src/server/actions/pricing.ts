@@ -10,6 +10,8 @@ import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
 import { buildPricingEmail } from "@/server/pricing-templates";
 import { plainTextToHtml } from "@/lib/email-html";
+import { advanceDealStage } from "@/server/actions/deals";
+import { notifyBorrowerOfRateShopping } from "@/server/deal-notifications";
 
 export async function updateDealPricingNote(dealId: string, formData: FormData) {
   await requireUser();
@@ -73,6 +75,16 @@ export async function createPricingRequests(dealId: string, formData: FormData) 
       emailSubject: subject,
       emailBody: plainTextToHtml(body),
       status: "draft",
+    });
+  }
+
+  // No-op if the deal isn't currently "New" (e.g. pricing more lenders
+  // later, or the deal was already moved on some other way) — this is
+  // meant to fire once, the first time a deal is actually priced out.
+  const advanced = await advanceDealStage(dealId, "new", "rate_shopping", user.id);
+  if (advanced) {
+    await notifyBorrowerOfRateShopping(dealId).catch((err) => {
+      console.error("Failed to send borrower rate-shopping notification:", err);
     });
   }
 

@@ -2,6 +2,8 @@ import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { deals } from "@/server/db/schema";
 import { constructStripeWebhookEvent } from "@/server/stripe";
+import { advanceDealStage } from "@/server/actions/deals";
+import { notifyBorrowerOfAcceptedTerms } from "@/server/deal-notifications";
 import type Stripe from "stripe";
 
 // No auth beyond the signature check below — Stripe calls this directly,
@@ -29,6 +31,17 @@ export async function POST(request: Request) {
         .update(deals)
         .set({ stripeInvoiceStatus: event.type === "invoice.paid" ? "paid" : "payment_failed" })
         .where(eq(deals.id, deal.id));
+
+      // No-op if the deal isn't currently at Negotiation (e.g. a retried
+      // webhook delivery for the same already-processed invoice).
+      if (event.type === "invoice.paid") {
+        const advanced = await advanceDealStage(deal.id, "negotiation", "application", null);
+        if (advanced) {
+          await notifyBorrowerOfAcceptedTerms(deal.id).catch((err) => {
+            console.error("Failed to send borrower accepted-terms notification:", err);
+          });
+        }
+      }
     }
   }
 

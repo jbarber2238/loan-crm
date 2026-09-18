@@ -27,6 +27,98 @@ function money(value: string | number | null): string {
   return `$${Number(value).toLocaleString()}`;
 }
 
+function firstName(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0] || fullName;
+}
+
+/**
+ * Shared by every borrower-facing deal notification below — sent from the
+ * deal's own assigned loan officer's real Gmail (same "no shared platform
+ * sender" convention every other borrower email in this app follows), never
+ * a generic system address. Best-effort: an LO who hasn't signed in yet (no
+ * Gmail token on file) or a deal with no borrower email on file just means
+ * the notification is silently skipped, not a hard failure — callers wrap
+ * this in a catch anyway, but a missing prerequisite here isn't an error to
+ * begin with.
+ */
+async function sendBorrowerNotification(dealId: string, subject: string, bodyHtml: string): Promise<void> {
+  const deal = await db.query.deals.findFirst({
+    where: eq(deals.id, dealId),
+    with: { assignedLoanOfficer: true },
+  });
+  if (!deal?.borrowerEmail) return;
+  const loanOfficer = deal.assignedLoanOfficer;
+  if (!loanOfficer?.email) return;
+
+  const [companyName, logoHtml, signatureHtml] = await Promise.all([
+    getCompanyName(),
+    getCompanyLogoHtml(),
+    getUserEmailSignatureHtml(loanOfficer.id),
+  ]);
+
+  const body = emailShell({ companyName, heading: subject, bodyHtml });
+
+  await sendGmailAs(loanOfficer.id, loanOfficer.email, {
+    to: deal.borrowerEmail,
+    subject,
+    body: logoHtml + body + signatureHtml,
+    html: true,
+  });
+}
+
+/** Fires once, right when a deal is created — intake form or staff "New Deal" alike. */
+export async function notifyBorrowerOfSubmission(dealId: string): Promise<void> {
+  const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId) });
+  if (!deal) return;
+
+  await sendBorrowerNotification(
+    dealId,
+    `We've received your loan inquiry — ${deal.propertyAddress}`,
+    `<p>Hi ${firstName(deal.borrowerName)},</p>
+     <p>Thanks for reaching out — we've received your loan inquiry for ${deal.propertyAddress}. Our team is reviewing and will price out terms shortly.</p>`
+  );
+}
+
+/** Fires when advanceDealStage moves a deal from New to Rate Shopping (see createPricingRequests). */
+export async function notifyBorrowerOfRateShopping(dealId: string): Promise<void> {
+  const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId) });
+  if (!deal) return;
+
+  await sendBorrowerNotification(
+    dealId,
+    `We're pricing out terms for you — ${deal.propertyAddress}`,
+    `<p>Hi ${firstName(deal.borrowerName)},</p>
+     <p>The team has reviewed your deal and is pricing out terms for you. We'll follow up as soon as we have options to share.</p>`
+  );
+}
+
+/**
+ * Fires when advanceDealStage moves a deal from Negotiation to Application —
+ * the processing-fee invoice getting marked paid (see the Stripe webhook).
+ * Reads the term-sheet-acceptance figures already on the deal
+ * (finalRate/approvedLtv/approvedLoanAmount, set by performTermSheetAcceptance
+ * / updateAcceptedTerms) rather than recomputing anything.
+ */
+export async function notifyBorrowerOfAcceptedTerms(dealId: string): Promise<void> {
+  const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId) });
+  if (!deal) return;
+
+  const terms = [
+    deal.finalRate ? { label: "Interest rate", value: `${Number(deal.finalRate)}%` } : null,
+    deal.approvedLtv ? { label: "Loan-to-value", value: `${Number(deal.approvedLtv).toFixed(1)}%` } : null,
+    deal.approvedLoanAmount ? { label: "Loan amount", value: money(deal.approvedLoanAmount) } : null,
+  ].filter((t): t is { label: string; value: string } => t !== null);
+
+  await sendBorrowerNotification(
+    dealId,
+    `Congratulations — your terms are set for ${deal.propertyAddress}`,
+    `<p>Hi ${firstName(deal.borrowerName)},</p>
+     <p>Congratulations on accepting the following terms:</p>
+     ${htmlFactList(terms)}
+     <p>The loan processor assigned to your file will be reaching out shortly to introduce themselves and begin collecting the documents needed for your application to the lender.</p>`
+  );
+}
+
 /**
  * Fires once, right when a deal is created — from the public intake form or
  * a staffer's own "New Deal" form alike. Sent to whichever admin account is

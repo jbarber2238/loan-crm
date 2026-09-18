@@ -22,6 +22,7 @@ import {
 } from "@/server/term-sheet-summary";
 import { populateClientNeedsFromProduct } from "@/server/actions/client-needs";
 import { getEmailRecipientCandidates } from "@/server/email-recipient-candidates";
+import { advanceDealStage } from "@/server/actions/deals";
 
 export async function createTermSheet(dealId: string, formData: FormData) {
   const user = await requireUser();
@@ -70,11 +71,15 @@ export async function updateTermSheetFields(
 }
 
 export async function generateTermSheet(dealId: string, termSheetId: string) {
-  await requireUser();
+  const user = await requireUser();
   await db
     .update(termSheets)
     .set({ status: "generated", pdfUrl: `/api/term-sheets/${termSheetId}/pdf` })
     .where(eq(termSheets.id, termSheetId));
+
+  // No-op if the deal isn't currently at Rate Shopping (e.g. a later term
+  // sheet generated after the deal's already moved on).
+  await advanceDealStage(dealId, "rate_shopping", "term_sheet", user.id);
 
   revalidatePath(`/deals/${dealId}`);
 }
@@ -353,6 +358,10 @@ export async function sendTermSheetsToBorrowerEmail(
       .where(inArray(termSheets.id, termSheetIds));
   }
 
+  // No-op if the deal isn't currently at Term Sheet — e.g. a re-send, or
+  // "Book a call" already advanced it first.
+  await advanceDealStage(dealId, "term_sheet", "negotiation", user.id);
+
   revalidatePath(`/deals/${dealId}`);
 }
 
@@ -406,6 +415,10 @@ export async function sendBookACallEmail(dealId: string, to: string, cc: string,
     body: logoHtml + body + signatureHtml,
     html: true,
   });
+
+  // No-op if the deal isn't currently at Term Sheet — e.g. a re-send, or
+  // "Send to borrower" already advanced it first.
+  await advanceDealStage(dealId, "term_sheet", "negotiation", user.id);
 
   revalidatePath(`/deals/${dealId}`);
 }
