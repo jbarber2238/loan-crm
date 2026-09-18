@@ -39,7 +39,7 @@ export function buildDealSummaryForAi(deal: Deal): string {
   const estimatedAsIsValue = deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null;
   const estimatedArv = deal.estimatedArv ? Number(deal.estimatedArv) : null;
   const estimatedRehabCost = deal.estimatedRehabCost ? Number(deal.estimatedRehabCost) : null;
-  const valueBasis = valueBasisFor(purchasePrice, estimatedAsIsValue);
+  const valueBasis = valueBasisFor(deal.loanCategory, purchasePrice, estimatedAsIsValue);
   const totalProjectCost = valueBasis !== null ? valueBasis + (estimatedRehabCost ?? 0) : null;
 
   const ratios = ratioMetricsFor(deal.loanCategory, {

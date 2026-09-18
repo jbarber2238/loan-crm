@@ -85,6 +85,7 @@ export function DealHeader({ deal }: { deal: DealDetail }) {
               }
 
               const basis = conservativeValueBasis(
+                deal.loanCategory,
                 deal.purchasePrice ? Number(deal.purchasePrice) : null,
                 deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null
               );

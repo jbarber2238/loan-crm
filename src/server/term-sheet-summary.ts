@@ -66,6 +66,7 @@ export function summarizeTermSheetsForBorrowerEmail(
   sheets: TermSheet[]
 ): Record<string, string> {
   const valueBasis = conservativeValueBasis(
+    deal.loanCategory,
     deal.purchasePrice ? Number(deal.purchasePrice) : null,
     deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null
   );
@@ -129,6 +130,7 @@ function loanTypeLabelForButton(deal: Deal, fields: Record<string, unknown>): st
  */
 export function buildTermSheetButtonLabels(deal: Deal, sheets: TermSheet[]): Record<string, string> {
   const valueBasis = conservativeValueBasis(
+    deal.loanCategory,
     deal.purchasePrice ? Number(deal.purchasePrice) : null,
     deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null
   );

@@ -132,6 +132,7 @@ export async function performTermSheetAcceptance(dealId: string, termSheetId: st
   // the appraised ARV comes in and the ltarvBasedOnApprovedArv toggle is
   // switched off.
   const valueBasis = conservativeValueBasis(
+    deal.loanCategory,
     deal.purchasePrice ? Number(deal.purchasePrice) : null,
     deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null
   );

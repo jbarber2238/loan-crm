@@ -27,6 +27,7 @@ import { DscrCalculator } from "@/components/deals/dscr-calculator";
 import { CollapseAllButton } from "@/components/deals/collapse-all-button";
 import { AiLenderMatchSection } from "@/components/deals/ai-lender-match-section";
 import { sectionsFor, rehabOrConstructionBudgetLabel } from "@/lib/loan-sections";
+import { conservativeValueBasis } from "@/lib/term-sheet-calculations";
 import type { deals as dealsTable } from "@/server/db/schema";
 import type { ReactNode } from "react";
 
@@ -77,12 +78,18 @@ export function OverviewTab({ deal }: { deal: Deal }) {
   const s = sectionsFor(deal.loanCategory);
 
   const purchasePrice = deal.purchasePrice ? Number(deal.purchasePrice) : null;
+  const estimatedAsIsValue = deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null;
   const loanAmount = Number(deal.loanAmountRequested);
+  // A refinance has no purchase happening — "purchase price" on one of these
+  // deals is really the property's *original* purchase price (a historical
+  // data point, still collected for some lenders), not what's being
+  // financed now. conservativeValueBasis keeps that out of the LTV basis entirely
+  // for a refinance and uses as-is value alone; a purchase still anchors to
+  // whichever of purchase price / as-is value is lower.
+  const valueBasis = conservativeValueBasis(deal.loanCategory, purchasePrice, estimatedAsIsValue);
   const ratioFlag =
-    purchasePrice && loanAmount
-      ? purchasePrice / loanAmount > 3 || purchasePrice / loanAmount < 0.33
-      : false;
-  const requestedLtv = purchasePrice ? (loanAmount / purchasePrice) * 100 : null;
+    valueBasis && loanAmount ? valueBasis / loanAmount > 3 || valueBasis / loanAmount < 0.33 : false;
+  const requestedLtv = valueBasis ? (loanAmount / valueBasis) * 100 : null;
   // Rough guide to how achievable a requested LTV is: 80% and under is normal
   // and widely placeable, up to 90% narrows the field, above that very few
   // lenders (if any) will do it.
@@ -122,12 +129,13 @@ export function OverviewTab({ deal }: { deal: Deal }) {
               {ltcVariant && <Badge variant={ltcVariant}>{ltc!.toFixed(1)}% LTC</Badge>}
             </div>
           )
-        : purchasePrice &&
-          requestedLtv !== null && (
+        : requestedLtv !== null && (
             <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-3">
               <span className="text-sm text-muted-foreground">
-                Purchase price: ${purchasePrice.toLocaleString()}. Requested Loan Amount: $
-                {loanAmount.toLocaleString()}.
+                {s.showRefinanceFields || purchasePrice === null
+                  ? `As-is value: $${estimatedAsIsValue!.toLocaleString()}.`
+                  : `Purchase price: $${purchasePrice.toLocaleString()}.`}{" "}
+                Requested Loan Amount: ${loanAmount.toLocaleString()}.
               </span>
               {ltvVariant && <Badge variant={ltvVariant}>{requestedLtv.toFixed(1)}% LTV</Badge>}
               {ratioFlag && <Badge variant="destructive">Check this — ratio looks off</Badge>}

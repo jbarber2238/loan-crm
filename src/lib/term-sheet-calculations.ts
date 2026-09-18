@@ -119,20 +119,37 @@ export function calculateDscrRatio(monthlyRent: number | null, monthlyPitia: num
   return monthlyRent / monthlyPitia;
 }
 
-// DSCR and Bridge both use purchase price on a purchase, as-is value on a
-// refinance (there's no purchase price to speak of on a refi).
-export function valueBasisFor(purchasePrice: number | null, estimatedAsIsValue: number | null): number | null {
-  return purchasePrice ?? estimatedAsIsValue ?? null;
-}
+// A refinance has no purchase happening — the "purchase price" field on
+// these deals (still shown per sectionsFor's showPurchasePrice) is really
+// the property's *original* purchase price, a historical data point some
+// lenders want, not what's being financed now. It must never be used as
+// the deal's current value basis; only an actual purchase uses it. (Used
+// to assume purchase price was simply absent on any refi — false in
+// practice, and it produced wildly wrong LTVs, e.g. an old $125k purchase
+// price used as the basis for a $240k-as-is-value refinance.)
+const REFINANCE_CATEGORIES = new Set(["dscr_cash_out_refinance", "dscr_rate_term_refinance", "bridge_refinance"]);
 
-// Conservative value basis for the deal-header's requested-LTV display:
-// lenders anchor to whichever is lower, purchase price or the borrower's
-// (often optimistic) as-is-value estimate. Falls back to whichever one
-// exists if only one is present (e.g. no purchase price on a refinance).
-export function conservativeValueBasis(
+// DSCR and Bridge both use purchase price on a purchase, as-is value on a
+// refinance — the term sheet PDF's own quoted LTV basis.
+export function valueBasisFor(
+  loanCategory: string,
   purchasePrice: number | null,
   estimatedAsIsValue: number | null
 ): number | null {
+  if (REFINANCE_CATEGORIES.has(loanCategory)) return estimatedAsIsValue;
+  return purchasePrice ?? estimatedAsIsValue ?? null;
+}
+
+// Conservative value basis for the deal-header/pipeline "how achievable is
+// this" requested-LTV display: on a purchase, lenders anchor to whichever
+// is lower, purchase price or the borrower's (often optimistic) as-is-value
+// estimate; on a refinance, only as-is value ever applies.
+export function conservativeValueBasis(
+  loanCategory: string,
+  purchasePrice: number | null,
+  estimatedAsIsValue: number | null
+): number | null {
+  if (REFINANCE_CATEGORIES.has(loanCategory)) return estimatedAsIsValue;
   if (purchasePrice && estimatedAsIsValue) return Math.min(purchasePrice, estimatedAsIsValue);
   return purchasePrice ?? estimatedAsIsValue ?? null;
 }
@@ -283,7 +300,7 @@ export function ratioMetricsFor(
     ];
   }
   if (DSCR_CATEGORIES.has(category) || BRIDGE_CATEGORIES.has(category) || category === "portfolio") {
-    const basis = valueBasisFor(purchasePrice, estimatedAsIsValue);
+    const basis = valueBasisFor(category, purchasePrice, estimatedAsIsValue);
     return [{ label: "LTV", valuePct: calculateLtv(loanAmount, basis) }];
   }
   return [];

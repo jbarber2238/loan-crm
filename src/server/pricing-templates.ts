@@ -3,6 +3,7 @@ import { db } from "@/server/db/client";
 import { emailTemplates } from "@/server/db/schema";
 import { PROPERTY_TYPES, labelFor } from "@/lib/labels";
 import { buildAllDealTokens } from "@/server/deal-tokens";
+import { conservativeValueBasis } from "@/lib/term-sheet-calculations";
 import type { deals } from "@/server/db/schema";
 
 type Deal = typeof deals.$inferSelect;
@@ -36,7 +37,18 @@ export async function buildPricingTemplateTokens(
   deal: Deal,
   { repName, senderName, companyName, notes }: { repName: string; senderName: string; companyName: string; notes: string | null }
 ): Promise<Record<string, string>> {
-  const purchasePriceOrAsIs = deal.purchasePrice ?? deal.estimatedAsIsValue;
+  // Not a plain `purchasePrice ?? estimatedAsIsValue` fallback: on a
+  // refinance category, `purchasePrice` may still be on file as the
+  // property's *original* purchase price (a historical figure some lenders
+  // want), and using it here produced wildly wrong LTVs on cash-out/rate-
+  // term refis and bridge refinances — as-is value is the only correct
+  // basis once there's no purchase actually happening.
+  const valueBasisNum = conservativeValueBasis(
+    deal.loanCategory,
+    deal.purchasePrice ? Number(deal.purchasePrice) : null,
+    deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null
+  );
+  const purchasePriceOrAsIs = valueBasisNum !== null ? String(valueBasisNum) : null;
 
   return {
     ...(await buildAllDealTokens(deal)),

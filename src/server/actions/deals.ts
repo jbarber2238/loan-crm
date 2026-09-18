@@ -371,6 +371,7 @@ export async function updateAcceptedTerms(dealId: string, formData: FormData) {
   // hand (an appraisal or credit pull can change any of these later).
   const asIsBasis = ltvBasedOnPurchasePrice
     ? conservativeValueBasis(
+        deal.loanCategory,
         deal.purchasePrice ? Number(deal.purchasePrice) : null,
         deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null
       )
