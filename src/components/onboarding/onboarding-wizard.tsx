@@ -18,14 +18,19 @@ type WizardUser = {
   name?: string | null;
   image?: string | null;
   baseRole: "loan_officer" | "loan_officer_assistant" | "processor";
+  phone: string | null;
   schedulingLink: string | null;
   emailSignatureHtml: string | null;
 };
 
+// Profile (name + phone) comes right after welcome, ahead of everything else
+// — the phone number is what borrower calls/texts get routed to (see
+// phone-routing.ts), so it needs to be on file before the person is really
+// "in" the CRM, not an afterthought at the end of the wizard.
 // Scheduling links only mean anything for loan officers — the same
 // condition the regular profile page already uses to show that field.
 function stepsFor(user: WizardUser): Step[] {
-  return ["welcome", ...(user.baseRole === "loan_officer" ? (["scheduling"] as const) : []), "profile", "signature"];
+  return ["welcome", "profile", ...(user.baseRole === "loan_officer" ? (["scheduling"] as const) : []), "signature"];
 }
 
 export function OnboardingWizard({ user }: { user: WizardUser }) {
@@ -34,17 +39,28 @@ export function OnboardingWizard({ user }: { user: WizardUser }) {
   const [isPending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const phoneInputRef = useRef<HTMLInputElement>(null);
 
   const step = steps[stepIndex];
   const isFirst = stepIndex === 0;
   const isLast = stepIndex === steps.length - 1;
 
-  function next() {
-    if (step === "profile" && !nameInputRef.current?.value.trim()) {
+  function validateProfile() {
+    if (!nameInputRef.current?.value.trim()) {
       toast.error("Please enter your name before continuing.");
       nameInputRef.current?.focus();
-      return;
+      return false;
     }
+    if (!phoneInputRef.current?.value.trim()) {
+      toast.error("Please enter your phone number before continuing.");
+      phoneInputRef.current?.focus();
+      return false;
+    }
+    return true;
+  }
+
+  function next() {
+    if (step === "profile" && !validateProfile()) return;
     setStepIndex((i) => Math.min(i + 1, steps.length - 1));
   }
 
@@ -53,10 +69,8 @@ export function OnboardingWizard({ user }: { user: WizardUser }) {
   }
 
   function finish() {
-    if (!nameInputRef.current?.value.trim()) {
+    if (!validateProfile()) {
       setStepIndex(steps.indexOf("profile"));
-      toast.error("Please enter your name before continuing.");
-      nameInputRef.current?.focus();
       return;
     }
     const form = formRef.current;
@@ -118,6 +132,21 @@ export function OnboardingWizard({ user }: { user: WizardUser }) {
               <Label htmlFor="name">Your name</Label>
               <Input id="name" name="name" ref={nameInputRef} defaultValue={user.name ?? ""} />
               <p className="text-xs text-muted-foreground">Shown to borrowers and teammates throughout the CRM.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="phone">Your phone number</Label>
+              <Input
+                id="phone"
+                name="phone"
+                type="tel"
+                ref={phoneInputRef}
+                defaultValue={user.phone ?? ""}
+                placeholder="(555) 555-5555"
+              />
+              <p className="text-xs text-muted-foreground">
+                Where borrower calls and texts get routed to you. Borrowers only ever see the office&apos;s shared
+                number — this one stays private.
+              </p>
             </div>
           </div>
 

@@ -200,6 +200,12 @@ export async function completeOnboarding(formData: FormData) {
   }
   updates.name = name.trim();
 
+  const phone = formData.get("phone");
+  if (typeof phone !== "string" || !phone.trim()) {
+    throw new Error("Phone number is required");
+  }
+  updates.phone = phone.trim();
+
   if (formData.has("schedulingLink")) {
     const schedulingLink = formData.get("schedulingLink");
     updates.schedulingLink =
