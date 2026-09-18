@@ -13,8 +13,13 @@ import { conservativeValueBasis, calculateLtarv, calculateLtc } from "@/lib/term
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
 import { buildBorrowerEmail } from "@/server/borrower-templates";
-import { plainTextToHtml } from "@/lib/email-html";
-import { resolveTermSheetReadyTemplateKey, summarizeTermSheetsForBorrowerEmail } from "@/server/term-sheet-summary";
+import { plainTextToHtmlWithBlocks, htmlButton } from "@/lib/email-html";
+import {
+  resolveTermSheetReadyTemplateKey,
+  summarizeTermSheetsForBorrowerEmail,
+  buildTermSheetButtonLabels,
+  buildRateBreakdownHtml,
+} from "@/server/term-sheet-summary";
 import { populateClientNeedsFromProduct } from "@/server/actions/client-needs";
 import { getEmailRecipientCandidates } from "@/server/email-recipient-candidates";
 
@@ -278,26 +283,41 @@ export async function previewTermSheetsToBorrowerEmail(dealId: string, termSheet
   });
 
   const baseUrl = process.env.APP_URL ?? "";
-  const links = termSheetIds.map((id) => `${baseUrl}/api/term-sheets/${id}/pdf`);
   const companyName = await getCompanyName();
   const summary = summarizeTermSheetsForBorrowerEmail(deal, selectedTermSheets);
   const templateKey = resolveTermSheetReadyTemplateKey(deal.loanCategory);
 
+  // termSheetLinks/schedulingLink/rateBreakdown are deliberately left out of
+  // `extra` — a borrower should never see the raw internal PDF path (with
+  // its UUID) or the giant Google Calendar scheduling URL as literal text.
+  // Left un-substituted here, their {{tokens}} survive into
+  // plainTextToHtmlWithBlocks below and get swapped for real buttons/a fact
+  // list *after* the rest of the template is escaped.
   const [{ subject, body }, signatureHtml, candidates] = await Promise.all([
     buildBorrowerEmail(templateKey, deal, {
       assignedLoanOfficerName: deal.assignedLoanOfficer?.name ?? "",
       companyName,
       senderName: user.name ?? "",
-      extra: { termSheetLinks: links.join("\n"), schedulingLink, ...summary },
     }),
     getUserEmailSignatureHtml(user.id),
     getEmailRecipientCandidates(dealId, { includeAllStaff: true }),
   ]);
 
+  const buttonLabels = buildTermSheetButtonLabels(deal, selectedTermSheets);
+  const termSheetLinksHtml = termSheetIds
+    .map((id) => htmlButton(buttonLabels[id] ?? "View term sheet", `${baseUrl}/api/term-sheets/${id}/pdf`))
+    .join("<br/><br/>");
+
   // Rendered to HTML once, here, so the compose dialog can offer real
   // formatting (bold, bullet lists) on top of it — sendTermSheetsToBorrowerEmail
   // sends whatever HTML comes back from that editing, unconverted.
-  return { subject, body: plainTextToHtml(body), to: deal.borrowerEmail, cc: "", signatureHtml, candidates };
+  const htmlBody = plainTextToHtmlWithBlocks(body, {
+    termSheetLinks: termSheetLinksHtml,
+    schedulingLink: htmlButton("Book a time", schedulingLink),
+    rateBreakdown: buildRateBreakdownHtml(templateKey, summary),
+  });
+
+  return { subject, body: htmlBody, to: deal.borrowerEmail, cc: "", signatureHtml, candidates };
 }
 
 export async function sendTermSheetsToBorrowerEmail(
@@ -356,13 +376,16 @@ export async function previewBookACallEmail(dealId: string) {
       assignedLoanOfficerName: deal.assignedLoanOfficer?.name ?? "",
       companyName,
       senderName: user.name ?? "",
-      extra: { schedulingLink },
     }),
     getUserEmailSignatureHtml(user.id),
     getEmailRecipientCandidates(dealId, { includeAllStaff: true }),
   ]);
 
-  return { subject, body: plainTextToHtml(body), to: deal.borrowerEmail, cc: "", signatureHtml, candidates };
+  const htmlBody = plainTextToHtmlWithBlocks(body, {
+    schedulingLink: htmlButton("Book a time", schedulingLink),
+  });
+
+  return { subject, body: htmlBody, to: deal.borrowerEmail, cc: "", signatureHtml, candidates };
 }
 
 export async function sendBookACallEmail(dealId: string, to: string, cc: string, subject: string, body: string) {

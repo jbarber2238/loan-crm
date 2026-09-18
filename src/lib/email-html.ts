@@ -29,6 +29,30 @@ export function plainTextToHtml(text: string): string {
   return `<div style="white-space:pre-wrap; font-family:Arial,Helvetica,sans-serif; font-size:14px; color:#1f2937;">${html}</div>`;
 }
 
+/**
+ * Same as plainTextToHtml, but for templates that need one or more of their
+ * merge fields to come out as real HTML (a button, a fact list) instead of
+ * escaped plain text — e.g. a raw internal PDF URL or a giant Google
+ * Calendar scheduling link should never be shown to a borrower as literal
+ * text. `blocks` maps a template's `{{tokenName}}` placeholder to the raw
+ * HTML it should become; those placeholders must be left out of the
+ * `tokens` passed to renderTemplate() so they survive into this function
+ * still literally present (renderTemplate leaves unknown `{{keys}}` as-is),
+ * then get swapped in here *after* the rest of the text is escaped — so the
+ * block's own HTML tags never get escaped away, and nothing else in the
+ * template can smuggle in unescaped HTML.
+ */
+export function plainTextToHtmlWithBlocks(text: string, blocks: Record<string, string>): string {
+  let html = escapeHtml(text).replace(
+    URL_REGEX,
+    (url) => `<a href="${url}" target="_blank" rel="noreferrer">${url}</a>`
+  );
+  for (const [key, value] of Object.entries(blocks)) {
+    html = html.split(`{{${key}}}`).join(value);
+  }
+  return `<div style="white-space:pre-wrap; font-family:Arial,Helvetica,sans-serif; font-size:14px; color:#1f2937;">${html}</div>`;
+}
+
 export const EMAIL_LIST_STYLE = "margin:0; padding-left:20px;";
 export const EMAIL_ITEM_STYLE = "margin-bottom:12px; line-height:1.5;";
 export const EMAIL_SUBNOTE_STYLE = "color:#6b7280; font-size:13px;";
@@ -38,6 +62,13 @@ export const EMAIL_BUTTON_STYLE =
 
 export function htmlButton(label: string, url: string): string {
   return `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer" style="${EMAIL_BUTTON_STYLE}">${escapeHtml(label)}</a>`;
+}
+
+/** A simple "Label: value" bullet list — for scannable facts (LTV, term, loan type) rather than htmlBulletList's name+subnote shape. */
+export function htmlFactList(items: { label: string; value: string }[]): string {
+  return `<ul style="${EMAIL_LIST_STYLE}">${items
+    .map((i) => `<li style="${EMAIL_ITEM_STYLE}"><strong>${escapeHtml(i.label)}:</strong> ${escapeHtml(i.value)}</li>`)
+    .join("")}</ul>`;
 }
 
 export function htmlBulletList(items: { name: string; note?: string | null }[]): string {
