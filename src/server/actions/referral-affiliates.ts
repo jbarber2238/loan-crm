@@ -9,6 +9,7 @@ import { sendGmailAs } from "@/server/gmail/send";
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
 import { htmlButton } from "@/lib/email-html";
+import { isPgErrorCode } from "@/lib/pg-error";
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB, matches the borrower-upload limit
 
@@ -81,7 +82,7 @@ export async function deleteAffiliate(affiliateId: string) {
   try {
     await db.delete(referralAffiliates).where(eq(referralAffiliates.id, affiliateId));
   } catch (err) {
-    if (err && typeof err === "object" && "code" in err && err.code === "23503") {
+    if (isPgErrorCode(err, "23503")) {
       throw new Error("Can't remove — this affiliate has referred deals on file.");
     }
     throw err;

@@ -11,6 +11,7 @@ import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
 import { BASE_ROLES, labelFor } from "@/lib/labels";
 import { htmlButton } from "@/lib/email-html";
+import { isPgErrorCode } from "@/lib/pg-error";
 
 export async function inviteUser(formData: FormData) {
   const admin = await requireAdmin();
@@ -114,7 +115,7 @@ export async function deleteUser(userId: string) {
   try {
     await db.delete(users).where(eq(users.id, userId));
   } catch (err) {
-    if (err && typeof err === "object" && "code" in err && err.code === "23503") {
+    if (isPgErrorCode(err, "23503")) {
       throw new Error(
         "Can't delete — this person has existing deals or records. Set them to inactive instead."
       );
