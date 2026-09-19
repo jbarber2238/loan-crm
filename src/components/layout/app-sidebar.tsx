@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   ArrowLeft,
   LayoutDashboard,
+  BarChart3,
   FilePlus,
   Landmark,
   Mail,
@@ -49,6 +50,7 @@ export function AppSidebar({
 
   const mainLinks = [
     { href: "/pipeline", label: "Pipeline", icon: LayoutDashboard, exact: true },
+    ...(user.isAdmin ? [{ href: "/dashboard", label: "Dashboard", icon: BarChart3, exact: true }] : []),
     { href: "/deals/new", label: "New Deal", icon: FilePlus, exact: true },
     { href: "/lenders", label: "Lenders", icon: Landmark, exact: false },
     ...(user.isAdmin || user.baseRole === "processor"
