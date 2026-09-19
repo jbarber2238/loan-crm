@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { StageSelect } from "@/components/deals/stage-select";
 import { DealActionsMenu } from "@/components/deals/deal-actions-menu";
+import { CloneDealDialog } from "@/components/deals/clone-deal-dialog";
 import { PipelineStepper } from "@/components/deals/pipeline-stepper";
 import { AcceptedTermsHeader } from "@/components/deals/accepted-terms-header";
 import { ProcessingFeeInvoiceStatus } from "@/components/deals/processing-fee-invoice-status";
@@ -103,6 +104,7 @@ export function DealHeader({ deal }: { deal: DealDetail }) {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {deal.loanCategory === "new_construction" && <CloneDealDialog dealId={deal.id} />}
           <StageSelect dealId={deal.id} stage={deal.stage} />
           <DealActionsMenu
             dealId={deal.id}
