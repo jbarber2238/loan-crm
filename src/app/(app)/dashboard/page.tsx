@@ -2,10 +2,9 @@ import Link from "next/link";
 import { requireAdmin } from "@/server/auth/guards";
 import { buildDashboardData } from "@/server/dashboard-metrics";
 import { DASHBOARD_RANGES, DEFAULT_DASHBOARD_RANGE, isDashboardRange } from "@/lib/dashboard-ranges";
-import { DASHBOARD_SECTIONS, libraryMetricsFor } from "@/lib/dashboard-metric-library";
 import { STAGES, LOAN_CATEGORIES, labelFor } from "@/lib/labels";
 import { InlineBar } from "@/components/dashboard/inline-bar";
-import { MetricToggle } from "@/components/dashboard/metric-toggle";
+import { MetricsLibrarySheet } from "@/components/dashboard/metrics-library-sheet";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -67,19 +66,22 @@ export default async function DashboardPage({
     <div className="space-y-10 pb-16">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-semibold">Dashboard</h1>
-        <div className="flex gap-1 rounded-md border p-1">
-          {DASHBOARD_RANGES.map((r) => (
-            <Link
-              key={r.value}
-              href={`/dashboard?range=${r.value}`}
-              className={cn(
-                "rounded px-2.5 py-1 text-sm",
-                r.value === range ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {r.label}
-            </Link>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1 rounded-md border p-1">
+            {DASHBOARD_RANGES.map((r) => (
+              <Link
+                key={r.value}
+                href={`/dashboard?range=${r.value}`}
+                className={cn(
+                  "rounded px-2.5 py-1 text-sm",
+                  r.value === range ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {r.label}
+              </Link>
+            ))}
+          </div>
+          <MetricsLibrarySheet enabledMetrics={data.enabledDashboardMetrics} />
         </div>
       </div>
 
@@ -471,7 +473,7 @@ export default async function DashboardPage({
         <Card>
           <CardContent className="pt-6">
             {data.pipelineAging.length === 0 && (
-              <p className="text-sm text-muted-foreground">No deals are currently running behind their stage's usual pace.</p>
+              <p className="text-sm text-muted-foreground">No deals are currently running behind their stage&apos;s usual pace.</p>
             )}
             <div className="space-y-2">
               {data.pipelineAging.slice(0, 15).map((row) => (
@@ -486,48 +488,6 @@ export default async function DashboardPage({
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* ---------------------------------------------------------------- */}
-      <section className="space-y-4">
-        <SectionHeading
-          title="Metrics Library"
-          subtitle="Metrics that exist but aren't shown above by default, plus metrics not yet buildable — each needs a data source this app doesn't collect yet."
-        />
-        <Card>
-          <CardContent className="pt-6 space-y-4">
-            {DASHBOARD_SECTIONS.map(({ value, label }) => {
-              const metrics = libraryMetricsFor(value);
-              if (metrics.length === 0) return null;
-              return (
-                <div key={value} className="space-y-2 border-b pb-4 last:border-0 last:pb-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-                  {metrics.map((m) => (
-                    <div key={m.id} className="flex items-start justify-between gap-3 text-sm">
-                      <div>
-                        <p className="font-medium">{m.label}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {m.description}
-                          {!m.computable && m.needs && <span className="italic"> Needs: {m.needs}.</span>}
-                        </p>
-                      </div>
-                      {m.computable ? (
-                        <div className="flex items-center gap-2 shrink-0 pt-0.5">
-                          <span className="text-xs text-muted-foreground">Show on dashboard</span>
-                          <MetricToggle metricId={m.id} enabled={enabled.has(m.id)} />
-                        </div>
-                      ) : (
-                        <span className="shrink-0 rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
-                          Coming soon
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              );
-            })}
           </CardContent>
         </Card>
       </section>
