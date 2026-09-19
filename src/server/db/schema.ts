@@ -310,6 +310,12 @@ export const companySettings = pgTable("company_settings", {
   // unset ceiling as "not configured yet," not "no limit").
   tcpaOutboundStart: time("tcpa_outbound_start"),
   tcpaOutboundEnd: time("tcpa_outbound_end"),
+  // The Dashboard's metrics library (Settings → Dashboard Metrics) — every
+  // metric not built into the "always on" set lives in DASHBOARD_METRIC_LIBRARY
+  // (src/lib/dashboard-metric-library.ts) with a computable/not-yet flag;
+  // this column just tracks which of the computable ones an admin has
+  // actually turned on. Null/missing id = off, same as not being in the list.
+  enabledDashboardMetrics: jsonb("enabled_dashboard_metrics").$type<string[]>().notNull().default([]),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });
 

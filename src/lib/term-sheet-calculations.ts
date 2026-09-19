@@ -31,6 +31,15 @@ export function isRateBuydownCategory(category: string): boolean {
   return DSCR_CATEGORIES.has(category) || category === "portfolio";
 }
 
+// Same DSCR/Portfolio grouping as isRateBuydownCategory, exposed under its
+// own name for callers (e.g. dashboard-metrics.ts) that care about "this
+// category has a DSCR ratio" rather than "this category uses rate-buydown
+// pricing" — the two happen to be the same set today, but for different
+// reasons, so they're kept as separate named checks.
+export function isDscrLikeCategory(category: string): boolean {
+  return DSCR_CATEGORIES.has(category) || category === "portfolio";
+}
+
 // The dollar figure to actually show/send for "Cost to Borrower": derived
 // from rate buydown points on DSCR/Portfolio, or the directly-entered value
 // everywhere else.
