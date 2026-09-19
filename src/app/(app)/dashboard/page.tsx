@@ -3,7 +3,9 @@ import { requireAdmin } from "@/server/auth/guards";
 import { buildDashboardData } from "@/server/dashboard-metrics";
 import { DASHBOARD_RANGES, DEFAULT_DASHBOARD_RANGE, isDashboardRange } from "@/lib/dashboard-ranges";
 import { STAGES, LOAN_CATEGORIES, labelFor } from "@/lib/labels";
+import { PIPELINE_STAGES } from "@/lib/deal-pipeline";
 import { InlineBar } from "@/components/dashboard/inline-bar";
+import { StageBarChart } from "@/components/dashboard/stage-bar-chart";
 import { MetricsLibrarySheet } from "@/components/dashboard/metrics-library-sheet";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -24,6 +26,17 @@ function pct(n: number | null, digits = 0): string {
 function days(n: number | null): string {
   if (n === null) return "—";
   return `${n.toFixed(0)}d`;
+}
+
+// Below a day, showing "0d" hides the number that actually matters — New →
+// Rate Shopping should basically always read in hours, not round to zero.
+function daysAndHours(n: number | null): string {
+  if (n === null) return "—";
+  const totalHours = n * 24;
+  if (n < 1) return `${Math.round(totalHours)}h`;
+  const wholeDays = Math.floor(n);
+  const remHours = Math.round((n - wholeDays) * 24);
+  return remHours > 0 ? `${wholeDays}d ${remHours}h` : `${wholeDays}d`;
 }
 
 function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -49,6 +62,32 @@ function SectionHeading({ title, subtitle }: { title: string; subtitle?: string 
   );
 }
 
+// Researched 2026-09-19 — see chat for sourcing detail. Deliberately not
+// presented as precise: non-QM/DSCR-specific industry-association data
+// mostly doesn't exist, so these are the best available reference points,
+// each labeled with what it actually is (a real published series vs. a
+// lender's own marketing claim).
+const INDUSTRY_BENCHMARKS = [
+  {
+    label: "Application → Close (conventional mortgages)",
+    value: "~42–45 days",
+    source: "ICE Mortgage Technology Origination Insight Report",
+    note: "Conventional-mortgage proxy, not non-QM-specific — no dedicated non-QM/DSCR industry series exists.",
+  },
+  {
+    label: "Application → Close (hard money / fix-and-flip / bridge)",
+    value: "~7–10 days typical, some lenders as fast as 5 days",
+    source: "Cross-lender marketing claims (Kiavi, Easy Street Capital, RCN Capital, Lima One)",
+    note: "Self-reported best-case figures, not audited aggregate data.",
+  },
+  {
+    label: "Broker submission → term sheet (DSCR/non-QM wholesale)",
+    value: "Same-day to 24–48 hours, by lender",
+    source: "Cross-lender marketing claims (LendSure, Ridge Street Capital, Legions Capital, Jaken Finance)",
+    note: "Self-reported best-case turnaround, not an industry average.",
+  },
+];
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -61,6 +100,18 @@ export default async function DashboardPage({
 
   const data = await buildDashboardData(range);
   const enabled = new Set(data.enabledDashboardMetrics);
+
+  const lostDisqualifiedEntered = data.pipelineConversion.funnel
+    .filter((r) => r.stage === "lost" || r.stage === "disqualified")
+    .reduce((sum, r) => sum + r.enteredCount, 0);
+  const funnelByStage = new Map(data.pipelineConversion.funnel.map((r) => [r.stage, r.enteredCount]));
+  const linearFunnelData = [
+    ...PIPELINE_STAGES.filter((s) => s.value !== "closed").map((s) => ({
+      label: s.label,
+      count: funnelByStage.get(s.value) ?? 0,
+    })),
+    { label: "Lost / Disqualified", count: lostDisqualifiedEntered },
+  ];
 
   return (
     <div className="space-y-10 pb-16">
@@ -89,63 +140,43 @@ export default async function DashboardPage({
       <section className="space-y-4">
         <SectionHeading
           title="Pipeline & Conversion"
-          subtitle="Total Pipeline Value is a right-now snapshot; everything else is scoped to the selected range."
+          subtitle="Today is midnight-to-midnight. Total Pipeline Value and Total Lost Value are real-time snapshots — a restored deal drops out immediately, not just on its next stage change."
         />
 
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <StatCard label="New Leads" value={String(data.pipelineConversion.newLeads)} />
-          <StatCard label="Applications Submitted" value={String(data.pipelineConversion.applicationsSubmitted)} />
-          <StatCard label="Leads → Applications" value={pct(data.pipelineConversion.leadToApplicationPct)} />
-          <StatCard label="Leads Lost" value={pct(data.pipelineConversion.leadLostPct)} />
-          <StatCard label="Total Pipeline Value" value={money(data.pipelineConversion.totalPipelineValue)} sub="active deals, as of now" />
-          <StatCard label="Total Lost Value" value={money(data.pipelineConversion.totalLostValue)} />
+          <StatCard
+            label="New Leads"
+            value={String(data.pipelineConversion.newLeads)}
+            sub="original submissions only, not restores"
+          />
+          <StatCard label="Restored Leads" value={String(data.pipelineConversion.restoredLeads)} sub="old deals back in New/Rate Shopping" />
+          <StatCard
+            label="Applications Submitted"
+            value={String(data.pipelineConversion.applicationsSubmitted)}
+            sub={`${data.pipelineConversion.applicationsSubmittedDirect} direct · ${data.pipelineConversion.applicationsSubmittedRestored} restored`}
+          />
+          <StatCard label="Leads → Applications" value={pct(data.pipelineConversion.leadToApplicationPct)} sub="of this period's New Leads" />
+          <StatCard label="Leads Lost" value={pct(data.pipelineConversion.leadLostPct)} sub="of this period's New Leads" />
+          <StatCard label="Total Pipeline Value" value={money(data.pipelineConversion.totalPipelineValue)} sub="live, as of now" />
+          <StatCard label="Total Lost Value" value={money(data.pipelineConversion.totalLostValue)} sub="currently sitting in Lost" />
           <StatCard
             label="Loans Closed"
             value={String(data.pipelineConversion.loansClosed)}
             sub={money(data.pipelineConversion.totalVolumeClosed) + " total volume"}
           />
-          <StatCard label="Average Loan Size" value={money(data.pipelineConversion.averageLoanSizeClosed)} />
+          <StatCard label="Average Loan Size (Requested)" value={money(data.pipelineConversion.averageLoanSizeRequested)} sub="this period's New Leads" />
+          <StatCard label="Average Closed Loan Size" value={money(data.pipelineConversion.averageLoanSizeClosed)} />
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Pipeline Funnel</CardTitle>
             <p className="text-xs text-muted-foreground">
-              For every stage, what actually happened next to the deals that entered it.
+              Deals that entered each core stage this period, in order, plus everything Lost or Disqualified.
             </p>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {data.pipelineConversion.funnel.length === 0 && (
-              <p className="text-sm text-muted-foreground">No stage activity in this range.</p>
-            )}
-            {data.pipelineConversion.funnel.map((row) => (
-              <div key={row.stage} className="space-y-1.5 border-b pb-3 last:border-0 last:pb-0">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">{stageLabel(row.stage)}</p>
-                  <p className="text-sm text-muted-foreground">{row.enteredCount} entered</p>
-                </div>
-                <div className="space-y-1 pl-3">
-                  {row.nextStageCounts.map((n) => (
-                    <div key={n.stage} className="flex items-center gap-2 text-xs">
-                      <span className="w-32 shrink-0 text-muted-foreground">→ {stageLabel(n.stage)}</span>
-                      <InlineBar percent={(n.count / row.enteredCount) * 100} className="max-w-40" />
-                      <span className="w-24 shrink-0 text-right font-medium">
-                        {n.count} ({pct((n.count / row.enteredCount) * 100)})
-                      </span>
-                    </div>
-                  ))}
-                  {row.stillHereCount > 0 && (
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="w-32 shrink-0 text-muted-foreground">Still here</span>
-                      <InlineBar percent={(row.stillHereCount / row.enteredCount) * 100} className="max-w-40" />
-                      <span className="w-24 shrink-0 text-right font-medium">
-                        {row.stillHereCount} ({pct((row.stillHereCount / row.enteredCount) * 100)})
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+          <CardContent>
+            <StageBarChart data={linearFunnelData} />
           </CardContent>
         </Card>
 
@@ -153,14 +184,14 @@ export default async function DashboardPage({
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Stage-to-Stage Timing</CardTitle>
-              <p className="text-xs text-muted-foreground">Average days between key early stages.</p>
+              <p className="text-xs text-muted-foreground">Days and hours between key early stages.</p>
             </CardHeader>
             <CardContent className="space-y-2">
               {data.pipelineConversion.stageTransitionTimes.map((row) => (
                 <div key={row.label} className="flex items-center justify-between text-sm">
                   <span className="font-medium">{row.label}</span>
                   <span className="text-muted-foreground">
-                    {days(row.avgDays)} avg {row.count > 0 && `· ${row.count} deals`}
+                    {daysAndHours(row.avgDays)} avg {row.count > 0 && `· ${row.count} deals`}
                   </span>
                 </div>
               ))}
@@ -197,6 +228,39 @@ export default async function DashboardPage({
             </CardContent>
           </Card>
         </div>
+      </section>
+
+      {/* ---------------------------------------------------------------- */}
+      <section className="space-y-4">
+        <SectionHeading title="Cost & Profitability" />
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-2">
+          <StatCard
+            label="Projected Revenue"
+            value={money(data.costProfitability.projectedRevenue)}
+            sub="open deals expected to close in this period"
+          />
+          <StatCard label="Closed Revenue" value={money(data.costProfitability.closedRevenue)} />
+        </div>
+        {enabled.has("avg_origination_points_by_loan_type") && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Average Origination Points, by Loan Type</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {data.costProfitability.avgOriginationPointsByLoanType.length === 0 && (
+                <p className="text-sm text-muted-foreground">No data in this range.</p>
+              )}
+              {data.costProfitability.avgOriginationPointsByLoanType.map((row) => (
+                <div key={row.loanCategory} className="flex items-center justify-between text-sm">
+                  <span className="font-medium">{labelFor(LOAN_CATEGORIES, row.loanCategory)}</span>
+                  <span className="text-muted-foreground">
+                    {row.averagePoints.toFixed(2)} pts · {row.count} closed
+                  </span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
       </section>
 
       {/* ---------------------------------------------------------------- */}
@@ -347,7 +411,8 @@ export default async function DashboardPage({
           <CardHeader>
             <CardTitle className="text-base">Lender Turn Times</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Lender responsiveness, separate from our own internal timelines.
+              Approximated from our own button clicks (no lender-reply timestamp exists): Price Loan → term sheet
+              drafted, and Application → Closed.
             </p>
           </CardHeader>
           <CardContent>
@@ -355,14 +420,14 @@ export default async function DashboardPage({
               <div className="grid grid-cols-3 gap-2 text-xs font-medium text-muted-foreground">
                 <span>Lender</span>
                 <span className="text-right">Time to Term Sheet</span>
-                <span className="text-right">Time to Clear-to-Close</span>
+                <span className="text-right">Time to Close</span>
               </div>
               {data.lenderTurnTimes.length === 0 && <p className="text-sm text-muted-foreground">No data in this range.</p>}
               {data.lenderTurnTimes.map((row) => (
                 <div key={row.lenderId} className="grid grid-cols-3 gap-2 text-sm">
                   <span className="truncate font-medium">{row.lenderName}</span>
-                  <span className="text-right">{days(row.averageDaysToTermSheet)}</span>
-                  <span className="text-right">{days(row.averageDaysToClearToClose)}</span>
+                  <span className="text-right">{daysAndHours(row.averageDaysToTermSheet)}</span>
+                  <span className="text-right">{days(row.averageDaysToClose)}</span>
                 </div>
               ))}
             </div>
@@ -401,74 +466,40 @@ export default async function DashboardPage({
 
       {/* ---------------------------------------------------------------- */}
       <section className="space-y-4">
-        <SectionHeading title="Cost & Profitability" />
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-2">
-          <StatCard label="Projected Revenue" value={money(data.costProfitability.projectedRevenue)} sub="active deals, as of now" />
-          <StatCard label="Closed Revenue" value={money(data.costProfitability.closedRevenue)} />
-        </div>
-        {enabled.has("avg_origination_points_by_loan_type") && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Average Origination Points, by Loan Type</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {data.costProfitability.avgOriginationPointsByLoanType.length === 0 && (
-                <p className="text-sm text-muted-foreground">No data in this range.</p>
-              )}
-              {data.costProfitability.avgOriginationPointsByLoanType.map((row) => (
-                <div key={row.loanCategory} className="flex items-center justify-between text-sm">
-                  <span className="font-medium">{labelFor(LOAN_CATEGORIES, row.loanCategory)}</span>
-                  <span className="text-muted-foreground">
-                    {row.averagePoints.toFixed(2)} pts · {row.count} closed
-                  </span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
-      </section>
-
-      {/* ---------------------------------------------------------------- */}
-      <section className="space-y-4">
         <SectionHeading title="Operations" subtitle="Right-now snapshot of the live pipeline, not range-filtered." />
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Active Deals by Stage</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {data.operations.activeByStage.map((row) => (
-                <div key={row.stage} className="flex items-center justify-between text-sm">
-                  <span className="font-medium">{stageLabel(row.stage)}</span>
-                  <span className="text-muted-foreground">{row.count}</span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Active Deals by Loan Officer</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {data.operations.activeByLoanOfficer.length === 0 && (
-                <p className="text-sm text-muted-foreground">No active deals assigned.</p>
-              )}
-              {data.operations.activeByLoanOfficer.map((row) => (
-                <div key={row.userId} className="flex items-center justify-between text-sm">
-                  <span className="font-medium">{row.name}</span>
-                  <span className="text-muted-foreground">{row.count}</span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Active Deals by Stage</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <StageBarChart
+              data={data.operations.activeByStage.map((row) => ({ label: stageLabel(row.stage), count: row.count }))}
+            />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Active Deals by Loan Officer</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {data.operations.activeByLoanOfficer.length === 0 && (
+              <p className="text-sm text-muted-foreground">No active deals assigned.</p>
+            )}
+            {data.operations.activeByLoanOfficer.map((row) => (
+              <div key={row.userId} className="flex items-center justify-between text-sm">
+                <span className="font-medium">{row.name}</span>
+                <span className="text-muted-foreground">{row.count}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       </section>
 
       {/* ---------------------------------------------------------------- */}
       <section className="space-y-4">
         <SectionHeading
           title="Forward Looking"
-          subtitle="Pipeline aging — active deals that have sat in their current stage longer than the historical average for that stage."
+          subtitle="Pipeline aging — active deals that have sat in their current stage longer than our own historical average for that stage."
         />
         <Card>
           <CardContent className="pt-6">
@@ -488,6 +519,30 @@ export default async function DashboardPage({
                 </div>
               ))}
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Industry Reference Points</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              No non-QM/DSCR-specific industry-association benchmark exists — these are the closest available
+              reference points, each labeled with what kind of source it actually is. Use as a rough outside
+              comparison, not a precise target, alongside your own historical average above.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {INDUSTRY_BENCHMARKS.map((b) => (
+              <div key={b.label} className="border-b pb-3 last:border-0 last:pb-0">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">{b.label}</span>
+                  <span className="text-muted-foreground">{b.value}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {b.source} — {b.note}
+                </p>
+              </div>
+            ))}
           </CardContent>
         </Card>
       </section>

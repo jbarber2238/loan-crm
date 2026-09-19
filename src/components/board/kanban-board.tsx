@@ -25,11 +25,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LOAN_CATEGORIES, STAGES, labelFor } from "@/lib/labels";
-import { STAGES_REQUIRING_REASON, ARCHIVABLE_STAGES } from "@/lib/deal-pipeline";
+import { STAGES_REQUIRING_REASON, STAGES_REQUIRING_CONFIRMATION, ARCHIVABLE_STAGES } from "@/lib/deal-pipeline";
 import { leadValueFor } from "@/lib/term-sheet-calculations";
 import { updateDealStage, restoreArchivedDeal } from "@/server/actions/deals";
 import { toast } from "sonner";
 import { StageReasonDialog } from "@/components/deals/stage-reason-dialog";
+import { ClosedConfirmDialog } from "@/components/deals/closed-confirm-dialog";
 import { DeleteDealDialog } from "@/components/deals/delete-deal-dialog";
 import { ArchiveDealDialog } from "@/components/deals/archive-deal-dialog";
 
@@ -293,6 +294,7 @@ export function KanbanBoard({ deals }: { deals: BoardDeal[] }) {
   const [syncedDeals, setSyncedDeals] = useState(deals);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pendingDrop, setPendingDrop] = useState<{ dealId: string; stage: string } | null>(null);
+  const [pendingClosedDrop, setPendingClosedDrop] = useState<{ dealId: string; stage: string } | null>(null);
 
   if (deals !== syncedDeals) {
     setSyncedDeals(deals);
@@ -314,7 +316,7 @@ export function KanbanBoard({ deals }: { deals: BoardDeal[] }) {
     setActiveId(String(event.active.id));
   }
 
-  function commitStageChange(dealId: string, newStage: string, reason?: string) {
+  function commitStageChange(dealId: string, newStage: string, reason?: string, confirmed?: boolean) {
     setLocalDeals((prev) =>
       prev.map((d) =>
         d.id === dealId ? { ...d, stage: newStage, currentStageEnteredAt: new Date().toISOString() } : d
@@ -322,7 +324,7 @@ export function KanbanBoard({ deals }: { deals: BoardDeal[] }) {
     );
 
     startTransition(async () => {
-      await updateDealStage(dealId, newStage, reason);
+      await updateDealStage(dealId, newStage, reason, confirmed);
       router.refresh();
     });
   }
@@ -340,6 +342,13 @@ export function KanbanBoard({ deals }: { deals: BoardDeal[] }) {
     // yet, ask why first. Cancel leaves it exactly where it was.
     if (STAGES_REQUIRING_REASON.has(newStage)) {
       setPendingDrop({ dealId, stage: newStage });
+      return;
+    }
+
+    // Same "don't move the card yet" treatment as the reason-required
+    // stages — closing is the one drop that's expensive to get wrong.
+    if (STAGES_REQUIRING_CONFIRMATION.has(newStage)) {
+      setPendingClosedDrop({ dealId, stage: newStage });
       return;
     }
 
@@ -371,6 +380,18 @@ export function KanbanBoard({ deals }: { deals: BoardDeal[] }) {
           onConfirm={(reason) => {
             commitStageChange(pendingDrop.dealId, pendingDrop.stage, reason);
             setPendingDrop(null);
+          }}
+        />
+      )}
+      {pendingClosedDrop && (
+        <ClosedConfirmDialog
+          open={!!pendingClosedDrop}
+          onOpenChange={(open) => {
+            if (!open) setPendingClosedDrop(null);
+          }}
+          onConfirm={() => {
+            commitStageChange(pendingClosedDrop.dealId, pendingClosedDrop.stage, undefined, true);
+            setPendingClosedDrop(null);
           }}
         />
       )}

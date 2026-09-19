@@ -21,6 +21,7 @@ import {
   PAUSED_STAGES,
   TERMINAL_NEGATIVE_STAGES,
   STAGES_REQUIRING_REASON,
+  STAGES_REQUIRING_CONFIRMATION,
   isPipelineStage,
   ARCHIVABLE_STAGES,
 } from "@/lib/deal-pipeline";
@@ -94,6 +95,7 @@ export async function createDeal(formData: FormData) {
   }
 
   revalidatePath("/");
+  revalidatePath("/dashboard");
   redirect(`/deals/${dealId}`);
 }
 
@@ -307,6 +309,7 @@ export async function updateDealDetails(dealId: string, formData: FormData) {
 
   revalidatePath(`/deals/${dealId}`);
   revalidatePath("/");
+  revalidatePath("/dashboard");
 }
 
 export async function updateDealRoles(dealId: string, formData: FormData) {
@@ -327,6 +330,7 @@ export async function updateDealRoles(dealId: string, formData: FormData) {
 
   revalidatePath(`/deals/${dealId}`);
   revalidatePath("/");
+  revalidatePath("/dashboard");
 }
 
 export async function addDealFollower(dealId: string, formData: FormData) {
@@ -449,6 +453,7 @@ export async function updateAcceptedTerms(dealId: string, formData: FormData) {
 
   revalidatePath(`/deals/${dealId}`);
   revalidatePath("/");
+  revalidatePath("/dashboard");
 }
 
 export async function toggleRateLock(dealId: string, locked: boolean) {
@@ -510,6 +515,7 @@ export async function advanceDealStage(
 
   await db.insert(dealStageHistory).values({ dealId, stage: toStage, changedByUserId });
   revalidatePath("/");
+  revalidatePath("/dashboard");
   revalidatePath(`/deals/${dealId}`);
   return true;
 }
@@ -521,7 +527,7 @@ export async function advanceDealStage(
 // expected to have already collected it via StageReasonDialog before
 // calling this, but it's re-validated here too since this is a callable
 // server action.
-export async function updateDealStage(dealId: string, stage: string, reason?: string) {
+export async function updateDealStage(dealId: string, stage: string, reason?: string, confirmed?: boolean) {
   const user = await requireUser();
   if (!dealStageEnum.enumValues.includes(stage as (typeof dealStageEnum.enumValues)[number])) {
     throw new Error("Invalid stage");
@@ -534,6 +540,13 @@ export async function updateDealStage(dealId: string, stage: string, reason?: st
   const trimmedReason = reason?.trim() || "";
   if (STAGES_REQUIRING_REASON.has(newStage) && !trimmedReason) {
     throw new Error("A reason is required for this stage change");
+  }
+  // Closing feeds directly into revenue/performance metrics, so it needs an
+  // explicit "yes" — checked server-side too, not just in the dialog, since
+  // this is called directly (not via a form) and a client bug could
+  // otherwise skip the confirmation entirely.
+  if (STAGES_REQUIRING_CONFIRMATION.has(newStage) && deal.stage !== newStage && !confirmed) {
+    throw new Error("Marking a deal as Closed requires confirmation");
   }
 
   const updates: Partial<typeof deals.$inferInsert> = { stage: newStage, updatedAt: new Date() };
@@ -587,6 +600,7 @@ export async function updateDealStage(dealId: string, stage: string, reason?: st
   }
 
   revalidatePath("/");
+  revalidatePath("/dashboard");
   revalidatePath(`/deals/${dealId}`);
 }
 
@@ -708,6 +722,7 @@ export async function deleteDeal(dealId: string, confirmText: string) {
     .where(eq(deals.id, dealId));
 
   revalidatePath("/");
+  revalidatePath("/dashboard");
   revalidatePath("/pipeline");
 }
 
@@ -720,6 +735,7 @@ export async function restoreDeletedDeal(dealId: string) {
     .where(eq(deals.id, dealId));
 
   revalidatePath("/");
+  revalidatePath("/dashboard");
   revalidatePath("/pipeline");
   revalidatePath(`/deals/${dealId}`);
 }
@@ -741,6 +757,7 @@ export async function archiveDeal(dealId: string) {
     .where(eq(deals.id, dealId));
 
   revalidatePath("/");
+  revalidatePath("/dashboard");
   revalidatePath("/pipeline");
   revalidatePath("/pipeline/archived");
 }
@@ -756,6 +773,7 @@ export async function restoreArchivedDeal(dealId: string) {
     .where(eq(deals.id, dealId));
 
   revalidatePath("/");
+  revalidatePath("/dashboard");
   revalidatePath("/pipeline");
   revalidatePath("/pipeline/archived");
   revalidatePath(`/deals/${dealId}`);

@@ -64,6 +64,27 @@ function firstEntryEver(deal: DealWithRelations, stage: string): Date | null {
   return hit ? hit.changedAt : null;
 }
 
+const RESTORE_STAGES = new Set(["new", "rate_shopping"]);
+
+/**
+ * A "restore" is a deal re-entering New or Rate Shopping after it already
+ * had history — i.e. it's not this deal's original submission, it came back
+ * (from Lost, Follow-up, or an Archive/Delete restore). A deal's very first
+ * history row is always its real creation into "new" (index 0), so any
+ * later entry into New/Rate Shopping is by definition a return, not a new
+ * lead — this is what separates "New Leads" from "Restored Leads" below.
+ */
+function restoreEntriesInRange(deal: DealWithRelations, start: Date | null, end: Date) {
+  const hist = sortedHistory(deal);
+  return hist.filter((h, i) => i > 0 && RESTORE_STAGES.has(h.stage) && inRange(h.changedAt, start, end));
+}
+
+/** Whether this deal had already been restored at least once before `before` — used to split "Applications Submitted" into straight-through vs. restored-then-applied. */
+function hasRestoreEventBefore(deal: DealWithRelations, before: Date): boolean {
+  const hist = sortedHistory(deal);
+  return hist.some((h, i) => i > 0 && RESTORE_STAGES.has(h.stage) && h.changedAt.getTime() < before.getTime());
+}
+
 function average(nums: number[]): number | null {
   if (!nums.length) return null;
   return nums.reduce((a, b) => a + b, 0) / nums.length;
@@ -195,13 +216,17 @@ function buildSpeedApplicationToClose(dealsData: DealWithRelations[], start: Dat
 
 export interface PipelineConversionData {
   newLeads: number;
+  restoredLeads: number;
   applicationsSubmitted: number;
+  applicationsSubmittedDirect: number;
+  applicationsSubmittedRestored: number;
   leadToApplicationPct: number | null;
   leadLostPct: number | null;
   totalPipelineValue: number;
   totalLostValue: number;
   loansClosed: number;
   totalVolumeClosed: number;
+  averageLoanSizeRequested: number;
   averageLoanSizeClosed: number;
   speedLeadToClose: SpeedRow[];
   speedApplicationToClose: SpeedRow[];
@@ -210,26 +235,45 @@ export interface PipelineConversionData {
 }
 
 function buildPipelineConversion(dealsData: DealWithRelations[], start: Date | null, end: Date): PipelineConversionData {
-  // Cohort: leads that entered "new" within the selected range.
-  const leadCohort = dealsData.filter((d) => firstEntryInRange(d, "new", start, end) !== null);
+  // A New Lead is a deal's actual, original submission — its very first
+  // stage-history row is always its creation into "new", so this is the
+  // same instant as deal.createdAt. Deliberately NOT firstEntryInRange
+  // here: a deal restored back into "new" today would otherwise show up as
+  // a brand-new lead today even though it's been in the system for months.
+  const leadCohort = dealsData.filter((d) => inRange(d.createdAt, start, end));
   const newLeads = leadCohort.length;
   const convertedCount = leadCohort.filter((d) => firstEntryEver(d, "application") !== null).length;
   const lostCount = leadCohort.filter((d) => TERMINAL_STAGES.has(d.stage) && d.stage !== "closed").length;
 
-  const applicationsSubmitted = dealsData.filter((d) => firstEntryInRange(d, "application", start, end) !== null).length;
+  // A Restored Lead is the opposite case: an OLD deal re-entering New or
+  // Rate Shopping this period (came back from Lost/Follow-up, or an
+  // archive/delete restore) — counted once per deal even if it happened
+  // more than once in the window.
+  const restoredLeads = dealsData.filter((d) => restoreEntriesInRange(d, start, end).length > 0).length;
+
+  const applicationEntriesInRange = dealsData
+    .map((d) => ({ deal: d, entry: firstEntryInRange(d, "application", start, end) }))
+    .filter((x): x is { deal: DealWithRelations; entry: { index: number; changedAt: Date } } => x.entry !== null);
+  const applicationsSubmitted = applicationEntriesInRange.length;
+  const applicationsSubmittedRestored = applicationEntriesInRange.filter(({ deal, entry }) =>
+    hasRestoreEventBefore(deal, entry.changedAt)
+  ).length;
+  const applicationsSubmittedDirect = applicationsSubmitted - applicationsSubmittedRestored;
 
   // Snapshot, not range-filtered — "what's live right now," same convention
-  // Justin already sees on the pipeline board's Lead Value badges.
+  // Justin already sees on the pipeline board's Lead Value badges. Matches
+  // his own definition: everything between New and Clear to Close, plus
+  // On Hold and Follow-up — i.e. everything that isn't Closed/Lost/Disqualified.
   const totalPipelineValue = dealsData
     .filter((d) => !TERMINAL_STAGES.has(d.stage))
     .reduce((sum, d) => sum + dealLeadValue(d), 0);
 
+  // Real-time by design: only deals CURRENTLY sitting in Lost, that also
+  // moved into Lost at some point in this range. A deal lost earlier this
+  // month and then restored drops out of this number immediately — it's
+  // never "banked" as a historical loss the way a static tally would.
   const totalLostValue = dealsData
-    .filter((d) => {
-      const lostEntry = firstEntryInRange(d, "lost", start, end);
-      const dqEntry = firstEntryInRange(d, "disqualified", start, end);
-      return lostEntry !== null || dqEntry !== null;
-    })
+    .filter((d) => d.stage === "lost" && firstEntryInRange(d, "lost", start, end) !== null)
     .reduce((sum, d) => sum + dealLeadValue(d), 0);
 
   const closedAmounts = dealsData
@@ -237,15 +281,21 @@ function buildPipelineConversion(dealsData: DealWithRelations[], start: Date | n
     .map((d) => (d.approvedLoanAmount !== null ? num(d.approvedLoanAmount) : num(d.loanAmountRequested)));
   const totalVolumeClosed = closedAmounts.reduce((a, b) => a + b, 0);
 
+  const requestedAmounts = leadCohort.map((d) => num(d.loanAmountRequested));
+
   return {
     newLeads,
+    restoredLeads,
     applicationsSubmitted,
+    applicationsSubmittedDirect,
+    applicationsSubmittedRestored,
     leadToApplicationPct: newLeads ? (convertedCount / newLeads) * 100 : null,
     leadLostPct: newLeads ? (lostCount / newLeads) * 100 : null,
     totalPipelineValue,
     totalLostValue,
     loansClosed: closedAmounts.length,
     totalVolumeClosed,
+    averageLoanSizeRequested: requestedAmounts.length ? average(requestedAmounts)! : 0,
     averageLoanSizeClosed: closedAmounts.length ? totalVolumeClosed / closedAmounts.length : 0,
     speedLeadToClose: buildSpeedLeadToClose(dealsData, start, end),
     speedApplicationToClose: buildSpeedApplicationToClose(dealsData, start, end),
@@ -271,6 +321,14 @@ export interface LoanOfficerRow {
   averageDealSize: number;
 }
 
+/**
+ * Same cohort methodology as the top-line Pipeline & Conversion numbers —
+ * NOT two independent range-counts divided by each other (that can exceed
+ * 100% if an LO's applications this period came from leads submitted last
+ * period). Lead→App is "of this LO's leads this period, how many have
+ * since reached Application (ever)." App→Close is its own cohort: "of this
+ * LO's applications this period, how many have since closed (ever)."
+ */
 function buildLoanOfficerPerformance(dealsData: DealWithRelations[], start: Date | null, end: Date): LoanOfficerRow[] {
   const byLo = new Map<string, LoanOfficerRow>();
   const getRow = (id: string, name: string) => {
@@ -293,12 +351,23 @@ function buildLoanOfficerPerformance(dealsData: DealWithRelations[], start: Date
     return row;
   };
 
+  const leadCohortByLo = new Map<string, DealWithRelations[]>();
+  const appCohortByLo = new Map<string, DealWithRelations[]>();
+
   for (const deal of dealsData) {
     if (!deal.assignedLoanOfficerId || !deal.assignedLoanOfficer) continue;
     const row = getRow(deal.assignedLoanOfficerId, deal.assignedLoanOfficer.name ?? deal.assignedLoanOfficer.email ?? "Unknown");
 
-    if (firstEntryInRange(deal, "new", start, end)) row.leadCount++;
-    if (firstEntryInRange(deal, "application", start, end)) row.applicationCount++;
+    if (inRange(deal.createdAt, start, end)) {
+      const list = leadCohortByLo.get(deal.assignedLoanOfficerId) ?? [];
+      list.push(deal);
+      leadCohortByLo.set(deal.assignedLoanOfficerId, list);
+    }
+    if (firstEntryInRange(deal, "application", start, end)) {
+      const list = appCohortByLo.get(deal.assignedLoanOfficerId) ?? [];
+      list.push(deal);
+      appCohortByLo.set(deal.assignedLoanOfficerId, list);
+    }
 
     const closedEntry = firstEntryInRange(deal, "closed", start, end);
     if (closedEntry) {
@@ -310,8 +379,16 @@ function buildLoanOfficerPerformance(dealsData: DealWithRelations[], start: Date
   }
 
   for (const row of byLo.values()) {
-    row.leadToApplicationPct = row.leadCount ? (row.applicationCount / row.leadCount) * 100 : null;
-    row.applicationToClosePct = row.applicationCount ? (row.closedCount / row.applicationCount) * 100 : null;
+    const leadCohort = leadCohortByLo.get(row.userId) ?? [];
+    const appCohort = appCohortByLo.get(row.userId) ?? [];
+    row.leadCount = leadCohort.length;
+    row.applicationCount = appCohort.length;
+    row.leadToApplicationPct = leadCohort.length
+      ? (leadCohort.filter((d) => firstEntryEver(d, "application") !== null).length / leadCohort.length) * 100
+      : null;
+    row.applicationToClosePct = appCohort.length
+      ? (appCohort.filter((d) => firstEntryEver(d, "closed") !== null).length / appCohort.length) * 100
+      : null;
     row.averageDealSize = row.closedCount ? row.closedVolume / row.closedCount : 0;
   }
 
@@ -456,8 +533,17 @@ function buildLenderPerformance(
         const days = closeDays.get(deal.lenderId) ?? [];
         days.push(daysBetween(accepted.acceptedAt!, closedEntry.changedAt));
         closeDays.set(deal.lenderId, days);
-      } else if (deal.stage === "lost" || deal.stage === "disqualified") {
-        row.lost++;
+      } else {
+        // Same real-time + "happened in this range" gating as Closed above
+        // and as Total Lost Value: must be CURRENTLY lost, and must have
+        // become lost during this range — a deal lost then restored drops
+        // out immediately rather than staying counted against the lender.
+        const lostInRange =
+          firstEntryInRange(deal, "lost", start, end) !== null ||
+          firstEntryInRange(deal, "disqualified", start, end) !== null;
+        if (lostInRange && (deal.stage === "lost" || deal.stage === "disqualified")) {
+          row.lost++;
+        }
       }
     }
   }
@@ -473,10 +559,26 @@ export interface LenderTurnTimeRow {
   lenderId: string;
   lenderName: string;
   averageDaysToTermSheet: number | null;
-  averageDaysToClearToClose: number | null;
+  averageDaysToClose: number | null;
 }
 
-/** Lender responsiveness, separate from our own internal timelines — time to term sheet is purely "how fast did this lender reply once priced," time to CTC is purely "how fast did this lender's underwriting move once the deal became theirs." */
+/**
+ * Lender responsiveness, separate from our own internal timelines. Since
+ * there's no lender-reply webhook/timestamp to measure against, both of
+ * these are anchored to OUR team's own button clicks — an approximation of
+ * lender speed, not a precise one, but directionally useful:
+ * - Time to Term Sheet: from clicking "Price Loan" (pricingRequest.createdAt
+ *   — the request row is created the instant that dialog is submitted) to
+ *   the term sheet draft actually existing in the system (termSheet.createdAt).
+ * - Time to Close: from the deal entering Application (the moment the
+ *   processing invoice is paid and the file effectively goes to this
+ *   lender) to Closed. Same underlying duration as "Speed to Close:
+ *   application → close" above, just sliced by lender instead of loan
+ *   category — a deliberately different measure than the internal
+ *   Application → Close speed metric's OWN slicing, not a duplicate: this
+ *   view answers "which lender is slow," that one answers "which loan type
+ *   is slow."
+ */
 function buildLenderTurnTimes(
   dealsData: DealWithRelations[],
   start: Date | null,
@@ -484,35 +586,35 @@ function buildLenderTurnTimes(
   lenderNames: Map<string, string>
 ): LenderTurnTimeRow[] {
   const toTermSheet = new Map<string, number[]>();
-  const toCtc = new Map<string, number[]>();
+  const toClose = new Map<string, number[]>();
 
   for (const deal of dealsData) {
     for (const termSheet of deal.termSheets) {
       if (!inRange(termSheet.createdAt, start, end)) continue;
-      const matchingRequest = deal.pricingRequests.find((r) => r.lenderId === termSheet.lenderId && r.sentAt);
-      if (!matchingRequest?.sentAt) continue;
+      const matchingRequest = deal.pricingRequests.find((r) => r.lenderId === termSheet.lenderId);
+      if (!matchingRequest) continue;
       const list = toTermSheet.get(termSheet.lenderId) ?? [];
-      list.push(daysBetween(matchingRequest.sentAt, termSheet.createdAt));
+      list.push(daysBetween(matchingRequest.createdAt, termSheet.createdAt));
       toTermSheet.set(termSheet.lenderId, list);
     }
 
     if (!deal.lenderId) continue;
-    const ctcEntry = firstEntryInRange(deal, "clear_to_close", start, end);
-    if (!ctcEntry) continue;
+    const closedEntry = firstEntryInRange(deal, "closed", start, end);
+    if (!closedEntry) continue;
     const appAt = firstEntryEver(deal, "application");
-    if (!appAt || appAt.getTime() >= ctcEntry.changedAt.getTime()) continue;
-    const list = toCtc.get(deal.lenderId) ?? [];
-    list.push(daysBetween(appAt, ctcEntry.changedAt));
-    toCtc.set(deal.lenderId, list);
+    if (!appAt || appAt.getTime() >= closedEntry.changedAt.getTime()) continue;
+    const list = toClose.get(deal.lenderId) ?? [];
+    list.push(daysBetween(appAt, closedEntry.changedAt));
+    toClose.set(deal.lenderId, list);
   }
 
-  const lenderIds = new Set([...toTermSheet.keys(), ...toCtc.keys()]);
+  const lenderIds = new Set([...toTermSheet.keys(), ...toClose.keys()]);
   return [...lenderIds]
     .map((lenderId) => ({
       lenderId,
       lenderName: lenderNames.get(lenderId) ?? "Unknown lender",
       averageDaysToTermSheet: average(toTermSheet.get(lenderId) ?? []),
-      averageDaysToClearToClose: average(toCtc.get(lenderId) ?? []),
+      averageDaysToClose: average(toClose.get(lenderId) ?? []),
     }))
     .sort((a, b) => (a.lenderName < b.lenderName ? -1 : 1));
 }
@@ -591,11 +693,15 @@ export interface CostProfitabilityData {
 }
 
 function buildCostProfitability(dealsData: DealWithRelations[], start: Date | null, end: Date): CostProfitabilityData {
-  // Projected: every currently-open deal's lead value, as a forward-looking
-  // "what's on the books" figure — mirrors totalPipelineValue above but
-  // framed as revenue rather than pipeline size.
+  // Projected Revenue is deliberately NOT the same figure as Total Pipeline
+  // Value: it's revenue expected to land IN the selected period, based on
+  // each open deal's own estimatedClosingDate — "what do we expect to
+  // actually book this month," not "what's open right now regardless of
+  // when it's expected to close." Deals with no estimated closing date yet
+  // can't be projected into a period, so they're excluded here (they still
+  // count in Total Pipeline Value).
   const projectedRevenue = dealsData
-    .filter((d) => !TERMINAL_STAGES.has(d.stage))
+    .filter((d) => !TERMINAL_STAGES.has(d.stage) && d.estimatedClosingDate && inRange(d.estimatedClosingDate, start, end))
     .reduce((sum, d) => sum + dealLeadValue(d), 0);
 
   const closedRevenue = dealsData
@@ -621,22 +727,38 @@ function buildCostProfitability(dealsData: DealWithRelations[], start: Date | nu
 // Operations
 // ---------------------------------------------------------------------------
 
+// Every stage a deal can be actively sitting in — matches Justin's own
+// definition of "pipeline" for Total Pipeline Value: everything from New
+// through Clear to Close, plus On Hold and Follow-up. Fixed order (not
+// derived from whatever's present) so the bar chart's shape and stage
+// order stay stable even when a stage currently has zero deals in it.
+export const ACTIVE_STAGE_ORDER = [
+  "new",
+  "rate_shopping",
+  "term_sheet",
+  "negotiation",
+  "application",
+  "processing",
+  "conditional_approval",
+  "clear_to_close",
+  "on_hold",
+  "follow_up",
+] as const;
+
 export interface OperationsData {
   activeByStage: { stage: string; count: number }[];
   activeByLoanOfficer: { userId: string; name: string; count: number }[];
 }
 
-/** A right-now snapshot of the live pipeline's shape, not range-filtered — "what does the desk look like today," same convention as Total Pipeline Value. */
+/** A right-now snapshot of the live pipeline's shape, not range-filtered — "what does the desk look like today," same convention as Total Pipeline Value. Real-time by construction: this is a fresh DB read on every dashboard load, so a deal restored a moment ago already shows up in its new stage. */
 function buildOperations(dealsData: DealWithRelations[]): OperationsData {
-  const activeDeals = dealsData.filter((d) => !TERMINAL_STAGES.has(d.stage) && d.stage !== "on_hold");
+  const activeDeals = dealsData.filter((d) => !TERMINAL_STAGES.has(d.stage));
 
   const byStage = new Map<string, number>();
   for (const deal of activeDeals) {
     byStage.set(deal.stage, (byStage.get(deal.stage) ?? 0) + 1);
   }
-  const activeByStage = dealStageEnum.enumValues
-    .filter((s) => byStage.has(s))
-    .map((stage) => ({ stage, count: byStage.get(stage)! }));
+  const activeByStage = ACTIVE_STAGE_ORDER.map((stage) => ({ stage, count: byStage.get(stage) ?? 0 }));
 
   const byLo = new Map<string, { name: string; count: number }>();
   for (const deal of activeDeals) {

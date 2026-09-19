@@ -29,6 +29,13 @@ export const TERMINAL_NEGATIVE_STAGES = new Set(["lost", "disqualified"]);
 // drag-and-drop to decide when to interrupt with the reason dialog.
 export const STAGES_REQUIRING_REASON = new Set([...PAUSED_STAGES, ...TERMINAL_NEGATIVE_STAGES]);
 
+// Closing is the one transition that's easy to trigger by accident (a
+// stray drag on the kanban board, testing stage changes) and expensive to
+// get wrong — it feeds "loans closed" straight into revenue/LO-performance
+// metrics. Requires an explicit "yes, this is closed with title" click,
+// not just a dropped card, before it's committed.
+export const STAGES_REQUIRING_CONFIRMATION = new Set(["closed"]);
+
 export function isPipelineStage(stage: string): stage is PipelineStage {
   return PIPELINE_STAGES.some((s) => s.value === stage);
 }
