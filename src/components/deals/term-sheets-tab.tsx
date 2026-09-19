@@ -34,6 +34,8 @@ import { SignaturePreview } from "@/components/emails/signature-preview";
 import { HtmlBodyEditor } from "@/components/emails/html-body-editor";
 import type { RecipientCandidate } from "@/lib/email-recipients";
 import { ADMIN_ONLY_FIELDS, termSheetFieldsFor } from "@/lib/term-sheet-fields";
+import { valueBasisFor, calculateLtv } from "@/lib/term-sheet-calculations";
+import { isInterestOnlyCategory } from "@/lib/loan-sections";
 
 interface TermSheet {
   id: string;
@@ -78,6 +80,56 @@ function termSheetDisplayStatus(termSheet: TermSheet): { label: string; variant:
   if (termSheet.sentForReviewAt) return { label: "Sent for Review", variant: "secondary" };
   if (termSheet.status === "generated") return { label: "Generated", variant: "secondary" };
   return { label: "Draft", variant: "outline" };
+}
+
+function numField(fields: Record<string, unknown>, key: string): number | null {
+  const value = fields[key];
+  const n = Number(value);
+  return typeof value !== "undefined" && value !== null && value !== "" && Number.isFinite(n) ? n : null;
+}
+
+function textField(fields: Record<string, unknown>, key: string): string | null {
+  const value = fields[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+// amortizationType is freeform ("30 Year Fixed", "5/6 ARM, ..."), and it's
+// the only place an ARM designation is captured — so when it mentions ARM,
+// that text *is* the type to show. Otherwise build a plain "{n}-year/month
+// term" from the structured term field. Same convention as the term-sheet
+// button label in the borrower "ready" email, so a rate/term/LTV summary
+// reads the same wherever it shows up.
+function loanTypeSummary(category: string, fields: Record<string, unknown>): string | null {
+  const amortizationType = textField(fields, "amortizationType");
+  if (amortizationType && /arm/i.test(amortizationType)) return amortizationType;
+  const isMonths = isInterestOnlyCategory(category);
+  const term = numField(fields, isMonths ? "loanTermMonths" : "loanTermYears");
+  if (term !== null) return `${Math.round(term)}-${isMonths ? "month" : "year"} term`;
+  return amortizationType;
+}
+
+// A quick "which one is this" preview for the card title — rate, term
+// type, and LTV in one glance, so picking the right one to send stays easy
+// once a deal has several term sheets on file.
+function termSheetSummary(
+  category: string,
+  fields: Record<string, unknown>,
+  purchasePrice: number | null,
+  estimatedAsIsValue: number | null
+): string | null {
+  const rate = numField(fields, "interestRate");
+  const loanAmount = numField(fields, "loanAmount");
+  const valueBasis = valueBasisFor(category, purchasePrice, estimatedAsIsValue);
+  const ltv = loanAmount !== null ? calculateLtv(loanAmount, valueBasis) : null;
+  const typeLabel = loanTypeSummary(category, fields);
+
+  const parts = [
+    rate !== null ? `${Number(rate.toFixed(2))}%` : null,
+    typeLabel,
+    ltv !== null ? `${Number(ltv.toFixed(1))}% LTV` : null,
+  ].filter((p): p is string => Boolean(p));
+
+  return parts.length ? parts.join(", ") : null;
 }
 
 interface EmailComposeState {
@@ -384,12 +436,14 @@ export function TermSheetsTab({
             ...(isAdmin ? ADMIN_ONLY_FIELDS : []),
           ];
           const display = termSheetDisplayStatus(termSheet);
+          const summary = termSheetSummary(termSheet.product.category, termSheet.fields, purchasePrice, estimatedAsIsValue);
 
           return (
             <Card key={termSheet.id}>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-base">
                   {termSheet.lender.name} — {termSheet.product.name}
+                  {summary && <span className="text-muted-foreground font-normal"> — {summary}</span>}
                 </CardTitle>
                 <Badge variant={display.variant}>{display.label}</Badge>
               </CardHeader>
