@@ -53,7 +53,64 @@ export function plainTextToHtmlWithBlocks(text: string, blocks: Record<string, s
   return `<div style="white-space:pre-wrap; font-family:Arial,Helvetica,sans-serif; font-size:14px; color:#1f2937;">${html}</div>`;
 }
 
-export const EMAIL_LIST_STYLE = "margin:0; padding-left:20px;";
+/**
+ * Turns a plain-text template's "Label: value" line dumps into a real
+ * bulleted, indented HTML list — without touching the template text itself,
+ * so it's still just a plain-text {{token}} template, freely editable in
+ * Settings → Email Templates. A lender fed this back as feedback: sent as
+ * flat pre-wrap text, everything "comes in all together with no spacing."
+ *
+ * Line-by-line: a line ending in . ! or ? reads as a sentence (greeting,
+ * intro, closing) and becomes its own paragraph; anything else (a
+ * "Label: value" fact line, or a plain phrase like a checklist item) joins
+ * a run of consecutive non-sentence lines, which becomes one <ul> once the
+ * run ends (at a blank line or the next sentence) — a lone non-sentence
+ * line becomes its own paragraph rather than a list of one. This is why
+ * every pricing-request template's fact lines end in a value, never a
+ * period: that's the one signal separating "prose" from "list item" here.
+ */
+export function plainTextToHtmlAutoList(text: string): string {
+  const linkify = (s: string) =>
+    escapeHtml(s).replace(URL_REGEX, (url) => `<a href="${url}" target="_blank" rel="noreferrer">${url}</a>`);
+
+  const paragraph = (line: string) =>
+    `<p style="margin:0 0 12px; line-height:1.5;">${linkify(line)}</p>`;
+
+  const listItem = (line: string) => {
+    const match = line.match(/^([^:]{2,60}):\s?(.*)$/);
+    if (match && match[2].trim()) {
+      const [, label, value] = match;
+      return `<li style="${EMAIL_ITEM_STYLE}"><strong>${escapeHtml(label)}:</strong> ${linkify(value)}</li>`;
+    }
+    return `<li style="${EMAIL_ITEM_STYLE}">${linkify(line)}</li>`;
+  };
+
+  const out: string[] = [];
+  let run: string[] = [];
+
+  const flush = () => {
+    if (run.length === 1) out.push(paragraph(run[0]));
+    else if (run.length > 1) out.push(`<ul style="${EMAIL_LIST_STYLE}">${run.map(listItem).join("")}</ul>`);
+    run = [];
+  };
+
+  for (const rawLine of text.split("\n")) {
+    const line = rawLine.trim();
+    if (line === "") {
+      flush();
+    } else if (/[.!?]$/.test(line)) {
+      flush();
+      out.push(paragraph(line));
+    } else {
+      run.push(line);
+    }
+  }
+  flush();
+
+  return `<div style="font-family:Arial,Helvetica,sans-serif; font-size:14px; color:#1f2937;">${out.join("")}</div>`;
+}
+
+export const EMAIL_LIST_STYLE = "margin:0; padding-left:28px;";
 export const EMAIL_ITEM_STYLE = "margin-bottom:12px; line-height:1.5;";
 export const EMAIL_SUBNOTE_STYLE = "color:#6b7280; font-size:13px;";
 export const EMAIL_SECTION_HEADING_STYLE = "margin:0 0 8px; font-size:14px; font-weight:700;";

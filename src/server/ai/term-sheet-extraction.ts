@@ -3,10 +3,11 @@
 import { eq } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/server/db/client";
-import { pricingRequestReplyAttachments, pricingRequests } from "@/server/db/schema";
+import { deals, pricingRequestReplyAttachments, pricingRequests } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { termSheetFieldsFor, type TermSheetField } from "@/lib/term-sheet-fields";
 import { detectImageMediaType } from "@/server/ai/image-media-type";
+import { valueBasisFor } from "@/lib/term-sheet-calculations";
 
 const anthropic = process.env.ANTHROPIC_API_KEY
   ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -21,6 +22,12 @@ export interface TermSheetExtractionResult {
   notes: string | null;
 }
 
+// quotedLtvPercent is internal to this module — extractTermSheetFromReply
+// consumes it to back into loanAmount and never exposes it to the caller.
+interface RawExtractionResult extends TermSheetExtractionResult {
+  quotedLtvPercent: number | null;
+}
+
 function fieldListDescription(fields: TermSheetField[]): string {
   return fields
     .map((f) => `- ${f.key} ("${f.label}", type: ${f.type}${f.options ? `, one of: ${f.options.join(" | ")}` : ""})`)
@@ -30,7 +37,7 @@ function fieldListDescription(fields: TermSheetField[]): string {
 async function runExtraction(
   contentBlocks: Anthropic.ContentBlockParam[],
   category: string
-): Promise<TermSheetExtractionResult> {
+): Promise<RawExtractionResult> {
   if (!anthropic) {
     throw new Error("AI extraction isn't configured (missing ANTHROPIC_API_KEY).");
   }
@@ -43,7 +50,7 @@ Target fields for this loan category:
 ${fieldListDescription(fieldDefs)}
 
 Respond with ONLY a JSON object, no prose outside it, in this exact shape:
-{"fields": {"<key>": <value>, ...}, "notFoundKeys": ["<key>", ...], "notes": "<string or null>"}
+{"fields": {"<key>": <value>, ...}, "notFoundKeys": ["<key>", ...], "notes": "<string or null>", "quotedLtvPercent": <number or null>}
 
 Rules:
 - Only include a key in "fields" if you're reasonably confident you found it in the reply (text or attachments). Every lender formats these differently — read carefully across all the content provided, including tables and screenshots.
@@ -51,6 +58,8 @@ Rules:
 - For "select" type fields, return one of the listed options exactly as written.
 - List every target field key you could NOT find in "notFoundKeys" — don't guess or invent a value.
 - Do not include any field key that isn't in the target field list above.
+
+Loan amount vs. a quoted LTV: lenders sometimes price a refinance or a DSCR purchase as a percentage — "75% LTV cash-out," "we can go up to 80% LTV" — instead of, or without also giving, an actual dollar loan amount. If loanAmount is explicitly stated as a dollar figure, use that as normal. If it is NOT, but the lender's reply (for the same pricing option you're extracting) states an LTV percentage instead, put that percentage as a plain number in the top-level "quotedLtvPercent" field (not inside "fields") — the loan amount will be computed separately from the deal's own value basis. Leave "quotedLtvPercent" null if the lender didn't quote a percentage at all, or if you already found a dollar loanAmount.
 
 Rate + points pricing: lenders very commonly quote as "RATE% and N pt(s)" or "RATE% and N points" (e.g. "6.99% and 1 pt") — this is NOT the same as an origination fee. "N pt(s)" means a discount/buydown fee of N% of the loan amount. When you see this pattern, set interestRate to RATE and convert the points into a dollar amount for costToBorrowerFee (points ÷ 100 × loan amount) — do not leave costToBorrowerFee blank just because the reply never uses the words "rate buydown" or "points fee".
 
@@ -77,7 +86,12 @@ Reserves: DSCR and Portfolio loans use reservesMonths (a number of months, not a
     throw new Error("Couldn't parse an extraction result from the AI response — try again or enter terms manually.");
   }
 
-  let parsed: { fields?: Record<string, unknown>; notFoundKeys?: unknown; notes?: unknown };
+  let parsed: {
+    fields?: Record<string, unknown>;
+    notFoundKeys?: unknown;
+    notes?: unknown;
+    quotedLtvPercent?: unknown;
+  };
   try {
     parsed = JSON.parse(match[0]);
   } catch {
@@ -99,7 +113,12 @@ Reserves: DSCR and Portfolio loans use reservesMonths (a number of months, not a
 
   const notes = typeof parsed.notes === "string" && parsed.notes.trim().length ? parsed.notes.trim() : null;
 
-  return { fields, foundKeys: Object.keys(fields), notFoundKeys, notes };
+  const quotedLtvPercent =
+    typeof parsed.quotedLtvPercent === "number" && Number.isFinite(parsed.quotedLtvPercent)
+      ? parsed.quotedLtvPercent
+      : null;
+
+  return { fields, foundKeys: Object.keys(fields), notFoundKeys, notes, quotedLtvPercent };
 }
 
 function fileToContentBlock(file: {
@@ -158,7 +177,34 @@ export async function extractTermSheetFromReply({
     });
   }
 
-  return runExtraction(contentBlocks, category);
+  const { quotedLtvPercent, ...result } = await runExtraction(contentBlocks, category);
+
+  // The lender quoted an LTV percentage instead of a dollar loan amount —
+  // back into it using the deal's own value basis (as-is value for a
+  // refinance, purchase price for a purchase, same basis this term sheet's
+  // own LTV will be computed against once it's created, so the two never
+  // disagree).
+  if (!("loanAmount" in result.fields) && quotedLtvPercent !== null) {
+    const deal = await db.query.deals.findFirst({ where: eq(deals.id, request.dealId) });
+    const valueBasis = deal
+      ? valueBasisFor(
+          deal.loanCategory,
+          deal.purchasePrice ? Number(deal.purchasePrice) : null,
+          deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null
+        )
+      : null;
+
+    if (valueBasis !== null) {
+      const loanAmount = Math.round(valueBasis * (quotedLtvPercent / 100));
+      result.fields.loanAmount = loanAmount;
+      result.foundKeys = [...result.foundKeys, "loanAmount"];
+      result.notFoundKeys = result.notFoundKeys.filter((k) => k !== "loanAmount");
+      const computedNote = `Loan amount computed from the lender's quoted ${quotedLtvPercent}% LTV × $${valueBasis.toLocaleString()} value basis.`;
+      result.notes = result.notes ? `${result.notes} ${computedNote}` : computedNote;
+    }
+  }
+
+  return result;
 }
 
 // The quick-pricer flow has no lender email to read — just a screenshot of
@@ -182,5 +228,9 @@ export async function extractTermSheetFromScreenshot({
     block,
   ];
 
-  return runExtraction(contentBlocks, category);
+  // No dealId in this flow (no lender email/pricing request to trace back
+  // to), so there's no value basis to back a quoted LTV into a loan amount
+  // — quotedLtvPercent is simply dropped here.
+  const { quotedLtvPercent: _quotedLtvPercent, ...result } = await runExtraction(contentBlocks, category);
+  return result;
 }

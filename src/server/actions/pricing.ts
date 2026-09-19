@@ -9,7 +9,7 @@ import { sendGmailAs } from "@/server/gmail/send";
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
 import { buildPricingEmail } from "@/server/pricing-templates";
-import { plainTextToHtml } from "@/lib/email-html";
+import { plainTextToHtmlAutoList } from "@/lib/email-html";
 import { advanceDealStage } from "@/server/actions/deals";
 import { notifyBorrowerOfRateShopping } from "@/server/deal-notifications";
 
@@ -73,7 +73,7 @@ export async function createPricingRequests(dealId: string, formData: FormData) 
       lenderId: rep.lenderId,
       lenderRepId: rep.id,
       emailSubject: subject,
-      emailBody: plainTextToHtml(body),
+      emailBody: plainTextToHtmlAutoList(body),
       status: "draft",
     });
   }
