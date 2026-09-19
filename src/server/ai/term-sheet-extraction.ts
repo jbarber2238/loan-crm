@@ -107,11 +107,27 @@ Reserves: DSCR and Portfolio loans use reservesMonths (a number of months, not a
     }
   }
 
-  const notFoundKeys = Array.isArray(parsed.notFoundKeys)
+  let notFoundKeys = Array.isArray(parsed.notFoundKeys)
     ? parsed.notFoundKeys.filter((k): k is string => typeof k === "string" && validKeys.has(k))
     : [];
 
-  const notes = typeof parsed.notes === "string" && parsed.notes.trim().length ? parsed.notes.trim() : null;
+  // Hard-money draw loans (fix-and-flip/new construction) are almost always
+  // quoted as two separate pieces — an initial advance and a rehab/
+  // construction holdback — not as one combined total. If both pieces came
+  // through but the lender never stated a combined total directly, the
+  // total loan amount is just their sum; no need to leave it blank for the
+  // processor to add up by hand.
+  let notes = typeof parsed.notes === "string" && parsed.notes.trim().length ? parsed.notes.trim() : null;
+  if (!("loanAmount" in fields)) {
+    const initialAdvance = Number(fields.initialAdvance);
+    const rehabCost = Number(fields.approvedRehabCost);
+    if (Number.isFinite(initialAdvance) && Number.isFinite(rehabCost)) {
+      fields.loanAmount = initialAdvance + rehabCost;
+      notFoundKeys = notFoundKeys.filter((k) => k !== "loanAmount");
+      const computedNote = `Total loan amount computed as initial advance ($${initialAdvance.toLocaleString()}) + rehab/construction cost ($${rehabCost.toLocaleString()}).`;
+      notes = notes ? `${notes} ${computedNote}` : computedNote;
+    }
+  }
 
   const quotedLtvPercent =
     typeof parsed.quotedLtvPercent === "number" && Number.isFinite(parsed.quotedLtvPercent)
