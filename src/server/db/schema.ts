@@ -661,6 +661,12 @@ export const deals = pgTable("deals", {
   // A standing note the LO can jot down for lender reps — unique
   // situations, things to flag up front — included on new pricing emails.
   pricingNoteToRep: text("pricing_note_to_rep"),
+  // When either borrower-facing send actually went out — a deal-level
+  // visual cue (next to the two buttons) for "which option did we already
+  // use," since a staffer's own Gmail Sent folder isn't visible to anyone
+  // else on the team. Most recent send wins if the same one is used twice.
+  termSheetsSentToBorrowerAt: timestamp("term_sheets_sent_to_borrower_at", { mode: "date", withTimezone: true }),
+  bookACallSentAt: timestamp("book_a_call_sent_at", { mode: "date", withTimezone: true }),
   lenderId: uuid("lender_id").references(() => lenders.id),
   productId: uuid("product_id").references(() => products.id),
   finalRate: numeric("final_rate"),

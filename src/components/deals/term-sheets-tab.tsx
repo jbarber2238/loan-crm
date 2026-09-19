@@ -192,10 +192,12 @@ function SendTermSheetsDialog({
   dealId,
   shareable,
   hasBorrowerEmail,
+  sentAt,
 }: {
   dealId: string;
   shareable: TermSheet[];
   hasBorrowerEmail: boolean;
+  sentAt?: Date | null;
 }) {
   const router = useRouter();
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -266,14 +268,15 @@ function SendTermSheetsDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="outline">Send to borrower</Button>
-      </DialogTrigger>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>Send term sheets to borrower</DialogTitle>
-        </DialogHeader>
+    <div className="flex flex-col items-start gap-1">
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogTrigger asChild>
+          <Button variant="outline">Send to borrower</Button>
+        </DialogTrigger>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Send term sheets to borrower</DialogTitle>
+          </DialogHeader>
         {!hasBorrowerEmail ? (
           <p className="text-sm text-muted-foreground">Add a borrower email on the Overview tab first.</p>
         ) : step === "select" ? (
@@ -308,12 +311,26 @@ function SendTermSheetsDialog({
             </div>
           </div>
         ) : null}
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+      {sentAt && (
+        <p className="text-xs text-muted-foreground">
+          ✓ Sent {sentAt.toLocaleDateString()} at {sentAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+        </p>
+      )}
+    </div>
   );
 }
 
-function BookACallDialog({ dealId, hasBorrowerEmail }: { dealId: string; hasBorrowerEmail: boolean }) {
+function BookACallDialog({
+  dealId,
+  hasBorrowerEmail,
+  sentAt,
+}: {
+  dealId: string;
+  hasBorrowerEmail: boolean;
+  sentAt?: Date | null;
+}) {
   const router = useRouter();
   const bodyRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -352,31 +369,38 @@ function BookACallDialog({ dealId, hasBorrowerEmail }: { dealId: string; hasBorr
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="outline">Send &ldquo;book a call&rdquo; email</Button>
-      </DialogTrigger>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>Book a call</DialogTitle>
-        </DialogHeader>
-        {!hasBorrowerEmail ? (
-          <p className="text-sm text-muted-foreground">Add a borrower email on the Overview tab first.</p>
-        ) : loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : error && !compose ? (
-          <p className="text-sm text-destructive">{error}</p>
-        ) : compose ? (
-          <div className="space-y-3">
-            <ComposeFields idPrefix="book-a-call" compose={compose} setCompose={setCompose} bodyRef={bodyRef} />
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="button" className="w-full" disabled={sending} onClick={handleSend}>
-              {sending ? "Sending…" : "Send"}
-            </Button>
-          </div>
-        ) : null}
-      </DialogContent>
-    </Dialog>
+    <div className="flex flex-col items-start gap-1">
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogTrigger asChild>
+          <Button variant="outline">Send &ldquo;book a call&rdquo; email</Button>
+        </DialogTrigger>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Book a call</DialogTitle>
+          </DialogHeader>
+          {!hasBorrowerEmail ? (
+            <p className="text-sm text-muted-foreground">Add a borrower email on the Overview tab first.</p>
+          ) : loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : error && !compose ? (
+            <p className="text-sm text-destructive">{error}</p>
+          ) : compose ? (
+            <div className="space-y-3">
+              <ComposeFields idPrefix="book-a-call" compose={compose} setCompose={setCompose} bodyRef={bodyRef} />
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button type="button" className="w-full" disabled={sending} onClick={handleSend}>
+                {sending ? "Sending…" : "Send"}
+              </Button>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+      {sentAt && (
+        <p className="text-xs text-muted-foreground">
+          ✓ Sent {sentAt.toLocaleDateString()} at {sentAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -388,6 +412,8 @@ export function TermSheetsTab({
   hasBorrowerEmail,
   purchasePrice = null,
   estimatedAsIsValue = null,
+  termSheetsSentToBorrowerAt = null,
+  bookACallSentAt = null,
 }: {
   dealId: string;
   termSheets: TermSheet[];
@@ -396,15 +422,22 @@ export function TermSheetsTab({
   hasBorrowerEmail: boolean;
   purchasePrice?: number | null;
   estimatedAsIsValue?: number | null;
+  termSheetsSentToBorrowerAt?: Date | null;
+  bookACallSentAt?: Date | null;
 }) {
   const shareable = termSheets.filter((t) => t.status !== "draft");
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex flex-wrap gap-2">
-          <SendTermSheetsDialog dealId={dealId} shareable={shareable} hasBorrowerEmail={hasBorrowerEmail} />
-          <BookACallDialog dealId={dealId} hasBorrowerEmail={hasBorrowerEmail} />
+        <div className="flex flex-wrap items-start gap-2">
+          <SendTermSheetsDialog
+            dealId={dealId}
+            shareable={shareable}
+            hasBorrowerEmail={hasBorrowerEmail}
+            sentAt={termSheetsSentToBorrowerAt}
+          />
+          <BookACallDialog dealId={dealId} hasBorrowerEmail={hasBorrowerEmail} sentAt={bookACallSentAt} />
         </div>
 
         <Dialog>

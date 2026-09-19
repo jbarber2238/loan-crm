@@ -358,6 +358,8 @@ export async function sendTermSheetsToBorrowerEmail(
       .where(inArray(termSheets.id, termSheetIds));
   }
 
+  await db.update(deals).set({ termSheetsSentToBorrowerAt: new Date() }).where(eq(deals.id, dealId));
+
   // No-op if the deal isn't currently at Term Sheet — e.g. a re-send, or
   // "Book a call" already advanced it first.
   await advanceDealStage(dealId, "term_sheet", "negotiation", user.id);
@@ -415,6 +417,8 @@ export async function sendBookACallEmail(dealId: string, to: string, cc: string,
     body: logoHtml + body + signatureHtml,
     html: true,
   });
+
+  await db.update(deals).set({ bookACallSentAt: new Date() }).where(eq(deals.id, dealId));
 
   // No-op if the deal isn't currently at Term Sheet — e.g. a re-send, or
   // "Send to borrower" already advanced it first.
