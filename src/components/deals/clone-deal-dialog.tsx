@@ -40,6 +40,7 @@ export function CloneDealDialog({ dealId }: { dealId: string }) {
   const [costsIdentical, setCostsIdentical] = useState(true);
   const [copyTermSheetId, setCopyTermSheetId] = useState<string>("");
   const [copyNeedIds, setCopyNeedIds] = useState<Set<string>>(new Set());
+  const [copyDocumentIds, setCopyDocumentIds] = useState<Set<string>>(new Set());
 
   function handleOpenChange(next: boolean) {
     setOpen(next);
@@ -48,6 +49,7 @@ export function CloneDealDialog({ dealId }: { dealId: string }) {
     setLoading(true);
     setCostsIdentical(true);
     setCopyNeedIds(new Set());
+    setCopyDocumentIds(new Set());
     getCloneSourceData(dealId)
       .then((data) => {
         setSource(data);
@@ -67,6 +69,15 @@ export function CloneDealDialog({ dealId }: { dealId: string }) {
     });
   }
 
+  function toggleDocument(id: string, checked: boolean) {
+    setCopyDocumentIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -74,6 +85,7 @@ export function CloneDealDialog({ dealId }: { dealId: string }) {
     formData.set("costsIdentical", costsIdentical ? "yes" : "no");
     if (costsIdentical && copyTermSheetId) formData.set("copyTermSheetId", copyTermSheetId);
     for (const id of copyNeedIds) formData.append("copyClientNeedIds", id);
+    for (const id of copyDocumentIds) formData.append("copyDocumentIds", id);
 
     startTransition(async () => {
       try {
@@ -253,35 +265,48 @@ export function CloneDealDialog({ dealId }: { dealId: string }) {
                   copied unless it&apos;s checked.
                 </p>
                 <div className="space-y-2">
-                  {source.clientNeeds.map((need) => (
-                    <div key={need.id} className="flex items-start justify-between gap-2 rounded-md border p-2">
-                      <label className="flex items-start gap-2 text-sm">
-                        <Checkbox
-                          checked={copyNeedIds.has(need.id)}
-                          onCheckedChange={(v) => toggleNeed(need.id, v === true)}
-                        />
-                        <span>
+                  {source.clientNeeds.map((need) =>
+                    need.documents.length > 0 ? (
+                      // A document-bearing need copies per-document, not
+                      // whole — e.g. four different budget uploads under
+                      // one "Construction Budget" need, where only the one
+                      // that's actually for this property should come over.
+                      <div key={need.id} className="rounded-md border p-2">
+                        <p className="text-sm font-medium">{need.itemName}</p>
+                        <div className="mt-1 space-y-1">
+                          {need.documents.map((doc) => (
+                            <div key={doc.id} className="flex items-center justify-between gap-2 pl-1">
+                              <label className="flex items-center gap-2 text-sm">
+                                <Checkbox
+                                  checked={copyDocumentIds.has(doc.id)}
+                                  onCheckedChange={(v) => toggleDocument(doc.id, v === true)}
+                                />
+                                {doc.fileName}
+                              </label>
+                              <a
+                                href={`/api/client-need-documents/${doc.id}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="shrink-0 text-xs text-muted-foreground underline hover:text-foreground"
+                              >
+                                View
+                              </a>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div key={need.id} className="flex items-start justify-between gap-2 rounded-md border p-2">
+                        <label className="flex items-start gap-2 text-sm">
+                          <Checkbox
+                            checked={copyNeedIds.has(need.id)}
+                            onCheckedChange={(v) => toggleNeed(need.id, v === true)}
+                          />
                           {need.itemName}
-                          {need.documents.length > 0 && (
-                            <span className="text-xs text-muted-foreground">
-                              {" "}
-                              ({need.documents.length} file{need.documents.length === 1 ? "" : "s"})
-                            </span>
-                          )}
-                        </span>
-                      </label>
-                      {need.documents[0] && (
-                        <a
-                          href={`/api/client-need-documents/${need.documents[0].id}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="shrink-0 text-xs text-muted-foreground underline hover:text-foreground"
-                        >
-                          View
-                        </a>
-                      )}
-                    </div>
-                  ))}
+                        </label>
+                      </div>
+                    )
+                  )}
                 </div>
               </div>
             )}

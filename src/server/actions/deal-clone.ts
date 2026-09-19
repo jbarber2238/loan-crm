@@ -176,12 +176,22 @@ export async function cloneNewConstructionDeal(originalDealId: string, formData:
     }
   }
 
-  // --- Client needs / documents carryover — only the ones deliberately
-  // checked, each copied whole (the need itself plus every document
-  // already on it) so already-reviewed files move over as-is.
+  // --- Client needs / documents carryover.
+  // A need with no documents (a contact-info/questionnaire-style need)
+  // copies whole-or-not-at-all via its own checkbox. A need WITH documents
+  // is copied per-document instead — e.g. four different budget uploads
+  // under one "Construction Budget" need, where only the one that actually
+  // belongs to this new property should come over — so the need itself is
+  // only created when at least one of its documents was checked, carrying
+  // over just those, not every file that was ever attached to it.
   const copyNeedIds = new Set(formData.getAll("copyClientNeedIds").filter((v): v is string => typeof v === "string"));
+  const copyDocumentIds = new Set(
+    formData.getAll("copyDocumentIds").filter((v): v is string => typeof v === "string")
+  );
   for (const need of original.clientNeeds) {
-    if (!copyNeedIds.has(need.id)) continue;
+    const docsToCopy = need.documents.filter((d) => copyDocumentIds.has(d.id));
+    const shouldCopy = need.documents.length > 0 ? docsToCopy.length > 0 : copyNeedIds.has(need.id);
+    if (!shouldCopy) continue;
 
     const [newNeed] = await db
       .insert(dealClientNeeds)
@@ -203,7 +213,7 @@ export async function cloneNewConstructionDeal(originalDealId: string, formData:
       })
       .returning({ id: dealClientNeeds.id });
 
-    for (const doc of need.documents) {
+    for (const doc of docsToCopy) {
       await db.insert(dealClientNeedDocuments).values({
         clientNeedId: newNeed.id,
         fileName: doc.fileName,
