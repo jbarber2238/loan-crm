@@ -14,13 +14,24 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useDraggable } from "@dnd-kit/core";
+import { MoreVertical } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { LOAN_CATEGORIES, STAGES, labelFor } from "@/lib/labels";
-import { STAGES_REQUIRING_REASON } from "@/lib/deal-pipeline";
+import { STAGES_REQUIRING_REASON, ARCHIVABLE_STAGES } from "@/lib/deal-pipeline";
 import { leadValueFor } from "@/lib/term-sheet-calculations";
-import { updateDealStage } from "@/server/actions/deals";
+import { updateDealStage, restoreArchivedDeal } from "@/server/actions/deals";
+import { toast } from "sonner";
 import { StageReasonDialog } from "@/components/deals/stage-reason-dialog";
+import { DeleteDealDialog } from "@/components/deals/delete-deal-dialog";
+import { ArchiveDealDialog } from "@/components/deals/archive-deal-dialog";
 
 export interface BoardDeal {
   id: string;
@@ -38,6 +49,7 @@ export interface BoardDeal {
   assignedLoanOfficerName: string | null;
   assignedProcessorName: string | null;
   lenderName: string | null;
+  isArchived: boolean;
 }
 
 // Once a deal reaches Processing, hour-level granularity in a stage stops
@@ -80,6 +92,68 @@ function dealLeadValue(deal: BoardDeal) {
   });
 }
 
+function DealCardMenu({ deal }: { deal: BoardDeal }) {
+  const router = useRouter();
+  const canArchive = !deal.isArchived && ARCHIVABLE_STAGES.has(deal.stage);
+
+  async function handleUnarchive() {
+    try {
+      await restoreArchivedDeal(deal.id);
+      toast.success("Deal restored to the active pipeline");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't restore this deal.");
+    }
+  }
+
+  // stopPropagation everywhere here — this sits inside a draggable + a
+  // full-card <Link>, and without it a click would either start a drag or
+  // navigate into the deal instead of opening the menu/dialog.
+  return (
+    <div onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-6 shrink-0 text-muted-foreground"
+            onClick={(e) => e.preventDefault()}
+          >
+            <MoreVertical className="size-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+          {deal.isArchived ? (
+            <DropdownMenuItem onSelect={handleUnarchive}>Restore to pipeline</DropdownMenuItem>
+          ) : (
+            canArchive && (
+              <ArchiveDealDialog
+                dealId={deal.id}
+                propertyAddress={deal.propertyAddress}
+                trigger={
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Archive</DropdownMenuItem>
+                }
+              />
+            )
+          )}
+          <DeleteDealDialog
+            dealId={deal.id}
+            propertyAddress={deal.propertyAddress}
+            trigger={
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={(e) => e.preventDefault()}
+              >
+                Delete
+              </DropdownMenuItem>
+            }
+          />
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
 function DealCard({ deal }: { deal: BoardDeal }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: deal.id,
@@ -102,9 +176,17 @@ function DealCard({ deal }: { deal: BoardDeal }) {
       <Link href={`/deals/${deal.id}`}>
         <Card className="cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow">
           <CardContent className="p-3 space-y-1.5">
-            <p className="text-[10px] font-medium text-muted-foreground tracking-wide">
-              Loan #{deal.loanNumber}
-            </p>
+            <div className="flex items-start justify-between gap-1">
+              <p className="text-[10px] font-medium text-muted-foreground tracking-wide">
+                Loan #{deal.loanNumber}
+              </p>
+              <DealCardMenu deal={deal} />
+            </div>
+            {deal.isArchived && (
+              <Badge variant="outline" className="text-[10px]">
+                Archived
+              </Badge>
+            )}
             <p className="font-medium text-sm leading-tight">{deal.propertyAddress}</p>
             <p className="text-xs leading-tight">
               <span className="text-muted-foreground">Borrower: </span>

@@ -36,3 +36,18 @@ export function isPipelineStage(stage: string): stage is PipelineStage {
 // How many days a deal can sit in Follow-up with no further stage change
 // before it's automatically moved to Lost.
 export const FOLLOW_UP_AUTO_LOST_DAYS = 7;
+
+// Archiving only makes sense once a deal is actually done, one way or the
+// other — closed for real, or lost for good. Disqualified deliberately
+// stays out of this even though it's also a terminal-negative stage.
+export const ARCHIVABLE_STAGES = new Set(["closed", "lost"]);
+
+// How long a deal can sit in Closed/Lost before autoArchiveStaleDeals
+// archives it automatically, so the live board doesn't accumulate old,
+// already-resolved deals forever.
+export const ARCHIVE_AFTER_DAYS_IN_STAGE = 30;
+
+// A soft-deleted deal is only ever visible to an admin (see deleteDeal /
+// restoreDeletedDeal) for this long before purgeExpiredDeletedDeals removes
+// it — and everything under it — for real, with no further recovery.
+export const DELETED_DEAL_PURGE_AFTER_DAYS = 30;

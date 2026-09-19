@@ -21,6 +21,8 @@ export const getDealDetail = cache(async (id: string) => {
       termSheets: { with: { lender: true, product: true } },
       pricingRequests: { with: { lender: true, lenderRep: true, replyAttachments: true } },
       followers: true,
+      deletedByUser: true,
+      archivedByUser: true,
       keyDateEvents: {
         with: { createdBy: true },
         // Same-day entries (the common case — someone clicks through several

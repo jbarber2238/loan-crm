@@ -15,9 +15,15 @@ import {
   deals,
   termSheets,
 } from "@/server/db/schema";
-import { requireUser } from "@/server/auth/guards";
+import { requireUser, requireAdmin } from "@/server/auth/guards";
 import { formatAddress } from "@/lib/format";
-import { PAUSED_STAGES, TERMINAL_NEGATIVE_STAGES, STAGES_REQUIRING_REASON, isPipelineStage } from "@/lib/deal-pipeline";
+import {
+  PAUSED_STAGES,
+  TERMINAL_NEGATIVE_STAGES,
+  STAGES_REQUIRING_REASON,
+  isPipelineStage,
+  ARCHIVABLE_STAGES,
+} from "@/lib/deal-pipeline";
 import {
   findIneligiblePortfolioProperty,
   intakeToDealFields,
@@ -683,4 +689,74 @@ export async function updateInsuranceContact(dealId: string, formData: FormData)
     })
     .where(eq(deals.id, dealId));
   revalidatePath(`/deals/${dealId}/loan-center`);
+}
+
+// Any signed-in user can delete — the real safeguard is typing the word
+// DELETE (re-checked here, not just enforced client-side) plus the fact
+// that nobody but an admin can see or undo it afterward (see
+// restoreDeletedDeal). Soft delete only; purgeExpiredDeletedDeals is what
+// actually removes the row, DELETED_DEAL_PURGE_AFTER_DAYS later.
+export async function deleteDeal(dealId: string, confirmText: string) {
+  const user = await requireUser();
+  if (confirmText.trim() !== "DELETE") {
+    throw new Error('Type "DELETE" exactly to confirm.');
+  }
+
+  await db
+    .update(deals)
+    .set({ deletedAt: new Date(), deletedByUserId: user.id })
+    .where(eq(deals.id, dealId));
+
+  revalidatePath("/");
+  revalidatePath("/pipeline");
+}
+
+// Admin-only, by design — see the column comment on deals.deletedAt.
+export async function restoreDeletedDeal(dealId: string) {
+  await requireAdmin();
+  await db
+    .update(deals)
+    .set({ deletedAt: null, deletedByUserId: null })
+    .where(eq(deals.id, dealId));
+
+  revalidatePath("/");
+  revalidatePath("/pipeline");
+  revalidatePath(`/deals/${dealId}`);
+}
+
+// Only reachable from Closed or Lost — a deal has to actually be done,
+// successfully or not, before it's archived. Fully reversible (see
+// restoreArchivedDeal), unlike deleteDeal.
+export async function archiveDeal(dealId: string) {
+  const user = await requireUser();
+  const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId) });
+  if (!deal) throw new Error("Deal not found");
+  if (!ARCHIVABLE_STAGES.has(deal.stage)) {
+    throw new Error("Only a Closed or Lost deal can be archived.");
+  }
+
+  await db
+    .update(deals)
+    .set({ archivedAt: new Date(), archivedByUserId: user.id })
+    .where(eq(deals.id, dealId));
+
+  revalidatePath("/");
+  revalidatePath("/pipeline");
+  revalidatePath("/pipeline/archived");
+}
+
+// Any signed-in user — archiving carries no data risk, so unlike deleting
+// there's no reason to gate who can undo it. Opening an archived deal does
+// NOT do this automatically; it's always a deliberate, separate action.
+export async function restoreArchivedDeal(dealId: string) {
+  await requireUser();
+  await db
+    .update(deals)
+    .set({ archivedAt: null, archivedByUserId: null })
+    .where(eq(deals.id, dealId));
+
+  revalidatePath("/");
+  revalidatePath("/pipeline");
+  revalidatePath("/pipeline/archived");
+  revalidatePath(`/deals/${dealId}`);
 }

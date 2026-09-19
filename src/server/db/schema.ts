@@ -857,6 +857,19 @@ export const deals = pgTable("deals", {
     }[];
     ranAt: string;
   }>(),
+
+  // Soft delete — deliberately NOT admin-only to trigger (see deleteDeal),
+  // but only an admin can ever see or restore one afterward (see
+  // restoreDeletedDeal / the admin-only deleted-deals view); purged for
+  // real by purgeExpiredDeletedDeals after DELETED_DEAL_PURGE_AFTER_DAYS.
+  deletedAt: timestamp("deleted_at", { mode: "date", withTimezone: true }),
+  deletedByUserId: uuid("deleted_by_user_id").references(() => users.id),
+
+  // Archive — only reachable from Lost/Closed (see archiveDeal); hides the
+  // deal from the live Pipeline board but never deletes anything. Null
+  // archivedByUserId means autoArchiveStaleDeals did it, not a person.
+  archivedAt: timestamp("archived_at", { mode: "date", withTimezone: true }),
+  archivedByUserId: uuid("archived_by_user_id").references(() => users.id),
 });
 
 export const dealPortfolioProperties = pgTable("deal_portfolio_properties", {
@@ -1159,6 +1172,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   dealsAsLoanOfficer: many(deals, { relationName: "loanOfficerDeals" }),
   dealsAsProcessor: many(deals, { relationName: "processorDeals" }),
   dealsAsAssistant: many(deals, { relationName: "assistantDeals" }),
+  dealsDeletedByUser: many(deals, { relationName: "deletedByUserDeals" }),
+  dealsArchivedByUser: many(deals, { relationName: "archivedByUserDeals" }),
 }));
 
 export const lendersRelations = relations(lenders, ({ one, many }) => ({
@@ -1285,6 +1300,16 @@ export const dealsRelations = relations(deals, ({ one, many }) => ({
   followers: many(dealFollowers),
   survey: one(surveys, { fields: [deals.id], references: [surveys.dealId] }),
   conversations: many(dealConversations),
+  deletedByUser: one(users, {
+    fields: [deals.deletedByUserId],
+    references: [users.id],
+    relationName: "deletedByUserDeals",
+  }),
+  archivedByUser: one(users, {
+    fields: [deals.archivedByUserId],
+    references: [users.id],
+    relationName: "archivedByUserDeals",
+  }),
 }));
 
 // People who want visibility into a deal's client-needs progress without
