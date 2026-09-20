@@ -10,7 +10,13 @@ function baseUrl() {
   return process.env.APP_URL ?? "http://localhost:3000";
 }
 
-const RING_TIMEOUT_SECONDS = 20;
+// Deliberately shorter than a typical personal-cell voicemail pickup
+// (usually ~20-30s / 4-6 rings) — if the staff member's own voicemail
+// answers before this elapses, Twilio treats that as a completed call and
+// this app's own company-greeting voicemail never gets a chance to run.
+// 15s is enough time to actually reach for the phone, comfortably short of
+// most carriers' default voicemail delay.
+const RING_TIMEOUT_SECONDS = 15;
 
 /**
  * Inbound call to the shared company number. Twilio hits this once when the
