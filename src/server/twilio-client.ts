@@ -130,6 +130,25 @@ export async function verifiedTwilioParams(request: Request): Promise<Record<str
   return params;
 }
 
+/**
+ * XML-escapes a value before it's interpolated into a TwiML attribute —
+ * every action/callback URL we build has multiple query params joined with
+ * `&`, and a raw `&` in XML starts an entity reference. Twilio's XML parser
+ * then rejects the whole document ("the reference to entity ... must end
+ * with the ';' delimiter", error 12100), which plays as a generic
+ * "application error" to the caller with no hint that it's a URL-escaping
+ * bug specifically. Every dynamic string that ends up inside `<...>` TwiML
+ * we hand-build (not just phone numbers) should go through this.
+ */
+export function xmlEscape(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
 export function twimlResponse(inner: string): Response {
   return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response>${inner}</Response>`, {
     headers: { "Content-Type": "text/xml" },

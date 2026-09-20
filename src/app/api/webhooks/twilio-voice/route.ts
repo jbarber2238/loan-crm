@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { dealCallLogs, dealConversations } from "@/server/db/schema";
-import { canonicalWebhookUrl, twimlResponse, verifiedTwilioParams, toE164 } from "@/server/twilio-client";
+import { canonicalWebhookUrl, twimlResponse, verifiedTwilioParams, toE164, xmlEscape } from "@/server/twilio-client";
 import { getTwilioSettings } from "@/server/settings";
 import { findOrCreateConversationForInbound } from "@/server/conversations";
 import { loadDealForRouting, reachableCandidatesInOrder, resolveInboundRouteCandidates, resolveUnmatchedRouteUserIds } from "@/server/phone-routing";
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     const settings = await getTwilioSettings();
     const actionUrl = `${baseUrl()}/api/webhooks/twilio-voice?i=${i + 1}&conversationId=${conversationId}&callLogId=${callLogId}`;
     return twimlResponse(
-      `<Dial timeout="${RING_TIMEOUT_SECONDS}" callerId="${settings?.phoneNumber ? toE164(settings.phoneNumber) : ""}" action="${actionUrl}"><Number>${toE164(target.phone!)}</Number></Dial>`
+      `<Dial timeout="${RING_TIMEOUT_SECONDS}" callerId="${settings?.phoneNumber ? toE164(settings.phoneNumber) : ""}" action="${xmlEscape(actionUrl)}"><Number>${toE164(target.phone!)}</Number></Dial>`
     );
   }
 
@@ -73,6 +73,6 @@ export async function POST(request: Request) {
   await db.update(dealCallLogs).set({ status: "voicemail" }).where(eq(dealCallLogs.id, callLogId));
   const recordingAction = `${baseUrl()}/api/webhooks/twilio-voice-recording?callLogId=${callLogId}`;
   return twimlResponse(
-    `<Say>Thanks for calling. Everyone is unavailable right now — please leave a message after the tone.</Say><Record action="${recordingAction}" maxLength="120" playBeep="true" />`
+    `<Say>Thanks for calling. Everyone is unavailable right now — please leave a message after the tone.</Say><Record action="${xmlEscape(recordingAction)}" maxLength="120" playBeep="true" />`
   );
 }
