@@ -7,13 +7,6 @@ import { useChatDock } from "@/components/messaging/chat-dock-context";
 import { ChatWindowPanel } from "@/components/messaging/chat-window-panel";
 import { NewMessagePopover } from "@/components/messaging/new-message-popover";
 
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
 /**
  * Messenger-style floating dock, mounted once in the (app) layout so it's
  * present on every page and survives client-side navigation — the whole
@@ -40,15 +33,17 @@ export function ChatDockRoot() {
         />
       ))}
 
-      <div className="flex flex-col items-center gap-2 pb-4">
+      <div className="flex flex-col items-end gap-2 pb-4">
         {minimized.map((w) => (
           <button
             key={w.conversationId}
             onClick={() => restoreChat(w.conversationId)}
-            title={w.borrowerName}
-            className="flex size-11 items-center justify-center rounded-full bg-foreground text-sm font-semibold text-background shadow-lg hover:opacity-90"
+            className="flex max-w-52 items-center gap-2 rounded-full border bg-popover py-1.5 pl-3 pr-1.5 shadow-lg hover:bg-muted"
           >
-            {initials(w.borrowerName)}
+            <span className="min-w-0 text-left">
+              <span className="block truncate text-xs font-semibold">{w.contactName}</span>
+              <span className="block truncate text-[10px] text-muted-foreground">{w.contactType}</span>
+            </span>
           </button>
         ))}
         <Button

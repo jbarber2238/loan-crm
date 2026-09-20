@@ -1501,6 +1501,9 @@ export const dealMessages = pgTable("deal_messages", {
   // correct value; only the JS-side date decoding was wrong. Every
   // timestamp column added for texting/calling needs this.
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  // Inbound only — null means unread. Outbound messages don't need this
+  // (they're never "unread" to us), so it's left null for those too.
+  readAt: timestamp("read_at", { mode: "date", withTimezone: true }),
 });
 
 // Ad-hoc extra numbers added to one specific conversation (a co-signer, a
@@ -1514,6 +1517,21 @@ export const dealConversationParticipants = pgTable("deal_conversation_participa
   name: text("name"),
   phone: text("phone").notNull(),
   addedAt: timestamp("added_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
+// The "Other" contact-directory bucket — Borrower/Insurance/Title/Lender
+// Rep/Referral Partner contacts are all sourced live from their own
+// existing tables (deals, lenderReps, referralAffiliates) rather than
+// duplicated here; this table exists only for a person who doesn't fit any
+// of those (an appraiser, a one-off contact) but who staff still want to
+// find by name in the message-compose search and call/text directly.
+export const otherContacts = pgTable("other_contacts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  phone: text("phone").notNull(),
+  notes: text("notes"),
+  createdByUserId: uuid("created_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
 });
 
 export const dealCallLogs = pgTable("deal_call_logs", {
@@ -1537,6 +1555,11 @@ export const dealCallLogs = pgTable("deal_call_logs", {
   // transcription yet.
   recordingUrl: text("recording_url"),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  // Set once someone's actually listened to the voicemail (or acknowledged
+  // a missed call with none) — only meaningful when recordingUrl is set or
+  // status is "voicemail"/a missed inbound call; drives the same unread
+  // badge as an unread text.
+  reviewedAt: timestamp("reviewed_at", { mode: "date", withTimezone: true }),
 });
 
 // Which role bucket an inbound call/text routes to, by the deal's current

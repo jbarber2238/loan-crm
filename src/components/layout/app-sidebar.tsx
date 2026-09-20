@@ -55,7 +55,7 @@ export function AppSidebar({
     ...(user.isAdmin || user.baseRole === "processor"
       ? [{ href: "/client-needs", label: "Client Needs", icon: ClipboardList, exact: true }]
       : []),
-    { href: "/inbox", label: "Inbox", icon: Inbox, exact: false },
+    { href: "/inbox", label: "Communications", icon: Inbox, exact: false },
     ...(user.isAdmin ? [{ href: "/email-templates", label: "Email Templates", icon: Mail, exact: true }] : []),
   ];
 

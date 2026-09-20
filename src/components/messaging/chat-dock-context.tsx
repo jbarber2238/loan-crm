@@ -2,18 +2,22 @@
 
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 
+export type ContactType = "Borrower" | "Insurance" | "Title" | "Lender Rep" | "Referral Partner" | "Other";
+
 export interface DockWindow {
   conversationId: string;
-  borrowerName: string;
-  borrowerPhone: string;
+  contactName: string;
+  contactPhone: string;
+  contactType: ContactType;
   minimized: boolean;
   initialBody?: string;
 }
 
 type OpenChatInput = {
   conversationId: string;
-  borrowerName: string;
-  borrowerPhone: string;
+  contactName: string;
+  contactPhone: string;
+  contactType: ContactType;
   initialBody?: string;
 };
 

@@ -1,39 +1,45 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { dealConversations, deals } from "@/server/db/schema";
+import { toE164 } from "@/server/twilio-client";
 
 /**
- * Finds the borrower's one shared conversation (by phone number, not by
- * deal — a borrower with several deals still has exactly one thread; see
- * dealConversations' unique constraint on primaryPhone), creating it on
- * first use. Shared by outbound sends (messages.ts, calls.ts) and inbound
- * webhooks — messaging a borrower from ANY of their deals lands here.
+ * Finds the ONE shared conversation for a phone number — a person with
+ * several deals (or a lender rep who works several of them) still has
+ * exactly one thread; see dealConversations' unique constraint on
+ * primaryPhone — creating it on first use. `dealId` is only recorded for a
+ * brand-new conversation as informational context (see the schema
+ * comment); it's never used to look one up.
  */
-export async function getOrCreateConversationForDeal(dealId: string): Promise<{ id: string; primaryPhone: string }> {
-  const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId), columns: { borrowerPhone: true } });
-  if (!deal?.borrowerPhone) {
-    throw new Error("This deal has no borrower phone number on file yet — add one before texting or calling.");
-  }
-
-  const existing = await db.query.dealConversations.findFirst({
-    where: eq(dealConversations.primaryPhone, deal.borrowerPhone),
-  });
+export async function getOrCreateConversationForPhone(
+  rawPhone: string,
+  dealId?: string
+): Promise<{ id: string; primaryPhone: string }> {
+  const phone = toE164(rawPhone);
+  const existing = await db.query.dealConversations.findFirst({ where: eq(dealConversations.primaryPhone, phone) });
   if (existing) return { id: existing.id, primaryPhone: existing.primaryPhone };
 
   const [created] = await db
     .insert(dealConversations)
-    .values({ dealId, primaryPhone: deal.borrowerPhone })
+    .values({ dealId: dealId ?? null, primaryPhone: phone })
     .onConflictDoNothing({ target: dealConversations.primaryPhone })
     .returning({ id: dealConversations.id, primaryPhone: dealConversations.primaryPhone });
   if (created) return created;
 
   // Lost a race against a concurrent create for the same phone number —
   // the row now exists, just re-fetch it.
-  const winner = await db.query.dealConversations.findFirst({
-    where: eq(dealConversations.primaryPhone, deal.borrowerPhone),
-  });
+  const winner = await db.query.dealConversations.findFirst({ where: eq(dealConversations.primaryPhone, phone) });
   if (!winner) throw new Error("Failed to create conversation");
   return winner;
+}
+
+/** Borrower-specific convenience wrapper — resolves the deal's own borrowerPhone first. */
+export async function getOrCreateConversationForDeal(dealId: string): Promise<{ id: string; primaryPhone: string }> {
+  const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId), columns: { borrowerPhone: true } });
+  if (!deal?.borrowerPhone) {
+    throw new Error("This deal has no borrower phone number on file yet — add one before texting or calling.");
+  }
+  return getOrCreateConversationForPhone(deal.borrowerPhone, dealId);
 }
 
 /**

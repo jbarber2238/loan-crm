@@ -1,12 +1,23 @@
 "use server";
 
-import { desc, eq, ilike, isNull } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNull, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
-import { dealConversations, dealConversationParticipants, dealMessages, deals } from "@/server/db/schema";
+import {
+  dealConversations,
+  dealConversationParticipants,
+  dealMessages,
+  dealCallLogs,
+  deals,
+  lenderReps,
+  referralAffiliates,
+  otherContacts,
+} from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { sendSms, toE164 } from "@/server/twilio-client";
-import { getOrCreateConversationForDeal } from "@/server/conversations";
+import { getOrCreateConversationForDeal, getOrCreateConversationForPhone } from "@/server/conversations";
+import { STAGES, labelFor } from "@/lib/labels";
+import { ARCHIVABLE_STAGES, ARCHIVE_AFTER_DAYS_IN_STAGE } from "@/lib/deal-pipeline";
 
 function baseUrl() {
   return process.env.APP_URL ?? "http://localhost:3000";
@@ -58,36 +69,194 @@ export async function getConversationForDock(conversationId: string) {
   return conversation;
 }
 
-export interface BorrowerSearchResult {
-  dealId: string;
-  borrowerName: string;
-  borrowerPhone: string;
-  propertyAddress: string;
-  stage: string;
+export type ContactType = "Borrower" | "Insurance" | "Title" | "Lender Rep" | "Referral Partner" | "Other";
+
+export interface ContactSearchResult {
+  key: string;
+  name: string;
+  phone: string;
+  contactType: ContactType;
+  subtitle: string;
+  /** Only set for a deal-specific contact (Borrower/Insurance/Title) — lets prepareContactConversation prepend the "Regarding your deal..." opener. */
+  dealId?: string;
 }
 
-/** Global "New Message" search — borrower name across every deal, so messaging someone doesn't require finding one of their deals first. Deduped by phone isn't done here (each deal's own address is useful context to pick from when a name matches more than one deal); opening a result reuses that borrower's one shared conversation regardless of which deal you picked. */
-export async function searchBorrowers(query: string): Promise<BorrowerSearchResult[]> {
+/**
+ * Global "New Message" search, across every kind of contact this app
+ * already knows a phone number for — Borrower/Insurance/Title come from
+ * deals (that's where those contacts have always lived, one per deal, no
+ * separate directory needed), Lender Rep and Referral Partner from their
+ * own tables, and "Other" from the small catch-all table for anyone who
+ * doesn't fit those. Opening a result reuses that phone number's one
+ * shared conversation, same as everywhere else in this app.
+ */
+export async function searchContacts(query: string): Promise<ContactSearchResult[]> {
   await requireUser();
   const trimmed = query.trim();
   if (trimmed.length < 2) return [];
+  const like = `%${trimmed}%`;
+  const lower = trimmed.toLowerCase();
 
-  const rows = await db.query.deals.findMany({
-    where: (d, { and, isNull: isNullD }) => and(ilike(d.borrowerName, `%${trimmed}%`), isNullD(d.deletedAt)),
-    columns: { id: true, borrowerName: true, borrowerPhone: true, propertyAddress: true, stage: true },
-    orderBy: (d, { desc: descD }) => descD(d.createdAt),
-    limit: 15,
-  });
+  const [dealRows, lenderRepRows, affiliateRows, otherRows] = await Promise.all([
+    db.query.deals.findMany({
+      where: (d, { and: andD, isNull: isNullD }) =>
+        andD(
+          isNullD(d.deletedAt),
+          or(ilike(d.borrowerName, like), ilike(d.insuranceAgentName, like), ilike(d.titleCompanyAgentName, like))
+        ),
+      columns: {
+        id: true,
+        borrowerName: true,
+        borrowerPhone: true,
+        insuranceAgentName: true,
+        insuranceAgentPhone: true,
+        titleCompanyAgentName: true,
+        titleAgentPhone: true,
+        propertyAddress: true,
+        stage: true,
+      },
+      orderBy: (d, { desc: descD }) => descD(d.createdAt),
+      limit: 25,
+    }),
+    db.query.lenderReps.findMany({
+      where: ilike(lenderReps.name, like),
+      columns: { id: true, name: true, phone: true },
+      with: { lender: { columns: { name: true } } },
+      limit: 10,
+    }),
+    db.query.referralAffiliates.findMany({
+      where: ilike(referralAffiliates.name, like),
+      columns: { id: true, name: true, phone: true },
+      limit: 10,
+    }),
+    db.query.otherContacts.findMany({
+      where: ilike(otherContacts.name, like),
+      columns: { id: true, name: true, phone: true, notes: true },
+      limit: 10,
+    }),
+  ]);
 
-  return rows
-    .filter((d): d is typeof d & { borrowerPhone: string } => Boolean(d.borrowerPhone))
-    .map((d) => ({
-      dealId: d.id,
-      borrowerName: d.borrowerName,
-      borrowerPhone: d.borrowerPhone,
-      propertyAddress: d.propertyAddress,
-      stage: d.stage,
-    }));
+  const results: ContactSearchResult[] = [];
+  for (const d of dealRows) {
+    const stageLabel = labelFor(STAGES, d.stage);
+    if (d.borrowerName?.toLowerCase().includes(lower) && d.borrowerPhone) {
+      results.push({
+        key: `borrower-${d.id}`,
+        name: d.borrowerName,
+        phone: d.borrowerPhone,
+        contactType: "Borrower",
+        dealId: d.id,
+        subtitle: `${d.propertyAddress} · ${stageLabel}`,
+      });
+    }
+    if (d.insuranceAgentName?.toLowerCase().includes(lower) && d.insuranceAgentPhone) {
+      results.push({
+        key: `insurance-${d.id}`,
+        name: d.insuranceAgentName,
+        phone: d.insuranceAgentPhone,
+        contactType: "Insurance",
+        dealId: d.id,
+        subtitle: `${d.propertyAddress} (${d.borrowerName})`,
+      });
+    }
+    if (d.titleCompanyAgentName?.toLowerCase().includes(lower) && d.titleAgentPhone) {
+      results.push({
+        key: `title-${d.id}`,
+        name: d.titleCompanyAgentName,
+        phone: d.titleAgentPhone,
+        contactType: "Title",
+        dealId: d.id,
+        subtitle: `${d.propertyAddress} (${d.borrowerName})`,
+      });
+    }
+  }
+  for (const r of lenderRepRows) {
+    if (!r.phone) continue;
+    results.push({ key: `lenderrep-${r.id}`, name: r.name, phone: r.phone, contactType: "Lender Rep", subtitle: r.lender.name });
+  }
+  for (const a of affiliateRows) {
+    if (!a.phone || !a.name) continue;
+    results.push({ key: `affiliate-${a.id}`, name: a.name, phone: a.phone, contactType: "Referral Partner", subtitle: "Referral partner" });
+  }
+  for (const o of otherRows) {
+    results.push({ key: `other-${o.id}`, name: o.name, phone: o.phone, contactType: "Other", subtitle: o.notes ?? "" });
+  }
+
+  return results.slice(0, 20);
+}
+
+/** Opens (or creates) the one shared conversation for any contact-search result — the deal-specific opener only applies when this contact is tied to one particular deal (a borrower, or that deal's insurance/title agent). */
+export async function prepareContactConversation(input: { phone: string; dealId?: string }) {
+  await requireUser();
+  let opener = "";
+  if (input.dealId) {
+    const deal = await db.query.deals.findFirst({ where: eq(deals.id, input.dealId), columns: { propertyAddress: true } });
+    if (deal) opener = `Regarding your deal located at ${deal.propertyAddress}:\n\n`;
+  }
+  const conversation = await getOrCreateConversationForPhone(input.phone, input.dealId);
+  return { conversationId: conversation.id, phone: conversation.primaryPhone, initialBody: opener };
+}
+
+/** Marks every unread inbound message and unreviewed voicemail/missed call in a conversation as seen — called when a chat window (or the Communications page) opens it. */
+export async function markConversationRead(conversationId: string) {
+  await requireUser();
+  const now = new Date();
+  await Promise.all([
+    db
+      .update(dealMessages)
+      .set({ readAt: now })
+      .where(and(eq(dealMessages.conversationId, conversationId), eq(dealMessages.direction, "inbound"), isNull(dealMessages.readAt))),
+    db
+      .update(dealCallLogs)
+      .set({ reviewedAt: now })
+      .where(and(eq(dealCallLogs.conversationId, conversationId), eq(dealCallLogs.direction, "inbound"), isNull(dealCallLogs.reviewedAt))),
+  ]);
+}
+
+/** Every conversation-id that currently has an unread inbound text or an unreviewed inbound call/voicemail — used to badge the Communications list. */
+async function conversationIdsWithUnread(): Promise<Set<string>> {
+  const [unreadMessages, unreviewedCalls] = await Promise.all([
+    db
+      .selectDistinct({ conversationId: dealMessages.conversationId })
+      .from(dealMessages)
+      .where(and(eq(dealMessages.direction, "inbound"), isNull(dealMessages.readAt))),
+    db
+      .selectDistinct({ conversationId: dealCallLogs.conversationId })
+      .from(dealCallLogs)
+      .where(and(eq(dealCallLogs.direction, "inbound"), isNull(dealCallLogs.reviewedAt))),
+  ]);
+  return new Set([...unreadMessages, ...unreviewedCalls].map((r) => r.conversationId));
+}
+
+/** Every conversation, matched or not, for the Communications page's list — most recently active first. */
+export async function getAllConversations() {
+  await requireUser();
+  const [conversations, unreadIds] = await Promise.all([
+    db.query.dealConversations.findMany({
+      with: {
+        messages: { orderBy: desc(dealMessages.createdAt), limit: 1 },
+        callLogs: { orderBy: (c, { desc: descC }) => descC(c.startedAt), limit: 1 },
+        participants: true,
+      },
+      orderBy: desc(dealConversations.lastMessageAt),
+    }),
+    conversationIdsWithUnread(),
+  ]);
+
+  const phones = conversations.map((c) => c.primaryPhone);
+  const dealNames = phones.length
+    ? await db.query.deals.findMany({
+        where: inArray(deals.borrowerPhone, phones),
+        columns: { borrowerPhone: true, borrowerName: true },
+      })
+    : [];
+  const nameByPhone = new Map(dealNames.map((d) => [d.borrowerPhone, d.borrowerName]));
+
+  return conversations.map((c) => ({
+    ...c,
+    displayName: nameByPhone.get(c.primaryPhone) ?? c.primaryPhone,
+    hasUnread: unreadIds.has(c.id),
+  }));
 }
 
 /** Same send, for an Inbox conversation not (yet) tied to any deal. */
@@ -148,20 +317,6 @@ export async function removeConversationParticipant(participantId: string) {
   revalidatePath("/inbox");
 }
 
-/** Inbox: every conversation not (yet) attached to a deal, most recent first. */
-export async function getUnmatchedConversations() {
-  await requireUser();
-  return db.query.dealConversations.findMany({
-    where: isNull(dealConversations.dealId),
-    with: {
-      messages: { orderBy: desc(dealMessages.createdAt), limit: 1 },
-      participants: true,
-      callLogs: { orderBy: (c, { desc: descC }) => descC(c.startedAt), limit: 1 },
-    },
-    orderBy: desc(dealConversations.lastMessageAt),
-  });
-}
-
 /** Attaches an Inbox conversation to an existing deal — an existing borrower who called/texted from a number that wasn't on file. */
 export async function attachConversationToDeal(conversationId: string, formData: FormData) {
   await requireUser();
@@ -177,4 +332,38 @@ export async function detachConversationFromDeal(conversationId: string) {
   await requireUser();
   await db.update(dealConversations).set({ dealId: null }).where(eq(dealConversations.id, conversationId));
   revalidatePath("/inbox");
+}
+
+export interface ContactDealSummary {
+  id: string;
+  loanNumber: number | null;
+  propertyAddress: string;
+  stage: string;
+}
+
+/** The Communications page's info panel: every deal this phone number is the BORROWER on, grouped the same way Justin actually thinks about it — still active, or closed/lost recently enough to still be a live conversation topic. */
+export async function getContactDealsContext(phone: string) {
+  await requireUser();
+  const normalized = toE164(phone);
+  const matched = await db.query.deals.findMany({
+    where: and(eq(deals.borrowerPhone, normalized), isNull(deals.deletedAt)),
+    columns: { id: true, loanNumber: true, propertyAddress: true, stage: true, updatedAt: true },
+    orderBy: (d, { desc: descD }) => descD(d.createdAt),
+  });
+
+  const cutoff = new Date(Date.now() - ARCHIVE_AFTER_DAYS_IN_STAGE * 24 * 60 * 60 * 1000);
+  const toSummary = (d: (typeof matched)[number]): ContactDealSummary => ({
+    id: d.id,
+    loanNumber: d.loanNumber,
+    propertyAddress: d.propertyAddress,
+    stage: d.stage,
+  });
+
+  return {
+    active: matched.filter((d) => !ARCHIVABLE_STAGES.has(d.stage) && d.stage !== "disqualified").map(toSummary),
+    closedRecent: matched.filter((d) => d.stage === "closed" && d.updatedAt >= cutoff).map(toSummary),
+    lostRecent: matched
+      .filter((d) => (d.stage === "lost" || d.stage === "disqualified") && d.updatedAt >= cutoff)
+      .map(toSummary),
+  };
 }

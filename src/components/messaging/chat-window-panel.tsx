@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Minus, X, Phone as PhoneIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { sendConversationMessage, getConversationForDock } from "@/server/actions/messages";
+import { sendConversationMessage, getConversationForDock, markConversationRead } from "@/server/actions/messages";
 import { initiateConversationCall } from "@/server/actions/calls";
 import type { DockWindow } from "@/components/messaging/chat-dock-context";
 
@@ -60,6 +60,7 @@ export function ChatWindowPanel({
     // happen inside refresh()'s async body, after the fetch resolves.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     refresh();
+    void markConversationRead(dockWindow.conversationId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dockWindow.conversationId]);
 
@@ -109,8 +110,10 @@ export function ChatWindowPanel({
     <div className="flex h-[420px] w-80 flex-col rounded-t-lg border border-b-0 bg-popover shadow-xl">
       <div className="flex items-center justify-between rounded-t-lg border-b bg-muted px-3 py-2">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{dockWindow.borrowerName}</p>
-          <p className="truncate text-xs text-muted-foreground">{dockWindow.borrowerPhone}</p>
+          <p className="truncate text-sm font-semibold">{dockWindow.contactName}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {dockWindow.contactType} · {dockWindow.contactPhone}
+          </p>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           <Button type="button" variant="ghost" size="icon-sm" onClick={handleCall} title="Call" aria-label="Call">

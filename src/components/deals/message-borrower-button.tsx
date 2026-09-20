@@ -18,8 +18,9 @@ export function MessageBorrowerButton({ dealId }: { dealId: string }) {
         const prepared = await prepareBorrowerConversation(dealId);
         openChat({
           conversationId: prepared.conversationId,
-          borrowerName: prepared.borrowerName,
-          borrowerPhone: prepared.borrowerPhone,
+          contactName: prepared.borrowerName,
+          contactPhone: prepared.borrowerPhone,
+          contactType: "Borrower",
           initialBody: prepared.initialBody,
         });
       } catch (err) {

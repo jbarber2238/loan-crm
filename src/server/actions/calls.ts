@@ -7,6 +7,7 @@ import { dealCallLogs, dealConversations, users } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { initiateBridgeCall, toE164 } from "@/server/twilio-client";
 import { getEffectiveOutboundWindow, isWithinWindow } from "@/server/phone-routing";
+import { getOrCreateConversationForPhone } from "@/server/conversations";
 
 function baseUrl() {
   return process.env.APP_URL ?? "http://localhost:3000";
@@ -78,6 +79,16 @@ export async function initiateConversationCall(conversationId: string): Promise<
   const conversation = await db.query.dealConversations.findFirst({ where: eq(dealConversations.id, conversationId) });
   if (!conversation) return { ok: false, message: "Conversation not found" };
   const result = await bridgeCallForConversation(conversation);
-  revalidatePath(`/inbox/${conversationId}`);
+  revalidatePath("/inbox");
   return result;
+}
+
+/** The Communications page's "Dial" tab — an arbitrary number that isn't necessarily any contact on file yet. Reuses the same shared-conversation-by-phone lookup as everything else, so if it turns out to match someone, it's already the right thread. */
+export async function manualDialCall(formData: FormData): Promise<CallResult> {
+  const raw = formData.get("phone");
+  if (typeof raw !== "string" || !raw.trim()) {
+    return { ok: false, message: "Enter a phone number" };
+  }
+  const conversation = await getOrCreateConversationForPhone(raw);
+  return bridgeCallForConversation(conversation);
 }
