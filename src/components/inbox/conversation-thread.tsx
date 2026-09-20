@@ -61,7 +61,7 @@ export function ConversationThread({
   primaryLabel: string;
   conversation: Conversation | null;
   sendMessage: (formData: FormData) => Promise<void>;
-  onCall: () => Promise<void>;
+  onCall: () => Promise<{ ok: boolean; message?: string }>;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -95,9 +95,13 @@ export function ConversationThread({
   function handleCall() {
     startTransition(async () => {
       try {
-        await onCall();
-        toast.success("Calling your phone now — you'll be connected once you pick up.");
-        router.refresh();
+        const result = await onCall();
+        if (result.ok) {
+          toast.success("Calling your phone now — you'll be connected once you pick up.");
+          router.refresh();
+        } else {
+          toast.error(result.message ?? "Failed to start call");
+        }
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Failed to start call");
       }

@@ -90,6 +90,20 @@ function toMinutes(t: string): number {
   return h * 60 + m;
 }
 
+// v1 simplification (per the original plan): one office timezone for every
+// inbound/outbound hours check, rather than inferring each borrower's or
+// staff member's own timezone. Revisit only if the team ends up spread
+// across timezones enough for it to matter.
+const BUSINESS_TIMEZONE = "America/New_York";
+
+/** `now` as minutes-since-midnight IN THE OFFICE'S TIMEZONE — Vercel's serverless functions run on UTC, so comparing `now.getHours()` directly against an "08:00–21:00" window (meant as local time) was silently wrong by however many hours off UTC the office is, at any hour other than exactly UTC. */
+function localMinutesSinceMidnight(now: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", hour: "2-digit", minute: "2-digit" }).formatToParts(now);
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  return hour * 60 + minute;
+}
+
 /**
  * Whether `now` falls inside a [start, end) window, treating a missing
  * start/end as "no restriction configured" (always reachable) rather than
@@ -98,7 +112,7 @@ function toMinutes(t: string): number {
  */
 export function isWithinWindow(start: string | null, end: string | null, now: Date): boolean {
   if (!start || !end) return true;
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const nowMinutes = localMinutesSinceMidnight(now, BUSINESS_TIMEZONE);
   const startMinutes = toMinutes(start);
   const endMinutes = toMinutes(end);
   if (startMinutes <= endMinutes) return nowMinutes >= startMinutes && nowMinutes < endMinutes;
