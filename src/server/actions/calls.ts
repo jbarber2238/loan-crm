@@ -6,7 +6,6 @@ import { db } from "@/server/db/client";
 import { dealCallLogs, dealConversations, users } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { initiateBridgeCall, toE164 } from "@/server/twilio-client";
-import { getOrCreateConversationForDeal } from "@/server/conversations";
 import { getEffectiveOutboundWindow, isWithinWindow } from "@/server/phone-routing";
 
 function baseUrl() {
@@ -72,13 +71,6 @@ async function bridgeCallForConversation(conversation: { id: string; primaryPhon
   });
 
   return { ok: true };
-}
-
-export async function initiateDealCall(dealId: string): Promise<CallResult> {
-  const conversation = await getOrCreateConversationForDeal(dealId);
-  const result = await bridgeCallForConversation(conversation);
-  revalidatePath(`/deals/${dealId}/messages`);
-  return result;
 }
 
 /** Same bridge, for calling back an Inbox conversation not (yet) tied to a deal. */

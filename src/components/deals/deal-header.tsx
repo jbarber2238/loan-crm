@@ -1,4 +1,7 @@
+import { MessageSquare, Mail } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { openBorrowerConversation } from "@/server/actions/messages";
 import { StageSelect } from "@/components/deals/stage-select";
 import { DealActionsMenu } from "@/components/deals/deal-actions-menu";
 import { CloneDealDialog } from "@/components/deals/clone-deal-dialog";
@@ -44,7 +47,29 @@ export function DealHeader({ deal }: { deal: DealDetail }) {
               Loan #{deal.loanNumber}
             </Badge>
           </div>
-          <p className="text-sm text-muted-foreground">{deal.borrowerName}</p>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+            <span>{deal.borrowerName}</span>
+            {deal.borrowerPhone && (
+              <span className="flex items-center gap-1">
+                · {deal.borrowerPhone}
+                <form action={openBorrowerConversation.bind(null, deal.id)}>
+                  <Button type="submit" variant="ghost" size="icon-sm" title="Message borrower" aria-label="Message borrower">
+                    <MessageSquare className="size-3.5" />
+                  </Button>
+                </form>
+              </span>
+            )}
+            {deal.borrowerEmail && (
+              <span className="flex items-center gap-1">
+                · {deal.borrowerEmail}
+                <Button asChild variant="ghost" size="icon-sm" title="Email borrower" aria-label="Email borrower">
+                  <a href={`mailto:${deal.borrowerEmail}`}>
+                    <Mail className="size-3.5" />
+                  </a>
+                </Button>
+              </span>
+            )}
+          </div>
           {deal.lenderId && deal.lender ? (
             <p className="text-xs text-muted-foreground">
               {labelFor(LOAN_CATEGORIES, deal.loanCategory)} · LO:{" "}

@@ -9,10 +9,13 @@ import { ConversationThread } from "@/components/inbox/conversation-thread";
 
 export default async function InboxConversationPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ conversationId: string }>;
+  searchParams: Promise<{ prefill?: string }>;
 }) {
   const { conversationId } = await params;
+  const { prefill } = await searchParams;
 
   const conversation = await db.query.dealConversations.findFirst({
     where: eq(dealConversations.id, conversationId),
@@ -35,6 +38,7 @@ export default async function InboxConversationPage({
         conversation={conversation}
         sendMessage={sendConversationMessage.bind(null, conversationId)}
         onCall={initiateConversationCall.bind(null, conversationId)}
+        initialBody={prefill}
       />
     </div>
   );

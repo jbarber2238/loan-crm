@@ -2,10 +2,10 @@ import { canonicalWebhookUrl, twimlResponse, verifiedTwilioParams, toE164 } from
 import { getTwilioSettings } from "@/server/settings";
 
 // Twilio requests this once the staff member's own phone picks up on a
-// click-to-call bridge (see initiateDealCall in src/server/actions/calls.ts)
-// — the response dials the borrower and bridges the two legs. callerId is
-// set explicitly to the shared company number so the borrower's caller ID
-// never shows anything else.
+// click-to-call bridge (see bridgeCallForConversation in
+// src/server/actions/calls.ts) — the response dials the borrower and
+// bridges the two legs. callerId is set explicitly to the shared company
+// number so the borrower's caller ID never shows anything else.
 export async function POST(request: Request) {
   try {
     await verifiedTwilioParams(request);

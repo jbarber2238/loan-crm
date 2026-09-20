@@ -2,8 +2,9 @@
 
 import { desc, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { db } from "@/server/db/client";
-import { dealConversations, dealConversationParticipants, dealMessages } from "@/server/db/schema";
+import { dealConversations, dealConversationParticipants, dealMessages, deals } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { sendSms, toE164 } from "@/server/twilio-client";
 import { getOrCreateConversationForDeal } from "@/server/conversations";
@@ -18,21 +19,21 @@ function str(formData: FormData, key: string) {
 }
 
 /**
- * Sends one outbound SMS on a deal's conversation (creating the conversation
- * on first use) — always from the shared company number. Recipients: the
- * conversation's primary phone plus any ad-hoc participants added to it,
- * each getting the same message as a separate send (Twilio has no native
- * "group MMS" for a standard long code the way iMessage does).
+ * "Message Borrower" from a deal's header — finds or creates that
+ * borrower's ONE shared conversation (same thread regardless of which of
+ * their deals you're viewing) and jumps into it, pre-filling the compose
+ * box with a plain-text opener naming this specific deal. That opener is
+ * just typed text, not a stored tag — there's no per-deal message
+ * filtering anywhere; the borrower may have several deals and one
+ * continuous thread, and the opener is the only thing that tells either
+ * side which one a given message is about.
  */
-export async function sendDealMessage(dealId: string, formData: FormData) {
-  const user = await requireUser();
-  const body = str(formData, "body");
-  if (!body) throw new Error("Message can't be empty");
-
+export async function openBorrowerConversation(dealId: string) {
+  await requireUser();
+  const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId), columns: { propertyAddress: true } });
   const conversation = await getOrCreateConversationForDeal(dealId);
-  await sendToConversation(conversation.id, body, user.id);
-
-  revalidatePath(`/deals/${dealId}/messages`);
+  const opener = deal ? `Regarding your deal located at ${deal.propertyAddress}:\n\n` : "";
+  redirect(`/inbox/${conversation.id}?prefill=${encodeURIComponent(opener)}`);
 }
 
 /** Same send, for an Inbox conversation not (yet) tied to any deal. */
@@ -114,7 +115,7 @@ export async function attachConversationToDeal(conversationId: string, formData:
   if (!dealId) throw new Error("Choose a deal to attach this to");
   await db.update(dealConversations).set({ dealId }).where(eq(dealConversations.id, conversationId));
   revalidatePath("/inbox");
-  revalidatePath(`/deals/${dealId}/messages`);
+  revalidatePath(`/deals/${dealId}`);
 }
 
 /** Un-attaches (back to the Inbox) — for the rare mis-click. */

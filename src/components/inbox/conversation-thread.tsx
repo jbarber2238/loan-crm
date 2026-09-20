@@ -45,10 +45,10 @@ interface Conversation {
 type TimelineItem = { kind: "message"; at: Date; item: Message } | { kind: "call"; at: Date; item: CallLog };
 
 /**
- * The shared texting/calling thread UI — used both on a deal's Messages tab
- * and on an Inbox conversation's own page. The two contexts differ only in
- * which server actions are bound (deal-scoped vs. bare conversation-scoped)
- * and what heading/name to show, so those come in as props.
+ * The shared texting/calling thread UI, at src/app/(app)/inbox/[conversationId] —
+ * the one borrower conversation, whether it's still unmatched to any deal
+ * or has several. "Message Borrower" from a deal's header lands here too
+ * (see openBorrowerConversation), rather than a separate per-deal thread.
  */
 export function ConversationThread({
   title,
@@ -56,16 +56,18 @@ export function ConversationThread({
   conversation,
   sendMessage,
   onCall,
+  initialBody,
 }: {
   title: string;
   primaryLabel: string;
   conversation: Conversation | null;
   sendMessage: (formData: FormData) => Promise<void>;
   onCall: () => Promise<{ ok: boolean; message?: string }>;
+  initialBody?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [body, setBody] = useState("");
+  const [body, setBody] = useState(initialBody ?? "");
   const [showAddParticipant, setShowAddParticipant] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 

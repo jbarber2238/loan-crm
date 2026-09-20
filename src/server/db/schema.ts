@@ -10,6 +10,7 @@ import {
   text,
   time,
   timestamp,
+  unique,
   uuid,
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
@@ -1455,18 +1456,28 @@ export const phoneRoutingRoleEnum = pgEnum("phone_routing_role", ["loan_officer"
 // before it's ever matched to a deal, either because it's a brand-new lead
 // or because the caller used a number that isn't the one on file. Attaching
 // to a deal later is just setting this column, not moving message rows.
-export const dealConversations = pgTable("deal_conversations", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  dealId: uuid("deal_id").references(() => deals.id, { onDelete: "set null" }),
-  // The other party's own number — usually the borrower's, but could be
-  // whoever first texted/called in before any deal was matched.
-  primaryPhone: text("primary_phone").notNull(),
-  lastMessageAt: timestamp("last_message_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
-  // Named startedAt, not createdAt — see the withTimezone note below, this
-  // rename turned out to be unrelated to the actual bug but is a reasonable
-  // name regardless and harmless to keep.
-  startedAt: timestamp("started_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
-});
+export const dealConversations = pgTable(
+  "deal_conversations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Purely informational — whichever deal this conversation happened to
+    // be created from first. NOT used to look conversations up anymore: a
+    // borrower gets exactly one thread across every deal they have, per the
+    // "no per-deal messaging facade" decision — see getOrCreateConversationForDeal.
+    dealId: uuid("deal_id").references(() => deals.id, { onDelete: "set null" }),
+    // The other party's own number — usually the borrower's, but could be
+    // whoever first texted/called in before any deal was matched. Unique:
+    // this is the real lookup key, enforced in Postgres so a race between
+    // two deals for the same borrower can't ever fork into two threads.
+    primaryPhone: text("primary_phone").notNull(),
+    lastMessageAt: timestamp("last_message_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+    // Named startedAt, not createdAt — see the withTimezone note below, this
+    // rename turned out to be unrelated to the actual bug but is a reasonable
+    // name regardless and harmless to keep.
+    startedAt: timestamp("started_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique("deal_conversations_primary_phone_unique").on(table.primaryPhone)]
+);
 
 export const dealMessages = pgTable("deal_messages", {
   id: uuid("id").primaryKey().defaultRandom(),

@@ -17,7 +17,6 @@ import {
   FileSignature,
   Layers,
   Inbox,
-  MessageSquare,
 } from "lucide-react";
 import { signOutAction } from "@/server/actions/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -68,7 +67,6 @@ export function AppSidebar({
   const dealLinks = dealId
     ? [
         { href: `/deals/${dealId}`, label: "Overview", icon: FileText, exact: true },
-        { href: `/deals/${dealId}/messages`, label: "Messages", icon: MessageSquare, exact: true },
         { href: `/deals/${dealId}/pricing`, label: "Pricing", icon: Tags, exact: true },
         { href: `/deals/${dealId}/term-sheets`, label: "Term Sheets", icon: FileSignature, exact: true },
         { href: `/deals/${dealId}/loan-center`, label: "Loan Center", icon: Layers, exact: false },
