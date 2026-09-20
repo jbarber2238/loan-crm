@@ -1,7 +1,7 @@
-import { MessageSquare, Mail } from "lucide-react";
+import { Mail } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { openBorrowerConversation } from "@/server/actions/messages";
+import { MessageBorrowerButton } from "@/components/deals/message-borrower-button";
 import { StageSelect } from "@/components/deals/stage-select";
 import { DealActionsMenu } from "@/components/deals/deal-actions-menu";
 import { CloneDealDialog } from "@/components/deals/clone-deal-dialog";
@@ -52,11 +52,7 @@ export function DealHeader({ deal }: { deal: DealDetail }) {
             {deal.borrowerPhone && (
               <span className="flex items-center gap-1">
                 · {deal.borrowerPhone}
-                <form action={openBorrowerConversation.bind(null, deal.id)}>
-                  <Button type="submit" variant="ghost" size="icon-sm" title="Message borrower" aria-label="Message borrower">
-                    <MessageSquare className="size-3.5" />
-                  </Button>
-                </form>
+                <MessageBorrowerButton dealId={deal.id} />
               </span>
             )}
             {deal.borrowerEmail && (

@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { getCompanyName, getCompanyLogo } from "@/server/settings";
+import { ChatDockProvider } from "@/components/messaging/chat-dock-context";
+import { ChatDockRoot } from "@/components/messaging/chat-dock-root";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const session = await auth();
@@ -26,9 +28,12 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const [companyName, logo] = await Promise.all([getCompanyName(), getCompanyLogo()]);
 
   return (
-    <div>
-      <AppSidebar user={session.user} companyName={companyName} logo={logo} />
-      <main className="ml-60 min-h-screen p-4 md:p-6">{children}</main>
-    </div>
+    <ChatDockProvider>
+      <div>
+        <AppSidebar user={session.user} companyName={companyName} logo={logo} />
+        <main className="ml-60 min-h-screen p-4 md:p-6">{children}</main>
+      </div>
+      <ChatDockRoot />
+    </ChatDockProvider>
   );
 }
