@@ -70,7 +70,13 @@ export async function POST(request: Request) {
     const settings = await getTwilioSettings();
     const actionUrl = `${baseUrl()}/api/webhooks/twilio-voice?i=${i + 1}&conversationId=${conversationId}&callLogId=${callLogId}`;
     return twimlResponse(
-      `<Dial timeout="${RING_TIMEOUT_SECONDS}" callerId="${settings?.phoneNumber ? toE164(settings.phoneNumber) : ""}" action="${xmlEscape(actionUrl)}"><Number>${toE164(target.phone!)}</Number></Dial>`
+      // answerOnBridge + machineDetection: Twilio holds the caller on
+      // ringback (never bridges their audio) until it's confirmed a human
+      // picked up. If it detects a voicemail greeting instead, the Dial
+      // ends right there — caller never hears a word of it — and this
+      // route's own "try the next candidate, or voicemail if none left"
+      // logic below handles it exactly like a no-answer/busy would.
+      `<Dial answerOnBridge="true" machineDetection="Enable" timeout="${RING_TIMEOUT_SECONDS}" callerId="${settings?.phoneNumber ? toE164(settings.phoneNumber) : ""}" action="${xmlEscape(actionUrl)}"><Number>${toE164(target.phone!)}</Number></Dial>`
     );
   }
 
