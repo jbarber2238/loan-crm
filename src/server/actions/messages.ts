@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { dealConversations, dealConversationParticipants, dealMessages } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
-import { sendSms } from "@/server/twilio-client";
+import { sendSms, toE164 } from "@/server/twilio-client";
 import { getOrCreateConversationForDeal } from "@/server/conversations";
 
 function baseUrl() {
@@ -56,7 +56,8 @@ async function sendToConversation(conversationId: string, body: string, sentByUs
   const recipients = [conversation.primaryPhone, ...conversation.participants.map((p) => p.phone)];
   const statusCallbackUrl = `${baseUrl()}/api/webhooks/twilio-sms-status`;
 
-  for (const to of recipients) {
+  for (const rawTo of recipients) {
+    const to = toE164(rawTo);
     const result = await sendSms({ to, body, statusCallbackUrl });
     await db.insert(dealMessages).values({
       conversationId,

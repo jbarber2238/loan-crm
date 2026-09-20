@@ -33,6 +33,7 @@ import {
 import { extractTermSheetFields } from "@/lib/term-sheet-fields";
 import { conservativeValueBasis, calculateLtarv, calculateLtc } from "@/lib/term-sheet-calculations";
 import { syncProcessingFeeInvoice } from "@/server/billing";
+import { toE164 } from "@/server/twilio-client";
 import { notifyAffiliateOfNewDeal, notifyAffiliateOfStageChange } from "@/server/actions/referral-affiliates";
 import { notifyAdminOfNewDeal, notifyBorrowerOfSubmission } from "@/server/deal-notifications";
 
@@ -249,7 +250,10 @@ export async function updateDealDetails(dealId: string, formData: FormData) {
     .set({
       borrowerName,
       borrowerEntityName: nullableStr(formData, "borrowerEntityName"),
-      borrowerPhone: nullableStr(formData, "borrowerPhone"),
+      borrowerPhone: (() => {
+        const raw = nullableStr(formData, "borrowerPhone");
+        return raw ? toE164(raw) : null;
+      })(),
       borrowerEmail: nullableStr(formData, "borrowerEmail"),
       propertyAddress,
       parcelId: nullableStr(formData, "parcelId"),

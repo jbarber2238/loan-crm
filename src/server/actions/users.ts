@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/server/db/client";
 import { users } from "@/server/db/schema";
 import { requireAdmin, requireUser } from "@/server/auth/guards";
+import { toE164 } from "@/server/twilio-client";
 import { sendGmailAs } from "@/server/gmail/send";
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
@@ -153,7 +154,7 @@ export async function updateMyProfile(formData: FormData) {
 
   if (formData.has("phone")) {
     const phone = formData.get("phone");
-    updates.phone = typeof phone === "string" && phone.trim().length ? phone.trim() : null;
+    updates.phone = typeof phone === "string" && phone.trim().length ? toE164(phone) : null;
   }
 
   if (formData.has("nmlsNumber")) {

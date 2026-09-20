@@ -1,4 +1,5 @@
 import { COMMERCIAL_PROPERTY_TYPES } from "@/server/db/schema";
+import { toE164 } from "@/server/twilio-client";
 
 function str(formData: FormData, key: string): string | null {
   const value = formData.get(key);
@@ -134,7 +135,7 @@ export function parseIntakeFormData(formData: FormData): ParsedIntake {
     borrowerEntityName: str(formData, "borrowerEntityName"),
     firstName: str(formData, "firstName") ?? "",
     lastName: str(formData, "lastName") ?? "",
-    borrowerPhone: str(formData, "borrowerPhone") ?? "",
+    borrowerPhone: str(formData, "borrowerPhone") ? toE164(str(formData, "borrowerPhone")!) : "",
     borrowerEmail: str(formData, "borrowerEmail") ?? "",
     exitStrategy: str(formData, "exitStrategy"),
     estimatedFico: int(formData, "estimatedFico"),

@@ -1,4 +1,4 @@
-import { canonicalWebhookUrl, twimlResponse, verifiedTwilioParams } from "@/server/twilio-client";
+import { canonicalWebhookUrl, twimlResponse, verifiedTwilioParams, toE164 } from "@/server/twilio-client";
 import { getTwilioSettings } from "@/server/settings";
 
 // Twilio requests this once the staff member's own phone picks up on a
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   if (!to) return twimlResponse("<Say>Sorry, something went wrong connecting this call.</Say>");
 
   const settings = await getTwilioSettings();
-  const callerId = settings?.phoneNumber ?? "";
+  const callerId = settings?.phoneNumber ? toE164(settings.phoneNumber) : "";
 
-  return twimlResponse(`<Dial callerId="${callerId}"><Number>${to}</Number></Dial>`);
+  return twimlResponse(`<Dial callerId="${callerId}"><Number>${toE164(to)}</Number></Dial>`);
 }

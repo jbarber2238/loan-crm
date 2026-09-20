@@ -8,6 +8,26 @@ import { getTwilioSettings } from "@/server/settings";
 // its own file for the same reason: one place that knows how to talk to
 // Twilio, everything else (routing, webhooks, actions) goes through it.
 
+/**
+ * Twilio's <Number> verb and REST API both require strict E.164
+ * (+15551234567) — a plain "(555) 123-4567" or "555-123-4567" either gets
+ * silently misrouted or triggers "calling restrictions have prevented the
+ * completion of your call," with no useful error surfaced anywhere. Every
+ * phone number handed to Twilio (a staff member's own cell, a borrower's
+ * number, the company number) goes through this first. US/Canada-only
+ * assumption is safe here — this app has no international users.
+ */
+export function toE164(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("+")) return `+${trimmed.slice(1).replace(/\D/g, "")}`;
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  // Not a recognizable US/Canada number — return as-is rather than guess
+  // further; Twilio will reject it loudly instead of silently misdialing.
+  return trimmed;
+}
+
 export class TwilioNotConfiguredError extends Error {
   constructor() {
     super("Texting/calling isn't connected yet — add your Twilio number and credentials in Settings → Phone.");

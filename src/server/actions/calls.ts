@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { dealCallLogs, dealConversations, users } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
-import { initiateBridgeCall } from "@/server/twilio-client";
+import { initiateBridgeCall, toE164 } from "@/server/twilio-client";
 import { getOrCreateConversationForDeal } from "@/server/conversations";
 import { getEffectiveOutboundWindow, isWithinWindow } from "@/server/phone-routing";
 
@@ -40,7 +40,7 @@ async function bridgeCallForConversation(conversation: { id: string; primaryPhon
   const connectUrl = `${baseUrl()}/api/webhooks/twilio-voice-connect?to=${encodeURIComponent(conversation.primaryPhone)}`;
   const statusCallbackUrl = `${baseUrl()}/api/webhooks/twilio-call-status`;
 
-  const call = await initiateBridgeCall({ staffPhone: user.phone, connectTwimlUrl: connectUrl, statusCallbackUrl });
+  const call = await initiateBridgeCall({ staffPhone: toE164(user.phone), connectTwimlUrl: connectUrl, statusCallbackUrl });
 
   await db.insert(dealCallLogs).values({
     conversationId: conversation.id,
