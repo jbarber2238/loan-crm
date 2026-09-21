@@ -195,6 +195,7 @@ export function RolesTab({
           title="Insurance Information"
           dealId={dealId}
           saveAction={updateInsuranceContact}
+          contactType="Insurance"
           fields={[
             { name: "insuranceAgency", label: "Insurance Agency", value: insuranceAgency },
             { name: "insuranceAgentName", label: "Agent Name", value: insuranceAgentName },
@@ -206,6 +207,7 @@ export function RolesTab({
           title="Title Information"
           dealId={dealId}
           saveAction={updateTitleContact}
+          contactType="Title"
           fields={[
             { name: "titleCompanyAgentName", label: "Title Company / Agent Name", value: titleCompanyAgentName },
             { name: "titleAgentEmail", label: "Title Agent Email", value: titleAgentEmail },

@@ -1,7 +1,7 @@
 import { Mail } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MessageBorrowerButton } from "@/components/deals/message-borrower-button";
+import { ContactQuickActions } from "@/components/messaging/contact-quick-actions";
 import { StageSelect } from "@/components/deals/stage-select";
 import { DealActionsMenu } from "@/components/deals/deal-actions-menu";
 import { CloneDealDialog } from "@/components/deals/clone-deal-dialog";
@@ -52,7 +52,7 @@ export function DealHeader({ deal }: { deal: DealDetail }) {
             {deal.borrowerPhone && (
               <span className="flex items-center gap-1">
                 · {deal.borrowerPhone}
-                <MessageBorrowerButton dealId={deal.id} />
+                <ContactQuickActions phone={deal.borrowerPhone} name={deal.borrowerName} contactType="Borrower" dealId={deal.id} />
               </span>
             )}
             {deal.borrowerEmail && (

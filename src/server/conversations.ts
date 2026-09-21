@@ -33,15 +33,6 @@ export async function getOrCreateConversationForPhone(
   return winner;
 }
 
-/** Borrower-specific convenience wrapper — resolves the deal's own borrowerPhone first. */
-export async function getOrCreateConversationForDeal(dealId: string): Promise<{ id: string; primaryPhone: string }> {
-  const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId), columns: { borrowerPhone: true } });
-  if (!deal?.borrowerPhone) {
-    throw new Error("This deal has no borrower phone number on file yet — add one before texting or calling.");
-  }
-  return getOrCreateConversationForPhone(deal.borrowerPhone, dealId);
-}
-
 /**
  * Inbound webhook entry point: finds the conversation for a phone number
  * (matching either a conversation's own primaryPhone or one of its ad-hoc

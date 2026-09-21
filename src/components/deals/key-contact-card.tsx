@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ContactQuickActions } from "@/components/messaging/contact-quick-actions";
+import type { ContactType } from "@/server/actions/messages";
 
 export interface KeyContactField {
   name: string;
@@ -26,11 +28,14 @@ export function KeyContactCard({
   fields,
   dealId,
   saveAction,
+  contactType,
 }: {
   title: string;
   fields: KeyContactField[];
   dealId: string;
   saveAction: (dealId: string, formData: FormData) => Promise<void>;
+  /** When set, a phone-shaped field in this card gets call/text icons next to it. */
+  contactType?: ContactType;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -39,6 +44,7 @@ export function KeyContactCard({
   const [error, setError] = useState<string | null>(null);
 
   const filled = fields.filter((f) => f.value);
+  const contactName = fields.find((f) => f.name.toLowerCase().includes("name"))?.value ?? title;
 
   async function handleCopy() {
     if (!filled.length) return;
@@ -103,12 +109,20 @@ export function KeyContactCard({
       <CardContent>
         {filled.length ? (
           <div className="space-y-1 text-sm">
-            {filled.map((f) => (
-              <p key={f.name}>
-                <span className="text-muted-foreground">{f.label}: </span>
-                <span className="font-medium">{f.value}</span>
-              </p>
-            ))}
+            {filled.map((f) => {
+              const isPhone = f.name.toLowerCase().includes("phone");
+              return (
+                <p key={f.name} className="flex items-center gap-1">
+                  <span>
+                    <span className="text-muted-foreground">{f.label}: </span>
+                    <span className="font-medium">{f.value}</span>
+                  </span>
+                  {isPhone && contactType && (
+                    <ContactQuickActions phone={f.value} name={contactName} contactType={contactType} dealId={dealId} />
+                  )}
+                </p>
+              );
+            })}
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">

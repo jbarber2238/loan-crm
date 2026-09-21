@@ -1,8 +1,9 @@
 "use client";
 
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import type { ContactType } from "@/server/actions/messages";
 
-export type ContactType = "Borrower" | "Insurance" | "Title" | "Lender Rep" | "Referral Partner" | "Other";
+export type { ContactType };
 
 export interface DockWindow {
   conversationId: string;

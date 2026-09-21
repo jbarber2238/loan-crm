@@ -8,6 +8,7 @@ import { SubmitButton } from "@/components/forms/submit-button";
 import { CopyIntakeLinkButton } from "@/components/deals/copy-intake-link-button";
 import { CopyEmbedCodeButton } from "@/components/deals/copy-embed-code-button";
 import { InviteAffiliateDialog } from "@/components/settings/invite-affiliate-dialog";
+import { ContactQuickActions } from "@/components/messaging/contact-quick-actions";
 
 export default async function ReferralsSettingsPage() {
   await requireAdmin();
@@ -79,7 +80,12 @@ export default async function ReferralsSettingsPage() {
             </CardHeader>
             {!pending && (
               <CardContent className="space-y-2">
-                <p className="text-sm text-muted-foreground">Phone: {affiliate.phone}</p>
+                <p className="flex items-center gap-1 text-sm text-muted-foreground">
+                  Phone: {affiliate.phone}
+                  {affiliate.phone && (
+                    <ContactQuickActions phone={affiliate.phone} name={affiliate.name ?? affiliate.email} contactType="Referral Partner" />
+                  )}
+                </p>
                 <p className="text-sm text-muted-foreground">
                   Referrals to date: <span className="font-medium text-foreground">{affiliate.deals.length}</span>
                 </p>

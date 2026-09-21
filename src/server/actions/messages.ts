@@ -15,7 +15,7 @@ import {
 } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { sendSms, toE164 } from "@/server/twilio-client";
-import { getOrCreateConversationForDeal, getOrCreateConversationForPhone } from "@/server/conversations";
+import { getOrCreateConversationForPhone } from "@/server/conversations";
 import { STAGES, labelFor } from "@/lib/labels";
 import { ARCHIVABLE_STAGES, ARCHIVE_AFTER_DAYS_IN_STAGE } from "@/lib/deal-pipeline";
 
@@ -26,32 +26,6 @@ function baseUrl() {
 function str(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
-}
-
-/**
- * "Message Borrower" from a deal's header — finds or creates that
- * borrower's ONE shared conversation (same thread regardless of which of
- * their deals you're viewing) and returns what the floating chat dock
- * needs to open it in place, pre-filled with a plain-text opener naming
- * this specific deal. That opener is just typed text, not a stored tag —
- * there's no per-deal message filtering anywhere; the borrower may have
- * several deals and one continuous thread, and the opener is the only
- * thing that tells either side which one a given message is about.
- */
-export async function prepareBorrowerConversation(dealId: string) {
-  await requireUser();
-  const deal = await db.query.deals.findFirst({
-    where: eq(deals.id, dealId),
-    columns: { propertyAddress: true, borrowerName: true },
-  });
-  const conversation = await getOrCreateConversationForDeal(dealId);
-  const opener = deal ? `Regarding your deal located at ${deal.propertyAddress}:\n\n` : "";
-  return {
-    conversationId: conversation.id,
-    borrowerPhone: conversation.primaryPhone,
-    borrowerName: deal?.borrowerName ?? conversation.primaryPhone,
-    initialBody: opener,
-  };
 }
 
 /** The floating chat dock's own data fetch — same shape the Inbox conversation page reads, just returned to a client component instead of rendered server-side. */
@@ -366,4 +340,118 @@ export async function getContactDealsContext(phone: string) {
       .filter((d) => (d.stage === "lost" || d.stage === "disqualified") && d.updatedAt >= cutoff)
       .map(toSummary),
   };
+}
+
+export interface DirectoryContact {
+  key: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  contactType: ContactType;
+  subtitle: string;
+  dealId?: string;
+  /** Only meaningful for Borrower — the intake form's own consent checkbox ("I consent to receive emails and text messages..."). null = never asked/unknown, not "no." */
+  consent: boolean | null;
+}
+
+/**
+ * The full Client Directory — every contact this app already has a phone
+ * number for, one row per unique number (a borrower or lender rep on
+ * several deals still shows up once). Same four real sources as
+ * searchContacts, just unfiltered and merged instead of query-matched.
+ */
+export async function getAllContacts(): Promise<DirectoryContact[]> {
+  await requireUser();
+
+  const [dealRows, lenderRepRows, affiliateRows, otherRows] = await Promise.all([
+    db.query.deals.findMany({
+      where: isNull(deals.deletedAt),
+      columns: {
+        id: true,
+        borrowerName: true,
+        borrowerPhone: true,
+        borrowerEmail: true,
+        marketingConsent: true,
+        insuranceAgentName: true,
+        insuranceAgentPhone: true,
+        insuranceAgentEmail: true,
+        titleCompanyAgentName: true,
+        titleAgentPhone: true,
+        titleAgentEmail: true,
+        propertyAddress: true,
+        stage: true,
+      },
+      orderBy: (d, { desc: descD }) => descD(d.createdAt),
+    }),
+    db.query.lenderReps.findMany({
+      columns: { id: true, name: true, phone: true, email: true },
+      with: { lender: { columns: { name: true } } },
+    }),
+    db.query.referralAffiliates.findMany({ columns: { id: true, name: true, phone: true, email: true } }),
+    db.query.otherContacts.findMany({ columns: { id: true, name: true, phone: true, notes: true } }),
+  ]);
+
+  const byPhone = new Map<string, DirectoryContact>();
+  function upsert(c: DirectoryContact) {
+    const existing = byPhone.get(c.phone);
+    if (!existing) {
+      byPhone.set(c.phone, c);
+      return;
+    }
+    if (c.consent) existing.consent = true;
+    if (!existing.email && c.email) existing.email = c.email;
+  }
+
+  for (const d of dealRows) {
+    const stageLabel = labelFor(STAGES, d.stage);
+    if (d.borrowerPhone) {
+      upsert({
+        key: `borrower-${d.id}`,
+        name: d.borrowerName,
+        phone: d.borrowerPhone,
+        email: d.borrowerEmail,
+        contactType: "Borrower",
+        dealId: d.id,
+        subtitle: `${d.propertyAddress} · ${stageLabel}`,
+        consent: d.marketingConsent ?? null,
+      });
+    }
+    if (d.insuranceAgentPhone && d.insuranceAgentName) {
+      upsert({
+        key: `insurance-${d.id}`,
+        name: d.insuranceAgentName,
+        phone: d.insuranceAgentPhone,
+        email: d.insuranceAgentEmail,
+        contactType: "Insurance",
+        dealId: d.id,
+        subtitle: `${d.propertyAddress} (${d.borrowerName})`,
+        consent: null,
+      });
+    }
+    if (d.titleAgentPhone && d.titleCompanyAgentName) {
+      upsert({
+        key: `title-${d.id}`,
+        name: d.titleCompanyAgentName,
+        phone: d.titleAgentPhone,
+        email: d.titleAgentEmail,
+        contactType: "Title",
+        dealId: d.id,
+        subtitle: `${d.propertyAddress} (${d.borrowerName})`,
+        consent: null,
+      });
+    }
+  }
+  for (const r of lenderRepRows) {
+    if (!r.phone) continue;
+    upsert({ key: `lenderrep-${r.id}`, name: r.name, phone: r.phone, email: r.email, contactType: "Lender Rep", subtitle: r.lender.name, consent: null });
+  }
+  for (const a of affiliateRows) {
+    if (!a.phone || !a.name) continue;
+    upsert({ key: `affiliate-${a.id}`, name: a.name, phone: a.phone, email: a.email, contactType: "Referral Partner", subtitle: "Referral partner", consent: null });
+  }
+  for (const o of otherRows) {
+    upsert({ key: `other-${o.id}`, name: o.name, phone: o.phone, email: null, contactType: "Other", subtitle: o.notes ?? "", consent: null });
+  }
+
+  return [...byPhone.values()].sort((a, b) => a.name.localeCompare(b.name));
 }

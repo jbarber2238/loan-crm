@@ -17,6 +17,7 @@ import {
   FileSignature,
   Layers,
   Inbox,
+  Users,
 } from "lucide-react";
 import { signOutAction } from "@/server/actions/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -55,8 +56,9 @@ export function AppSidebar({
     ...(user.isAdmin || user.baseRole === "processor"
       ? [{ href: "/client-needs", label: "Client Needs", icon: ClipboardList, exact: true }]
       : []),
-    { href: "/inbox", label: "Communications", icon: Inbox, exact: false },
     ...(user.isAdmin ? [{ href: "/email-templates", label: "Email Templates", icon: Mail, exact: true }] : []),
+    { href: "/inbox", label: "Communications", icon: Inbox, exact: false },
+    { href: "/directory", label: "Client Directory", icon: Users, exact: true },
   ];
 
   // "/deals/new" is a static route (the staff new-deal form), not a deal id —

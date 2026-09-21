@@ -1463,7 +1463,7 @@ export const dealConversations = pgTable(
     // Purely informational — whichever deal this conversation happened to
     // be created from first. NOT used to look conversations up anymore: a
     // borrower gets exactly one thread across every deal they have, per the
-    // "no per-deal messaging facade" decision — see getOrCreateConversationForDeal.
+    // "no per-deal messaging facade" decision — see getOrCreateConversationForPhone.
     dealId: uuid("deal_id").references(() => deals.id, { onDelete: "set null" }),
     // The other party's own number — usually the borrower's, but could be
     // whoever first texted/called in before any deal was matched. Unique:

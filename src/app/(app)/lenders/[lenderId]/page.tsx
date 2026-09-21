@@ -17,6 +17,7 @@ import { deleteLenderDocument, reextractLenderWideCriteria } from "@/server/acti
 import { AiMatrixUpload } from "@/components/lenders/ai-matrix-upload";
 import { ProductsChecklist } from "@/components/lenders/products-checklist";
 import { LenderSubmissionSection } from "@/components/lenders/lender-submission-section";
+import { ContactQuickActions } from "@/components/messaging/contact-quick-actions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -151,7 +152,10 @@ export default async function LenderDetailPage({
                   </div>
                   <div className="flex items-end gap-2">
                     <div className="flex-1 space-y-1.5">
-                      <Label htmlFor="rep-phone">Phone</Label>
+                      <Label htmlFor="rep-phone" className="flex items-center gap-1">
+                        Phone
+                        {rep.phone && <ContactQuickActions phone={rep.phone} name={rep.name} contactType="Lender Rep" />}
+                      </Label>
                       <Input id="rep-phone" name="phone" defaultValue={rep.phone ?? ""} />
                     </div>
                     <SubmitButton variant="secondary">Save</SubmitButton>
@@ -185,9 +189,12 @@ export default async function LenderDetailPage({
           ) : rep ? (
             <div className="rounded-md border px-3 py-2 text-sm">
               <p className="font-medium">{rep.name}</p>
-              <p className="text-muted-foreground">
-                {rep.email}
-                {rep.phone && ` · ${rep.phone}`}
+              <p className="flex items-center gap-1 text-muted-foreground">
+                <span>
+                  {rep.email}
+                  {rep.phone && ` · ${rep.phone}`}
+                </span>
+                {rep.phone && <ContactQuickActions phone={rep.phone} name={rep.name} contactType="Lender Rep" />}
               </p>
             </div>
           ) : (
