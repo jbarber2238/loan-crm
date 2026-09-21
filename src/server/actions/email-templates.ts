@@ -78,7 +78,7 @@ export async function updateEmailTemplate(id: string, formData: FormData) {
     })
     .where(eq(emailTemplates.id, id));
 
-  revalidatePath("/email-templates");
+  revalidatePath("/settings/email-templates");
 }
 
 export async function createEmailTemplate(formData: FormData) {
@@ -102,7 +102,7 @@ export async function createEmailTemplate(formData: FormData) {
     updatedByUserId: user.id,
   });
 
-  revalidatePath("/email-templates");
+  revalidatePath("/settings/email-templates");
 }
 
 export async function deleteEmailTemplate(id: string) {
@@ -117,5 +117,5 @@ export async function deleteEmailTemplate(id: string) {
   }
 
   await db.delete(emailTemplates).where(eq(emailTemplates.id, id));
-  revalidatePath("/email-templates");
+  revalidatePath("/settings/email-templates");
 }

@@ -8,7 +8,6 @@ import {
   BarChart3,
   FilePlus,
   Landmark,
-  Mail,
   ClipboardList,
   Settings,
   LogOut,
@@ -56,7 +55,6 @@ export function AppSidebar({
     ...(user.isAdmin || user.baseRole === "processor"
       ? [{ href: "/client-needs", label: "Client Needs", icon: ClipboardList, exact: true }]
       : []),
-    ...(user.isAdmin ? [{ href: "/email-templates", label: "Email Templates", icon: Mail, exact: true }] : []),
     { href: "/inbox", label: "Communications", icon: Inbox, exact: false },
     { href: "/directory", label: "Contacts Directory", icon: Users, exact: true },
   ];

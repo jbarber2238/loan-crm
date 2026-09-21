@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { User, Building2, Users, Handshake, Plug, Phone, Trash2 } from "lucide-react";
+import { User, Building2, Users, Handshake, Plug, Phone, Mail, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function SettingsTabs({ isAdmin }: { isAdmin: boolean }) {
@@ -17,6 +17,7 @@ export function SettingsTabs({ isAdmin }: { isAdmin: boolean }) {
           { href: "/settings/referrals", label: "Referrals", icon: Handshake, exact: true },
           { href: "/settings/integrations", label: "Integrations", icon: Plug, exact: true },
           { href: "/settings/phone", label: "Phone", icon: Phone, exact: true },
+          { href: "/settings/email-templates", label: "Email Templates", icon: Mail, exact: true },
           { href: "/settings/deleted-deals", label: "Deleted Deals", icon: Trash2, exact: true },
         ]
       : []),

@@ -18,13 +18,10 @@ export default async function EmailTemplatesPage() {
   );
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold">Email Templates</h1>
-        <p className="text-sm text-muted-foreground">
-          Edit the wording sent out at every step — pricing requests today, borrower emails as they get built.
-        </p>
-      </div>
+    <div className="space-y-8">
+      <p className="text-sm text-muted-foreground">
+        Edit the wording sent out at every step — pricing requests today, borrower emails as they get built.
+      </p>
 
       <CollapsibleGroupList
         groups={[
