@@ -94,6 +94,19 @@ function daysBetween(a: Date, b: Date): number {
   return (b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24);
 }
 
+/** Every stat card that's a count of deals carries the actual deals behind it, in this shape — lets the dashboard show "here's exactly what's being counted" on click instead of asking you to trust a number. */
+export interface DrillDownDeal {
+  id: string;
+  loanNumber: number | null;
+  borrowerName: string;
+  propertyAddress: string;
+  stage: string;
+}
+
+function toDrillDownDeal(d: DealWithRelations): DrillDownDeal {
+  return { id: d.id, loanNumber: d.loanNumber, borrowerName: d.borrowerName, propertyAddress: d.propertyAddress, stage: d.stage };
+}
+
 // ---------------------------------------------------------------------------
 // Pipeline & Conversion
 // ---------------------------------------------------------------------------
@@ -216,15 +229,24 @@ function buildSpeedApplicationToClose(dealsData: DealWithRelations[], start: Dat
 
 export interface PipelineConversionData {
   newLeads: number;
+  newLeadsDeals: DrillDownDeal[];
   restoredLeads: number;
+  restoredLeadsDeals: DrillDownDeal[];
   applicationsSubmitted: number;
   applicationsSubmittedDirect: number;
   applicationsSubmittedRestored: number;
+  applicationsSubmittedDeals: (DrillDownDeal & { viaRestore: boolean })[];
   leadToApplicationPct: number | null;
+  leadToApplicationConvertedDeals: DrillDownDeal[];
+  leadCohortDeals: DrillDownDeal[];
   leadLostPct: number | null;
+  leadLostDeals: DrillDownDeal[];
   totalPipelineValue: number;
+  totalPipelineValueDeals: DrillDownDeal[];
   totalLostValue: number;
+  totalLostValueDeals: DrillDownDeal[];
   loansClosed: number;
+  closedDeals: DrillDownDeal[];
   totalVolumeClosed: number;
   averageLoanSizeRequested: number;
   averageLoanSizeClosed: number;
@@ -242,58 +264,66 @@ function buildPipelineConversion(dealsData: DealWithRelations[], start: Date | n
   // a brand-new lead today even though it's been in the system for months.
   const leadCohort = dealsData.filter((d) => inRange(d.createdAt, start, end));
   const newLeads = leadCohort.length;
-  const convertedCount = leadCohort.filter((d) => firstEntryEver(d, "application") !== null).length;
-  const lostCount = leadCohort.filter((d) => TERMINAL_STAGES.has(d.stage) && d.stage !== "closed").length;
+  const convertedDeals = leadCohort.filter((d) => firstEntryEver(d, "application") !== null);
+  const lostDeals = leadCohort.filter((d) => TERMINAL_STAGES.has(d.stage) && d.stage !== "closed");
 
   // A Restored Lead is the opposite case: an OLD deal re-entering New or
   // Rate Shopping this period (came back from Lost/Follow-up, or an
   // archive/delete restore) — counted once per deal even if it happened
   // more than once in the window.
-  const restoredLeads = dealsData.filter((d) => restoreEntriesInRange(d, start, end).length > 0).length;
+  const restoredLeadsList = dealsData.filter((d) => restoreEntriesInRange(d, start, end).length > 0);
 
   const applicationEntriesInRange = dealsData
     .map((d) => ({ deal: d, entry: firstEntryInRange(d, "application", start, end) }))
     .filter((x): x is { deal: DealWithRelations; entry: { index: number; changedAt: Date } } => x.entry !== null);
   const applicationsSubmitted = applicationEntriesInRange.length;
-  const applicationsSubmittedRestored = applicationEntriesInRange.filter(({ deal, entry }) =>
-    hasRestoreEventBefore(deal, entry.changedAt)
-  ).length;
+  const applicationDealsWithFlag = applicationEntriesInRange.map(({ deal, entry }) => ({
+    ...toDrillDownDeal(deal),
+    viaRestore: hasRestoreEventBefore(deal, entry.changedAt),
+  }));
+  const applicationsSubmittedRestored = applicationDealsWithFlag.filter((d) => d.viaRestore).length;
   const applicationsSubmittedDirect = applicationsSubmitted - applicationsSubmittedRestored;
 
   // Snapshot, not range-filtered — "what's live right now," same convention
   // Justin already sees on the pipeline board's Lead Value badges. Matches
   // his own definition: everything between New and Clear to Close, plus
   // On Hold and Follow-up — i.e. everything that isn't Closed/Lost/Disqualified.
-  const totalPipelineValue = dealsData
-    .filter((d) => !TERMINAL_STAGES.has(d.stage))
-    .reduce((sum, d) => sum + dealLeadValue(d), 0);
+  const activeDeals = dealsData.filter((d) => !TERMINAL_STAGES.has(d.stage));
+  const totalPipelineValue = activeDeals.reduce((sum, d) => sum + dealLeadValue(d), 0);
 
   // Real-time by design: only deals CURRENTLY sitting in Lost, that also
   // moved into Lost at some point in this range. A deal lost earlier this
   // month and then restored drops out of this number immediately — it's
   // never "banked" as a historical loss the way a static tally would.
-  const totalLostValue = dealsData
-    .filter((d) => d.stage === "lost" && firstEntryInRange(d, "lost", start, end) !== null)
-    .reduce((sum, d) => sum + dealLeadValue(d), 0);
+  const lostNowDeals = dealsData.filter((d) => d.stage === "lost" && firstEntryInRange(d, "lost", start, end) !== null);
+  const totalLostValue = lostNowDeals.reduce((sum, d) => sum + dealLeadValue(d), 0);
 
-  const closedAmounts = dealsData
-    .filter((d) => firstEntryInRange(d, "closed", start, end) !== null)
-    .map((d) => (d.approvedLoanAmount !== null ? num(d.approvedLoanAmount) : num(d.loanAmountRequested)));
+  const closedDeals = dealsData.filter((d) => firstEntryInRange(d, "closed", start, end) !== null);
+  const closedAmounts = closedDeals.map((d) => (d.approvedLoanAmount !== null ? num(d.approvedLoanAmount) : num(d.loanAmountRequested)));
   const totalVolumeClosed = closedAmounts.reduce((a, b) => a + b, 0);
 
   const requestedAmounts = leadCohort.map((d) => num(d.loanAmountRequested));
 
   return {
     newLeads,
-    restoredLeads,
+    newLeadsDeals: leadCohort.map(toDrillDownDeal),
+    restoredLeads: restoredLeadsList.length,
+    restoredLeadsDeals: restoredLeadsList.map(toDrillDownDeal),
     applicationsSubmitted,
     applicationsSubmittedDirect,
     applicationsSubmittedRestored,
-    leadToApplicationPct: newLeads ? (convertedCount / newLeads) * 100 : null,
-    leadLostPct: newLeads ? (lostCount / newLeads) * 100 : null,
+    applicationsSubmittedDeals: applicationDealsWithFlag,
+    leadToApplicationPct: newLeads ? (convertedDeals.length / newLeads) * 100 : null,
+    leadToApplicationConvertedDeals: convertedDeals.map(toDrillDownDeal),
+    leadCohortDeals: leadCohort.map(toDrillDownDeal),
+    leadLostPct: newLeads ? (lostDeals.length / newLeads) * 100 : null,
+    leadLostDeals: lostDeals.map(toDrillDownDeal),
     totalPipelineValue,
+    totalPipelineValueDeals: activeDeals.map(toDrillDownDeal),
     totalLostValue,
+    totalLostValueDeals: lostNowDeals.map(toDrillDownDeal),
     loansClosed: closedAmounts.length,
+    closedDeals: closedDeals.map(toDrillDownDeal),
     totalVolumeClosed,
     averageLoanSizeRequested: requestedAmounts.length ? average(requestedAmounts)! : 0,
     averageLoanSizeClosed: closedAmounts.length ? totalVolumeClosed / closedAmounts.length : 0,

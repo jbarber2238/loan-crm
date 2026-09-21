@@ -7,6 +7,7 @@ import { PIPELINE_STAGES } from "@/lib/deal-pipeline";
 import { InlineBar } from "@/components/dashboard/inline-bar";
 import { StageBarChart } from "@/components/dashboard/stage-bar-chart";
 import { MetricsLibrarySheet } from "@/components/dashboard/metrics-library-sheet";
+import { DrillDownStatCard } from "@/components/dashboard/drill-down-stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -144,28 +145,67 @@ export default async function DashboardPage({
         />
 
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <StatCard
+          <DrillDownStatCard
             label="New Leads"
             value={String(data.pipelineConversion.newLeads)}
             sub="original submissions only, not restores"
+            deals={data.pipelineConversion.newLeadsDeals}
           />
-          <StatCard label="Restored Leads" value={String(data.pipelineConversion.restoredLeads)} sub="old deals back in New/Rate Shopping" />
-          <StatCard
+          <DrillDownStatCard
+            label="Restored Leads"
+            value={String(data.pipelineConversion.restoredLeads)}
+            sub="old deals back in New/Rate Shopping"
+            deals={data.pipelineConversion.restoredLeadsDeals}
+          />
+          <DrillDownStatCard
             label="Applications Submitted"
             value={String(data.pipelineConversion.applicationsSubmitted)}
             sub={`${data.pipelineConversion.applicationsSubmittedDirect} direct · ${data.pipelineConversion.applicationsSubmittedRestored} restored`}
+            deals={data.pipelineConversion.applicationsSubmittedDeals}
           />
-          <StatCard label="Leads → Applications" value={pct(data.pipelineConversion.leadToApplicationPct)} sub="of this period's New Leads" />
-          <StatCard label="Leads Lost" value={pct(data.pipelineConversion.leadLostPct)} sub="of this period's New Leads" />
-          <StatCard label="Total Pipeline Value" value={money(data.pipelineConversion.totalPipelineValue)} sub="live, as of now" />
-          <StatCard label="Total Lost Value" value={money(data.pipelineConversion.totalLostValue)} sub="currently sitting in Lost" />
-          <StatCard
+          <DrillDownStatCard
+            label="Leads → Applications"
+            value={pct(data.pipelineConversion.leadToApplicationPct)}
+            sub="of this period's New Leads"
+            deals={data.pipelineConversion.leadToApplicationConvertedDeals}
+            emptyMessage="None of this period's New Leads have reached Application yet."
+          />
+          <DrillDownStatCard
+            label="Leads Lost"
+            value={pct(data.pipelineConversion.leadLostPct)}
+            sub="of this period's New Leads"
+            deals={data.pipelineConversion.leadLostDeals}
+            emptyMessage="None of this period's New Leads are currently Lost/Disqualified."
+          />
+          <DrillDownStatCard
+            label="Total Pipeline Value"
+            value={money(data.pipelineConversion.totalPipelineValue)}
+            sub="live, as of now"
+            deals={data.pipelineConversion.totalPipelineValueDeals}
+          />
+          <DrillDownStatCard
+            label="Total Lost Value"
+            value={money(data.pipelineConversion.totalLostValue)}
+            sub="currently sitting in Lost"
+            deals={data.pipelineConversion.totalLostValueDeals}
+          />
+          <DrillDownStatCard
             label="Loans Closed"
             value={String(data.pipelineConversion.loansClosed)}
             sub={money(data.pipelineConversion.totalVolumeClosed) + " total volume"}
+            deals={data.pipelineConversion.closedDeals}
           />
-          <StatCard label="Average Loan Size (Requested)" value={money(data.pipelineConversion.averageLoanSizeRequested)} sub="this period's New Leads" />
-          <StatCard label="Average Closed Loan Size" value={money(data.pipelineConversion.averageLoanSizeClosed)} />
+          <DrillDownStatCard
+            label="Average Loan Size (Requested)"
+            value={money(data.pipelineConversion.averageLoanSizeRequested)}
+            sub="this period's New Leads"
+            deals={data.pipelineConversion.leadCohortDeals}
+          />
+          <DrillDownStatCard
+            label="Average Closed Loan Size"
+            value={money(data.pipelineConversion.averageLoanSizeClosed)}
+            deals={data.pipelineConversion.closedDeals}
+          />
         </div>
 
         <Card>
