@@ -72,12 +72,19 @@ export default async function AffiliateSignupPage({
   // JavaScript, so a "click to copy" button can never work inside an email).
   if (submitted === "1" || affiliate.completedAt) {
     const links = await buildAffiliateReferralLinks(affiliateId);
+    const firstName = affiliate.name?.trim().split(/\s+/)[0];
     return (
       <div className={`${archivo.variable} ${PAGE_CLASS} flex items-center justify-center`} style={PAGE_STYLE}>
         <div className="w-full max-w-lg rounded-sm p-6 md:p-10" style={CARD_STYLE}>
           <MannaLogo className="h-8 w-auto" />
           <h1 className="mt-6 text-xl font-medium" style={{ color: TEAL }}>
-            {submitted === "1" ? "You're all set" : "Your referral info"}
+            {submitted === "1"
+              ? firstName
+                ? `You're all set, ${firstName}`
+                : "You're all set"
+              : firstName
+                ? `Welcome back, ${firstName}`
+                : "Your referral info"}
           </h1>
           <p className="mt-2 text-sm" style={{ color: BASALT }}>
             Anyone who submits a deal through your link is automatically tracked as your referral.
