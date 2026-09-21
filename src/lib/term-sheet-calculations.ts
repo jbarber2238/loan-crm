@@ -183,11 +183,20 @@ export function calculateLtc(
   return (loanAmount / cost) * 100;
 }
 
-// Same formula the generated term-sheet PDF uses for "Total Estimated Cash
-// Due from Borrower" (src/server/pdf/term-sheet.tsx) — down payment (or
-// draw-loan equivalent) plus every fee due either at or before closing.
-// Deliberately excludes reserves (the PDF's separate "Cash to Show" figure)
-// since reserves are a liquidity requirement, not cash actually due.
+// Same formula the generated term-sheet PDF uses (src/server/pdf/term-sheet.tsx)
+// for the borrower's net cash position across the whole deal, both the
+// closing table and whatever they've already paid out of pocket beforehand
+// (appraisal, credit pull, processing fee). Deliberately excludes reserves
+// (the PDF's separate "Cash to Show" figure) since reserves are a liquidity
+// requirement, not cash actually changing hands.
+//
+// A purchase (or a hard-money draw loan) has the borrower bringing money to
+// the table, so the return value is always ≥ the fees alone — positive,
+// meaning cash due. A refinance nets the new loan's proceeds against the
+// existing mortgage payoff and its own fees first: when that nets positive
+// (the normal cash-out case), the borrower is receiving money overall, and
+// this returns a NEGATIVE number — callers should read a negative result as
+// "net cash to the borrower," not a cash requirement.
 //
 // Takes already-resolved dollar figures rather than raw term-sheet fields so
 // each caller can supply numbers from whichever source fits its own
@@ -197,6 +206,7 @@ export function calculateLtc(
 export function calculateEstimatedCashToClose({
   loanCategory,
   purchasePrice,
+  mortgagePayoffAmount = null,
   closingDisbursement,
   originationFee,
   costToBorrowerFee,
@@ -207,6 +217,7 @@ export function calculateEstimatedCashToClose({
 }: {
   loanCategory: string;
   purchasePrice: number | null;
+  mortgagePayoffAmount?: number | null;
   closingDisbursement: number;
   originationFee: number;
   costToBorrowerFee: number;
@@ -215,15 +226,21 @@ export function calculateEstimatedCashToClose({
   creditPullFee?: number;
   processingFee?: number;
 }): number {
-  // Same historical-purchase-price trap as valueBasisFor above: a refinance
-  // has no purchase happening, so its "purchase price" field (the property's
-  // original purchase price, not what's being financed now) must never be
-  // netted against the new loan amount — that's what turned a $180k
-  // cash-out refi into a bogus "-$45,631 due from borrower."
-  const downPayment =
-    purchasePrice !== null && !REFINANCE_CATEGORIES.has(loanCategory) ? purchasePrice - closingDisbursement : 0;
-  const cashAtClosing = downPayment + originationFee + costToBorrowerFee + underwritingDocFee;
   const paidPrior = appraisalFee + creditPullFee + processingFee;
+
+  if (REFINANCE_CATEGORIES.has(loanCategory)) {
+    // A refinance has no purchase happening, so purchasePrice (the
+    // property's historical purchase price) never belongs in this math —
+    // same trap valueBasisFor above already guards against for LTV. What
+    // actually funds the closing is the new loan minus what it has to pay
+    // off first and minus its own fees.
+    const netProceeds =
+      closingDisbursement - (mortgagePayoffAmount ?? 0) - originationFee - costToBorrowerFee - underwritingDocFee;
+    return paidPrior - netProceeds;
+  }
+
+  const downPayment = purchasePrice !== null ? purchasePrice - closingDisbursement : 0;
+  const cashAtClosing = downPayment + originationFee + costToBorrowerFee + underwritingDocFee;
   return cashAtClosing + paidPrior;
 }
 

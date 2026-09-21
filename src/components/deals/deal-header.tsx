@@ -175,6 +175,7 @@ export function DealHeader({ deal }: { deal: DealDetail }) {
           approvedInitialAdvance={deal.approvedInitialAdvance}
           interestType={deal.interestType}
           purchasePrice={deal.purchasePrice}
+          mortgagePayoffAmount={deal.mortgagePayoffAmount}
           estimatedAsIsValue={deal.estimatedAsIsValue}
           finalRate={deal.finalRate}
           rateLocked={deal.rateLocked}

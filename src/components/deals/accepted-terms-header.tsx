@@ -9,6 +9,7 @@ import {
   calculateInitialMonthlyInterest,
   calculateDutchMonthlyInterest,
   calculateEstimatedCashToClose,
+  REFINANCE_CATEGORIES,
 } from "@/lib/term-sheet-calculations";
 import { isInterestOnlyCategory, rehabOrConstructionBudgetLabel } from "@/lib/loan-sections";
 
@@ -85,6 +86,7 @@ export function AcceptedTermsHeader({
   approvedInitialAdvance,
   interestType,
   purchasePrice,
+  mortgagePayoffAmount,
   estimatedAsIsValue,
   finalRate,
   rateLocked,
@@ -120,6 +122,7 @@ export function AcceptedTermsHeader({
   approvedInitialAdvance: string | null;
   interestType: string | null;
   purchasePrice: string | null;
+  mortgagePayoffAmount: string | null;
   estimatedAsIsValue: string | null;
   finalRate: string | null;
   rateLocked: boolean;
@@ -204,12 +207,17 @@ export function AcceptedTermsHeader({
   const estimatedCashToClose = calculateEstimatedCashToClose({
     loanCategory,
     purchasePrice: purchasePrice ? Number(purchasePrice) : null,
+    mortgagePayoffAmount: mortgagePayoffAmount ? Number(mortgagePayoffAmount) : null,
     closingDisbursement,
     originationFee,
     costToBorrowerFee: effectiveCostToBorrowerFee ?? 0,
     underwritingDocFee: underwritingDocFeeNum,
     processingFee,
   });
+  // A refinance's result can come back negative — that's net cash going TO
+  // the borrower (loan proceeds outpacing payoff + fees), not a due amount.
+  const isRefi = REFINANCE_CATEGORIES.has(loanCategory);
+  const borrowerReceivesCash = isRefi && estimatedCashToClose < 0;
 
   const loanTermValue = isInterestOnlyCategory(loanCategory)
     ? finalLoanTermMonths
@@ -246,9 +254,9 @@ export function AcceptedTermsHeader({
   // column instead.
   const cashToCloseField = (
     <Field
-      label="Cash to Show"
-      value={money(estimatedCashToClose)}
-      hint="down payment + fees, excl. reserves"
+      label={borrowerReceivesCash ? "Net Cash to Borrower" : "Cash to Show"}
+      value={money(Math.abs(estimatedCashToClose))}
+      hint={borrowerReceivesCash ? "payoff + fees netted against loan amount, excl. reserves" : "down payment + fees, excl. reserves"}
       className="w-full"
     />
   );

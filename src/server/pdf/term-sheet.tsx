@@ -112,6 +112,7 @@ export interface TermSheetPdfProps {
   generatedAt: Date;
   fields: Record<string, unknown>;
   purchasePrice: number | null;
+  mortgagePayoffAmount: number | null;
   estimatedAsIsValue: number | null;
   annualTaxes: number | null;
   annualInsurance: number | null;
@@ -133,6 +134,7 @@ export function TermSheetPdf({
   generatedAt,
   fields,
   purchasePrice,
+  mortgagePayoffAmount,
   estimatedAsIsValue,
   annualTaxes,
   annualInsurance,
@@ -175,12 +177,13 @@ export function TermSheetPdf({
   // negative once the committed amount exceeds the purchase price.
   const initialAdvance = num(fields, "initialAdvance");
   const closingDisbursement = isHardMoneyDraw && initialAdvance > 0 ? initialAdvance : loanAmount;
+  const isRefi = REFINANCE_CATEGORIES.has(loanCategory);
   // A refinance has no purchase happening — purchasePrice on these deals is
   // the property's historical purchase price, not part of financing the new
   // loan, and must never be netted against the loan amount here (same trap
   // valueBasisFor/ratioMetricsFor already guard against for LTV).
-  const downPayment =
-    purchasePrice !== null && !REFINANCE_CATEGORIES.has(loanCategory) ? purchasePrice - closingDisbursement : 0;
+  const downPayment = purchasePrice !== null && !isRefi ? purchasePrice - closingDisbursement : 0;
+  const existingDebtPayoff = isRefi ? (mortgagePayoffAmount ?? 0) : 0;
   const appraisalFee = STANDARD_APPRAISAL_ESTIMATE;
   const creditPullFee = STANDARD_CREDIT_PULL_ESTIMATE;
   const processingFee = STANDARD_PROCESSING_FEE;
@@ -197,10 +200,26 @@ export function TermSheetPdf({
   const costToBorrowerLabel =
     loanCategory.startsWith("dscr") || loanCategory === "portfolio" ? "Rate Buydown Fee" : "Lender Fee";
 
-  const cashAtClosingTotal = downPayment + originationFee + costToBorrowerFee + underwritingDocFee;
+  // Purchase/hard-money-draw: what the borrower brings to the closing
+  // table. Refinance: the loan's net proceeds after paying off the existing
+  // mortgage and its own fees — positive means the borrower receives this at
+  // closing (the normal cash-out case), negative means they still owe it.
+  const netCashAtClosing = isRefi
+    ? closingDisbursement - existingDebtPayoff - originationFee - costToBorrowerFee - underwritingDocFee
+    : downPayment + originationFee + costToBorrowerFee + underwritingDocFee;
   const paidPriorTotal = appraisalFee + creditPullFee + processingFee;
-  const totalCashDue = cashAtClosingTotal + paidPriorTotal;
-  const cashToShow = totalCashDue + reserves;
+  // Net position across the whole deal: for a purchase this is always the
+  // full amount due (closing costs + pre-paid fees, both cash out of
+  // pocket); for a refinance, proceeds received at closing offset the fees
+  // already paid, so a healthy cash-out refi drives this negative.
+  const netObligation = isRefi ? paidPriorTotal - netCashAtClosing : netCashAtClosing + paidPriorTotal;
+  const cashDueAtClosing = Math.max(netObligation, 0);
+  // "Cash to Show" is a liquidity requirement, not a cash-back calculation —
+  // proceeds the borrower is about to receive don't count toward proving
+  // reserves they can already access, so a cash-out refi's Cash to Show is
+  // just the reserves themselves unless the deal actually leaves them owing
+  // money at closing.
+  const cashToShow = reserves + cashDueAtClosing;
 
   return (
     <Document>
@@ -252,12 +271,25 @@ export function TermSheetPdf({
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.cardHeader}>Cash at Closing</Text>
-              {downPayment > 0 && <Row label="Down Payment + EMD" value={money(downPayment)} />}
+              <Text style={styles.cardHeader}>{isRefi ? "Net Proceeds at Closing" : "Cash at Closing"}</Text>
+              {isRefi && <Row label="Loan Amount" value={money(closingDisbursement)} />}
+              {isRefi && existingDebtPayoff > 0 && (
+                <Row label="Less: Mortgage Payoff" value={money(existingDebtPayoff)} />
+              )}
+              {!isRefi && downPayment > 0 && <Row label="Down Payment + EMD" value={money(downPayment)} />}
               <Row label="Origination Fee" value={money(originationFee)} />
               {costToBorrowerFee > 0 && <Row label={costToBorrowerLabel} value={money(costToBorrowerFee)} />}
               <Row label="Underwriting and Doc Fee" value={money(underwritingDocFee)} />
-              <TotalRow label="Subtotal — Cash at Closing" value={money(cashAtClosingTotal)} />
+              <TotalRow
+                label={
+                  isRefi
+                    ? netCashAtClosing >= 0
+                      ? "Est. Net Cash to Borrower"
+                      : "Est. Cash Due at Closing"
+                    : "Subtotal — Cash at Closing"
+                }
+                value={money(Math.abs(netCashAtClosing))}
+              />
             </View>
           </View>
 
@@ -307,12 +339,12 @@ export function TermSheetPdf({
               <Row label="Processing Fee (non-refundable)" value={money(processingFee)} />
               <Row label="Appraisal (Estimated)" value={money(appraisalFee)} />
               <Row label="Credit Pull (Estimated)" value={money(creditPullFee)} />
-              <TotalRow label="Total Estimated Cash Due from Borrower" value={money(totalCashDue)} />
+              <TotalRow label="Subtotal — Paid Prior to Closing" value={money(paidPriorTotal)} />
             </View>
 
             <View style={styles.card}>
               <Text style={styles.cardHeader}>Cash to Show</Text>
-              <Row label="Total Estimated Cash Due" value={money(totalCashDue)} />
+              {cashDueAtClosing > 0 && <Row label="Cash Due at Closing" value={money(cashDueAtClosing)} />}
               <Row label={reservesLabel} value={money(reserves)} />
               <TotalRow label="Cash to Show" value={money(cashToShow)} />
             </View>
