@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 import {
   deletePricingRequest,
   sendAllPricingRequests,
@@ -84,21 +85,47 @@ function PricingRequestCard({
   const [subject, setSubject] = useState(request.emailSubject);
   const [cc, setCc] = useState(request.emailCc ?? "");
   const [saving, startSave] = useTransition();
-  const send = sendPricingRequest.bind(null, dealId, request.id);
+  const [sending, startSend] = useTransition();
   const deleteRequest = deletePricingRequest.bind(null, dealId, request.id);
 
-  function handleSaveDraft() {
+  // Whatever's on screen right now, regardless of whether "Save draft" was
+  // ever clicked — subject/Cc are controlled state, but the body is a
+  // contentEditable div (HtmlBodyEditor), so its live value only exists in
+  // the DOM until this reads it.
+  function currentDraftFormData() {
     const formData = new FormData();
     formData.set("emailSubject", subject);
     formData.set("emailCc", cc);
     formData.set("emailBody", bodyRef.current?.innerHTML ?? request.emailBody);
+    return formData;
+  }
+
+  function handleSaveDraft() {
     startSave(async () => {
       try {
-        await updatePricingRequest(dealId, request.id, formData);
+        await updatePricingRequest(dealId, request.id, currentDraftFormData());
         toast.success("Draft saved");
         router.refresh();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Couldn't save this draft.");
+      }
+    });
+  }
+
+  // Send used to fire straight off whatever was last saved to the draft —
+  // if you edited the subject/Cc/body and hit Send without saving first,
+  // your edits were silently discarded and the stale saved version went
+  // out instead. Persisting the current on-screen state immediately before
+  // sending makes that failure mode impossible: Send always saves first.
+  function handleSend() {
+    startSend(async () => {
+      try {
+        await updatePricingRequest(dealId, request.id, currentDraftFormData());
+        await sendPricingRequest(dealId, request.id);
+        toast.success("Pricing request sent");
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't send this pricing request.");
       }
     });
   }
@@ -142,16 +169,17 @@ function PricingRequestCard({
           />
         )}
         {request.status === "draft" && (
-          <Button type="button" variant="secondary" disabled={saving} onClick={handleSaveDraft}>
+          <Button type="button" variant="secondary" disabled={saving || sending} onClick={handleSaveDraft}>
             {saving ? "Saving…" : "Save draft"}
           </Button>
         )}
         {request.status === "draft" && <SignaturePreview html={signatureHtml} />}
         {request.status === "draft" ? (
           <div className="flex gap-2">
-            <ActionForm action={send} successMessage="Pricing request sent">
-              <SubmitButton>Send</SubmitButton>
-            </ActionForm>
+            <Button type="button" disabled={sending || saving} onClick={handleSend}>
+              {sending && <Loader2 className="size-4 animate-spin" />}
+              Send
+            </Button>
             <ActionForm
               action={deleteRequest}
               successMessage="Draft deleted"
