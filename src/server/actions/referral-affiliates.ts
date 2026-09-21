@@ -24,6 +24,27 @@ export async function getDefaultLoanOfficerId(): Promise<string | null> {
   return loanOfficer?.id ?? null;
 }
 
+/**
+ * The one place that computes an affiliate's referral link and embed
+ * snippet — used by both the welcome email and the affiliate's own
+ * referral-info page, so the two can never drift out of sync. Returns null
+ * if there's no loan officer yet to attribute the intake form to.
+ */
+export async function buildAffiliateReferralLinks(
+  affiliateId: string
+): Promise<{ intakeLink: string; embedSrc: string; embedSnippet: string } | null> {
+  const loanOfficerId = await getDefaultLoanOfficerId();
+  if (!loanOfficerId) return null;
+
+  const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+  const embedOrigin = "https://mannalendingco.com";
+  const intakeLink = `${appUrl}/intake/${loanOfficerId}?aff=${affiliateId}`;
+  const embedSrc = `${embedOrigin}/embed/intake/${loanOfficerId}?aff=${affiliateId}`;
+  const embedSnippet = `<iframe src="${embedSrc}" style="width:100%;max-width:720px;height:2200px;border:none;" title="Loan Inquiry"></iframe>`;
+
+  return { intakeLink, embedSrc, embedSnippet };
+}
+
 export async function inviteAffiliate(formData: FormData) {
   const admin = await requireAdmin();
 
@@ -124,30 +145,23 @@ export async function completeAffiliateSignup(affiliateId: string, formData: For
   // resubmitting to update their info shouldn't re-send it.
   if (!wasAlreadyCompleted && affiliate.invitedBy.email) {
     try {
-      const loanOfficerId = await getDefaultLoanOfficerId();
-      if (loanOfficerId) {
-        const appUrl = process.env.APP_URL ?? "http://localhost:3000";
-        const embedOrigin = "https://mannalendingco.com";
-        const intakeLink = `${appUrl}/intake/${loanOfficerId}?aff=${affiliateId}`;
-        const embedSrc = `${embedOrigin}/embed/intake/${loanOfficerId}?aff=${affiliateId}`;
-        const embedSnippet = `&lt;iframe src="${embedSrc}" style="width:100%;max-width:720px;height:2200px;border:none;" title="Loan Inquiry"&gt;&lt;/iframe&gt;`;
+      const links = await buildAffiliateReferralLinks(affiliateId);
+      if (links) {
         const [companyName, logoHtml, signatureHtml] = await Promise.all([
           getCompanyName(),
           getCompanyLogoHtml(),
           getUserEmailSignatureHtml(affiliate.invitedByUserId),
         ]);
+        // Deliberately doesn't dump the raw link/embed code into the email
+        // body — a "click to copy" button can't work in an email client
+        // (they all strip JavaScript), and pasting raw HTML in as literal
+        // text just looks like a wall of code. The button below reopens
+        // this same affiliate's own page, which now shows their referral
+        // link and embed snippet with real, working copy buttons.
         const body = `
-          <p>Welcome to our affiliate program!</p>
-          <p>Here's what we have on file for you:</p>
-          <p>
-            Name: ${name.trim()}<br />
-            Phone: ${phone.trim()}<br />
-            Email: ${email.trim().toLowerCase()}
-          </p>
-          <p>And here's your own personal referral link — anyone who submits a deal through it is automatically tracked as your referral:</p>
-          <p><a href="${intakeLink}">${intakeLink}</a></p>
-          <p>If you'd rather embed it directly on your own website, here's the embed code:</p>
-          <p><code>${embedSnippet}</code></p>
+          <p>Welcome to our affiliate program, ${name.trim()}!</p>
+          <p>Your personal referral link is ready — anyone who submits a deal through it is automatically tracked as your referral. Click below to get your link and, if you want it, an embed code for your own website — both with a one-click copy button.</p>
+          <p>${htmlButton("Get My Referral Link", `${process.env.APP_URL ?? "https://mannalendingco.com"}/affiliate/${affiliateId}`)}</p>
         `;
         await sendGmailAs(affiliate.invitedByUserId, affiliate.invitedBy.email, {
           to: email.trim().toLowerCase(),

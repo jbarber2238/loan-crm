@@ -5,8 +5,9 @@ import { Archivo } from "next/font/google";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { referralAffiliates } from "@/server/db/schema";
-import { completeAffiliateSignup } from "@/server/actions/referral-affiliates";
+import { completeAffiliateSignup, buildAffiliateReferralLinks } from "@/server/actions/referral-affiliates";
 import { MannaLogo } from "@/components/marketing/manna-logo";
+import { CopyButton } from "@/components/marketing/copy-button";
 import { ActionForm } from "@/components/forms/action-form";
 import { SubmitButton } from "@/components/forms/submit-button";
 import { Input } from "@/components/ui/input";
@@ -63,17 +64,63 @@ export default async function AffiliateSignupPage({
     );
   }
 
-  if (submitted === "1") {
+  // Once they've completed the sign-up form, this same link always shows
+  // their referral info from here on — not just right after submitting.
+  // That's deliberate: it's a more reliable place to come back to than
+  // digging up the original welcome email, and it's the only place that
+  // can offer a real, working copy button (email clients strip all
+  // JavaScript, so a "click to copy" button can never work inside an email).
+  if (submitted === "1" || affiliate.completedAt) {
+    const links = await buildAffiliateReferralLinks(affiliateId);
     return (
       <div className={`${archivo.variable} ${PAGE_CLASS} flex items-center justify-center`} style={PAGE_STYLE}>
-        <div className="max-w-md rounded-sm p-8 text-center" style={CARD_STYLE}>
-          <MannaLogo className="mx-auto h-8 w-auto" />
+        <div className="w-full max-w-lg rounded-sm p-6 md:p-10" style={CARD_STYLE}>
+          <MannaLogo className="h-8 w-auto" />
           <h1 className="mt-6 text-xl font-medium" style={{ color: TEAL }}>
-            You&apos;re all set
+            {submitted === "1" ? "You're all set" : "Your referral info"}
           </h1>
           <p className="mt-2 text-sm" style={{ color: BASALT }}>
-            Check your email — we just sent your personal referral link and embed code.
+            Anyone who submits a deal through your link is automatically tracked as your referral.
           </p>
+
+          {!links ? (
+            <p className="mt-6 text-sm" style={{ color: BASALT }}>
+              We don&apos;t have a loan officer set up to attribute referrals to yet — reach out to whoever invited
+              you.
+            </p>
+          ) : (
+            <div className="mt-6 space-y-5">
+              <div>
+                <p className="text-xs font-medium tracking-wide uppercase" style={{ color: BASALT, opacity: 0.7 }}>
+                  Your referral link
+                </p>
+                <div className="mt-1.5 flex items-stretch gap-2">
+                  <div
+                    className="flex-1 overflow-x-auto rounded-sm border px-3 py-2 text-sm whitespace-nowrap"
+                    style={{ borderColor: "#CBB8A099", color: BASALT }}
+                  >
+                    {links.intakeLink}
+                  </div>
+                  <CopyButton text={links.intakeLink} label="Copy Link" style={{ backgroundColor: TEAL, color: OFF_WHITE }} />
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium tracking-wide uppercase" style={{ color: BASALT, opacity: 0.7 }}>
+                  Embed it on your own site instead
+                </p>
+                <div className="mt-1.5 flex items-stretch gap-2">
+                  <pre
+                    className="flex-1 overflow-x-auto rounded-sm border px-3 py-2 text-xs"
+                    style={{ borderColor: "#CBB8A099", color: BASALT }}
+                  >
+                    {links.embedSnippet}
+                  </pre>
+                  <CopyButton text={links.embedSnippet} label="Copy Code" style={{ backgroundColor: TEAL, color: OFF_WHITE }} />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
