@@ -4,6 +4,7 @@ import { useRef, useState, useTransition, type Dispatch, type RefObject, type Se
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  cloneTermSheet,
   generateTermSheet,
   previewBookACallEmail,
   previewTermSheetsToBorrowerEmail,
@@ -425,6 +426,7 @@ export function TermSheetsTab({
   termSheetsSentToBorrowerAt?: Date | null;
   bookACallSentAt?: Date | null;
 }) {
+  const router = useRouter();
   const shareable = termSheets.filter((t) => t.status !== "draft");
 
   return (
@@ -464,6 +466,7 @@ export function TermSheetsTab({
           const generate = generateTermSheet.bind(null, dealId, termSheet.id);
           const sendForSignature = sendTermSheetForSignature.bind(null, dealId, termSheet.id);
           const updateFields = updateTermSheetFields.bind(null, dealId, termSheet.id);
+          const clone = cloneTermSheet.bind(null, dealId, termSheet.id);
           const fieldDefs = [
             ...termSheetFieldsFor(termSheet.product.category),
             ...(isAdmin ? ADMIN_ONLY_FIELDS : []),
@@ -503,6 +506,16 @@ export function TermSheetsTab({
                     </ActionForm>
                   </DialogContent>
                 </Dialog>
+
+                <ActionForm
+                  action={clone}
+                  successMessage="Cloned as a new draft — edit fields and generate its PDF"
+                  onSuccess={() => router.refresh()}
+                >
+                  <SubmitButton variant="outline" size="sm">
+                    Clone
+                  </SubmitButton>
+                </ActionForm>
 
                 {termSheet.status === "draft" && (
                   <ActionForm action={generate} successMessage="PDF generated">

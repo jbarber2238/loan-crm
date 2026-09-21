@@ -50,6 +50,36 @@ export async function createTermSheet(dealId: string, formData: FormData) {
   return termSheet.id;
 }
 
+// Duplicates a term sheet's lender/product/fields into a brand-new draft —
+// for the common case where a lender comes back with one or two small
+// tweaks (a rate, a fee) and everything else about the offer stays the
+// same. Cloning instead of hand-retyping the whole sheet means there's
+// nothing to transcribe wrong. Always lands as a fresh "draft": no pdfUrl,
+// PandaDoc linkage, or review/acceptance timestamps carry over, so it goes
+// through Edit fields → Generate PDF like any new term sheet, and the
+// original (whatever its own status) is untouched.
+export async function cloneTermSheet(dealId: string, termSheetId: string) {
+  const user = await requireUser();
+
+  const source = await db.query.termSheets.findFirst({ where: eq(termSheets.id, termSheetId) });
+  if (!source) throw new Error("Term sheet not found");
+
+  const [clone] = await db
+    .insert(termSheets)
+    .values({
+      dealId,
+      lenderId: source.lenderId,
+      productId: source.productId,
+      fields: source.fields,
+      status: "draft",
+      createdBy: user.id,
+    })
+    .returning({ id: termSheets.id });
+
+  revalidatePath(`/deals/${dealId}`);
+  return clone.id;
+}
+
 export async function updateTermSheetFields(
   dealId: string,
   termSheetId: string,
