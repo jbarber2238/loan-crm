@@ -10,6 +10,7 @@ import {
   estimatedReservesRequired,
   originationFeeSuggestion,
   ratioMetricsFor,
+  REFINANCE_CATEGORIES,
   STANDARD_APPRAISAL_ESTIMATE,
   STANDARD_CREDIT_PULL_ESTIMATE,
   STANDARD_PROCESSING_FEE,
@@ -174,7 +175,12 @@ export function TermSheetPdf({
   // negative once the committed amount exceeds the purchase price.
   const initialAdvance = num(fields, "initialAdvance");
   const closingDisbursement = isHardMoneyDraw && initialAdvance > 0 ? initialAdvance : loanAmount;
-  const downPayment = purchasePrice !== null ? purchasePrice - closingDisbursement : 0;
+  // A refinance has no purchase happening — purchasePrice on these deals is
+  // the property's historical purchase price, not part of financing the new
+  // loan, and must never be netted against the loan amount here (same trap
+  // valueBasisFor/ratioMetricsFor already guard against for LTV).
+  const downPayment =
+    purchasePrice !== null && !REFINANCE_CATEGORIES.has(loanCategory) ? purchasePrice - closingDisbursement : 0;
   const appraisalFee = STANDARD_APPRAISAL_ESTIMATE;
   const creditPullFee = STANDARD_CREDIT_PULL_ESTIMATE;
   const processingFee = STANDARD_PROCESSING_FEE;

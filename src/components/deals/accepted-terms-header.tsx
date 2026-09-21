@@ -202,6 +202,7 @@ export function AcceptedTermsHeader({
   const underwritingDocFeeNum = typeof underwritingDocFeeValue === "number" ? underwritingDocFeeValue : 0;
   const closingDisbursement = isHardMoneyDraw && initialAdvanceNum > 0 ? initialAdvanceNum : loanAmountNum;
   const estimatedCashToClose = calculateEstimatedCashToClose({
+    loanCategory,
     purchasePrice: purchasePrice ? Number(purchasePrice) : null,
     closingDisbursement,
     originationFee,

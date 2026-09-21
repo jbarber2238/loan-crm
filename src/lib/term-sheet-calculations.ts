@@ -136,7 +136,7 @@ export function calculateDscrRatio(monthlyRent: number | null, monthlyPitia: num
 // to assume purchase price was simply absent on any refi — false in
 // practice, and it produced wildly wrong LTVs, e.g. an old $125k purchase
 // price used as the basis for a $240k-as-is-value refinance.)
-const REFINANCE_CATEGORIES = new Set(["dscr_cash_out_refinance", "dscr_rate_term_refinance", "bridge_refinance"]);
+export const REFINANCE_CATEGORIES = new Set(["dscr_cash_out_refinance", "dscr_rate_term_refinance", "bridge_refinance"]);
 
 // DSCR and Bridge both use purchase price on a purchase, as-is value on a
 // refinance — the term sheet PDF's own quoted LTV basis.
@@ -195,6 +195,7 @@ export function calculateLtc(
 // deal header re-resolves them live, honoring any post-acceptance overrides
 // (a renegotiated origination fee, a rate-locked processing fee, etc.).
 export function calculateEstimatedCashToClose({
+  loanCategory,
   purchasePrice,
   closingDisbursement,
   originationFee,
@@ -204,6 +205,7 @@ export function calculateEstimatedCashToClose({
   creditPullFee = STANDARD_CREDIT_PULL_ESTIMATE,
   processingFee = STANDARD_PROCESSING_FEE,
 }: {
+  loanCategory: string;
   purchasePrice: number | null;
   closingDisbursement: number;
   originationFee: number;
@@ -213,7 +215,13 @@ export function calculateEstimatedCashToClose({
   creditPullFee?: number;
   processingFee?: number;
 }): number {
-  const downPayment = purchasePrice !== null ? purchasePrice - closingDisbursement : 0;
+  // Same historical-purchase-price trap as valueBasisFor above: a refinance
+  // has no purchase happening, so its "purchase price" field (the property's
+  // original purchase price, not what's being financed now) must never be
+  // netted against the new loan amount — that's what turned a $180k
+  // cash-out refi into a bogus "-$45,631 due from borrower."
+  const downPayment =
+    purchasePrice !== null && !REFINANCE_CATEGORIES.has(loanCategory) ? purchasePrice - closingDisbursement : 0;
   const cashAtClosing = downPayment + originationFee + costToBorrowerFee + underwritingDocFee;
   const paidPrior = appraisalFee + creditPullFee + processingFee;
   return cashAtClosing + paidPrior;
