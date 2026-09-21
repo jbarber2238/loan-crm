@@ -36,7 +36,7 @@ function downloadCsv(contacts: DirectoryContact[]) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `client-directory-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `contacts-directory-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }

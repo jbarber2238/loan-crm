@@ -58,7 +58,7 @@ export function AppSidebar({
       : []),
     ...(user.isAdmin ? [{ href: "/email-templates", label: "Email Templates", icon: Mail, exact: true }] : []),
     { href: "/inbox", label: "Communications", icon: Inbox, exact: false },
-    { href: "/directory", label: "Client Directory", icon: Users, exact: true },
+    { href: "/directory", label: "Contacts Directory", icon: Users, exact: true },
   ];
 
   // "/deals/new" is a static route (the staff new-deal form), not a deal id —

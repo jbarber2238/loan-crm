@@ -355,7 +355,7 @@ export interface DirectoryContact {
 }
 
 /**
- * The full Client Directory — every contact this app already has a phone
+ * The full Contacts Directory — every contact this app already has a phone
  * number for, one row per unique number (a borrower or lender rep on
  * several deals still shows up once). Same four real sources as
  * searchContacts, just unfiltered and merged instead of query-matched.
