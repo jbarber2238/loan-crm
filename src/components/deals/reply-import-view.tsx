@@ -4,22 +4,13 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { saveManualPricingReply } from "@/server/actions/pricing";
-import { extractTermSheetFromReply } from "@/server/ai/term-sheet-extraction";
-import { createTermSheet } from "@/server/actions/term-sheets";
+import { extractTermSheetFromReply, type TermSheetExtractionOption } from "@/server/ai/term-sheet-extraction";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { TermSheetFieldInputs } from "@/components/deals/term-sheet-field-inputs";
-import { termSheetFieldsFor } from "@/lib/term-sheet-fields";
+import { TermSheetExtractionReview } from "@/components/deals/term-sheet-extraction-review";
 import { originationFeeSuggestion } from "@/lib/term-sheet-calculations";
 
 interface ReplyAttachment {
@@ -67,12 +58,8 @@ export function ReplyImportView({
 
   const [extracting, startExtract] = useTransition();
   const [extractError, setExtractError] = useState<string | null>(null);
-  const [extracted, setExtracted] = useState<Record<string, string | number> | null>(null);
-  const [notFoundKeys, setNotFoundKeys] = useState<string[]>([]);
+  const [options, setOptions] = useState<TermSheetExtractionOption[] | null>(null);
   const [extractionNotes, setExtractionNotes] = useState<string | null>(null);
-  const [productId, setProductId] = useState("");
-  const [creating, startCreate] = useTransition();
-  const [created, setCreated] = useState(false);
 
   const lenderProducts = products.filter((p) => p.lenderId === lenderId);
   const hasReply = Boolean(replyBodyText || attachments.length);
@@ -103,40 +90,25 @@ export function ReplyImportView({
           pricingRequestId,
           category: loanCategory,
         });
-        const loanAmount = Number(result.fields.loanAmount);
-        const fieldsWithDefaults =
-          result.fields.originationFee === undefined && loanAmount
-            ? { ...result.fields, originationFee: originationFeeSuggestion(loanAmount) }
-            : result.fields;
-        setExtracted(fieldsWithDefaults);
-        setNotFoundKeys(result.notFoundKeys.filter((k) => k !== "originationFee" && k !== "reservesMonths"));
+        setOptions(
+          result.options.map((opt) => {
+            const loanAmount = Number(opt.fields.loanAmount);
+            const fields =
+              opt.fields.originationFee === undefined && loanAmount
+                ? { ...opt.fields, originationFee: originationFeeSuggestion(loanAmount) }
+                : opt.fields;
+            return {
+              ...opt,
+              fields,
+              notFoundKeys: opt.notFoundKeys.filter((k) => k !== "originationFee" && k !== "reservesMonths"),
+            };
+          })
+        );
         setExtractionNotes(result.notes);
-        if (!productId) {
-          const defaultProduct = lenderProducts.find((p) => p.category === loanCategory) ?? lenderProducts[0];
-          if (defaultProduct) setProductId(defaultProduct.id);
-        }
       } catch (err) {
         const message = err instanceof Error ? err.message : "Extraction failed.";
         setExtractError(message);
         toast.error(message);
-      }
-    });
-  }
-
-  function handleCreateTermSheet(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    startCreate(async () => {
-      try {
-        await createTermSheet(dealId, formData);
-        setExtracted(null);
-        setNotFoundKeys([]);
-        setExtractionNotes(null);
-        setCreated(true);
-        toast.success("Term sheet created");
-        router.refresh();
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Couldn't create the term sheet.");
       }
     });
   }
@@ -208,67 +180,32 @@ export function ReplyImportView({
             </div>
           )}
 
-          {!extracted && (
+          {!options && (
             <Button type="button" size="sm" onClick={handleExtract} disabled={extracting}>
               {extracting ? "Reading reply…" : "Draft term sheet from this reply"}
             </Button>
           )}
           {extractError && <p className="text-sm text-destructive">{extractError}</p>}
-          {created && (
-            <p className="text-sm text-muted-foreground">
-              Term sheet created as a draft — find it on the Term Sheets tab.
-            </p>
-          )}
         </div>
       )}
 
-      {extracted && (
-        <div className="space-y-3 border-t pt-3">
-          <p className="text-sm font-medium">Review before saving</p>
-          {extractionNotes && (
-            <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-              {extractionNotes}
-            </p>
-          )}
-          {notFoundKeys.length > 0 && (
-            <p className="text-xs text-muted-foreground">
-              Couldn&apos;t find in the reply — fill these in manually: {notFoundKeys.join(", ")}
-            </p>
-          )}
-          <form onSubmit={handleCreateTermSheet} className="space-y-3">
-            <input type="hidden" name="productId" value={productId} />
-            <TermSheetFieldInputs
-              fields={termSheetFieldsFor(loanCategory)}
-              values={extracted}
-              category={loanCategory}
-              purchasePrice={purchasePrice}
-              estimatedAsIsValue={estimatedAsIsValue}
-              productSelector={
-                <div className="space-y-1.5">
-                  <Label htmlFor="productId">Lender / Product</Label>
-                  <Select name="productId" value={productId} onValueChange={setProductId} required>
-                    <SelectTrigger id="productId" className="w-full">
-                      <SelectValue placeholder="Select a product" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {lenderProducts.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              }
-            />
-            <Button type="submit" className="w-full" disabled={!productId || creating}>
-              {creating ? "Saving…" : "Save as draft term sheet"}
-            </Button>
-          </form>
-        </div>
+      {options && (
+        <TermSheetExtractionReview
+          dealId={dealId}
+          loanCategory={loanCategory}
+          options={options}
+          notes={extractionNotes}
+          lenderProducts={lenderProducts}
+          purchasePrice={purchasePrice}
+          estimatedAsIsValue={estimatedAsIsValue}
+          onDone={() => {
+            setOptions(null);
+            setExtractionNotes(null);
+          }}
+        />
       )}
 
-      {hasReply && lenderProducts.length === 0 && extracted === null && (
+      {hasReply && lenderProducts.length === 0 && options === null && (
         <Badge variant="secondary">No products on file for this lender yet</Badge>
       )}
     </div>

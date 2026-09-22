@@ -1,22 +1,11 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { ExternalLink } from "lucide-react";
-import { extractTermSheetFromScreenshot } from "@/server/ai/term-sheet-extraction";
-import { createTermSheet } from "@/server/actions/term-sheets";
+import { extractTermSheetFromScreenshot, type TermSheetExtractionOption } from "@/server/ai/term-sheet-extraction";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { TermSheetFieldInputs } from "@/components/deals/term-sheet-field-inputs";
-import { termSheetFieldsFor } from "@/lib/term-sheet-fields";
+import { TermSheetExtractionReview } from "@/components/deals/term-sheet-extraction-review";
 import { originationFeeSuggestion } from "@/lib/term-sheet-calculations";
 
 interface ProductOption {
@@ -45,16 +34,11 @@ export function QuickPricerCard({
   purchasePrice?: number | null;
   estimatedAsIsValue?: number | null;
 }) {
-  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [reading, startRead] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [extracted, setExtracted] = useState<Record<string, string | number> | null>(null);
-  const [notFoundKeys, setNotFoundKeys] = useState<string[]>([]);
+  const [options, setOptions] = useState<TermSheetExtractionOption[] | null>(null);
   const [extractionNotes, setExtractionNotes] = useState<string | null>(null);
-  const [productId, setProductId] = useState("");
-  const [creating, startCreate] = useTransition();
-  const [created, setCreated] = useState(false);
 
   const lenderProducts = products.filter((p) => p.lenderId === lenderId);
 
@@ -69,40 +53,25 @@ export function QuickPricerCard({
           category: loanCategory,
           file: { fileName: file.name, mimeType: file.type || "image/png", dataBase64 },
         });
-        const loanAmount = Number(result.fields.loanAmount);
-        const fieldsWithDefaults =
-          result.fields.originationFee === undefined && loanAmount
-            ? { ...result.fields, originationFee: originationFeeSuggestion(loanAmount) }
-            : result.fields;
-        setExtracted(fieldsWithDefaults);
-        setNotFoundKeys(result.notFoundKeys.filter((k) => k !== "originationFee" && k !== "reservesMonths"));
+        setOptions(
+          result.options.map((opt) => {
+            const loanAmount = Number(opt.fields.loanAmount);
+            const fields =
+              opt.fields.originationFee === undefined && loanAmount
+                ? { ...opt.fields, originationFee: originationFeeSuggestion(loanAmount) }
+                : opt.fields;
+            return {
+              ...opt,
+              fields,
+              notFoundKeys: opt.notFoundKeys.filter((k) => k !== "originationFee" && k !== "reservesMonths"),
+            };
+          })
+        );
         setExtractionNotes(result.notes);
-        if (!productId) {
-          const defaultProduct = lenderProducts.find((p) => p.category === loanCategory) ?? lenderProducts[0];
-          if (defaultProduct) setProductId(defaultProduct.id);
-        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Couldn't read that screenshot.");
       } finally {
         if (inputRef.current) inputRef.current.value = "";
-      }
-    });
-  }
-
-  function handleCreateTermSheet(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    startCreate(async () => {
-      try {
-        await createTermSheet(dealId, formData);
-        setExtracted(null);
-        setNotFoundKeys([]);
-        setExtractionNotes(null);
-        setCreated(true);
-        toast.success("Term sheet created");
-        router.refresh();
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Couldn't create the term sheet.");
       }
     });
   }
@@ -136,57 +105,24 @@ export function QuickPricerCard({
         {reading && <p className="text-xs text-muted-foreground">Reading screenshot…</p>}
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
-      {created && !extracted && (
-        <p className="text-sm text-muted-foreground">Term sheet created as a draft — find it on the Term Sheets tab.</p>
+
+      {options && (
+        <TermSheetExtractionReview
+          dealId={dealId}
+          loanCategory={loanCategory}
+          options={options}
+          notes={extractionNotes}
+          lenderProducts={lenderProducts}
+          purchasePrice={purchasePrice}
+          estimatedAsIsValue={estimatedAsIsValue}
+          onDone={() => {
+            setOptions(null);
+            setExtractionNotes(null);
+          }}
+        />
       )}
 
-      {extracted && (
-        <div className="space-y-3 border-t pt-3">
-          <p className="text-sm font-medium">Review before saving</p>
-          {extractionNotes && (
-            <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-              {extractionNotes}
-            </p>
-          )}
-          {notFoundKeys.length > 0 && (
-            <p className="text-xs text-muted-foreground">
-              Couldn&apos;t find in the screenshot — fill these in manually: {notFoundKeys.join(", ")}
-            </p>
-          )}
-          <form onSubmit={handleCreateTermSheet} className="space-y-3">
-            <input type="hidden" name="productId" value={productId} />
-            <TermSheetFieldInputs
-              fields={termSheetFieldsFor(loanCategory)}
-              values={extracted}
-              category={loanCategory}
-              purchasePrice={purchasePrice}
-              estimatedAsIsValue={estimatedAsIsValue}
-              productSelector={
-                <div className="space-y-1.5">
-                  <Label htmlFor={`quick-pricer-product-${lenderId}`}>Lender / Product</Label>
-                  <Select name="productId" value={productId} onValueChange={setProductId} required>
-                    <SelectTrigger id={`quick-pricer-product-${lenderId}`} className="w-full">
-                      <SelectValue placeholder="Select a product" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {lenderProducts.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              }
-            />
-            <Button type="submit" className="w-full" disabled={!productId || creating}>
-              {creating ? "Saving…" : "Save as draft term sheet"}
-            </Button>
-          </form>
-        </div>
-      )}
-
-      {lenderProducts.length === 0 && extracted === null && (
+      {lenderProducts.length === 0 && options === null && (
         <p className="text-xs text-muted-foreground">No products on file for this lender yet.</p>
       )}
     </div>

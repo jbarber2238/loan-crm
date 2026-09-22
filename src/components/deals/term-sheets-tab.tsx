@@ -125,7 +125,7 @@ function termSheetSummary(
   const typeLabel = loanTypeSummary(category, fields);
 
   const parts = [
-    rate !== null ? `${Number(rate.toFixed(2))}%` : null,
+    rate !== null ? `${Number(rate.toFixed(3))}%` : null,
     typeLabel,
     ltv !== null ? `${Number(ltv.toFixed(1))}% LTV` : null,
   ].filter((p): p is string => Boolean(p));
@@ -194,11 +194,15 @@ function SendTermSheetsDialog({
   shareable,
   hasBorrowerEmail,
   sentAt,
+  purchasePrice,
+  estimatedAsIsValue,
 }: {
   dealId: string;
   shareable: TermSheet[];
   hasBorrowerEmail: boolean;
   sentAt?: Date | null;
+  purchasePrice: number | null;
+  estimatedAsIsValue: number | null;
 }) {
   const router = useRouter();
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -283,12 +287,16 @@ function SendTermSheetsDialog({
         ) : step === "select" ? (
           <div className="space-y-4">
             <div className="space-y-2">
-              {shareable.map((t) => (
-                <label key={t.id} className="flex items-center gap-2 text-sm">
-                  <Checkbox checked={selectedIds.has(t.id)} onCheckedChange={(v) => toggle(t.id, v === true)} />
-                  {t.lender.name} — {t.product.name}
-                </label>
-              ))}
+              {shareable.map((t) => {
+                const summary = termSheetSummary(t.product.category, t.fields, purchasePrice, estimatedAsIsValue);
+                return (
+                  <label key={t.id} className="flex items-center gap-2 text-sm">
+                    <Checkbox checked={selectedIds.has(t.id)} onCheckedChange={(v) => toggle(t.id, v === true)} />
+                    {t.lender.name} — {t.product.name}
+                    {summary && <span className="text-muted-foreground"> — {summary}</span>}
+                  </label>
+                );
+              })}
               {shareable.length === 0 && (
                 <p className="text-sm text-muted-foreground">Generate a term sheet first.</p>
               )}
@@ -438,6 +446,8 @@ export function TermSheetsTab({
             shareable={shareable}
             hasBorrowerEmail={hasBorrowerEmail}
             sentAt={termSheetsSentToBorrowerAt}
+            purchasePrice={purchasePrice}
+            estimatedAsIsValue={estimatedAsIsValue}
           />
           <BookACallDialog dealId={dealId} hasBorrowerEmail={hasBorrowerEmail} sentAt={bookACallSentAt} />
         </div>

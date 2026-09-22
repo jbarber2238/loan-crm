@@ -15,17 +15,34 @@ const anthropic = process.env.ANTHROPIC_API_KEY
 
 const SUPPORTED_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]);
 
-export interface TermSheetExtractionResult {
+export interface TermSheetExtractionOption {
+  // A short, specific description of what makes this option distinct from
+  // the others in the same reply — e.g. "30 Year Fixed, 5-yr step-down PPP
+  // @ 7.525%" — so the processor can tell them apart at a glance without
+  // re-reading the whole reply.
+  label: string;
   fields: Record<string, string | number>;
   foundKeys: string[];
   notFoundKeys: string[];
+}
+
+export interface TermSheetExtractionResult {
+  options: TermSheetExtractionOption[];
   notes: string | null;
 }
 
 // quotedLtvPercent is internal to this module — extractTermSheetFromReply
 // consumes it to back into loanAmount and never exposes it to the caller.
-interface RawExtractionResult extends TermSheetExtractionResult {
+interface RawOption {
+  label: string;
+  fields: Record<string, string | number>;
+  notFoundKeys: string[];
   quotedLtvPercent: number | null;
+}
+
+interface RawExtractionResult {
+  options: RawOption[];
+  notes: string | null;
 }
 
 function fieldListDescription(fields: TermSheetField[]): string {
@@ -50,20 +67,21 @@ Target fields for this loan category:
 ${fieldListDescription(fieldDefs)}
 
 Respond with ONLY a JSON object, no prose outside it, in this exact shape:
-{"fields": {"<key>": <value>, ...}, "notFoundKeys": ["<key>", ...], "notes": "<string or null>", "quotedLtvPercent": <number or null>}
+{"options": [{"label": "<short description of this specific option>", "fields": {"<key>": <value>, ...}, "notFoundKeys": ["<key>", ...], "quotedLtvPercent": <number or null>}, ...], "notes": "<string or null>"}
 
 Rules:
-- Only include a key in "fields" if you're reasonably confident you found it in the reply (text or attachments). Every lender formats these differently — read carefully across all the content provided, including tables and screenshots.
+- Only include a key in an option's "fields" if you're reasonably confident you found it in the reply (text or attachments). Every lender formats these differently — read carefully across all the content provided, including tables and screenshots.
 - For "currency"/"number"/"percent" type fields, return a plain number (no $ sign, no % sign, no commas).
 - For "select" type fields, return one of the listed options exactly as written.
-- List every target field key you could NOT find in "notFoundKeys" — don't guess or invent a value.
+- List every target field key you could NOT find for that option in its own "notFoundKeys" — don't guess or invent a value.
 - Do not include any field key that isn't in the target field list above.
+- Top-level "notes" is for anything worth flagging that isn't specific to one option (a caveat, a condition, something odd about the reply). Set it to null if there's nothing to add.
 
-Loan amount vs. a quoted LTV: lenders sometimes price a refinance or a DSCR purchase as a percentage — "75% LTV cash-out," "we can go up to 80% LTV" — instead of, or without also giving, an actual dollar loan amount. If loanAmount is explicitly stated as a dollar figure, use that as normal. If it is NOT, but the lender's reply (for the same pricing option you're extracting) states an LTV percentage instead, put that percentage as a plain number in the top-level "quotedLtvPercent" field (not inside "fields") — the loan amount will be computed separately from the deal's own value basis. Leave "quotedLtvPercent" null if the lender didn't quote a percentage at all, or if you already found a dollar loanAmount.
+Multiple pricing options: if the lender offers more than one distinct rate/points/program combination, give EACH one its own separate entry in "options" — do not collapse them into a single "primary" one. Give each entry a short, specific "label" naming what makes it distinct: the lender's own program name if they gave one, the amortization/rate type, and the rate itself — e.g. "30 Year Fixed, 5-yr step-down PPP @ 7.525%" or "5/6 ARM PRO, 3-yr fixed PPP @ 7.05%". If the lender only offered one option, "options" still has exactly one entry. Each entry needs its own COMPLETE "fields"/"notFoundKeys"/"quotedLtvPercent" — a fee or term that's identical across every option (like a shared underwriting fee) still gets repeated in each option's own "fields", not factored out.
+
+Loan amount vs. a quoted LTV: lenders sometimes price a refinance or a DSCR purchase as a percentage — "75% LTV cash-out," "we can go up to 80% LTV" — instead of, or without also giving, an actual dollar loan amount. If an option's loanAmount is explicitly stated as a dollar figure, use that as normal. If it is NOT, but the reply states an LTV percentage for that same option instead, put that percentage as a plain number in that option's "quotedLtvPercent" field (not inside "fields") — the loan amount will be computed separately from the deal's own value basis. Leave "quotedLtvPercent" null if that option didn't quote a percentage at all, or if you already found a dollar loanAmount for it.
 
 Rate + points pricing: lenders very commonly quote as "RATE% and N pt(s)" or "RATE% and N points" (e.g. "6.99% and 1 pt") — this is NOT the same as an origination fee. "N pt(s)" means a discount/buydown fee of N% of the loan amount. When you see this pattern, set interestRate to RATE and convert the points into a dollar amount for costToBorrowerFee (points ÷ 100 × loan amount) — do not leave costToBorrowerFee blank just because the reply never uses the words "rate buydown" or "points fee".
-
-Multiple pricing options: if the lender offers more than one rate/points combination, extract the option with the LOWEST points (or the first one listed if points are equal) as the primary set of numbers for the fields above, and use "notes" to briefly describe the alternate option(s) so the processor can see what else was offered and choose. If there's nothing else worth flagging, set "notes" to null.
 
 Underwriting and Doc Fee: lenders itemize their own closing-cost fees in all kinds of ways — "processing fee," "underwriting fee," "admin fee," "doc prep fee," "doc fee," etc. NONE of these are the same thing as origination points or a rate buydown (handled separately above). Add up every one of these lender-charged fee line items and put the SUM into the single underwritingDocFee field — do not create separate fields for them and do not list them individually in "notes". For example, if the lender's reply mentions a $1,495 underwriting fee and a $745 processing fee, underwritingDocFee should be 2240.
 
@@ -87,10 +105,8 @@ Reserves: DSCR and Portfolio loans use reservesMonths (a number of months, not a
   }
 
   let parsed: {
-    fields?: Record<string, unknown>;
-    notFoundKeys?: unknown;
+    options?: unknown;
     notes?: unknown;
-    quotedLtvPercent?: unknown;
   };
   try {
     parsed = JSON.parse(match[0]);
@@ -98,43 +114,102 @@ Reserves: DSCR and Portfolio loans use reservesMonths (a number of months, not a
     throw new Error("Couldn't parse an extraction result from the AI response — try again or enter terms manually.");
   }
 
+  if (!Array.isArray(parsed.options) || parsed.options.length === 0) {
+    throw new Error("Couldn't parse an extraction result from the AI response — try again or enter terms manually.");
+  }
+
   const validKeys = new Set(fieldDefs.map((f) => f.key));
-  const fields: Record<string, string | number> = {};
-  for (const [key, value] of Object.entries(parsed.fields ?? {})) {
-    if (!validKeys.has(key)) continue;
-    if (typeof value === "number" || typeof value === "string") {
-      fields[key] = value;
+
+  const options: RawOption[] = parsed.options.map((raw, i) => {
+    const rawOption = raw as {
+      label?: unknown;
+      fields?: Record<string, unknown>;
+      notFoundKeys?: unknown;
+      quotedLtvPercent?: unknown;
+    };
+
+    const fields: Record<string, string | number> = {};
+    for (const [key, value] of Object.entries(rawOption.fields ?? {})) {
+      if (!validKeys.has(key)) continue;
+      if (typeof value === "number" || typeof value === "string") {
+        fields[key] = value;
+      }
     }
+
+    const notFoundKeys = Array.isArray(rawOption.notFoundKeys)
+      ? rawOption.notFoundKeys.filter((k): k is string => typeof k === "string" && validKeys.has(k))
+      : [];
+
+    const quotedLtvPercent =
+      typeof rawOption.quotedLtvPercent === "number" && Number.isFinite(rawOption.quotedLtvPercent)
+        ? rawOption.quotedLtvPercent
+        : null;
+
+    const label =
+      typeof rawOption.label === "string" && rawOption.label.trim() ? rawOption.label.trim() : `Option ${i + 1}`;
+
+    return { label, fields, notFoundKeys, quotedLtvPercent };
+  });
+
+  const notes = typeof parsed.notes === "string" && parsed.notes.trim().length ? parsed.notes.trim() : null;
+
+  return { options, notes };
+}
+
+// Hard-money draw loans (fix-and-flip/new construction) are almost always
+// quoted as two separate pieces — an initial advance and a rehab/
+// construction holdback — not as one combined total. If both pieces came
+// through but the lender never stated a combined total directly, the total
+// loan amount is just their sum; no need to leave it blank for the
+// processor to add up by hand. Mutates fields/notFoundKeys in place.
+function fillCombinedLoanAmount(
+  fields: Record<string, string | number>,
+  notFoundKeys: string[]
+): { notFoundKeys: string[]; note: string | null } {
+  if ("loanAmount" in fields) return { notFoundKeys, note: null };
+
+  const initialAdvance = Number(fields.initialAdvance);
+  const rehabCost = Number(fields.approvedRehabCost);
+  if (!Number.isFinite(initialAdvance) || !Number.isFinite(rehabCost)) return { notFoundKeys, note: null };
+
+  fields.loanAmount = initialAdvance + rehabCost;
+  return {
+    notFoundKeys: notFoundKeys.filter((k) => k !== "loanAmount"),
+    note: `Total loan amount computed as initial advance ($${initialAdvance.toLocaleString()}) + rehab/construction cost ($${rehabCost.toLocaleString()}).`,
+  };
+}
+
+// Applies both loanAmount fallbacks (combined draw-loan pieces, then a
+// quoted LTV percentage) to one raw option and produces the shape callers
+// get back, plus any note about how a number was derived (prefixed with
+// the option's own label, since there's more than one option's worth of
+// these to fold into the single top-level "notes" string). valueBasis is
+// null when there's no deal to compute one from (the quick-pricer flow) —
+// a quoted LTV is simply left unresolved there.
+function finalizeOption(
+  raw: RawOption,
+  valueBasis: number | null
+): { option: TermSheetExtractionOption; computedNote: string | null } {
+  const fields = { ...raw.fields };
+  let notFoundKeys = raw.notFoundKeys;
+  const notes: string[] = [];
+
+  const combined = fillCombinedLoanAmount(fields, notFoundKeys);
+  notFoundKeys = combined.notFoundKeys;
+  if (combined.note) notes.push(combined.note);
+
+  if (!("loanAmount" in fields) && raw.quotedLtvPercent !== null && valueBasis !== null) {
+    fields.loanAmount = Math.round(valueBasis * (raw.quotedLtvPercent / 100));
+    notFoundKeys = notFoundKeys.filter((k) => k !== "loanAmount");
+    notes.push(
+      `Loan amount computed from the lender's quoted ${raw.quotedLtvPercent}% LTV × $${valueBasis.toLocaleString()} value basis.`
+    );
   }
 
-  let notFoundKeys = Array.isArray(parsed.notFoundKeys)
-    ? parsed.notFoundKeys.filter((k): k is string => typeof k === "string" && validKeys.has(k))
-    : [];
-
-  // Hard-money draw loans (fix-and-flip/new construction) are almost always
-  // quoted as two separate pieces — an initial advance and a rehab/
-  // construction holdback — not as one combined total. If both pieces came
-  // through but the lender never stated a combined total directly, the
-  // total loan amount is just their sum; no need to leave it blank for the
-  // processor to add up by hand.
-  let notes = typeof parsed.notes === "string" && parsed.notes.trim().length ? parsed.notes.trim() : null;
-  if (!("loanAmount" in fields)) {
-    const initialAdvance = Number(fields.initialAdvance);
-    const rehabCost = Number(fields.approvedRehabCost);
-    if (Number.isFinite(initialAdvance) && Number.isFinite(rehabCost)) {
-      fields.loanAmount = initialAdvance + rehabCost;
-      notFoundKeys = notFoundKeys.filter((k) => k !== "loanAmount");
-      const computedNote = `Total loan amount computed as initial advance ($${initialAdvance.toLocaleString()}) + rehab/construction cost ($${rehabCost.toLocaleString()}).`;
-      notes = notes ? `${notes} ${computedNote}` : computedNote;
-    }
-  }
-
-  const quotedLtvPercent =
-    typeof parsed.quotedLtvPercent === "number" && Number.isFinite(parsed.quotedLtvPercent)
-      ? parsed.quotedLtvPercent
-      : null;
-
-  return { fields, foundKeys: Object.keys(fields), notFoundKeys, notes, quotedLtvPercent };
+  return {
+    option: { label: raw.label, fields, foundKeys: Object.keys(fields), notFoundKeys },
+    computedNote: notes.length ? `${raw.label}: ${notes.join(" ")}` : null,
+  };
 }
 
 function fileToContentBlock(file: {
@@ -193,34 +268,26 @@ export async function extractTermSheetFromReply({
     });
   }
 
-  const { quotedLtvPercent, ...result } = await runExtraction(contentBlocks, category);
+  const raw = await runExtraction(contentBlocks, category);
 
-  // The lender quoted an LTV percentage instead of a dollar loan amount —
-  // back into it using the deal's own value basis (as-is value for a
-  // refinance, purchase price for a purchase, same basis this term sheet's
-  // own LTV will be computed against once it's created, so the two never
-  // disagree).
-  if (!("loanAmount" in result.fields) && quotedLtvPercent !== null) {
-    const deal = await db.query.deals.findFirst({ where: eq(deals.id, request.dealId) });
-    const valueBasis = deal
-      ? valueBasisFor(
-          deal.loanCategory,
-          deal.purchasePrice ? Number(deal.purchasePrice) : null,
-          deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null
-        )
-      : null;
+  // Any option might have quoted an LTV percentage instead of a dollar loan
+  // amount — back into it using the deal's own value basis (as-is value for
+  // a refinance, purchase price for a purchase, same basis this term
+  // sheet's own LTV will be computed against once it's created, so the two
+  // never disagree).
+  const deal = await db.query.deals.findFirst({ where: eq(deals.id, request.dealId) });
+  const valueBasis = deal
+    ? valueBasisFor(
+        deal.loanCategory,
+        deal.purchasePrice ? Number(deal.purchasePrice) : null,
+        deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null
+      )
+    : null;
 
-    if (valueBasis !== null) {
-      const loanAmount = Math.round(valueBasis * (quotedLtvPercent / 100));
-      result.fields.loanAmount = loanAmount;
-      result.foundKeys = [...result.foundKeys, "loanAmount"];
-      result.notFoundKeys = result.notFoundKeys.filter((k) => k !== "loanAmount");
-      const computedNote = `Loan amount computed from the lender's quoted ${quotedLtvPercent}% LTV × $${valueBasis.toLocaleString()} value basis.`;
-      result.notes = result.notes ? `${result.notes} ${computedNote}` : computedNote;
-    }
-  }
+  const finalized = raw.options.map((o) => finalizeOption(o, valueBasis));
+  const notes = [raw.notes, ...finalized.map((f) => f.computedNote)].filter((n): n is string => n !== null);
 
-  return result;
+  return { options: finalized.map((f) => f.option), notes: notes.length ? notes.join(" ") : null };
 }
 
 // The quick-pricer flow has no lender email to read — just a screenshot of
@@ -246,7 +313,11 @@ export async function extractTermSheetFromScreenshot({
 
   // No dealId in this flow (no lender email/pricing request to trace back
   // to), so there's no value basis to back a quoted LTV into a loan amount
-  // — quotedLtvPercent is simply dropped here.
-  const { quotedLtvPercent: _quotedLtvPercent, ...result } = await runExtraction(contentBlocks, category);
-  return result;
+  // — finalizeOption's valueBasis is simply null here, leaving any quoted
+  // LTV unresolved.
+  const raw = await runExtraction(contentBlocks, category);
+  const finalized = raw.options.map((o) => finalizeOption(o, null));
+  const notes = [raw.notes, ...finalized.map((f) => f.computedNote)].filter((n): n is string => n !== null);
+
+  return { options: finalized.map((f) => f.option), notes: notes.length ? notes.join(" ") : null };
 }
