@@ -16,6 +16,9 @@ declare module "next-auth" {
       inboundHoursEnd: string | null;
       outboundHoursStart: string | null;
       outboundHoursEnd: string | null;
+      borrowerIntroEmailSubject: string | null;
+      borrowerIntroEmailBody: string | null;
+      borrowerIntroTextBody: string | null;
     } & DefaultSession["user"];
   }
 }

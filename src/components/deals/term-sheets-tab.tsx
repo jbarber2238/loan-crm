@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -20,8 +20,6 @@ import { SubmitButton } from "@/components/forms/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -31,10 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { NewTermSheetForm } from "@/components/deals/new-term-sheet-form";
 import { TermSheetFieldInputs } from "@/components/deals/term-sheet-field-inputs";
-import { RecipientLine } from "@/components/emails/recipient-line";
-import { SignaturePreview } from "@/components/emails/signature-preview";
-import { HtmlBodyEditor } from "@/components/emails/html-body-editor";
-import type { RecipientCandidate } from "@/lib/email-recipients";
+import { ComposeFields, type EmailComposeState } from "@/components/emails/compose-fields";
 import { ADMIN_ONLY_FIELDS, termSheetFieldsFor } from "@/lib/term-sheet-fields";
 import { valueBasisFor, calculateLtv } from "@/lib/term-sheet-calculations";
 import { isInterestOnlyCategory } from "@/lib/loan-sections";
@@ -132,62 +127,6 @@ function termSheetSummary(
   ].filter((p): p is string => Boolean(p));
 
   return parts.length ? parts.join(", ") : null;
-}
-
-interface EmailComposeState {
-  to: string;
-  cc: string;
-  subject: string;
-  body: string;
-  signatureHtml: string;
-  candidates: RecipientCandidate[];
-}
-
-// Shared compose view for both borrower email flows below — To/Cc/Subject/
-// Body, all editable, plus the sending user's real signature shown before
-// the Send click, matching every other email dialog in the app. The body is
-// edited in place via HtmlBodyEditor; the caller reads bodyRef.current.innerHTML
-// at send time rather than tracking it through compose state.
-function ComposeFields({
-  idPrefix,
-  compose,
-  setCompose,
-  bodyRef,
-}: {
-  idPrefix: string;
-  compose: EmailComposeState;
-  setCompose: Dispatch<SetStateAction<EmailComposeState | null>>;
-  bodyRef: RefObject<HTMLDivElement | null>;
-}) {
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <RecipientLine
-          id={`${idPrefix}-to`}
-          label="To"
-          value={compose.to}
-          onChange={(v) => setCompose((p) => (p ? { ...p, to: v } : p))}
-          candidates={compose.candidates}
-        />
-        <RecipientLine
-          id={`${idPrefix}-cc`}
-          label="Cc"
-          value={compose.cc}
-          onChange={(v) => setCompose((p) => (p ? { ...p, cc: v } : p))}
-          candidates={compose.candidates}
-        />
-      </div>
-      <Input
-        value={compose.subject}
-        onChange={(e) => setCompose((p) => (p ? { ...p, subject: e.target.value } : p))}
-      />
-      <div className="space-y-1.5">
-        <Label>Email preview — click any text below to edit it</Label>
-        <HtmlBodyEditor html={compose.body} bodyRef={bodyRef} />
-      </div>
-      <SignaturePreview html={compose.signatureHtml} />
-    </div>
-  );
 }
 
 function SendTermSheetsDialog({

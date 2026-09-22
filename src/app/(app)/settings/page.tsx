@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BASE_ROLES, labelFor } from "@/lib/labels";
 import { EmailSignatureEditor } from "@/components/settings/email-signature-editor";
+import { BorrowerIntroEditor } from "@/components/settings/borrower-intro-editor";
 import { ActionForm } from "@/components/forms/action-form";
 import { SubmitButton } from "@/components/forms/submit-button";
 
@@ -148,6 +149,25 @@ export default async function MyProfilePage() {
           </p>
           <SubmitButton>Save</SubmitButton>
         </ActionForm>
+
+        {user.baseRole === "processor" && (
+          <ActionForm
+            action={updateMyProfile}
+            successMessage="Intro templates saved"
+            className="space-y-1.5 border-t pt-4 max-w-lg"
+          >
+            <BorrowerIntroEditor
+              defaultSubject={user.borrowerIntroEmailSubject ?? ""}
+              defaultEmailBody={user.borrowerIntroEmailBody ?? ""}
+              defaultTextBody={user.borrowerIntroTextBody ?? ""}
+            />
+            <p className="text-xs text-muted-foreground pb-2">
+              Used by the &ldquo;Send Intro Email&rdquo;/&ldquo;Send Intro Text&rdquo; buttons on a deal — set
+              these up once, then send your own introduction to a borrower in a click.
+            </p>
+            <SubmitButton>Save</SubmitButton>
+          </ActionForm>
+        )}
       </CardContent>
     </Card>
   );

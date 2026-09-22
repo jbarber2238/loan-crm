@@ -96,6 +96,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         inboundHoursEnd: string | null;
         outboundHoursStart: string | null;
         outboundHoursEnd: string | null;
+        borrowerIntroEmailSubject: string | null;
+        borrowerIntroEmailBody: string | null;
+        borrowerIntroTextBody: string | null;
       };
       session.user.id = dbUser.id;
       session.user.isAdmin = dbUser.isAdmin;
@@ -110,6 +113,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.inboundHoursEnd = dbUser.inboundHoursEnd;
       session.user.outboundHoursStart = dbUser.outboundHoursStart;
       session.user.outboundHoursEnd = dbUser.outboundHoursEnd;
+      session.user.borrowerIntroEmailSubject = dbUser.borrowerIntroEmailSubject;
+      session.user.borrowerIntroEmailBody = dbUser.borrowerIntroEmailBody;
+      session.user.borrowerIntroTextBody = dbUser.borrowerIntroTextBody;
       return session;
     },
   },

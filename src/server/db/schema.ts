@@ -188,6 +188,14 @@ export const users = pgTable("user", {
   active: boolean("active").notNull().default(true),
   schedulingLink: text("scheduling_link"),
   emailSignatureHtml: text("email_signature_html"),
+  // A processor's own "introducing myself to the borrower" templates — set
+  // up once in My Profile, sent from a deal's "Send Intro Email"/"Send Intro
+  // Text" buttons. Personal, not the shared admin Email Templates table:
+  // each processor writes their own, the way emailSignatureHtml already
+  // works, rather than one company-wide template everyone shares.
+  borrowerIntroEmailSubject: text("borrower_intro_email_subject"),
+  borrowerIntroEmailBody: text("borrower_intro_email_body"),
+  borrowerIntroTextBody: text("borrower_intro_text_body"),
   // Shown in the Loan Originator Information section on generated term
   // sheets. NMLS is nullable — Justin doesn't have one yet.
   phone: text("phone"),

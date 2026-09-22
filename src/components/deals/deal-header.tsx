@@ -2,6 +2,7 @@ import { Mail } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ContactQuickActions } from "@/components/messaging/contact-quick-actions";
+import { IntroButtons } from "@/components/deals/intro-buttons";
 import { StageSelect } from "@/components/deals/stage-select";
 import { DealActionsMenu } from "@/components/deals/deal-actions-menu";
 import { CloneDealDialog } from "@/components/deals/clone-deal-dialog";
@@ -13,6 +14,7 @@ import { labelFor, LOAN_CATEGORIES, STAGES } from "@/lib/labels";
 import { conservativeValueBasis } from "@/lib/term-sheet-calculations";
 import { PAUSED_STAGES } from "@/lib/deal-pipeline";
 import { sectionsFor } from "@/lib/loan-sections";
+import { requireUser } from "@/server/auth/guards";
 import type { DealDetail } from "@/server/data/deal-detail";
 
 function StageReasonBanner({ deal }: { deal: DealDetail }) {
@@ -35,8 +37,9 @@ function StageReasonBanner({ deal }: { deal: DealDetail }) {
   );
 }
 
-export function DealHeader({ deal }: { deal: DealDetail }) {
+export async function DealHeader({ deal }: { deal: DealDetail }) {
   const s = sectionsFor(deal.loanCategory);
+  const currentUser = await requireUser();
   return (
     <div className="space-y-3 rounded-lg border p-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -66,6 +69,11 @@ export function DealHeader({ deal }: { deal: DealDetail }) {
               </span>
             )}
           </div>
+          {currentUser.baseRole === "processor" && (
+            <div className="mt-1.5">
+              <IntroButtons dealId={deal.id} />
+            </div>
+          )}
           {deal.lenderId && deal.lender ? (
             <p className="text-xs text-muted-foreground">
               {labelFor(LOAN_CATEGORIES, deal.loanCategory)} · LO:{" "}

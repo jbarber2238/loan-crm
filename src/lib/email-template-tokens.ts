@@ -183,6 +183,13 @@ export const APPLICATION_SUBMISSION_TOKENS: EmailTemplateToken[] = [
   },
 ];
 
+/** For a processor's own personal "introducing myself" email/text (My Profile → Send Intro Email/Text) — not one of the shared admin template categories below, since each processor writes their own rather than sharing one from the company-wide Email Templates table. */
+export const PROCESSOR_INTRO_TOKENS: EmailTemplateToken[] = [
+  ...ALL_DEAL_TOKENS,
+  { key: "senderName", description: "Your (the sending user's) name" },
+  { key: "companyName", description: "Company name from Settings" },
+];
+
 export type EmailTemplateCategory =
   | "pricing_request"
   | "borrower_lifecycle"

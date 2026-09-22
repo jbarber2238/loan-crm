@@ -179,6 +179,15 @@ export async function updateMyProfile(formData: FormData) {
         : null;
   }
 
+  // A processor's own borrower intro email/text — see the "Send Intro
+  // Email"/"Send Intro Text" buttons on a deal.
+  for (const key of ["borrowerIntroEmailSubject", "borrowerIntroEmailBody", "borrowerIntroTextBody"] as const) {
+    if (formData.has(key)) {
+      const value = formData.get(key);
+      updates[key] = typeof value === "string" && value.trim().length ? value : null;
+    }
+  }
+
   if (Object.keys(updates).length === 0) return;
 
   await db.update(users).set(updates).where(eq(users.id, user.id));
