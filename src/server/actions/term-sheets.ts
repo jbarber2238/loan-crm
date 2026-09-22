@@ -80,6 +80,25 @@ export async function cloneTermSheet(dealId: string, termSheetId: string) {
   return clone.id;
 }
 
+// Blocks deleting an accepted term sheet — its fields are promoted onto the
+// deal itself (deal-header's accepted terms, dashboard "Loans Closed"
+// metrics, deal cloning all read it back by status), so removing it would
+// silently orphan those. Nothing else references a term sheet by id, so any
+// other status is a safe hard delete.
+export async function deleteTermSheet(dealId: string, termSheetId: string) {
+  await requireUser();
+
+  const termSheet = await db.query.termSheets.findFirst({ where: eq(termSheets.id, termSheetId) });
+  if (!termSheet) throw new Error("Term sheet not found");
+  if (termSheet.status === "accepted") {
+    throw new Error("Can't delete an accepted term sheet — it's the deal's terms of record.");
+  }
+
+  await db.delete(termSheets).where(eq(termSheets.id, termSheetId));
+
+  revalidatePath(`/deals/${dealId}`);
+}
+
 export async function updateTermSheetFields(
   dealId: string,
   termSheetId: string,

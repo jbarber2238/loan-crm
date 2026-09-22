@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   cloneTermSheet,
+  deleteTermSheet,
   generateTermSheet,
   previewBookACallEmail,
   previewTermSheetsToBorrowerEmail,
@@ -477,6 +478,7 @@ export function TermSheetsTab({
           const sendForSignature = sendTermSheetForSignature.bind(null, dealId, termSheet.id);
           const updateFields = updateTermSheetFields.bind(null, dealId, termSheet.id);
           const clone = cloneTermSheet.bind(null, dealId, termSheet.id);
+          const deleteThisTermSheet = deleteTermSheet.bind(null, dealId, termSheet.id);
           const fieldDefs = [
             ...termSheetFieldsFor(termSheet.product.category),
             ...(isAdmin ? ADMIN_ONLY_FIELDS : []),
@@ -545,6 +547,18 @@ export function TermSheetsTab({
                   <ActionForm action={sendForSignature} successMessage="Sent to the borrower for signature">
                     <SubmitButton size="sm" variant="default" disabled={!hasBorrowerEmail}>
                       Send for Signature
+                    </SubmitButton>
+                  </ActionForm>
+                )}
+
+                {termSheet.status !== "accepted" && (
+                  <ActionForm
+                    action={deleteThisTermSheet}
+                    successMessage="Term sheet deleted"
+                    confirmMessage="Are you sure you want to delete this term sheet? This can't be undone."
+                  >
+                    <SubmitButton size="sm" variant="ghost">
+                      Delete
                     </SubmitButton>
                   </ActionForm>
                 )}

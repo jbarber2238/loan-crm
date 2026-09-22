@@ -2,10 +2,19 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Minus, X, Phone as PhoneIcon } from "lucide-react";
+import { Minus, X, Phone as PhoneIcon, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { sendConversationMessage, getConversationForDock, markConversationRead } from "@/server/actions/messages";
+import {
+  sendConversationMessage,
+  getConversationForDock,
+  markConversationRead,
+  searchContacts,
+  addConversationParticipant,
+  removeConversationParticipant,
+  type ContactSearchResult,
+} from "@/server/actions/messages";
 import { initiateConversationCall } from "@/server/actions/calls";
 import type { DockWindow } from "@/components/messaging/chat-dock-context";
 
@@ -22,6 +31,12 @@ interface CallLog {
   status: string;
   startedAt: Date | string;
   durationSeconds: number | null;
+}
+
+interface Participant {
+  id: string;
+  name: string | null;
+  phone: string;
 }
 
 type TimelineItem = { kind: "message"; at: Date; item: Message } | { kind: "call"; at: Date; item: CallLog };
@@ -42,6 +57,8 @@ export function ChatWindowPanel({
   const [isPending, startTransition] = useTransition();
   const [messages, setMessages] = useState<Message[]>([]);
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [addingParticipant, setAddingParticipant] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [body, setBody] = useState(dockWindow.initialBody ?? "");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -50,7 +67,19 @@ export function ChatWindowPanel({
     const conversation = await getConversationForDock(dockWindow.conversationId);
     setMessages(conversation.messages);
     setCallLogs(conversation.callLogs);
+    setParticipants(conversation.participants);
     setLoaded(true);
+  }
+
+  function handleRemoveParticipant(participantId: string) {
+    startTransition(async () => {
+      try {
+        await removeConversationParticipant(participantId);
+        await refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't remove participant");
+      }
+    });
   }
 
   useEffect(() => {
@@ -116,6 +145,16 @@ export function ChatWindowPanel({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setAddingParticipant((v) => !v)}
+            title="Add someone to this conversation"
+            aria-label="Add someone to this conversation"
+          >
+            <UserPlus className="size-3.5" />
+          </Button>
           <Button type="button" variant="ghost" size="icon-sm" onClick={handleCall} title="Call" aria-label="Call">
             <PhoneIcon className="size-3.5" />
           </Button>
@@ -127,6 +166,37 @@ export function ChatWindowPanel({
           </Button>
         </div>
       </div>
+
+      {participants.length > 0 && (
+        <div className="flex flex-wrap gap-1 border-b bg-muted/40 px-3 py-1.5">
+          {participants.map((p) => (
+            <span
+              key={p.id}
+              className="flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-[10px]"
+            >
+              {p.name || p.phone}
+              <button
+                type="button"
+                onClick={() => handleRemoveParticipant(p.id)}
+                aria-label={`Remove ${p.name || p.phone}`}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-2.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {addingParticipant && (
+        <AddParticipantForm
+          conversationId={dockWindow.conversationId}
+          onAdded={async () => {
+            setAddingParticipant(false);
+            await refresh();
+          }}
+        />
+      )}
 
       <div className="flex-1 space-y-2 overflow-y-auto p-3">
         {!loaded && <p className="text-center text-xs text-muted-foreground">Loading…</p>}
@@ -175,6 +245,96 @@ export function ChatWindowPanel({
           Send
         </Button>
       </form>
+    </div>
+  );
+}
+
+// Adds someone else to this one thread — a co-signer, a spouse, an
+// assistant a borrower wants looped into every message. Ad hoc per
+// conversation rather than a permanent field on the deal, so it works the
+// same regardless of who's involved. Search hits the same contact directory
+// "New message" uses; typing name+phone directly covers anyone not in it
+// yet (a borrower's assistant, say).
+function AddParticipantForm({ conversationId, onAdded }: { conversationId: string; onAdded: () => void | Promise<void> }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<ContactSearchResult[]>([]);
+  const [manualName, setManualName] = useState("");
+  const [manualPhone, setManualPhone] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed.length < 2) return;
+    const handle = setTimeout(() => {
+      startTransition(async () => setResults(await searchContacts(trimmed)));
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [query]);
+
+  function add(name: string | null, phone: string) {
+    const formData = new FormData();
+    if (name) formData.set("name", name);
+    formData.set("phone", phone);
+    startTransition(async () => {
+      try {
+        await addConversationParticipant(conversationId, formData);
+        setQuery("");
+        setResults([]);
+        setManualName("");
+        setManualPhone("");
+        await onAdded();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't add participant");
+      }
+    });
+  }
+
+  return (
+    <div className="space-y-1.5 border-b bg-muted/30 p-2">
+      <Input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search contacts…"
+        className="h-7 text-xs"
+      />
+      {query.trim().length >= 2 && results.length > 0 && (
+        <div className="max-h-24 overflow-y-auto rounded-md border bg-popover">
+          {results.map((r) => (
+            <button
+              key={r.key}
+              type="button"
+              disabled={pending}
+              onClick={() => add(r.name, r.phone)}
+              className="block w-full px-2 py-1 text-left text-xs hover:bg-muted"
+            >
+              {r.name} <span className="text-muted-foreground">· {r.contactType}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-1">
+        <Input
+          value={manualName}
+          onChange={(e) => setManualName(e.target.value)}
+          placeholder="Name (optional)"
+          className="h-7 text-xs"
+        />
+        <Input
+          value={manualPhone}
+          onChange={(e) => setManualPhone(e.target.value)}
+          placeholder="Phone"
+          className="h-7 text-xs"
+        />
+        <Button
+          type="button"
+          size="sm"
+          className="h-7 shrink-0 px-2 text-xs"
+          disabled={!manualPhone.trim() || pending}
+          onClick={() => add(manualName.trim() || null, manualPhone.trim())}
+        >
+          Add
+        </Button>
+      </div>
     </div>
   );
 }
