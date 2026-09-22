@@ -100,7 +100,7 @@ export function ReplyImportView({
             return {
               ...opt,
               fields,
-              notFoundKeys: opt.notFoundKeys.filter((k) => k !== "originationFee" && k !== "reservesMonths"),
+              notFoundKeys: opt.notFoundKeys.filter((k) => k !== "reservesMonths"),
             };
           })
         );

@@ -15,6 +15,17 @@ const anthropic = process.env.ANTHROPIC_API_KEY
 
 const SUPPORTED_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]);
 
+// These three are never the lender's numbers to report — they're our own
+// broker-side levers (our origination points/fee, our discretionary rate
+// buydown), always set by us and defaulted by the form itself (2%/0%/
+// computed). Asking the AI to "find" them in a lender's reply meant it
+// sometimes matched onto unrelated text and returned a stray 0, silently
+// overriding the form's own sensible default. A lender's own points/fees
+// still get captured normally — into costToBorrowerFee (see the "Rate +
+// points pricing" rule below) or underwritingDocFee — just never into
+// these three.
+const BROKER_ONLY_FIELDS = new Set(["originationPoints", "originationFee", "rateBuydownPoints"]);
+
 export interface TermSheetExtractionOption {
   // A short, specific description of what makes this option distinct from
   // the others in the same reply — e.g. "30 Year Fixed, 5-yr step-down PPP
@@ -59,7 +70,7 @@ async function runExtraction(
     throw new Error("AI extraction isn't configured (missing ANTHROPIC_API_KEY).");
   }
 
-  const fieldDefs = termSheetFieldsFor(category);
+  const fieldDefs = termSheetFieldsFor(category).filter((f) => !BROKER_ONLY_FIELDS.has(f.key));
 
   const systemPrompt = `You are helping a mortgage processor read a lender's pricing reply (email text, and possibly a term sheet PDF or a screenshot of a spreadsheet) and pull out the loan terms into a structured form.
 
