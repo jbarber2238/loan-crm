@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { BASE_ROLES, labelFor } from "@/lib/labels";
 import { EmailSignatureEditor } from "@/components/settings/email-signature-editor";
 import { BorrowerIntroEditor } from "@/components/settings/borrower-intro-editor";
+import { TimeSelect } from "@/components/settings/time-select";
 import { ActionForm } from "@/components/forms/action-form";
 import { SubmitButton } from "@/components/forms/submit-button";
 
@@ -105,18 +106,18 @@ export default async function MyProfilePage() {
               restriction (always reachable).
             </p>
             <div className="flex items-center gap-2">
-              <Input
-                aria-label="Inbound hours start"
+              <TimeSelect
                 name="inboundHoursStart"
-                type="time"
-                defaultValue={user.inboundHoursStart?.slice(0, 5) ?? ""}
+                ariaLabel="Inbound hours start"
+                defaultValue={user.inboundHoursStart?.slice(0, 5) ?? null}
+                allowBlank
               />
               <span className="text-sm text-muted-foreground">to</span>
-              <Input
-                aria-label="Inbound hours end"
+              <TimeSelect
                 name="inboundHoursEnd"
-                type="time"
-                defaultValue={user.inboundHoursEnd?.slice(0, 5) ?? ""}
+                ariaLabel="Inbound hours end"
+                defaultValue={user.inboundHoursEnd?.slice(0, 5) ?? null}
+                allowBlank
               />
             </div>
           </div>
@@ -127,22 +128,24 @@ export default async function MyProfilePage() {
               currently {outboundMin}–{outboundMax} — this can only narrow it, not widen it.
             </p>
             <div className="flex items-center gap-2">
-              <Input
-                aria-label="Outbound hours start"
+              <TimeSelect
                 name="outboundHoursStart"
-                type="time"
+                ariaLabel="Outbound hours start"
+                defaultValue={user.outboundHoursStart?.slice(0, 5) ?? null}
                 min={outboundMin}
                 max={outboundMax}
-                defaultValue={user.outboundHoursStart?.slice(0, 5) ?? ""}
+                allowBlank
+                blankLabel="Full company window"
               />
               <span className="text-sm text-muted-foreground">to</span>
-              <Input
-                aria-label="Outbound hours end"
+              <TimeSelect
                 name="outboundHoursEnd"
-                type="time"
+                ariaLabel="Outbound hours end"
+                defaultValue={user.outboundHoursEnd?.slice(0, 5) ?? null}
                 min={outboundMin}
                 max={outboundMax}
-                defaultValue={user.outboundHoursEnd?.slice(0, 5) ?? ""}
+                allowBlank
+                blankLabel="Full company window"
               />
             </div>
           </div>

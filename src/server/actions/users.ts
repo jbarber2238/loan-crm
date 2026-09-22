@@ -14,6 +14,16 @@ import { BASE_ROLES, labelFor } from "@/lib/labels";
 import { htmlButton } from "@/lib/email-html";
 import { isPgErrorCode } from "@/lib/pg-error";
 import { TCPA_ABSOLUTE_START, TCPA_ABSOLUTE_END, timeAtOrAfter, timeAtOrBefore } from "@/lib/tcpa";
+import { TIME_SELECT_BLANK } from "@/lib/time-select";
+
+// TimeSelect submits TIME_SELECT_BLANK (never an empty string — Radix can't
+// use one as an item value) for "no restriction" — both that sentinel and a
+// genuinely empty value mean the same thing here: null.
+function parseTimeSelect(value: FormDataEntryValue | null): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed && trimmed !== TIME_SELECT_BLANK ? trimmed : null;
+}
 
 export async function inviteUser(formData: FormData) {
   const admin = await requireAdmin();
@@ -168,19 +178,17 @@ export async function updateMyProfile(formData: FormData) {
   // out rather than defaulted.
   for (const key of ["inboundHoursStart", "inboundHoursEnd"] as const) {
     if (formData.has(key)) {
-      const value = formData.get(key);
-      updates[key] = typeof value === "string" && value.trim().length ? value.trim() : null;
+      updates[key] = parseTimeSelect(formData.get(key));
     }
   }
 
   // Outbound hours can only narrow the company's TCPA ceiling, never widen
-  // it — the client's min/max on these inputs already enforces this; this
-  // is the server-side backstop against bypassing that.
+  // it — the option list TimeSelect offers here already only contains
+  // in-window choices; this is the server-side backstop against bypassing
+  // that (a direct form submission, a stale page).
   if (formData.has("outboundHoursStart") || formData.has("outboundHoursEnd")) {
-    const rawStart = formData.get("outboundHoursStart");
-    const rawEnd = formData.get("outboundHoursEnd");
-    const start = typeof rawStart === "string" && rawStart.trim().length ? rawStart.trim() : null;
-    const end = typeof rawEnd === "string" && rawEnd.trim().length ? rawEnd.trim() : null;
+    const start = parseTimeSelect(formData.get("outboundHoursStart"));
+    const end = parseTimeSelect(formData.get("outboundHoursEnd"));
 
     if (start || end) {
       const ceiling = await getTcpaOutboundWindow();

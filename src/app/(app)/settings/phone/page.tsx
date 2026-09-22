@@ -4,6 +4,7 @@ import { db } from "@/server/db/client";
 import { phoneUnmatchedRouting } from "@/server/db/schema";
 import { getTwilioSettings, getTcpaOutboundWindow } from "@/server/settings";
 import { TCPA_ABSOLUTE_START, TCPA_ABSOLUTE_END } from "@/lib/tcpa";
+import { TimeSelect } from "@/components/settings/time-select";
 import {
   updateTwilioSettings,
   disconnectTwilio,
@@ -117,26 +118,22 @@ export default async function PhoneSettingsPage() {
             <div className="flex items-end gap-2">
               <div className="flex-1 space-y-1.5">
                 <Label htmlFor="tcpaOutboundStart">Earliest</Label>
-                <Input
-                  id="tcpaOutboundStart"
+                <TimeSelect
                   name="tcpaOutboundStart"
-                  type="time"
+                  ariaLabel="Earliest"
                   min={TCPA_ABSOLUTE_START}
                   max={TCPA_ABSOLUTE_END}
                   defaultValue={tcpaWindow?.start.slice(0, 5) ?? TCPA_ABSOLUTE_START}
-                  required
                 />
               </div>
               <div className="flex-1 space-y-1.5">
                 <Label htmlFor="tcpaOutboundEnd">Latest</Label>
-                <Input
-                  id="tcpaOutboundEnd"
+                <TimeSelect
                   name="tcpaOutboundEnd"
-                  type="time"
+                  ariaLabel="Latest"
                   min={TCPA_ABSOLUTE_START}
                   max={TCPA_ABSOLUTE_END}
                   defaultValue={tcpaWindow?.end.slice(0, 5) ?? TCPA_ABSOLUTE_END}
-                  required
                 />
               </div>
             </div>
