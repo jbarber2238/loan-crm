@@ -274,7 +274,7 @@ export function TermSheetFieldInputs({
                   ? "url"
                   : "text"
             }
-            step={field.type === "percent" ? "0.01" : undefined}
+            step={field.type === "percent" ? "0.001" : undefined}
             defaultValue={typeof defaultValue === "string" || typeof defaultValue === "number" ? defaultValue : ""}
           />
         )}
