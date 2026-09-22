@@ -8,11 +8,12 @@ import { users } from "@/server/db/schema";
 import { requireAdmin, requireUser } from "@/server/auth/guards";
 import { toE164 } from "@/server/twilio-client";
 import { sendGmailAs } from "@/server/gmail/send";
-import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
+import { getCompanyName, getCompanyLogoHtml, getTcpaOutboundWindow } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
 import { BASE_ROLES, labelFor } from "@/lib/labels";
 import { htmlButton } from "@/lib/email-html";
 import { isPgErrorCode } from "@/lib/pg-error";
+import { TCPA_ABSOLUTE_START, TCPA_ABSOLUTE_END, timeAtOrAfter, timeAtOrBefore } from "@/lib/tcpa";
 
 export async function inviteUser(formData: FormData) {
   const admin = await requireAdmin();
@@ -162,13 +163,43 @@ export async function updateMyProfile(formData: FormData) {
     updates.nmlsNumber = typeof nmlsNumber === "string" && nmlsNumber.trim().length ? nmlsNumber.trim() : null;
   }
 
-  // Personal texting/calling hours — a blank value means "no restriction,"
-  // not "midnight," so each is nulled out rather than defaulted.
-  for (const key of ["inboundHoursStart", "inboundHoursEnd", "outboundHoursStart", "outboundHoursEnd"] as const) {
+  // Inbound hours are purely personal — no TCPA concern, so no bound here.
+  // A blank value means "no restriction," not "midnight," so it's nulled
+  // out rather than defaulted.
+  for (const key of ["inboundHoursStart", "inboundHoursEnd"] as const) {
     if (formData.has(key)) {
       const value = formData.get(key);
       updates[key] = typeof value === "string" && value.trim().length ? value.trim() : null;
     }
+  }
+
+  // Outbound hours can only narrow the company's TCPA ceiling, never widen
+  // it — the client's min/max on these inputs already enforces this; this
+  // is the server-side backstop against bypassing that.
+  if (formData.has("outboundHoursStart") || formData.has("outboundHoursEnd")) {
+    const rawStart = formData.get("outboundHoursStart");
+    const rawEnd = formData.get("outboundHoursEnd");
+    const start = typeof rawStart === "string" && rawStart.trim().length ? rawStart.trim() : null;
+    const end = typeof rawEnd === "string" && rawEnd.trim().length ? rawEnd.trim() : null;
+
+    if (start || end) {
+      const ceiling = await getTcpaOutboundWindow();
+      const ceilingStart = ceiling?.start.slice(0, 5) ?? TCPA_ABSOLUTE_START;
+      const ceilingEnd = ceiling?.end.slice(0, 5) ?? TCPA_ABSOLUTE_END;
+
+      if (start && !timeAtOrAfter(start, ceilingStart)) {
+        throw new Error(`Outbound hours can't start earlier than the company's TCPA window (${ceilingStart}).`);
+      }
+      if (end && !timeAtOrBefore(end, ceilingEnd)) {
+        throw new Error(`Outbound hours can't end later than the company's TCPA window (${ceilingEnd}).`);
+      }
+      if (start && end && !timeAtOrAfter(end, start)) {
+        throw new Error("Outbound end time must be after the start time");
+      }
+    }
+
+    updates.outboundHoursStart = start;
+    updates.outboundHoursEnd = end;
   }
 
   if (formData.has("emailSignatureHtml")) {

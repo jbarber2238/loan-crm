@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { companySettings, phoneStageRouting, phoneUnmatchedRouting, dealStageEnum } from "@/server/db/schema";
 import { requireAdmin } from "@/server/auth/guards";
+import { TCPA_ABSOLUTE_START, TCPA_ABSOLUTE_END, timeAtOrAfter, timeAtOrBefore } from "@/lib/tcpa";
 
 function str(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -45,6 +46,20 @@ export async function updateTcpaWindow(formData: FormData) {
   const start = str(formData, "tcpaOutboundStart");
   const end = str(formData, "tcpaOutboundEnd");
   if (!start || !end) throw new Error("Both a start and end time are required");
+
+  // The client's own min/max on these inputs already block this — this is
+  // the server-side backstop against anyone bypassing that (a direct form
+  // submission, a stale page). TCPA's 8am–9pm safe harbor is a hard
+  // ceiling, not a per-org preference.
+  if (!timeAtOrAfter(start, TCPA_ABSOLUTE_START)) {
+    throw new Error(`Can't start earlier than ${TCPA_ABSOLUTE_START} — that's TCPA's own outer limit.`);
+  }
+  if (!timeAtOrBefore(end, TCPA_ABSOLUTE_END)) {
+    throw new Error(`Can't end later than ${TCPA_ABSOLUTE_END} — that's TCPA's own outer limit.`);
+  }
+  if (!timeAtOrAfter(end, start)) {
+    throw new Error("End time must be after the start time");
+  }
 
   await db
     .insert(companySettings)

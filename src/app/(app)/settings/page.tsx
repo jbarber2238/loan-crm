@@ -1,5 +1,7 @@
 import { requireUser } from "@/server/auth/guards";
 import { updateMyProfile } from "@/server/actions/users";
+import { getTcpaOutboundWindow } from "@/server/settings";
+import { TCPA_ABSOLUTE_START, TCPA_ABSOLUTE_END } from "@/lib/tcpa";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +15,9 @@ import { SubmitButton } from "@/components/forms/submit-button";
 
 export default async function MyProfilePage() {
   const user = await requireUser();
+  const tcpaWindow = await getTcpaOutboundWindow();
+  const outboundMin = tcpaWindow?.start.slice(0, 5) ?? TCPA_ABSOLUTE_START;
+  const outboundMax = tcpaWindow?.end.slice(0, 5) ?? TCPA_ABSOLUTE_END;
 
   return (
     <Card>
@@ -118,14 +123,16 @@ export default async function MyProfilePage() {
           <div>
             <Label className="mb-1.5 block">Outbound hours</Label>
             <p className="text-xs text-muted-foreground mb-2">
-              When you can call/text a borrower from the app. Capped to the company&apos;s TCPA-safe window
-              regardless of what you set here — this can only narrow it, not widen it.
+              When you can call/text a borrower from the app. Capped to the company&apos;s TCPA-safe window,
+              currently {outboundMin}–{outboundMax} — this can only narrow it, not widen it.
             </p>
             <div className="flex items-center gap-2">
               <Input
                 aria-label="Outbound hours start"
                 name="outboundHoursStart"
                 type="time"
+                min={outboundMin}
+                max={outboundMax}
                 defaultValue={user.outboundHoursStart?.slice(0, 5) ?? ""}
               />
               <span className="text-sm text-muted-foreground">to</span>
@@ -133,6 +140,8 @@ export default async function MyProfilePage() {
                 aria-label="Outbound hours end"
                 name="outboundHoursEnd"
                 type="time"
+                min={outboundMin}
+                max={outboundMax}
                 defaultValue={user.outboundHoursEnd?.slice(0, 5) ?? ""}
               />
             </div>

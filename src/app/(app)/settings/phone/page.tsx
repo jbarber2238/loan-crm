@@ -3,6 +3,7 @@ import { requireAdmin } from "@/server/auth/guards";
 import { db } from "@/server/db/client";
 import { phoneUnmatchedRouting } from "@/server/db/schema";
 import { getTwilioSettings, getTcpaOutboundWindow } from "@/server/settings";
+import { TCPA_ABSOLUTE_START, TCPA_ABSOLUTE_END } from "@/lib/tcpa";
 import {
   updateTwilioSettings,
   disconnectTwilio,
@@ -109,7 +110,8 @@ export default async function PhoneSettingsPage() {
           <p className="text-sm text-muted-foreground">
             The hard ceiling for any outbound call or text to a borrower — TCPA&apos;s &quot;reasonable hours&quot;
             guidance is based on the borrower&apos;s own local time, not staff. Each person&apos;s own hours (My
-            Profile) can only narrow this window, never widen it.
+            Profile) can only narrow this window, never widen it. This window itself can&apos;t go wider than
+            TCPA&apos;s own {TCPA_ABSOLUTE_START}–{TCPA_ABSOLUTE_END} safe harbor.
           </p>
           <ActionForm action={updateTcpaWindow} successMessage="Hours saved" className="max-w-sm space-y-3">
             <div className="flex items-end gap-2">
@@ -119,7 +121,9 @@ export default async function PhoneSettingsPage() {
                   id="tcpaOutboundStart"
                   name="tcpaOutboundStart"
                   type="time"
-                  defaultValue={tcpaWindow?.start.slice(0, 5) ?? "08:00"}
+                  min={TCPA_ABSOLUTE_START}
+                  max={TCPA_ABSOLUTE_END}
+                  defaultValue={tcpaWindow?.start.slice(0, 5) ?? TCPA_ABSOLUTE_START}
                   required
                 />
               </div>
@@ -129,7 +133,9 @@ export default async function PhoneSettingsPage() {
                   id="tcpaOutboundEnd"
                   name="tcpaOutboundEnd"
                   type="time"
-                  defaultValue={tcpaWindow?.end.slice(0, 5) ?? "21:00"}
+                  min={TCPA_ABSOLUTE_START}
+                  max={TCPA_ABSOLUTE_END}
+                  defaultValue={tcpaWindow?.end.slice(0, 5) ?? TCPA_ABSOLUTE_END}
                   required
                 />
               </div>
