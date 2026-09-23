@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Slider } from "@/components/ui/slider";
+import { Checkbox } from "@/components/ui/checkbox";
 import { calculateDscrRatio, estimatedMonthlyPI, estimatedMonthlyPitia } from "@/lib/term-sheet-calculations";
 
 const TEAL = "#143D4A";
@@ -69,21 +70,33 @@ function num(v: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-type DscrTransactionType = "purchase" | "cashOutRefinance";
+type DscrTransactionType = "purchase" | "refinance";
 
-// What's actually quotable at each LTV, by transaction type — the slider's
-// own min/max (50-85) covers the full range lenders will discuss, but not
-// every point in that range is realistic, and the whole point of showing
-// this is to stop someone from anchoring on an 85% cash-out refi that no
-// lender actually offers.
-function ltvGuidance(pct: number, transactionType: DscrTransactionType): { text: string; warn: boolean } {
-  if (transactionType === "cashOutRefinance") {
-    if (pct >= 85) return { text: "No lender currently offers an 85% LTV cash-out refinance — 75–80% is the realistic ceiling.", warn: true };
-    if (pct >= 80) return { text: "80% is on the high end for a cash-out refinance — fewer lenders offer this than at 75%.", warn: true };
-    return { text: "Most lenders offer up to 75–80% LTV on a cash-out refinance — you're within range.", warn: false };
+// What's actually quotable at each LTV — the slider's own min/max (50-85)
+// covers the full range lenders will discuss, but not every point in that
+// range is realistic, and the whole point of showing this is to stop
+// someone from anchoring on an LTV no lender actually offers. A foreign
+// national borrower is a materially different (much lower) ceiling on
+// either transaction type, so it's checked first and overrides the
+// standard guidance rather than just tweaking it.
+function ltvGuidance(pct: number, transactionType: DscrTransactionType, isForeignNational: boolean): { text: string; warn: boolean } {
+  if (isForeignNational) {
+    if (transactionType === "refinance") {
+      if (pct > 75) return { text: "No lender offers this LTV to a foreign national on a refinance — 65% is the common ceiling.", warn: true };
+      if (pct > 65) return { text: "Some lenders will go up to 75% LTV for a foreign national refinance in certain scenarios, but 65% is the more common ceiling.", warn: true };
+      return { text: "Most lenders cap foreign nationals at 65% LTV on a refinance — you're within range.", warn: false };
+    }
+    if (pct > 70) return { text: "Most lenders cap foreign nationals at 70% LTV on a purchase — expect very few options above that.", warn: true };
+    return { text: "Most lenders cap foreign nationals at 70% LTV on a purchase — you're within range.", warn: false };
+  }
+
+  if (transactionType === "refinance") {
+    if (pct >= 85) return { text: "No lender currently offers 85% LTV on a refinance.", warn: true };
+    if (pct >= 80) return { text: "80% is where most lenders cap DSCR leverage.", warn: false };
+    return { text: "Most lenders offer up to 80% LTV on a DSCR refinance — you're well within range.", warn: false };
   }
   if (pct >= 85) return { text: "Only a few lenders offer 85% LTV on a purchase — expect tighter credit, reserve, and experience requirements.", warn: true };
-  if (pct >= 80) return { text: "80% is where most lenders cap DSCR purchase leverage.", warn: false };
+  if (pct >= 80) return { text: "80% is where most lenders cap DSCR leverage.", warn: false };
   return { text: "Most lenders offer up to 80% LTV on a DSCR purchase — you're well within range.", warn: false };
 }
 
@@ -96,7 +109,7 @@ function TransactionTypeToggle({
 }) {
   const options: { value: DscrTransactionType; label: string }[] = [
     { value: "purchase", label: "Purchase" },
-    { value: "cashOutRefinance", label: "Cash-Out Refinance" },
+    { value: "refinance", label: "Refinance" },
   ];
   return (
     <div className="inline-flex rounded-sm border" style={{ borderColor: "rgba(20,61,74,0.2)" }}>
@@ -123,10 +136,11 @@ export function DscrCalculator() {
   const [rent, setRent] = useState("");
   const [propertyValue, setPropertyValue] = useState("");
   const [transactionType, setTransactionType] = useState<DscrTransactionType>("purchase");
-  // 80% is what most lenders quote as their standard DSCR purchase/cash-out
-  // ceiling — the sensible starting point, with the slider there to show
-  // where 75% and 85% actually stand rather than making someone type a
-  // percentage from scratch.
+  const [isForeignNational, setIsForeignNational] = useState(false);
+  // 80% is what most lenders quote as their standard DSCR leverage ceiling
+  // — the sensible starting point, with the slider there to show where 75%
+  // and 85% actually stand rather than making someone type a percentage
+  // from scratch.
   const [ltvPct, setLtvPct] = useState(80);
   const [rate, setRate] = useState("");
   const [term, setTerm] = useState("30");
@@ -140,7 +154,7 @@ export function DscrCalculator() {
   const dscr = calculateDscrRatio(num(rent) || null, monthlyPitia);
 
   const hasInputs = propertyValue && rate && rent;
-  const guidance = ltvGuidance(ltvPct, transactionType);
+  const guidance = ltvGuidance(ltvPct, transactionType, isForeignNational);
 
   return (
     <div className="rounded-sm border bg-white p-6 md:p-8" style={{ borderColor: "rgba(20,61,74,0.15)" }}>
@@ -153,13 +167,19 @@ export function DscrCalculator() {
         qualifies against instead of your personal income.
       </p>
 
-      <div className="mt-6">
-        <span className="text-xs font-medium tracking-wide" style={{ color: BASALT }}>
-          Transaction Type
-        </span>
-        <div className="mt-1.5">
-          <TransactionTypeToggle value={transactionType} onChange={setTransactionType} />
+      <div className="mt-6 flex flex-wrap items-end gap-6">
+        <div>
+          <span className="text-xs font-medium tracking-wide" style={{ color: BASALT }}>
+            Transaction Type
+          </span>
+          <div className="mt-1.5">
+            <TransactionTypeToggle value={transactionType} onChange={setTransactionType} />
+          </div>
         </div>
+        <label className="flex items-center gap-2 pb-2.5 text-sm" style={{ color: BASALT }}>
+          <Checkbox checked={isForeignNational} onCheckedChange={(v) => setIsForeignNational(v === true)} />
+          Borrower is a foreign national
+        </label>
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
