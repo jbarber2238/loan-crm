@@ -495,6 +495,61 @@ export async function updateDealDates(dealId: string, formData: FormData) {
   revalidatePath(`/deals/${dealId}`);
 }
 
+const MAX_APPRAISAL_FILE_SIZE = 15 * 1024 * 1024; // 15MB, matches the borrower-upload limit
+
+export async function uploadAppraisalDocument(dealId: string, formData: FormData) {
+  await requireUser();
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) throw new Error("Choose a file first");
+  if (file.size > MAX_APPRAISAL_FILE_SIZE) throw new Error(`${file.name} is too large (15MB max)`);
+
+  await db
+    .update(deals)
+    .set({
+      appraisalDocumentFileName: file.name,
+      appraisalDocumentMimeType: file.type || "application/octet-stream",
+      appraisalDocumentData: Buffer.from(await file.arrayBuffer()).toString("base64"),
+      updatedAt: new Date(),
+    })
+    .where(eq(deals.id, dealId));
+
+  revalidatePath(`/deals/${dealId}`);
+}
+
+export async function deleteAppraisalDocument(dealId: string) {
+  await requireUser();
+  await db
+    .update(deals)
+    .set({ appraisalDocumentFileName: null, appraisalDocumentMimeType: null, appraisalDocumentData: null })
+    .where(eq(deals.id, dealId));
+  revalidatePath(`/deals/${dealId}`);
+}
+
+// Writes the AI scan's reviewed values onto the deal — the same
+// appraisedValue/appraisedArv columns the accepted-terms edit dialog
+// already reads/writes, so whichever path sets them last wins. Only
+// touches a field the caller actually included, so applying just one of
+// the two (e.g. the ARV was misread and cleared in review) leaves the
+// other alone. Deliberately doesn't touch market rent — see
+// extractAppraisalData's own comment, there's no home for it on the deal
+// yet.
+export async function applyAppraisalExtraction(dealId: string, formData: FormData) {
+  await requireUser();
+
+  const updates: Record<string, string | null> = {};
+  if (formData.has("appraisedValue")) updates.appraisedValue = nullableStr(formData, "appraisedValue");
+  if (formData.has("appraisedArv")) updates.appraisedArv = nullableStr(formData, "appraisedArv");
+  if (!Object.keys(updates).length) return;
+
+  await db
+    .update(deals)
+    .set(updates)
+    .where(eq(deals.id, dealId));
+
+  revalidatePath(`/deals/${dealId}`);
+}
+
 // Automatic forward-progression hook for a handful of specific staff/system
 // actions (pricing a loan, generating a term sheet PDF, sending it to the
 // borrower, the processing-fee invoice getting paid) — see each call site.

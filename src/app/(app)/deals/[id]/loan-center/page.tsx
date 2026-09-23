@@ -62,6 +62,7 @@ export default async function DealLoanCenterPage({
   return (
     <LoanCenterTab
       dealId={deal.id}
+      loanCategory={deal.loanCategory}
       assignedLoanOfficerId={deal.assignedLoanOfficerId}
       assignedProcessorId={deal.assignedProcessorId}
       assignedAssistantId={deal.assignedAssistantId}
@@ -106,6 +107,7 @@ export default async function DealLoanCenterPage({
         createdAt: e.createdAt,
         createdByName: e.createdBy?.name ?? null,
       }))}
+      appraisalDocumentFileName={deal.appraisalDocumentFileName}
     />
   );
 }

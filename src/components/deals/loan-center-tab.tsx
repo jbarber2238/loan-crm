@@ -80,6 +80,7 @@ function OtherDatesSection({
 
 export function LoanCenterTab({
   dealId,
+  loanCategory,
   assignedLoanOfficerId,
   assignedProcessorId,
   assignedAssistantId,
@@ -111,8 +112,10 @@ export function LoanCenterTab({
   insuranceNotes,
   titleNotes,
   keyDateEvents,
+  appraisalDocumentFileName,
 }: {
   dealId: string;
+  loanCategory: string;
   assignedLoanOfficerId: string;
   assignedProcessorId: string | null;
   assignedAssistantId: string | null;
@@ -144,6 +147,7 @@ export function LoanCenterTab({
   insuranceNotes: string | null;
   titleNotes: string | null;
   keyDateEvents: KeyDateEvent[];
+  appraisalDocumentFileName: string | null;
 }) {
   return (
     <div className="space-y-4">
@@ -198,12 +202,14 @@ export function LoanCenterTab({
         <TabsContent value="key-dates" className="space-y-4">
           <KeyDateTracker
             dealId={dealId}
+            loanCategory={loanCategory}
             events={keyDateEvents}
             appraisalNotes={appraisalNotes}
             insuranceNotes={insuranceNotes}
             titleNotes={titleNotes}
             insuranceEmail={insuranceAgentEmail}
             titleEmail={titleAgentEmail}
+            appraisalDocumentFileName={appraisalDocumentFileName}
           />
           <OtherDatesSection dealId={dealId} creditPullDate={creditPullDate} driveLink={driveLink} />
         </TabsContent>

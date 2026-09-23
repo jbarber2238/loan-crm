@@ -6,14 +6,12 @@ import { db } from "@/server/db/client";
 import { deals, pricingRequestReplyAttachments, pricingRequests } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { termSheetFieldsFor, type TermSheetField } from "@/lib/term-sheet-fields";
-import { detectImageMediaType } from "@/server/ai/image-media-type";
 import { valueBasisFor } from "@/lib/term-sheet-calculations";
+import { fileToContentBlock } from "@/server/ai/file-content-block";
 
 const anthropic = process.env.ANTHROPIC_API_KEY
   ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   : null;
-
-const SUPPORTED_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]);
 
 // These three are never the lender's numbers to report — they're our own
 // broker-side levers (our origination points/fee, our discretionary rate
@@ -221,24 +219,6 @@ function finalizeOption(
     option: { label: raw.label, fields, foundKeys: Object.keys(fields), notFoundKeys },
     computedNote: notes.length ? `${raw.label}: ${notes.join(" ")}` : null,
   };
-}
-
-function fileToContentBlock(file: {
-  fileName: string;
-  mimeType: string;
-  dataBase64: string;
-}): Anthropic.ContentBlockParam | null {
-  const mime = file.mimeType.toLowerCase();
-  if (mime === "application/pdf") {
-    return { type: "document", source: { type: "base64", media_type: "application/pdf", data: file.dataBase64 } };
-  }
-  if (SUPPORTED_IMAGE_TYPES.has(mime)) {
-    return {
-      type: "image",
-      source: { type: "base64", media_type: detectImageMediaType(file.dataBase64, mime), data: file.dataBase64 },
-    };
-  }
-  return null;
 }
 
 export async function extractTermSheetFromReply({

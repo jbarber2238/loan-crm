@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Calendar, History, Mail, MessageSquare, Trash2 } from "lucide-react";
+import { Calendar, History, Mail, StickyNote, Trash2 } from "lucide-react";
 import {
   addKeyDateEvent,
   deleteKeyDateEvent,
@@ -26,6 +26,7 @@ import { RecipientLine } from "@/components/emails/recipient-line";
 import { SignaturePreview } from "@/components/emails/signature-preview";
 import { HtmlBodyEditor } from "@/components/emails/html-body-editor";
 import type { RecipientCandidate } from "@/lib/email-recipients";
+import { AppraisalDocumentCell } from "@/components/deals/appraisal-document-cell";
 import { cn } from "@/lib/utils";
 
 function todayInputValue() {
@@ -279,7 +280,7 @@ function NotesDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button type="button" size="icon-sm" variant="ghost" title="Notes">
-          <MessageSquare className={notes ? "size-4 text-primary" : "size-4"} />
+          <StickyNote className={notes ? "size-4 text-primary" : "size-4"} />
         </Button>
       </DialogTrigger>
       <DialogContent>
@@ -402,15 +403,19 @@ interface ContactInfo {
 
 export function KeyDateTracker({
   dealId,
+  loanCategory,
   events,
   appraisalNotes,
   insuranceNotes,
   titleNotes,
   insuranceEmail,
   titleEmail,
+  appraisalDocumentFileName,
 }: {
   dealId: string;
+  loanCategory: string;
   events: KeyDateEvent[];
+  appraisalDocumentFileName: string | null;
 } & ContactInfo & {
     appraisalNotes: string | null;
     insuranceNotes: string | null;
@@ -437,6 +442,7 @@ export function KeyDateTracker({
                 <th className="pb-2 pr-3 font-medium">Status</th>
                 <th className="pb-2 pr-3 font-medium">Date</th>
                 <th className="pb-2 pr-3 font-medium"></th>
+                <th className="pb-2 pr-3 font-medium"></th>
                 <th className="pb-2 font-medium"></th>
               </tr>
             </thead>
@@ -452,6 +458,15 @@ export function KeyDateTracker({
                     </td>
                     <td className="py-2.5 pr-3 text-muted-foreground">
                       {latest ? formatDate(latest.eventDate) : "—"}
+                    </td>
+                    <td className="py-2.5 pr-3">
+                      {config.key === "appraisal" && (
+                        <AppraisalDocumentCell
+                          dealId={dealId}
+                          loanCategory={loanCategory}
+                          fileName={appraisalDocumentFileName}
+                        />
+                      )}
                     </td>
                     <td className="py-2.5 pr-3">
                       {config.emailable && (

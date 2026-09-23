@@ -770,6 +770,14 @@ export const deals = pgTable("deals", {
   appraisalNotes: text("appraisal_notes"),
   insuranceNotes: text("insurance_notes"),
   titleNotes: text("title_notes"),
+  // The appraisal report itself, uploaded from the Key Dates tab — one slot
+  // per deal (a re-upload replaces it), stored the same base64-in-Postgres
+  // way as every other small applicant/lender file in this app. Feeds the
+  // AI scan that reads appraisedValue/appraisedArv (and, on a DSCR deal,
+  // market rent) straight off the report instead of retyping it by hand.
+  appraisalDocumentFileName: text("appraisal_document_file_name"),
+  appraisalDocumentMimeType: text("appraisal_document_mime_type"),
+  appraisalDocumentData: text("appraisal_document_data"),
   clientNeedsRemindersPaused: boolean("client_needs_reminders_paused")
     .notNull()
     .default(false),
