@@ -69,20 +69,78 @@ function num(v: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+type DscrTransactionType = "purchase" | "cashOutRefinance";
+
+// What's actually quotable at each LTV, by transaction type — the slider's
+// own min/max (50-85) covers the full range lenders will discuss, but not
+// every point in that range is realistic, and the whole point of showing
+// this is to stop someone from anchoring on an 85% cash-out refi that no
+// lender actually offers.
+function ltvGuidance(pct: number, transactionType: DscrTransactionType): { text: string; warn: boolean } {
+  if (transactionType === "cashOutRefinance") {
+    if (pct >= 85) return { text: "No lender currently offers an 85% LTV cash-out refinance — 75–80% is the realistic ceiling.", warn: true };
+    if (pct >= 80) return { text: "80% is on the high end for a cash-out refinance — fewer lenders offer this than at 75%.", warn: true };
+    return { text: "Most lenders offer up to 75–80% LTV on a cash-out refinance — you're within range.", warn: false };
+  }
+  if (pct >= 85) return { text: "Only a few lenders offer 85% LTV on a purchase — expect tighter credit, reserve, and experience requirements.", warn: true };
+  if (pct >= 80) return { text: "80% is where most lenders cap DSCR purchase leverage.", warn: false };
+  return { text: "Most lenders offer up to 80% LTV on a DSCR purchase — you're well within range.", warn: false };
+}
+
+function TransactionTypeToggle({
+  value,
+  onChange,
+}: {
+  value: DscrTransactionType;
+  onChange: (v: DscrTransactionType) => void;
+}) {
+  const options: { value: DscrTransactionType; label: string }[] = [
+    { value: "purchase", label: "Purchase" },
+    { value: "cashOutRefinance", label: "Cash-Out Refinance" },
+  ];
+  return (
+    <div className="inline-flex rounded-sm border" style={{ borderColor: "rgba(20,61,74,0.2)" }}>
+      {options.map((opt, i) => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(opt.value)}
+          className="px-4 py-2 text-sm font-medium transition-colors"
+          style={{
+            backgroundColor: value === opt.value ? TEAL : "transparent",
+            color: value === opt.value ? "#FAF7F2" : BASALT,
+            borderLeft: i > 0 ? "1px solid rgba(20,61,74,0.2)" : undefined,
+          }}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function DscrCalculator() {
   const [rent, setRent] = useState("");
-  const [loanAmount, setLoanAmount] = useState("");
+  const [propertyValue, setPropertyValue] = useState("");
+  const [transactionType, setTransactionType] = useState<DscrTransactionType>("purchase");
+  // 80% is what most lenders quote as their standard DSCR purchase/cash-out
+  // ceiling — the sensible starting point, with the slider there to show
+  // where 75% and 85% actually stand rather than making someone type a
+  // percentage from scratch.
+  const [ltvPct, setLtvPct] = useState(80);
   const [rate, setRate] = useState("");
   const [term, setTerm] = useState("30");
   const [taxes, setTaxes] = useState("");
   const [insurance, setInsurance] = useState("");
   const [hoa, setHoa] = useState("");
 
-  const monthlyPI = estimatedMonthlyPI(num(loanAmount), num(rate), num(term) || 30);
+  const loanAmount = propertyValue ? num(propertyValue) * (ltvPct / 100) : 0;
+  const monthlyPI = estimatedMonthlyPI(loanAmount, num(rate), num(term) || 30);
   const monthlyPitia = estimatedMonthlyPitia(monthlyPI, num(taxes) || null, num(insurance) || null, num(hoa) || null);
   const dscr = calculateDscrRatio(num(rent) || null, monthlyPitia);
 
-  const hasInputs = loanAmount && rate && rent;
+  const hasInputs = propertyValue && rate && rent;
+  const guidance = ltvGuidance(ltvPct, transactionType);
 
   return (
     <div className="rounded-sm border bg-white p-6 md:p-8" style={{ borderColor: "rgba(20,61,74,0.15)" }}>
@@ -94,15 +152,57 @@ export function DscrCalculator() {
         of 1.0 or higher means the property&apos;s rent covers the debt itself — the core number a DSCR loan
         qualifies against instead of your personal income.
       </p>
+
+      <div className="mt-6">
+        <span className="text-xs font-medium tracking-wide" style={{ color: BASALT }}>
+          Transaction Type
+        </span>
+        <div className="mt-1.5">
+          <TransactionTypeToggle value={transactionType} onChange={setTransactionType} />
+        </div>
+      </div>
+
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Field
+          label={transactionType === "purchase" ? "Purchase Price" : "As-Is Value"}
+          value={propertyValue}
+          onChange={setPropertyValue}
+          placeholder="300,000"
+        />
         <Field label="Monthly Rental Income" value={rent} onChange={setRent} placeholder="2,500" />
-        <Field label="Loan Amount" value={loanAmount} onChange={setLoanAmount} placeholder="300,000" />
         <Field label="Interest Rate" value={rate} onChange={setRate} suffix="%" placeholder="7.5" />
         <Field label="Loan Term" value={term} onChange={setTerm} suffix="years" placeholder="30" />
         <Field label="Annual Taxes" value={taxes} onChange={setTaxes} placeholder="3,600" />
         <Field label="Annual Insurance" value={insurance} onChange={setInsurance} placeholder="1,800" />
         <Field label="Annual HOA (optional)" value={hoa} onChange={setHoa} placeholder="0" />
       </div>
+
+      <div className="mt-6 max-w-xs">
+        <SliderField
+          label="Loan-to-Value (LTV)"
+          value={ltvPct}
+          onChange={setLtvPct}
+          min={50}
+          max={85}
+          caption={guidance.text}
+          captionColor={guidance.warn ? "#B45309" : MOSS}
+        />
+      </div>
+
+      {propertyValue && (
+        <div
+          className="mt-6 flex items-baseline justify-between rounded-sm p-4"
+          style={{ backgroundColor: `${SAND}30` }}
+        >
+          <span className="text-sm font-medium" style={{ color: BASALT }}>
+            Estimated Loan Amount ({ltvPct}% LTV)
+          </span>
+          <span className="text-xl font-medium" style={{ color: TEAL }}>
+            {money(loanAmount)}
+          </span>
+        </div>
+      )}
+
       {hasInputs && (
         <div className="mt-6">
           <ResultRow label="Monthly Principal & Interest" value={money(monthlyPI)} />
@@ -128,6 +228,7 @@ function SliderField({
   min,
   max,
   caption,
+  captionColor = MOSS,
 }: {
   label: string;
   value: number;
@@ -135,6 +236,7 @@ function SliderField({
   min: number;
   max: number;
   caption: string;
+  captionColor?: string;
 }) {
   return (
     <div>
@@ -149,7 +251,7 @@ function SliderField({
       <div className="mt-3 max-w-xs">
         <Slider value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={5} />
       </div>
-      <p className="mt-2 text-xs leading-relaxed" style={{ color: MOSS }}>
+      <p className="mt-2 text-xs leading-relaxed" style={{ color: captionColor }}>
         {caption}
       </p>
     </div>
