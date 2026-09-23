@@ -24,9 +24,10 @@ import {
   RENTAL_STRATEGIES,
 } from "@/lib/labels";
 import { DscrCalculator } from "@/components/deals/dscr-calculator";
+import { HardMoneyCalculator } from "@/components/deals/hard-money-calculator";
 import { CollapseAllButton } from "@/components/deals/collapse-all-button";
 import { AiLenderMatchSection } from "@/components/deals/ai-lender-match-section";
-import { sectionsFor, rehabOrConstructionBudgetLabel } from "@/lib/loan-sections";
+import { sectionsFor, rehabOrConstructionLabel, rehabOrConstructionBudgetLabel } from "@/lib/loan-sections";
 import { conservativeValueBasis } from "@/lib/term-sheet-calculations";
 import type { deals as dealsTable } from "@/server/db/schema";
 import type { ReactNode } from "react";
@@ -72,6 +73,8 @@ const DSCR_CATEGORIES = new Set([
   "dscr_cash_out_refinance",
   "dscr_rate_term_refinance",
 ]);
+
+const HARD_MONEY_DRAW_CATEGORIES = new Set(["fix_and_flip", "new_construction"]);
 
 export function OverviewTab({ deal }: { deal: Deal }) {
   const updateDetails = updateDealDetails.bind(null, deal.id);
@@ -149,6 +152,16 @@ export function OverviewTab({ deal }: { deal: Deal }) {
           annualTaxes={deal.annualTaxes}
           annualInsurance={deal.annualInsurance}
           annualHoa={deal.annualHoa}
+        />
+      )}
+
+      {HARD_MONEY_DRAW_CATEGORIES.has(deal.loanCategory) && (
+        <HardMoneyCalculator
+          purchasePrice={deal.purchasePrice}
+          rehabCost={deal.estimatedRehabCost}
+          arv={deal.estimatedArv}
+          loanAmount={loanAmount}
+          budgetLabel={rehabOrConstructionLabel(deal.loanCategory)}
         />
       )}
 
