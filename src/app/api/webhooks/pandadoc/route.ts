@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { dealClientNeeds, dealClientNeedDocuments, termSheets } from "@/server/db/schema";
-import { verifyWebhookSignature, downloadCompletedDocument } from "@/server/pandadoc";
+import { verifyWebhookSignature, downloadCompletedDocumentWithRetry } from "@/server/pandadoc";
 import { recomputeNeedStatus } from "@/server/client-need-status";
 import { performTermSheetAcceptance } from "@/server/actions/term-sheets";
 
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
 
       if (data.status === "document.completed") {
         try {
-          const pdf = await downloadCompletedDocument(data.id);
+          const pdf = await downloadCompletedDocumentWithRetry(data.id);
           if (pdf) {
             await db.insert(dealClientNeedDocuments).values({
               clientNeedId: need.id,
@@ -85,6 +85,25 @@ export async function POST(request: Request) {
         await performTermSheetAcceptance(termSheet.dealId, termSheet.id);
       } catch (err) {
         console.error(`Failed to auto-accept signed term sheet ${termSheet.id}:`, err);
+      }
+
+      try {
+        // The acceptance above only promotes the structured numbers onto the
+        // deal — this pulls down the actual signed PDF so it's viewable from
+        // the term sheet itself, not just its numbers.
+        const pdf = await downloadCompletedDocumentWithRetry(data.id);
+        if (pdf) {
+          await db
+            .update(termSheets)
+            .set({
+              signedDocumentFileName: "Signed Term Sheet.pdf",
+              signedDocumentMimeType: "application/pdf",
+              signedDocumentData: pdf.toString("base64"),
+            })
+            .where(eq(termSheets.id, termSheet.id));
+        }
+      } catch (err) {
+        console.error(`Failed to download signed document for term sheet ${termSheet.id}:`, err);
       }
     }
   }

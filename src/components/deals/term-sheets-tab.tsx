@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import {
   cloneTermSheet,
@@ -42,6 +43,7 @@ interface TermSheet {
   createdAt: Date;
   pandadocStatus: string | null;
   sentForReviewAt: Date | null;
+  signedDocumentFileName: string | null;
   lender: { name: string };
   product: { name: string; category: string };
 }
@@ -353,6 +355,166 @@ function BookACallDialog({
   );
 }
 
+function TermSheetCard({
+  dealId,
+  termSheet,
+  isAdmin,
+  hasBorrowerEmail,
+  purchasePrice,
+  estimatedAsIsValue,
+  onChanged,
+}: {
+  dealId: string;
+  termSheet: TermSheet;
+  isAdmin: boolean;
+  hasBorrowerEmail: boolean;
+  purchasePrice: number | null;
+  estimatedAsIsValue: number | null;
+  onChanged: () => void;
+}) {
+  const generate = generateTermSheet.bind(null, dealId, termSheet.id);
+  const sendForSignature = sendTermSheetForSignature.bind(null, dealId, termSheet.id);
+  const updateFields = updateTermSheetFields.bind(null, dealId, termSheet.id);
+  const clone = cloneTermSheet.bind(null, dealId, termSheet.id);
+  const deleteThisTermSheet = deleteTermSheet.bind(null, dealId, termSheet.id);
+  const fieldDefs = [...termSheetFieldsFor(termSheet.product.category), ...(isAdmin ? ADMIN_ONLY_FIELDS : [])];
+  const display = termSheetDisplayStatus(termSheet);
+  const summary = termSheetSummary(termSheet.product.category, termSheet.fields, purchasePrice, estimatedAsIsValue);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle className="text-base">
+          {termSheet.lender.name} — {termSheet.product.name}
+          {summary && <span className="text-muted-foreground font-normal"> — {summary}</span>}
+        </CardTitle>
+        <Badge variant={display.variant}>{display.label}</Badge>
+      </CardHeader>
+      <CardContent className="flex flex-wrap items-center gap-2">
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm">
+              Edit fields
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>Edit term sheet fields</DialogTitle>
+            </DialogHeader>
+            <ActionForm action={updateFields} successMessage="Term sheet saved" className="space-y-4">
+              <TermSheetFieldInputs
+                fields={fieldDefs}
+                values={termSheet.fields}
+                category={termSheet.product.category}
+                purchasePrice={purchasePrice}
+                estimatedAsIsValue={estimatedAsIsValue}
+              />
+              <SubmitButton className="w-full">Save</SubmitButton>
+            </ActionForm>
+          </DialogContent>
+        </Dialog>
+
+        <ActionForm action={clone} successMessage="Cloned as a new draft — edit fields and generate its PDF" onSuccess={onChanged}>
+          <SubmitButton variant="outline" size="sm">
+            Clone
+          </SubmitButton>
+        </ActionForm>
+
+        {termSheet.status === "draft" && (
+          <ActionForm action={generate} successMessage="PDF generated">
+            <SubmitButton size="sm">Generate PDF</SubmitButton>
+          </ActionForm>
+        )}
+
+        {termSheet.pdfUrl && (
+          <a href={termSheet.pdfUrl} target="_blank" rel="noreferrer">
+            <Button type="button" variant="secondary" size="sm">
+              View PDF
+            </Button>
+          </a>
+        )}
+
+        {termSheet.signedDocumentFileName && (
+          <a href={`/api/term-sheets/${termSheet.id}/signed-document`} target="_blank" rel="noreferrer">
+            <Button type="button" variant="secondary" size="sm">
+              View Signed Document
+            </Button>
+          </a>
+        )}
+
+        {termSheet.status !== "accepted" && termSheet.status !== "draft" && (
+          <ActionForm action={sendForSignature} successMessage="Sent to the borrower for signature">
+            <SubmitButton size="sm" variant="default" disabled={!hasBorrowerEmail}>
+              Send for Signature
+            </SubmitButton>
+          </ActionForm>
+        )}
+
+        {termSheet.status !== "accepted" && (
+          <ActionForm
+            action={deleteThisTermSheet}
+            successMessage="Term sheet deleted"
+            confirmMessage="Are you sure you want to delete this term sheet? This can't be undone."
+          >
+            <SubmitButton size="sm" variant="ghost">
+              Delete
+            </SubmitButton>
+          </ActionForm>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Once one term sheet on a deal is accepted, every other one it was ever
+// compared against (drafts, ones sent for review, ones never signed) is
+// past decisions, not live options — collapsing them keeps the accepted
+// term sheet the obvious focus without losing access to the rest (still
+// editable, cloneable into a fresh term sheet if the borrower changes
+// their mind, per Justin's own framing of "convert them over").
+function ArchivedTermSheetsSection({
+  termSheets,
+  dealId,
+  isAdmin,
+  hasBorrowerEmail,
+  purchasePrice,
+  estimatedAsIsValue,
+  onChanged,
+}: {
+  termSheets: TermSheet[];
+  dealId: string;
+  isAdmin: boolean;
+  hasBorrowerEmail: boolean;
+  purchasePrice: number | null;
+  estimatedAsIsValue: number | null;
+  onChanged: () => void;
+}) {
+  if (termSheets.length === 0) return null;
+
+  return (
+    <details className="group rounded-lg border">
+      <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+        Archived Term Sheets ({termSheets.length})
+        <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="space-y-3 border-t p-4">
+        {termSheets.map((termSheet) => (
+          <TermSheetCard
+            key={termSheet.id}
+            dealId={dealId}
+            termSheet={termSheet}
+            isAdmin={isAdmin}
+            hasBorrowerEmail={hasBorrowerEmail}
+            purchasePrice={purchasePrice}
+            estimatedAsIsValue={estimatedAsIsValue}
+            onChanged={onChanged}
+          />
+        ))}
+      </div>
+    </details>
+  );
+}
+
 export function TermSheetsTab({
   dealId,
   termSheets,
@@ -376,6 +538,9 @@ export function TermSheetsTab({
 }) {
   const router = useRouter();
   const shareable = termSheets.filter((t) => t.status !== "draft");
+  const acceptedTermSheet = termSheets.find((t) => t.status === "accepted");
+  const visibleTermSheets = acceptedTermSheet ? [acceptedTermSheet] : termSheets;
+  const archivedTermSheets = acceptedTermSheet ? termSheets.filter((t) => t.id !== acceptedTermSheet.id) : [];
 
   return (
     <div className="space-y-4">
@@ -412,102 +577,30 @@ export function TermSheetsTab({
       </div>
 
       <div className="space-y-3">
-        {termSheets.map((termSheet) => {
-          const generate = generateTermSheet.bind(null, dealId, termSheet.id);
-          const sendForSignature = sendTermSheetForSignature.bind(null, dealId, termSheet.id);
-          const updateFields = updateTermSheetFields.bind(null, dealId, termSheet.id);
-          const clone = cloneTermSheet.bind(null, dealId, termSheet.id);
-          const deleteThisTermSheet = deleteTermSheet.bind(null, dealId, termSheet.id);
-          const fieldDefs = [
-            ...termSheetFieldsFor(termSheet.product.category),
-            ...(isAdmin ? ADMIN_ONLY_FIELDS : []),
-          ];
-          const display = termSheetDisplayStatus(termSheet);
-          const summary = termSheetSummary(termSheet.product.category, termSheet.fields, purchasePrice, estimatedAsIsValue);
-
-          return (
-            <Card key={termSheet.id}>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="text-base">
-                  {termSheet.lender.name} — {termSheet.product.name}
-                  {summary && <span className="text-muted-foreground font-normal"> — {summary}</span>}
-                </CardTitle>
-                <Badge variant={display.variant}>{display.label}</Badge>
-              </CardHeader>
-              <CardContent className="flex flex-wrap items-center gap-2">
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      Edit fields
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
-                    <DialogHeader>
-                      <DialogTitle>Edit term sheet fields</DialogTitle>
-                    </DialogHeader>
-                    <ActionForm action={updateFields} successMessage="Term sheet saved" className="space-y-4">
-                      <TermSheetFieldInputs
-                        fields={fieldDefs}
-                        values={termSheet.fields}
-                        category={termSheet.product.category}
-                        purchasePrice={purchasePrice}
-                        estimatedAsIsValue={estimatedAsIsValue}
-                      />
-                      <SubmitButton className="w-full">Save</SubmitButton>
-                    </ActionForm>
-                  </DialogContent>
-                </Dialog>
-
-                <ActionForm
-                  action={clone}
-                  successMessage="Cloned as a new draft — edit fields and generate its PDF"
-                  onSuccess={() => router.refresh()}
-                >
-                  <SubmitButton variant="outline" size="sm">
-                    Clone
-                  </SubmitButton>
-                </ActionForm>
-
-                {termSheet.status === "draft" && (
-                  <ActionForm action={generate} successMessage="PDF generated">
-                    <SubmitButton size="sm">Generate PDF</SubmitButton>
-                  </ActionForm>
-                )}
-
-                {termSheet.pdfUrl && (
-                  <a href={termSheet.pdfUrl} target="_blank" rel="noreferrer">
-                    <Button type="button" variant="secondary" size="sm">
-                      View PDF
-                    </Button>
-                  </a>
-                )}
-
-                {termSheet.status !== "accepted" && termSheet.status !== "draft" && (
-                  <ActionForm action={sendForSignature} successMessage="Sent to the borrower for signature">
-                    <SubmitButton size="sm" variant="default" disabled={!hasBorrowerEmail}>
-                      Send for Signature
-                    </SubmitButton>
-                  </ActionForm>
-                )}
-
-                {termSheet.status !== "accepted" && (
-                  <ActionForm
-                    action={deleteThisTermSheet}
-                    successMessage="Term sheet deleted"
-                    confirmMessage="Are you sure you want to delete this term sheet? This can't be undone."
-                  >
-                    <SubmitButton size="sm" variant="ghost">
-                      Delete
-                    </SubmitButton>
-                  </ActionForm>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
+        {visibleTermSheets.map((termSheet) => (
+          <TermSheetCard
+            key={termSheet.id}
+            dealId={dealId}
+            termSheet={termSheet}
+            isAdmin={isAdmin}
+            hasBorrowerEmail={hasBorrowerEmail}
+            purchasePrice={purchasePrice}
+            estimatedAsIsValue={estimatedAsIsValue}
+            onChanged={() => router.refresh()}
+          />
+        ))}
         {termSheets.length === 0 && (
           <p className="text-sm text-muted-foreground">No term sheets yet.</p>
         )}
+        <ArchivedTermSheetsSection
+          termSheets={archivedTermSheets}
+          dealId={dealId}
+          isAdmin={isAdmin}
+          hasBorrowerEmail={hasBorrowerEmail}
+          purchasePrice={purchasePrice}
+          estimatedAsIsValue={estimatedAsIsValue}
+          onChanged={() => router.refresh()}
+        />
       </div>
     </div>
   );

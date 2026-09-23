@@ -216,6 +216,27 @@ export async function downloadCompletedDocument(documentId: string): Promise<Buf
 }
 
 /**
+ * A webhook's document.completed event can arrive a few seconds before the
+ * final PDF has actually finished assembling on PandaDoc's side — confirmed
+ * in practice, not just theoretical: a real signed document returned 202
+ * (not ready) on the very first attempt right after its completed webhook
+ * fired, then downloaded fine moments later. Retries a handful of times
+ * with a short delay before giving up, rather than requiring a manual
+ * re-pull for what's usually just a brief assembly delay.
+ */
+export async function downloadCompletedDocumentWithRetry(
+  documentId: string,
+  { maxAttempts = 4, delayMs = 3000 } = {}
+): Promise<Buffer | null> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const pdf = await downloadCompletedDocument(documentId);
+    if (pdf) return pdf;
+    if (attempt < maxAttempts - 1) await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return null;
+}
+
+/**
  * Verifies an incoming webhook really came from PandaDoc — HMAC-SHA256 over
  * the raw request body using the shared key from the webhook subscription,
  * compared with a timing-safe check so this can't leak the expected value

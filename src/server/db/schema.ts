@@ -1167,6 +1167,14 @@ export const termSheets = pgTable("term_sheets", {
   // pipeline a client-need upload does.
   pandadocDocumentId: text("pandadoc_document_id"),
   pandadocStatus: text("pandadoc_status"),
+  // The actual signed PDF, pulled down via the PandaDoc API once the webhook
+  // reports document.completed (see src/app/api/webhooks/pandadoc/route.ts)
+  // — separate from the acceptance/field-promotion that already happens
+  // automatically, since until now only the structured numbers came back,
+  // never the signed document itself.
+  signedDocumentFileName: text("signed_document_file_name"),
+  signedDocumentMimeType: text("signed_document_mime_type"),
+  signedDocumentData: text("signed_document_data"),
   createdBy: uuid("created_by")
     .notNull()
     .references(() => users.id),
