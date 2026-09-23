@@ -101,6 +101,16 @@ export default function PrivacyPolicyPage() {
               <li>Professional advisors (such as accountants or attorneys) or regulators, when required by law</li>
             </ul>
             <p>We do not share your information with unrelated third parties for their own marketing purposes.</p>
+            <p>
+              <strong>SMS/text messaging:</strong> if you provide your phone number and opt in to receive text
+              messages from us about your deal, we use that number solely to communicate with you about the deal
+              you submitted. We do not sell or share your SMS opt-in data or personal information with third
+              parties for marketing purposes. See our{" "}
+              <a href="/terms" className="underline" style={{ color: TEAL }}>
+                Terms &amp; Conditions
+              </a>{" "}
+              for our full SMS terms, including how to opt out.
+            </p>
           </Section>
 
           <Section title="Google user data">
