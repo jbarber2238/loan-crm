@@ -112,8 +112,9 @@ export function BrandedIntakeForm({
               <Checkbox name="marketingConsent" className="mt-0.5" />
               <span>
                 By checking this box, I consent to receive emails and text messages from Manna Lending regarding
-                my service request and marketing and promotional messages, including special offers, discounts,
-                and product updates.
+                my service request — including updates on my loan application, requests for documents, and
+                answers to questions I&apos;ve asked. Message and data rates may apply. Reply STOP to opt out at
+                any time.
               </span>
             </label>
             <SubmitButton
