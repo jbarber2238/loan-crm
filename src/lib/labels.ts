@@ -25,6 +25,15 @@ export const LOAN_CATEGORIES = [
   { value: "portfolio", label: "Portfolio" },
 ] as const;
 
+// The two categories a fix-and-flip/new-construction deal can convert into
+// via the DSCR refinance intake link (see src/server/actions/deal-conversion.ts)
+// — a subset of LOAN_CATEGORIES, kept here rather than in that "use server"
+// file since a server-actions file can only export async functions.
+export const DSCR_REFI_TARGET_CATEGORIES = [
+  { value: "dscr_cash_out_refinance", label: "DSCR Cash-Out Refinance" },
+  { value: "dscr_rate_term_refinance", label: "DSCR Rate & Term Refinance" },
+] as const;
+
 export const BASE_ROLES = [
   { value: "loan_officer", label: "Loan Officer" },
   { value: "loan_officer_assistant", label: "Loan Officer Assistant" },

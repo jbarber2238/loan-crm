@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { cn } from "cn";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,6 +24,20 @@ import {
   RESIDENTIAL_PROPERTY_TYPES,
 } from "@/lib/labels";
 import { sectionsFor, rehabOrConstructionLabel } from "@/lib/loan-sections";
+
+// A carried-over field (from src/server/actions/deal-conversion.ts's DSCR
+// refinance intake) gets a visibly different treatment than a blank
+// required one — amber, not red, since it's already answered and just
+// needs confirming rather than demanding fresh input.
+function reviewFieldClass(highlighted: boolean) {
+  return cn(
+    highlighted && "-m-2 rounded-md border border-amber-300 bg-amber-50 p-2 dark:border-amber-800 dark:bg-amber-950/30"
+  );
+}
+
+function ReviewNote() {
+  return <p className="text-xs font-medium text-amber-700 dark:text-amber-500">Carried over — please confirm.</p>;
+}
 
 // Every field in this form is required unless its own label says
 // "(optional)" — this marks the required ones so that's visible at a
@@ -184,8 +199,30 @@ function PortfolioPropertyBlock({ index }: { index: number }) {
   );
 }
 
-export function IntakeFormFields({ defaultBorrowerPhone }: { defaultBorrowerPhone?: string } = {}) {
-  const [category, setCategory] = useState("");
+export function IntakeFormFields({
+  defaultBorrowerPhone,
+  defaultCategory,
+  defaultValues,
+  highlightNames,
+  categoryOptions,
+}: {
+  defaultBorrowerPhone?: string;
+  // Pre-selects and locks in the conditional sections for a category the
+  // caller already knows (e.g. a DSCR refinance conversion) — the borrower
+  // still sees the Loan Type select, just restricted via categoryOptions
+  // below rather than able to wander into an unrelated category.
+  defaultCategory?: string;
+  // Keyed by each field's own `name` — e.g. defaultValues.firstName — for
+  // pre-populating a field from data collected on an earlier, related deal.
+  defaultValues?: Record<string, string | undefined>;
+  // Field names present here render with the amber "please confirm"
+  // treatment instead of the plain required-field look.
+  highlightNames?: Set<string>;
+  // Restricts the Loan Type dropdown to a specific subset (e.g. just the
+  // two DSCR refinance categories) instead of the full LOAN_CATEGORIES list.
+  categoryOptions?: readonly { value: string; label: string }[];
+} = {}) {
+  const [category, setCategory] = useState(defaultCategory ?? "");
   const [fixFlipOwned, setFixFlipOwned] = useState(false);
   const [constructionOwnsLand, setConstructionOwnsLand] = useState(false);
   const [didCashOutRehab, setDidCashOutRehab] = useState(false);
@@ -193,6 +230,8 @@ export function IntakeFormFields({ defaultBorrowerPhone }: { defaultBorrowerPhon
   const [portfolioCount, setPortfolioCount] = useState<number | null>(null);
 
   const s = useMemo(() => sectionsFor(category), [category]);
+  const dv = (name: string) => defaultValues?.[name];
+  const hl = (name: string) => highlightNames?.has(name) ?? false;
 
   let sectionNum = 0;
   const nextSection = () => ++sectionNum;
@@ -209,7 +248,7 @@ export function IntakeFormFields({ defaultBorrowerPhone }: { defaultBorrowerPhon
             <SelectValue placeholder="Select a loan type" />
           </SelectTrigger>
           <SelectContent>
-            {LOAN_CATEGORIES.map((cat) => (
+            {(categoryOptions ?? LOAN_CATEGORIES).map((cat) => (
               <SelectItem key={cat.value} value={cat.value}>
                 {cat.label}
               </SelectItem>
@@ -228,46 +267,57 @@ export function IntakeFormFields({ defaultBorrowerPhone }: { defaultBorrowerPhon
           <section className="space-y-4">
             <SectionHeading number={nextSection()} title="Borrower" />
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-1.5">
+              <div className={cn("space-y-1.5", reviewFieldClass(hl("borrowerEntityName")))}>
                 <Label htmlFor="borrowerEntityName">
                   Entity Name
                   <Req />
                 </Label>
-                <Input id="borrowerEntityName" name="borrowerEntityName" required />
+                <Input id="borrowerEntityName" name="borrowerEntityName" defaultValue={dv("borrowerEntityName")} required />
                 <p className="text-xs text-muted-foreground">
                   Most loans must close in an entity (LLC, Corp, etc.) — only some lenders allow
                   closing in a personal name, and that&apos;s the exception, not the norm. If your
                   entity isn&apos;t set up yet, enter &quot;TBD&quot; — you can confirm it later.
                 </p>
+                {hl("borrowerEntityName") && <ReviewNote />}
               </div>
               <div />
-              <div className="space-y-1.5">
+              <div className={cn("space-y-1.5", reviewFieldClass(hl("firstName")))}>
                 <Label htmlFor="firstName">
                   First Name
                   <Req />
                 </Label>
-                <Input id="firstName" name="firstName" required />
+                <Input id="firstName" name="firstName" defaultValue={dv("firstName")} required />
+                {hl("firstName") && <ReviewNote />}
               </div>
-              <div className="space-y-1.5">
+              <div className={cn("space-y-1.5", reviewFieldClass(hl("lastName")))}>
                 <Label htmlFor="lastName">
                   Last Name
                   <Req />
                 </Label>
-                <Input id="lastName" name="lastName" required />
+                <Input id="lastName" name="lastName" defaultValue={dv("lastName")} required />
+                {hl("lastName") && <ReviewNote />}
               </div>
-              <div className="space-y-1.5">
+              <div className={cn("space-y-1.5", reviewFieldClass(hl("borrowerPhone")))}>
                 <Label htmlFor="borrowerPhone">
                   Phone
                   <Req />
                 </Label>
-                <Input id="borrowerPhone" name="borrowerPhone" type="tel" defaultValue={defaultBorrowerPhone} required />
+                <Input
+                  id="borrowerPhone"
+                  name="borrowerPhone"
+                  type="tel"
+                  defaultValue={dv("borrowerPhone") ?? defaultBorrowerPhone}
+                  required
+                />
+                {hl("borrowerPhone") && <ReviewNote />}
               </div>
-              <div className="space-y-1.5">
+              <div className={cn("space-y-1.5", reviewFieldClass(hl("borrowerEmail")))}>
                 <Label htmlFor="borrowerEmail">
                   Email
                   <Req />
                 </Label>
-                <Input id="borrowerEmail" name="borrowerEmail" type="email" required />
+                <Input id="borrowerEmail" name="borrowerEmail" type="email" defaultValue={dv("borrowerEmail")} required />
+                {hl("borrowerEmail") && <ReviewNote />}
               </div>
             </div>
           </section>
@@ -293,20 +343,21 @@ export function IntakeFormFields({ defaultBorrowerPhone }: { defaultBorrowerPhon
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
+              <div className={cn("space-y-1.5", reviewFieldClass(hl("estimatedFico")))}>
                 <Label htmlFor="estimatedFico">
                   Estimated FICO
                   <Req />
                 </Label>
-                <Input id="estimatedFico" name="estimatedFico" type="number" required />
+                <Input id="estimatedFico" name="estimatedFico" type="number" defaultValue={dv("estimatedFico")} required />
+                {hl("estimatedFico") && <ReviewNote />}
               </div>
               {!s.isPortfolio && (
-                <div className="space-y-1.5">
+                <div className={cn("space-y-1.5", reviewFieldClass(hl("propertyType")))}>
                   <Label htmlFor="propertyType">
                     Property Type
                     <Req />
                   </Label>
-                  <Select name="propertyType" required>
+                  <Select name="propertyType" defaultValue={dv("propertyType")} required>
                     <SelectTrigger id="propertyType" className="w-full">
                       <SelectValue placeholder="Select" />
                     </SelectTrigger>
@@ -318,15 +369,17 @@ export function IntakeFormFields({ defaultBorrowerPhone }: { defaultBorrowerPhon
                       ))}
                     </SelectContent>
                   </Select>
+                  {hl("propertyType") && <ReviewNote />}
                 </div>
               )}
               {!s.isPortfolio && (
-                <div className="space-y-1.5">
+                <div className={cn("space-y-1.5", reviewFieldClass(hl("unitCount")))}>
                   <Label htmlFor="unitCount">
                     Unit Count
                     <Req />
                   </Label>
-                  <Input id="unitCount" name="unitCount" type="number" required />
+                  <Input id="unitCount" name="unitCount" type="number" defaultValue={dv("unitCount")} required />
+                  {hl("unitCount") && <ReviewNote />}
                 </div>
               )}
               <div className="space-y-1.5">
@@ -336,13 +389,14 @@ export function IntakeFormFields({ defaultBorrowerPhone }: { defaultBorrowerPhon
                 </Label>
                 <Input id="requestedLoanAmount" name="requestedLoanAmount" type="number" required />
               </div>
-              <div className="space-y-1.5">
+              <div className={cn("space-y-1.5", reviewFieldClass(hl("borrowerLiquidity")))}>
                 <Label htmlFor="borrowerLiquidity">
                   Borrower&apos;s Liquidity
                   <Req />
                 </Label>
-                <Input id="borrowerLiquidity" name="borrowerLiquidity" type="number" required />
+                <Input id="borrowerLiquidity" name="borrowerLiquidity" type="number" defaultValue={dv("borrowerLiquidity")} required />
                 <p className="text-xs text-muted-foreground">How much capital do you have access to?</p>
+                {hl("borrowerLiquidity") && <ReviewNote />}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="estimatedClosingDate">Estimated Closing Date (optional)</Label>
@@ -360,17 +414,26 @@ export function IntakeFormFields({ defaultBorrowerPhone }: { defaultBorrowerPhon
                 pricing depends on having an answer for all three.
               </p>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <div className="space-y-1.5">
+                <div className={cn("space-y-1.5", reviewFieldClass(hl("numFlips")))}>
                   <Label htmlFor="numFlips"># of Flips</Label>
-                  <Input id="numFlips" name="numFlips" type="number" required />
+                  <Input id="numFlips" name="numFlips" type="number" defaultValue={dv("numFlips")} required />
+                  {hl("numFlips") && <ReviewNote />}
                 </div>
-                <div className="space-y-1.5">
+                <div className={cn("space-y-1.5", reviewFieldClass(hl("numRentals")))}>
                   <Label htmlFor="numRentals"># of Rentals</Label>
-                  <Input id="numRentals" name="numRentals" type="number" required />
+                  <Input id="numRentals" name="numRentals" type="number" defaultValue={dv("numRentals")} required />
+                  {hl("numRentals") && <ReviewNote />}
                 </div>
-                <div className="space-y-1.5">
+                <div className={cn("space-y-1.5", reviewFieldClass(hl("numNewConstruction")))}>
                   <Label htmlFor="numNewConstruction"># of New Construction</Label>
-                  <Input id="numNewConstruction" name="numNewConstruction" type="number" required />
+                  <Input
+                    id="numNewConstruction"
+                    name="numNewConstruction"
+                    type="number"
+                    defaultValue={dv("numNewConstruction")}
+                    required
+                  />
+                  {hl("numNewConstruction") && <ReviewNote />}
                 </div>
               </div>
             </div>
@@ -416,42 +479,46 @@ export function IntakeFormFields({ defaultBorrowerPhone }: { defaultBorrowerPhon
                     </p>
                   </div>
                 ) : (
-                  <div className="md:col-span-2 space-y-1.5">
+                  <div className={cn("md:col-span-2 space-y-1.5", reviewFieldClass(hl("streetAddress")))}>
                     <Label htmlFor="streetAddress">
                       Street Address
                       <Req />
                     </Label>
-                    <Input id="streetAddress" name="streetAddress" required />
+                    <Input id="streetAddress" name="streetAddress" defaultValue={dv("streetAddress")} required />
+                    {hl("streetAddress") && <ReviewNote />}
                   </div>
                 )}
-                <div className="space-y-1.5">
+                <div className={cn("space-y-1.5", reviewFieldClass(hl("city")))}>
                   <Label htmlFor="city">
                     City
                     <Req />
                   </Label>
-                  <Input id="city" name="city" required />
+                  <Input id="city" name="city" defaultValue={dv("city")} required />
+                  {hl("city") && <ReviewNote />}
                 </div>
-                <div className="space-y-1.5">
+                <div className={cn("space-y-1.5", reviewFieldClass(hl("state")))}>
                   <Label htmlFor="state">
                     State
                     <Req />
                   </Label>
-                  <Input id="state" name="state" required />
+                  <Input id="state" name="state" defaultValue={dv("state")} required />
+                  {hl("state") && <ReviewNote />}
                 </div>
-                <div className="space-y-1.5">
+                <div className={cn("space-y-1.5", reviewFieldClass(hl("postalCode")))}>
                   <Label htmlFor="postalCode">
                     Postal Code
                     <Req />
                   </Label>
-                  <Input id="postalCode" name="postalCode" required />
+                  <Input id="postalCode" name="postalCode" defaultValue={dv("postalCode")} required />
+                  {hl("postalCode") && <ReviewNote />}
                 </div>
               </div>
-              <div className="space-y-1.5">
+              <div className={cn("space-y-1.5", reviewFieldClass(hl("rural")))}>
                 <Label htmlFor="rural">
                   Rural Property? Yes or No
                   <Req />
                 </Label>
-                <Select name="rural" required>
+                <Select name="rural" defaultValue={dv("rural")} required>
                   <SelectTrigger id="rural" className="w-full">
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
@@ -460,6 +527,7 @@ export function IntakeFormFields({ defaultBorrowerPhone }: { defaultBorrowerPhon
                     <SelectItem value="no">No</SelectItem>
                   </SelectContent>
                 </Select>
+                {hl("rural") && <ReviewNote />}
               </div>
             </section>
           )}
@@ -493,23 +561,31 @@ export function IntakeFormFields({ defaultBorrowerPhone }: { defaultBorrowerPhon
               {((s.showFixFlipOwnership && fixFlipOwned) ||
                 (s.showConstructionLandOwnership && constructionOwnsLand) ||
                 s.showRefinanceFields) && (
-                <div className="space-y-1.5 max-w-xs">
+                <div className={cn("space-y-1.5 max-w-xs", reviewFieldClass(hl("propertyPurchaseDate")))}>
                   <Label htmlFor="propertyPurchaseDate">
                     {s.showConstructionLandOwnership ? "When did you purchase the land?" : "When did you purchase the property?"}
                     <Req />
                   </Label>
-                  <Input id="propertyPurchaseDate" name="propertyPurchaseDate" type="date" required />
+                  <Input
+                    id="propertyPurchaseDate"
+                    name="propertyPurchaseDate"
+                    type="date"
+                    defaultValue={dv("propertyPurchaseDate")}
+                    required
+                  />
+                  {hl("propertyPurchaseDate") && <ReviewNote />}
                 </div>
               )}
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 {s.showPurchasePrice && (
-                  <div className="space-y-1.5">
+                  <div className={cn("space-y-1.5", reviewFieldClass(hl("purchasePrice")))}>
                     <Label htmlFor="purchasePrice">
                       {s.showConstructionLandOwnership ? "Land Purchase Price" : "Purchase Price"}
                       <Req />
                     </Label>
-                    <Input id="purchasePrice" name="purchasePrice" type="number" required />
+                    <Input id="purchasePrice" name="purchasePrice" type="number" defaultValue={dv("purchasePrice")} required />
+                    {hl("purchasePrice") && <ReviewNote />}
                   </div>
                 )}
                 <div className="space-y-1.5">
@@ -737,12 +813,12 @@ export function IntakeFormFields({ defaultBorrowerPhone }: { defaultBorrowerPhon
           <section className="space-y-4">
             <SectionHeading number={nextSection()} title="Background" />
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-1.5">
+              <div className={cn("space-y-1.5", reviewFieldClass(hl("maritalStatus")))}>
                 <Label htmlFor="maritalStatus">
                   Borrower&apos;s Marital Status
                   <Req />
                 </Label>
-                <Select name="maritalStatus" required>
+                <Select name="maritalStatus" defaultValue={dv("maritalStatus")} required>
                   <SelectTrigger id="maritalStatus" className="w-full">
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
@@ -754,13 +830,14 @@ export function IntakeFormFields({ defaultBorrowerPhone }: { defaultBorrowerPhon
                     ))}
                   </SelectContent>
                 </Select>
+                {hl("maritalStatus") && <ReviewNote />}
               </div>
-              <div className="space-y-1.5">
+              <div className={cn("space-y-1.5", reviewFieldClass(hl("citizenship")))}>
                 <Label htmlFor="citizenship">
                   Citizenship
                   <Req />
                 </Label>
-                <Select name="citizenship" required>
+                <Select name="citizenship" defaultValue={dv("citizenship")} required>
                   <SelectTrigger id="citizenship" className="w-full">
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
@@ -772,15 +849,16 @@ export function IntakeFormFields({ defaultBorrowerPhone }: { defaultBorrowerPhon
                     ))}
                   </SelectContent>
                 </Select>
+                {hl("citizenship") && <ReviewNote />}
               </div>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-1.5">
+              <div className={cn("space-y-1.5", reviewFieldClass(hl("mortgageLatesLast12mo")))}>
                 <Label htmlFor="mortgageLatesLast12mo">
                   Do you have any mortgage lates on any properties you own in the last 12 months?
                   <Req />
                 </Label>
-                <Select name="mortgageLatesLast12mo" required>
+                <Select name="mortgageLatesLast12mo" defaultValue={dv("mortgageLatesLast12mo")} required>
                   <SelectTrigger id="mortgageLatesLast12mo" className="w-full">
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
@@ -789,13 +867,14 @@ export function IntakeFormFields({ defaultBorrowerPhone }: { defaultBorrowerPhon
                     <SelectItem value="no">No</SelectItem>
                   </SelectContent>
                 </Select>
+                {hl("mortgageLatesLast12mo") && <ReviewNote />}
               </div>
-              <div className="space-y-1.5">
+              <div className={cn("space-y-1.5", reviewFieldClass(hl("taxLiensBkForeclosureLast24mo")))}>
                 <Label htmlFor="taxLiensBkForeclosureLast24mo">
                   Do you have any possible tax liens, bankruptcy, or foreclosure in the last 24 months?
                   <Req />
                 </Label>
-                <Select name="taxLiensBkForeclosureLast24mo" required>
+                <Select name="taxLiensBkForeclosureLast24mo" defaultValue={dv("taxLiensBkForeclosureLast24mo")} required>
                   <SelectTrigger id="taxLiensBkForeclosureLast24mo" className="w-full">
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
@@ -804,11 +883,13 @@ export function IntakeFormFields({ defaultBorrowerPhone }: { defaultBorrowerPhon
                     <SelectItem value="no">No</SelectItem>
                   </SelectContent>
                 </Select>
+                {hl("taxLiensBkForeclosureLast24mo") && <ReviewNote />}
               </div>
             </div>
-            <div className="space-y-1.5">
+            <div className={cn("space-y-1.5", reviewFieldClass(hl("source")))}>
               <Label htmlFor="source">Who Referred You? (optional)</Label>
-              <Input id="source" name="source" />
+              <Input id="source" name="source" defaultValue={dv("source")} />
+              {hl("source") && <ReviewNote />}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="additionalNotes">Additional notes for us? (optional)</Label>

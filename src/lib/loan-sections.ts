@@ -79,3 +79,7 @@ const INTEREST_ONLY_CATEGORIES = new Set(["fix_and_flip", "new_construction", "b
 export function isInterestOnlyCategory(category: string): boolean {
   return INTEREST_ONLY_CATEGORIES.has(category);
 }
+
+// Only these two have a "project just finished" moment that makes a DSCR
+// refinance conversion meaningful — see src/server/actions/deal-conversion.ts.
+export const CONVERTIBLE_TO_DSCR_REFI_CATEGORIES = new Set(["fix_and_flip", "new_construction"]);

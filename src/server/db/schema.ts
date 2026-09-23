@@ -916,6 +916,28 @@ export const dealPortfolioProperties = pgTable("deal_portfolio_properties", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
+// Drives the public, unauthenticated /dscr-refi/[token] page — sent to a
+// fix-and-flip/new-construction borrower once their project is done and
+// they want to refinance into a DSCR loan, so they only have to confirm the
+// borrower/property info that hasn't changed and fill in the handful of
+// fields that are genuinely new (current value, rent, taxes, which kind of
+// refinance). See src/server/actions/deal-conversion.ts.
+export const dealConversionLinks = pgTable("deal_conversion_links", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  token: text("token").notNull().unique(),
+  sourceDealId: uuid("source_deal_id")
+    .notNull()
+    .references(() => deals.id, { onDelete: "cascade" }),
+  createdByUserId: uuid("created_by_user_id")
+    .notNull()
+    .references(() => users.id),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  // Set once the borrower submits — a used link's page shows "already
+  // submitted" instead of the form, and can never create a second deal.
+  usedAt: timestamp("used_at", { mode: "date", withTimezone: true }),
+  resultingDealId: uuid("resulting_deal_id").references(() => deals.id),
+});
+
 export const dealStageHistory = pgTable("deal_stage_history", {
   id: uuid("id").primaryKey().defaultRandom(),
   dealId: uuid("deal_id")

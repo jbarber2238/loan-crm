@@ -6,6 +6,7 @@ import { IntroButtons } from "@/components/deals/intro-buttons";
 import { StageSelect } from "@/components/deals/stage-select";
 import { DealActionsMenu } from "@/components/deals/deal-actions-menu";
 import { CloneDealDialog } from "@/components/deals/clone-deal-dialog";
+import { DscrConversionLinkDialog } from "@/components/deals/dscr-conversion-link-dialog";
 import { PipelineStepper } from "@/components/deals/pipeline-stepper";
 import { AcceptedTermsHeader } from "@/components/deals/accepted-terms-header";
 import { ProcessingFeeInvoiceStatus } from "@/components/deals/processing-fee-invoice-status";
@@ -13,7 +14,7 @@ import { ReferralFeeBanner } from "@/components/deals/referral-fee-banner";
 import { labelFor, LOAN_CATEGORIES, STAGES } from "@/lib/labels";
 import { conservativeValueBasis } from "@/lib/term-sheet-calculations";
 import { PAUSED_STAGES } from "@/lib/deal-pipeline";
-import { sectionsFor } from "@/lib/loan-sections";
+import { sectionsFor, CONVERTIBLE_TO_DSCR_REFI_CATEGORIES } from "@/lib/loan-sections";
 import { requireUser } from "@/server/auth/guards";
 import type { DealDetail } from "@/server/data/deal-detail";
 
@@ -134,6 +135,9 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
         </div>
         <div className="flex items-center gap-2">
           {deal.loanCategory === "new_construction" && <CloneDealDialog dealId={deal.id} />}
+          {CONVERTIBLE_TO_DSCR_REFI_CATEGORIES.has(deal.loanCategory) && (
+            <DscrConversionLinkDialog dealId={deal.id} />
+          )}
           <StageSelect dealId={deal.id} stage={deal.stage} />
           <DealActionsMenu
             dealId={deal.id}
