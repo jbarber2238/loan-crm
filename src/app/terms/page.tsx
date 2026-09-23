@@ -99,8 +99,9 @@ export default function TermsPage() {
                 .
               </li>
               <li>
-                Carriers are not liable for delayed or undelivered messages. We do not sell or share your SMS
-                opt-in data or personal information with third parties for marketing purposes — see our{" "}
+                Carriers are not liable for delayed or undelivered messages. No mobile information will be shared
+                with third parties/affiliates for marketing or promotional purposes. Text messaging originator
+                opt-in data and consent will not be shared with any third parties — see our{" "}
                 <a href="/privacy" style={{ color: TEAL }} className="underline">
                   Privacy Policy
                 </a>{" "}

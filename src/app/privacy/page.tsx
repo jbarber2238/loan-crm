@@ -104,8 +104,9 @@ export default function PrivacyPolicyPage() {
             <p>
               <strong>SMS/text messaging:</strong> if you provide your phone number and opt in to receive text
               messages from us about your deal, we use that number solely to communicate with you about the deal
-              you submitted. We do not sell or share your SMS opt-in data or personal information with third
-              parties for marketing purposes. See our{" "}
+              you submitted. No mobile information will be shared with third parties/affiliates for marketing or
+              promotional purposes. Text messaging originator opt-in data and consent will not be shared with any
+              third parties. See our{" "}
               <a href="/terms" className="underline" style={{ color: TEAL }}>
                 Terms &amp; Conditions
               </a>{" "}
