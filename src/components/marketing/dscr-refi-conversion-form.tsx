@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import Link from "next/link";
 import { submitConversionIntake } from "@/server/actions/deal-conversion";
 import { buildConversionPrefill } from "@/server/dscr-conversion-prefill";
 import { DSCR_REFI_TARGET_CATEGORIES } from "@/lib/labels";
@@ -103,7 +104,15 @@ export function DscrRefiConversionForm({
                 By checking this box, I consent to receive emails and text messages from Manna Lending regarding
                 my service request — including updates on my loan application, requests for documents, and
                 answers to questions I&apos;ve asked. Message and data rates may apply. Reply STOP to opt out at
-                any time.
+                any time. See our{" "}
+                <Link href="/privacy" target="_blank" className="underline">
+                  Privacy Policy
+                </Link>{" "}
+                and{" "}
+                <Link href="/terms" target="_blank" className="underline">
+                  Terms &amp; Conditions
+                </Link>
+                .
               </span>
             </label>
             <SubmitButton
