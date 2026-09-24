@@ -27,6 +27,7 @@ export default async function ClientNeedsPage() {
     esignVendor: item.esignVendor,
     linkUrl: item.linkUrl,
     pandadocTemplateUuid: item.pandadocTemplateUuid,
+    customFormKey: item.customFormKey,
     templateFileName: item.templateFileName,
     isCustom: item.isCustom,
     isGlobal: item.isGlobal,

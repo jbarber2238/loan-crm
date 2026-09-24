@@ -17,8 +17,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CLIENT_NEED_CATEGORIES, CLIENT_NEED_TYPES, LOAN_CATEGORIES } from "@/lib/labels";
+import { CUSTOM_NEED_FORM_OPTIONS } from "@/lib/custom-need-forms/registry";
 
-type NeedType = "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form";
+type NeedType = "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form" | "custom_form";
 
 export interface ExistingClientNeed {
   id: string;
@@ -29,6 +30,7 @@ export interface ExistingClientNeed {
   esignVendor: string | null;
   linkUrl: string | null;
   pandadocTemplateUuid: string | null;
+  customFormKey: string | null;
   templateFileName: string | null;
   isCustom: boolean;
   isGlobal: boolean;
@@ -68,6 +70,7 @@ export function ClientNeedForm({
   const [esignVendor, setEsignVendor] = useState(clientNeed?.esignVendor ?? "");
   const [linkUrl, setLinkUrl] = useState(clientNeed?.linkUrl ?? "");
   const [pandadocTemplateUuid, setPandadocTemplateUuid] = useState(clientNeed?.pandadocTemplateUuid ?? "");
+  const [customFormKey, setCustomFormKey] = useState(clientNeed?.customFormKey ?? "");
   const [questions, setQuestions] = useState<string[]>(
     clientNeed?.questions.length ? clientNeed.questions.map((q) => q.questionText) : [""]
   );
@@ -390,6 +393,28 @@ export function ClientNeedForm({
               borrower-filled ones to the &quot;Client&quot; role), then paste that template&apos;s UUID here. When
               this need is added to a deal, we&apos;ll create and send that document automatically — the borrower
               fills and signs it from their upload page, and the completed PDF comes back here for review.
+            </p>
+          </div>
+        )}
+
+        {needType === "custom_form" && (
+          <div className="space-y-1.5">
+            <Label htmlFor={`${formId}-customFormKey`}>Which form?</Label>
+            <Select name="customFormKey" value={customFormKey} onValueChange={setCustomFormKey}>
+              <SelectTrigger id={`${formId}-customFormKey`} className="w-full">
+                <SelectValue placeholder="Select a form" />
+              </SelectTrigger>
+              <SelectContent>
+                {CUSTOM_NEED_FORM_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              These are hand-built to match a specific lender&apos;s own application — new ones are added in code,
+              not from here.
             </p>
           </div>
         )}

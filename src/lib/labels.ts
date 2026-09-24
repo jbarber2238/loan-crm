@@ -100,6 +100,7 @@ export const CLIENT_NEED_TYPES = [
   { value: "questionnaire", label: "Questions" },
   { value: "link", label: "Link" },
   { value: "pandadoc_form", label: "PandaDoc Form" },
+  { value: "custom_form", label: "Custom Form (Application)" },
 ] as const;
 
 export const CLIENT_NEED_CATEGORIES = [

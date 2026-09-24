@@ -102,12 +102,19 @@ export function LoanCenterTab({
   creditPullDate,
   driveLink,
   titleCompanyAgentName,
+  titleCompanyName,
   titleAgentEmail,
   titleAgentPhone,
   insuranceAgency,
   insuranceAgentName,
   insuranceAgentEmail,
   insuranceAgentPhone,
+  insuranceContactNotes,
+  interiorAccessContactRelationship,
+  interiorAccessContactName,
+  interiorAccessContactEmail,
+  interiorAccessContactPhone,
+  interiorAccessLockBoxInfo,
   appraisalNotes,
   insuranceNotes,
   titleNotes,
@@ -137,12 +144,19 @@ export function LoanCenterTab({
   creditPullDate: Date | null;
   driveLink: string | null;
   titleCompanyAgentName: string | null;
+  titleCompanyName: string | null;
   titleAgentEmail: string | null;
   titleAgentPhone: string | null;
   insuranceAgency: string | null;
   insuranceAgentName: string | null;
   insuranceAgentEmail: string | null;
   insuranceAgentPhone: string | null;
+  insuranceContactNotes: string | null;
+  interiorAccessContactRelationship: string | null;
+  interiorAccessContactName: string | null;
+  interiorAccessContactEmail: string | null;
+  interiorAccessContactPhone: string | null;
+  interiorAccessLockBoxInfo: string | null;
   appraisalNotes: string | null;
   insuranceNotes: string | null;
   titleNotes: string | null;
@@ -190,12 +204,19 @@ export function LoanCenterTab({
             assistants={assistants}
             followers={followers}
             titleCompanyAgentName={titleCompanyAgentName}
+            titleCompanyName={titleCompanyName}
             titleAgentEmail={titleAgentEmail}
             titleAgentPhone={titleAgentPhone}
             insuranceAgency={insuranceAgency}
             insuranceAgentName={insuranceAgentName}
             insuranceAgentEmail={insuranceAgentEmail}
             insuranceAgentPhone={insuranceAgentPhone}
+            insuranceContactNotes={insuranceContactNotes}
+            interiorAccessContactRelationship={interiorAccessContactRelationship}
+            interiorAccessContactName={interiorAccessContactName}
+            interiorAccessContactEmail={interiorAccessContactEmail}
+            interiorAccessContactPhone={interiorAccessContactPhone}
+            interiorAccessLockBoxInfo={interiorAccessLockBoxInfo}
           />
         </TabsContent>
 

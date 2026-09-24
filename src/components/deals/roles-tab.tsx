@@ -4,6 +4,7 @@ import {
   updateDealRoles,
   updateTitleContact,
   updateInsuranceContact,
+  updateInteriorAccessContact,
 } from "@/server/actions/deals";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -42,12 +43,19 @@ export function RolesTab({
   assistants,
   followers,
   titleCompanyAgentName,
+  titleCompanyName,
   titleAgentEmail,
   titleAgentPhone,
   insuranceAgency,
   insuranceAgentName,
   insuranceAgentEmail,
   insuranceAgentPhone,
+  insuranceContactNotes,
+  interiorAccessContactRelationship,
+  interiorAccessContactName,
+  interiorAccessContactEmail,
+  interiorAccessContactPhone,
+  interiorAccessLockBoxInfo,
 }: {
   dealId: string;
   assignedLoanOfficerId: string;
@@ -58,12 +66,19 @@ export function RolesTab({
   assistants: UserOption[];
   followers: Follower[];
   titleCompanyAgentName: string | null;
+  titleCompanyName: string | null;
   titleAgentEmail: string | null;
   titleAgentPhone: string | null;
   insuranceAgency: string | null;
   insuranceAgentName: string | null;
   insuranceAgentEmail: string | null;
   insuranceAgentPhone: string | null;
+  insuranceContactNotes: string | null;
+  interiorAccessContactRelationship: string | null;
+  interiorAccessContactName: string | null;
+  interiorAccessContactEmail: string | null;
+  interiorAccessContactPhone: string | null;
+  interiorAccessLockBoxInfo: string | null;
 }) {
   const updateRoles = updateDealRoles.bind(null, dealId);
   const addFollower = addDealFollower.bind(null, dealId);
@@ -201,6 +216,7 @@ export function RolesTab({
             { name: "insuranceAgentName", label: "Agent Name", value: insuranceAgentName },
             { name: "insuranceAgentEmail", label: "Agent Email", value: insuranceAgentEmail },
             { name: "insuranceAgentPhone", label: "Agent Phone Number", value: insuranceAgentPhone },
+            { name: "insuranceContactNotes", label: "Notes", value: insuranceContactNotes },
           ]}
         />
         <KeyContactCard
@@ -209,9 +225,27 @@ export function RolesTab({
           saveAction={updateTitleContact}
           contactType="Title"
           fields={[
-            { name: "titleCompanyAgentName", label: "Title Company / Agent Name", value: titleCompanyAgentName },
+            { name: "titleCompanyName", label: "Title Company Name", value: titleCompanyName },
+            { name: "titleCompanyAgentName", label: "Title Agent Name", value: titleCompanyAgentName },
             { name: "titleAgentEmail", label: "Title Agent Email", value: titleAgentEmail },
             { name: "titleAgentPhone", label: "Title Agent Phone Number", value: titleAgentPhone },
+          ]}
+        />
+        <KeyContactCard
+          title="Interior Access"
+          dealId={dealId}
+          saveAction={updateInteriorAccessContact}
+          contactType="Other"
+          fields={[
+            {
+              name: "interiorAccessContactRelationship",
+              label: "Relationship",
+              value: interiorAccessContactRelationship,
+            },
+            { name: "interiorAccessContactName", label: "Contact Name", value: interiorAccessContactName },
+            { name: "interiorAccessContactEmail", label: "Contact Email", value: interiorAccessContactEmail },
+            { name: "interiorAccessContactPhone", label: "Contact Phone", value: interiorAccessContactPhone },
+            { name: "interiorAccessLockBoxInfo", label: "Lock Box Info", value: interiorAccessLockBoxInfo },
           ]}
         />
       </div>

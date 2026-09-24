@@ -142,6 +142,13 @@ export const clientNeedTemplateTypeEnum = pgEnum("client_need_template_type", [
   // fills/signs it there, and the completed PDF comes back into this need's
   // documents automatically via webhook once done.
   "pandadoc_form",
+  // A purpose-built, richly-typed form (real dropdowns, Yes/No toggles,
+  // conditional follow-ups) matching a specific lender's own application
+  // questions exactly — unlike "questionnaire" above (plain free-text Q&A),
+  // this is hand-built per lender/loan-type rather than authored by a
+  // processor. See src/lib/custom-need-forms/registry.ts for which
+  // customFormKey values exist.
+  "custom_form",
 ]);
 
 export const conditionStatusEnum = pgEnum("condition_status", ["open", "cleared"]);
@@ -522,6 +529,9 @@ export const clientNeeds = pgTable("client_needs", {
   // per lender's application PDF in PandaDoc's own editor, then referenced
   // here by its template_uuid.
   pandadocTemplateUuid: text("pandadoc_template_uuid"),
+  // custom_form: which hand-built form definition to render — a key into
+  // CUSTOM_NEED_FORM_REGISTRY (src/lib/custom-need-forms/registry.ts).
+  customFormKey: text("custom_form_key"),
   // document_upload: an optional blank/fillable file (e.g. a lender
   // application PDF) the borrower downloads, fills in, and re-uploads.
   templateFileName: text("template_file_name"),
@@ -633,13 +643,32 @@ export const deals = pgTable("deals", {
   // mid-deal. "Mark Accepted" on the Title Info / Insurance Contact Info
   // client need auto-fills these once; after that they're just plain deal
   // fields, editable any time from the Roles tab regardless of the need.
+  // titleCompanyAgentName is the contact PERSON's name; titleCompanyName
+  // (added later, once a lender's own application form asked for both
+  // separately) is the firm itself — kept as two fields instead of folding
+  // company into the "agent name" string like the original Roles tab did.
   titleCompanyAgentName: text("title_company_agent_name"),
+  titleCompanyName: text("title_company_name"),
   titleAgentEmail: text("title_agent_email"),
   titleAgentPhone: text("title_agent_phone"),
   insuranceAgency: text("insurance_agency"),
   insuranceAgentName: text("insurance_agent_name"),
   insuranceAgentEmail: text("insurance_agent_email"),
   insuranceAgentPhone: text("insurance_agent_phone"),
+  // Distinct from the plain staff-tracking `insuranceNotes` field further
+  // down (a Key Date Tracker jot-note) — this is a borrower-facing "notes
+  // about the policy" answer collected on a lender's own application form.
+  insuranceContactNotes: text("insurance_contact_notes"),
+  // Whoever will let the appraiser into the property — not every lender's
+  // application asks for this, but it's collected here as one shared spot
+  // regardless of which client need (or custom lender form) actually
+  // gathers it from the borrower first. Same "one shared field, several
+  // possible sources" pattern as the title/insurance contacts above.
+  interiorAccessContactRelationship: text("interior_access_contact_relationship"),
+  interiorAccessContactName: text("interior_access_contact_name"),
+  interiorAccessContactEmail: text("interior_access_contact_email"),
+  interiorAccessContactPhone: text("interior_access_contact_phone"),
+  interiorAccessLockBoxInfo: text("interior_access_lock_box_info"),
   propertyAddress: text("property_address").notNull(),
   // Set instead of a street address for new construction when the borrower
   // only has the county's Assessor's Parcel Number (no address assigned yet).
@@ -1001,6 +1030,14 @@ export const dealClientNeeds = pgTable("deal_client_needs", {
   pandadocTemplateUuid: text("pandadoc_template_uuid"),
   pandadocDocumentId: text("pandadoc_document_id"),
   pandadocStatus: text("pandadoc_status"),
+  // custom_form: copied from the catalog item at add-time, plus everything
+  // the borrower submits — one JSONB blob keyed by field name rather than
+  // the one-row-per-question shape questionnaire needs use, since a custom
+  // form's ~70 typed fields (selects, dates, conditional follow-ups) don't
+  // fit that flat text-question/text-answer model.
+  customFormKey: text("custom_form_key"),
+  customFormData: jsonb("custom_form_data").$type<Record<string, string>>(),
+  customFormSubmittedAt: timestamp("custom_form_submitted_at", { mode: "date" }),
   sentAt: timestamp("sent_at", { mode: "date" }),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });

@@ -743,6 +743,7 @@ export async function updateTitleContact(dealId: string, formData: FormData) {
     .update(deals)
     .set({
       titleCompanyAgentName: nullableStr(formData, "titleCompanyAgentName"),
+      titleCompanyName: nullableStr(formData, "titleCompanyName"),
       titleAgentEmail: nullableStr(formData, "titleAgentEmail"),
       titleAgentPhone: nullableStr(formData, "titleAgentPhone"),
     })
@@ -759,6 +760,25 @@ export async function updateInsuranceContact(dealId: string, formData: FormData)
       insuranceAgentName: nullableStr(formData, "insuranceAgentName"),
       insuranceAgentEmail: nullableStr(formData, "insuranceAgentEmail"),
       insuranceAgentPhone: nullableStr(formData, "insuranceAgentPhone"),
+      insuranceContactNotes: nullableStr(formData, "insuranceContactNotes"),
+    })
+    .where(eq(deals.id, dealId));
+  revalidatePath(`/deals/${dealId}/loan-center`);
+}
+
+// Whoever will let the appraiser into the property — same "one shared spot,
+// several possible sources" pattern as Title/Insurance above, just newer:
+// see the 2026-09-24 project notes on the CV3 DSCR Purchase custom form.
+export async function updateInteriorAccessContact(dealId: string, formData: FormData) {
+  await requireUser();
+  await db
+    .update(deals)
+    .set({
+      interiorAccessContactRelationship: nullableStr(formData, "interiorAccessContactRelationship"),
+      interiorAccessContactName: nullableStr(formData, "interiorAccessContactName"),
+      interiorAccessContactEmail: nullableStr(formData, "interiorAccessContactEmail"),
+      interiorAccessContactPhone: nullableStr(formData, "interiorAccessContactPhone"),
+      interiorAccessLockBoxInfo: nullableStr(formData, "interiorAccessLockBoxInfo"),
     })
     .where(eq(deals.id, dealId));
   revalidatePath(`/deals/${dealId}/loan-center`);

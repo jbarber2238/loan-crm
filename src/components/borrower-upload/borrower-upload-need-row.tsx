@@ -184,6 +184,12 @@ export function BorrowerUploadNeedRow({ token, need }: { token: string; need: Bo
         ) : (
           <p className="text-xs text-muted-foreground">This form is still being set up — check back shortly.</p>
         )
+      ) : need.needType === "custom_form" ? (
+        <Button asChild size="sm">
+          <a href={`/borrower-upload/${token}/form/${need.id}`}>
+            {need.status === "not_sent" || need.status === "awaiting_docs" ? "Fill out application" : "Review submission"}
+          </a>
+        </Button>
       ) : (
         <p className="text-xs text-muted-foreground">Awaiting your e-signature — check your email for that link.</p>
       )}

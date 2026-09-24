@@ -16,10 +16,11 @@ export interface BrowsableClientNeed {
   itemName: string;
   description: string | null;
   category: string | null;
-  needType: "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form";
+  needType: "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form" | "custom_form";
   esignVendor: string | null;
   linkUrl: string | null;
   pandadocTemplateUuid: string | null;
+  customFormKey: string | null;
   templateFileName: string | null;
   isCustom: boolean;
   isGlobal: boolean;
@@ -117,6 +118,7 @@ function Row({
                 esignVendor: item.esignVendor,
                 linkUrl: item.linkUrl,
                 pandadocTemplateUuid: item.pandadocTemplateUuid,
+                customFormKey: item.customFormKey,
                 templateFileName: item.templateFileName,
                 isCustom: item.isCustom,
                 isGlobal: item.isGlobal,

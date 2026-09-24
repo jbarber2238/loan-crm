@@ -13,7 +13,7 @@ type CatalogNeedRow = {
   id: string;
   itemName: string;
   description: string | null;
-  needType: "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form";
+  needType: "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form" | "custom_form";
   minFiles: number;
   linkUrl: string | null;
   templateFileName: string | null;
@@ -21,6 +21,7 @@ type CatalogNeedRow = {
   templateFileData: string | null;
   templateFileSize: number | null;
   pandadocTemplateUuid: string | null;
+  customFormKey: string | null;
 };
 
 // Creates and sends the PandaDoc document for one need — called from
@@ -83,6 +84,7 @@ async function addCatalogNeedsToDeal(dealId: string, catalogNeeds: CatalogNeedRo
         templateFileData: n.templateFileData,
         templateFileSize: n.templateFileSize,
         pandadocTemplateUuid: n.pandadocTemplateUuid,
+        customFormKey: n.customFormKey,
       }))
     )
     .returning({ id: dealClientNeeds.id });

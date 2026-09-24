@@ -9,6 +9,8 @@ import { sendGmailAs } from "@/server/gmail/send";
 import { getCompanyName } from "@/server/settings";
 import { emailShell, htmlBulletList, escapeHtml } from "@/lib/email-html";
 import { createSigningSessionUrl } from "@/server/pandadoc";
+import { parsePropertyAddress } from "@/lib/format";
+import { getCustomFormDefinition, syncedFieldsFor } from "@/lib/custom-need-forms/registry";
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
 
@@ -26,12 +28,13 @@ export interface BorrowerUploadNeed {
   id: string;
   itemName: string;
   description: string | null;
-  needType: "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form";
+  needType: "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form" | "custom_form";
   status: "not_sent" | "awaiting_docs" | "review_needed" | "accepted";
   minFiles: number;
   linkUrl: string | null;
   templateFileName: string | null;
   pandadocDocumentId: string | null;
+  customFormKey: string | null;
   rejectionNotes: string[];
   answers: BorrowerUploadAnswer[];
 }
@@ -72,6 +75,7 @@ export async function getDealForBorrowerUpload(token: string) {
     linkUrl: n.linkUrl,
     templateFileName: n.templateFileName,
     pandadocDocumentId: n.pandadocDocumentId,
+    customFormKey: n.customFormKey,
     rejectionNotes: n.documents
       .filter((d) => d.reviewStatus === "rejected" && d.rejectionNote)
       .map((d) => d.rejectionNote!),
@@ -259,4 +263,144 @@ export async function submitClientNeedAnswers(token: string, needId: string, for
 
   revalidatePath(`/borrower-upload/${token}`);
   revalidatePath(`/deals/${deal.id}/loan-center`);
+}
+
+function strOrEmpty(value: string | number | null | undefined): string {
+  return value === null || value === undefined ? "" : String(value);
+}
+
+// One-off convenience prefills specific to this form (not written back to
+// the deal, just a nicer starting point than a blank field) — separate from
+// the generic syncDealField mechanism, which handles the fields that really
+// are the same shared piece of data (see registry.ts's syncedFieldsFor).
+function cv3DscrPurchaseConvenienceDefaults(deal: typeof deals.$inferSelect): Record<string, string> {
+  const [firstName, ...rest] = deal.borrowerName.trim().split(/\s+/);
+  const address = parsePropertyAddress(deal.propertyAddress);
+  return {
+    borrowerLegalFirstName: firstName ?? "",
+    borrowerLegalLastName: rest.join(" "),
+    borrowerCellPhone: deal.borrowerPhone ?? "",
+    borrowerEmail: deal.borrowerEmail ?? "",
+    entityName: deal.borrowerEntityName ?? "",
+    propertyStreet: address.street,
+    propertyCity: address.city,
+    propertyState: address.state,
+    propertyZip: address.postalCode,
+    monthlyRentalIncome: deal.currentRent ?? "",
+    annualPropertyTaxesAmount: deal.annualTaxes ?? "",
+    annualInsuranceAndFloodAmount: deal.annualInsurance ?? "",
+  };
+}
+
+/**
+ * Loads what the /borrower-upload/[token]/form/[needId] page needs to
+ * render a custom_form need — the form definition's key plus a
+ * defaultValues map built from (a) whichever shared deal fields this form's
+ * fields sync with, (b) a few one-off convenience prefills, and (c) any
+ * previously-submitted answers, in that priority order (later overrides
+ * earlier), so a returning borrower sees their own prior answers first,
+ * still-current deal data second, and blank last.
+ */
+export async function getCustomFormNeed(token: string, needId: string) {
+  const deal = await db.query.deals.findFirst({ where: eq(deals.borrowerUploadToken, token) });
+  if (!deal) return null;
+
+  const need = await db.query.dealClientNeeds.findFirst({
+    where: and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, deal.id)),
+  });
+  if (!need || need.needType !== "custom_form" || !need.customFormKey) return null;
+
+  const definition = getCustomFormDefinition(need.customFormKey);
+  if (!definition) return null;
+
+  const defaultValues: Record<string, string> = {};
+  if (need.customFormKey === "cv3_dscr_purchase") {
+    Object.assign(defaultValues, cv3DscrPurchaseConvenienceDefaults(deal));
+  }
+  for (const { name, dealField } of syncedFieldsFor(definition)) {
+    const value = (deal as unknown as Record<string, unknown>)[dealField];
+    if (typeof value === "string" || typeof value === "number") {
+      defaultValues[name] = strOrEmpty(value);
+    }
+  }
+  if (need.customFormData) {
+    Object.assign(defaultValues, need.customFormData);
+  }
+
+  return {
+    need: {
+      id: need.id,
+      itemName: need.itemName,
+      description: need.description,
+      status: need.status,
+      customFormKey: need.customFormKey,
+    },
+    dealSummary: { propertyAddress: deal.propertyAddress, loanNumber: deal.loanNumber },
+    defaultValues,
+  };
+}
+
+/**
+ * Borrower-side custom_form submission — token-gated, same shape as
+ * submitClientNeedAnswers but for the richly-typed form instead of plain
+ * free-text questions. Everything submitted is stored as one JSONB blob;
+ * fields the form definition marks with syncDealField are additionally
+ * written back onto the deal itself (see registry.ts), so — same as the
+ * existing Title/Insurance Contact client needs — whichever surface
+ * collects this information first is the one that sticks everywhere else.
+ */
+export async function submitCustomFormAnswers(token: string, needId: string, formData: FormData) {
+  const deal = await db.query.deals.findFirst({ where: eq(deals.borrowerUploadToken, token) });
+  if (!deal) throw new Error("This link is no longer valid");
+
+  const need = await db.query.dealClientNeeds.findFirst({
+    where: and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, deal.id)),
+  });
+  if (!need || need.needType !== "custom_form" || !need.customFormKey || need.status === "accepted") {
+    throw new Error("This item can't accept a submission right now");
+  }
+
+  const definition = getCustomFormDefinition(need.customFormKey);
+  if (!definition) throw new Error("This form isn't set up correctly — reach out to your loan officer");
+
+  const allFields = definition.sections.flatMap((s) => s.fields);
+  const answers: Record<string, string> = {};
+  for (const field of allFields) {
+    const value = formData.get(field.name);
+    const trimmed = typeof value === "string" ? value.trim() : "";
+    if (trimmed) answers[field.name] = trimmed;
+  }
+
+  const requiredMissing = allFields.filter((f) => {
+    if (f.optional) return false;
+    if (f.showIf && answers[f.showIf.field] !== f.showIf.equals) return false; // not applicable right now
+    return !answers[f.name];
+  });
+  if (requiredMissing.length) {
+    throw new Error(`Please fill in: ${requiredMissing.map((f) => f.label).join(", ")}`);
+  }
+
+  const now = new Date();
+  await db
+    .update(dealClientNeeds)
+    .set({ customFormData: answers, customFormSubmittedAt: now, status: "review_needed", sentAt: need.sentAt ?? now })
+    .where(eq(dealClientNeeds.id, needId));
+
+  const dealUpdates: Record<string, string> = {};
+  for (const { name, dealField } of syncedFieldsFor(definition)) {
+    if (answers[name]) dealUpdates[dealField] = answers[name];
+  }
+  if (Object.keys(dealUpdates).length) {
+    await db.update(deals).set(dealUpdates).where(eq(deals.id, deal.id));
+  }
+
+  try {
+    await notifyBorrowerAndStaff(deal.id, [need.itemName]);
+  } catch (err) {
+    console.error("Failed to send borrower-submission notification emails:", err);
+  }
+
+  revalidatePath(`/borrower-upload/${token}`);
+  revalidatePath(`/deals/${deal.id}/loan-center`);
+  revalidatePath(`/deals/${deal.id}/roles`);
 }

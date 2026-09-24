@@ -16,7 +16,7 @@ import { CLIENT_NEED_TYPES, labelFor } from "@/lib/labels";
 export interface DealCatalogItem {
   id: string;
   itemName: string;
-  needType: "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form";
+  needType: "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form" | "custom_form";
   isCustom: boolean;
 }
 

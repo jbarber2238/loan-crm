@@ -11,7 +11,7 @@ const VALID_LOAN_CATEGORIES = new Set<string>(loanCategoryEnum.enumValues);
 
 const MAX_TEMPLATE_FILE_SIZE = 15 * 1024 * 1024; // 15MB
 
-type NeedType = "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form";
+type NeedType = "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form" | "custom_form";
 
 function str(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -25,7 +25,11 @@ function nullableStr(formData: FormData, key: string) {
 
 function needTypeFrom(formData: FormData): NeedType {
   const value = str(formData, "needType");
-  return value === "esign" || value === "questionnaire" || value === "link" || value === "pandadoc_form"
+  return value === "esign" ||
+    value === "questionnaire" ||
+    value === "link" ||
+    value === "pandadoc_form" ||
+    value === "custom_form"
     ? value
     : "document_upload";
 }
@@ -175,6 +179,7 @@ export async function createClientNeed(formData: FormData, { attachToProductId }
       esignVendor: needType === "esign" ? nullableStr(formData, "esignVendor") : null,
       linkUrl: needType === "link" ? nullableStr(formData, "linkUrl") : null,
       pandadocTemplateUuid: needType === "pandadoc_form" ? nullableStr(formData, "pandadocTemplateUuid") : null,
+      customFormKey: needType === "custom_form" ? nullableStr(formData, "customFormKey") : null,
       isCustom,
       isGlobal,
       createdByUserId: user.id,
@@ -227,6 +232,7 @@ export async function updateClientNeed(clientNeedId: string, formData: FormData)
       esignVendor: needType === "esign" ? nullableStr(formData, "esignVendor") : null,
       linkUrl: needType === "link" ? nullableStr(formData, "linkUrl") : null,
       pandadocTemplateUuid: needType === "pandadoc_form" ? nullableStr(formData, "pandadocTemplateUuid") : null,
+      customFormKey: needType === "custom_form" ? nullableStr(formData, "customFormKey") : null,
       // Lets a processor promote a custom need to standard once they see it
       // asked for across more than one lender — no admin gate on that switch.
       isCustom: str(formData, "isStandard") !== "on",

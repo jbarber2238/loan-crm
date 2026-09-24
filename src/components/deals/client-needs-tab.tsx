@@ -25,6 +25,7 @@ import {
   sendClientNeedsUpdateEmail,
 } from "@/server/actions/client-needs-email";
 import { updateClientNeedsReminderSettings, getOrCreateBorrowerUploadLink } from "@/server/actions/deals";
+import { getCustomFormDefinition } from "@/lib/custom-need-forms/registry";
 import { CLIENT_NEEDS_REMINDER_INTERVAL_HOURS } from "@/lib/client-needs-reminders";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -71,12 +72,14 @@ export interface ClientNeed {
   itemName: string;
   description: string | null;
   status: "not_sent" | "awaiting_docs" | "review_needed" | "accepted";
-  needType: "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form";
+  needType: "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form" | "custom_form";
   minFiles: number;
   sentAt: Date | null;
   linkUrl: string | null;
   templateFileName: string | null;
   pandadocDocumentId: string | null;
+  customFormKey: string | null;
+  customFormData: Record<string, string> | null;
   documents: ReviewableDocument[];
   answers: ClientNeedAnswer[];
 }
@@ -304,6 +307,51 @@ function DocumentRow({
   );
 }
 
+// A custom_form need's answers are one JSONB blob keyed by field name — this
+// looks up each field's label from the same shared definition the borrower's
+// own form was rendered from, grouped by section, so staff reviewing a
+// submission see the same labels/organization the borrower saw.
+function CustomFormAnswersSummary({
+  customFormKey,
+  data,
+}: {
+  customFormKey: string | null;
+  data: Record<string, string>;
+}) {
+  const definition = getCustomFormDefinition(customFormKey);
+  if (!definition) {
+    return (
+      <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+        This form&apos;s definition couldn&apos;t be found — raw answers: {JSON.stringify(data)}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 rounded-md border bg-muted/30 p-3">
+      {definition.sections.map((section) => {
+        const answered = section.fields.filter((f) => data[f.name]);
+        if (!answered.length) return null;
+        return (
+          <div key={section.title} className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{section.title}</p>
+            {answered.map((f) => {
+              const raw = data[f.name];
+              const display = f.options?.find((o) => o.value === raw)?.label ?? raw;
+              return (
+                <p key={f.name} className="text-sm">
+                  <span className="text-muted-foreground">{f.label}: </span>
+                  <span className="font-medium">{display}</span>
+                </p>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function RejectNeedDialog({ dealId, needId, documentIds, disabled }: { dealId: string; needId: string; documentIds: string[]; disabled: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -481,7 +529,8 @@ function ClientNeedRow({
   const hasDocuments =
     (need.needType === "document_upload" || need.needType === "pandadoc_form") && need.documents.length > 0;
   const hasAnswers = need.needType === "questionnaire" && need.answers.some((a) => a.answerText);
-  const hasExpandableContent = hasDocuments || hasAnswers;
+  const hasCustomFormData = need.needType === "custom_form" && Boolean(need.customFormData);
+  const hasExpandableContent = hasDocuments || hasAnswers || hasCustomFormData;
   const aiFlagCount = need.documents.reduce((sum, d) => sum + (d.aiReviewFlags?.flags.length ?? 0), 0);
 
   function handleNameClick() {
@@ -545,7 +594,9 @@ function ClientNeedRow({
                       ? "link"
                       : need.needType === "pandadoc_form"
                         ? "PandaDoc"
-                        : "questionnaire"}
+                        : need.needType === "custom_form"
+                          ? "application"
+                          : "questionnaire"}
                   )
                 </span>
               )}
@@ -647,6 +698,10 @@ function ClientNeedRow({
                 </p>
               ))}
           </div>
+        )}
+
+        {hasCustomFormData && expanded && need.customFormData && (
+          <CustomFormAnswersSummary customFormKey={need.customFormKey} data={need.customFormData} />
         )}
       </CardContent>
 

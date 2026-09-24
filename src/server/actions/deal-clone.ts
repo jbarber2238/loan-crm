@@ -206,10 +206,11 @@ export async function cloneNewConstructionDeal(originalDealId: string, formData:
         templateFileMimeType: need.templateFileMimeType,
         templateFileData: need.templateFileData,
         templateFileSize: need.templateFileSize,
+        customFormKey: need.customFormKey,
         // Left at defaults deliberately: this is a fresh copy on a new
-        // deal, not a continuation — no PandaDoc doc/status, no sentAt,
-        // and status starts over from not_sent even if the original was
-        // already accepted.
+        // deal, not a continuation — no PandaDoc doc/status, no sentAt, no
+        // previously-submitted custom_form answers, and status starts over
+        // from not_sent even if the original was already accepted.
       })
       .returning({ id: dealClientNeeds.id });
 
