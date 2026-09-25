@@ -126,12 +126,13 @@ export async function notifyBorrowerOfAcceptedTerms(dealId: string): Promise<voi
  * processor hears nothing until there's real work to start. Sent from the
  * deal's loan officer's own Gmail, like every other deal notification.
  */
-export async function notifyProcessorOfPaidDeal(dealId: string): Promise<void> {
+export async function notifyProcessorOfPaidDeal(dealId: string, overrideTo?: string): Promise<void> {
   const deal = await db.query.deals.findFirst({
     where: eq(deals.id, dealId),
     with: { assignedLoanOfficer: true, assignedProcessor: true, lender: true },
   });
-  if (!deal?.assignedProcessor?.email) return; // no processor assigned yet — nothing to send
+  const to = overrideTo ?? deal?.assignedProcessor?.email;
+  if (!deal || !to) return; // no processor assigned yet — nothing to send
   const sender = deal.assignedLoanOfficer;
   if (!sender?.email) return;
 
@@ -167,7 +168,7 @@ export async function notifyProcessorOfPaidDeal(dealId: string): Promise<void> {
     companyName,
     heading: "New deal ready to process",
     bodyHtml: `
-      <p>Hi ${escapeHtml(firstName(deal.assignedProcessor.name ?? "there"))},</p>
+      <p>Hi ${escapeHtml(firstName(deal.assignedProcessor?.name ?? "there"))},</p>
       <p>The borrower has paid the processing fee and this deal has moved into Application — it's ready for you to start processing.</p>
       ${htmlFactList(facts)}
       <p>${htmlButton("View Deal", `${appUrl}/deals/${deal.id}`)}</p>
@@ -175,7 +176,7 @@ export async function notifyProcessorOfPaidDeal(dealId: string): Promise<void> {
   });
 
   await sendGmailAs(sender.id, sender.email, {
-    to: deal.assignedProcessor.email,
+    to,
     subject: `Ready to process — ${deal.borrowerName} (${deal.propertyAddress})`,
     body: logoHtml + body + signatureHtml,
     html: true,
