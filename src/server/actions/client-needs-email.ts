@@ -123,7 +123,16 @@ export async function previewClientNeedsUpdateEmail(dealId: string, needIds: str
 
   // Followers are CC'd by default here, and only here — client-needs
   // updates are the one email type they're always on unless removed.
-  const cc = deal.followers.map((f) => f.email).join(", ");
+  // The deal's loan officer (Roles and Key Contacts) is copied too, unless
+  // they're the one sending — they already get that in their Sent folder.
+  const seen = new Set<string>([deal.borrowerEmail!.toLowerCase(), (user.email ?? "").toLowerCase()]);
+  const ccList: string[] = [];
+  for (const email of [deal.assignedLoanOfficer?.email, ...deal.followers.map((f) => f.email)]) {
+    if (!email || seen.has(email.toLowerCase())) continue;
+    seen.add(email.toLowerCase());
+    ccList.push(email);
+  }
+  const cc = ccList.join(", ");
 
   return { subject, body, to: deal.borrowerEmail!, cc, signatureHtml, candidates };
 }
