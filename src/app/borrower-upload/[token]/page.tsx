@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { getDealForBorrowerUpload } from "@/server/actions/borrower-upload";
 import { BorrowerUploadNeedRow, AcceptedNeedRow } from "@/components/borrower-upload/borrower-upload-need-row";
 import { Card, CardContent } from "@/components/ui/card";
+import { PipelineStepper } from "@/components/deals/pipeline-stepper";
 import { getCompanyName } from "@/server/settings";
 
 function ProgressBar({ completed, total }: { completed: number; total: number }) {
@@ -85,6 +86,13 @@ export default async function BorrowerUploadPage({ params }: { params: Promise<{
         </div>
 
         <div className="space-y-6 bg-card p-6 md:p-8">
+          {deal.showPipeline && (
+            <div className="space-y-2">
+              <SectionLabel>Where your loan is</SectionLabel>
+              <PipelineStepper stage={deal.pipelineStage} pausedFromStage={null} />
+            </div>
+          )}
+
           {total > 0 && <ProgressBar completed={acceptedNeeds.length} total={total} />}
 
           {orderedNeeded.length > 0 && (

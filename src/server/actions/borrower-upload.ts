@@ -1,5 +1,6 @@
 "use server";
 
+import { PAUSED_STAGES, TERMINAL_NEGATIVE_STAGES } from "@/lib/deal-pipeline";
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
@@ -89,6 +90,10 @@ export async function getDealForBorrowerUpload(token: string) {
     borrowerFirstName: firstName(deal.borrowerName),
     propertyAddress: deal.propertyAddress,
     loanNumber: deal.loanNumber,
+    // Only the pipeline position is exposed — never the pause/lost/
+    // disqualified reasons, and paused deals just show where they left off.
+    pipelineStage: PAUSED_STAGES.has(deal.stage) ? (deal.pausedFromStage ?? "new") : deal.stage,
+    showPipeline: !TERMINAL_NEGATIVE_STAGES.has(deal.stage),
     needs: allNeeds,
   };
 }
