@@ -181,6 +181,14 @@ export async function notifyProcessorOfPaidDeal(dealId: string, overrideTo?: str
     body: logoHtml + body + signatureHtml,
     html: true,
   });
+
+  // Recorded only after a successful send, so a failed send retries next time.
+  if (!overrideTo && deal.assignedProcessor) {
+    await db
+      .update(deals)
+      .set({ processorReadyNotifiedUserId: deal.assignedProcessor.id })
+      .where(eq(deals.id, dealId));
+  }
 }
 
 /**

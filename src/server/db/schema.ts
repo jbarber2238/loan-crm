@@ -659,6 +659,11 @@ export const deals = pgTable("deals", {
   // down (a Key Date Tracker jot-note) — this is a borrower-facing "notes
   // about the policy" answer collected on a lender's own application form.
   insuranceContactNotes: text("insurance_contact_notes"),
+  // Which processor has already been sent the "ready to process" email —
+  // so it goes out exactly once per processor, whether it's triggered by the
+  // fee being paid with a processor already assigned, or by assigning one
+  // to a deal that's already paid and in Application.
+  processorReadyNotifiedUserId: uuid("processor_ready_notified_user_id"),
   // Whoever will let the appraiser into the property — not every lender's
   // application asks for this, but it's collected here as one shared spot
   // regardless of which client need (or custom lender form) actually

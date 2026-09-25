@@ -35,7 +35,7 @@ import { conservativeValueBasis, calculateLtarv, calculateLtc } from "@/lib/term
 import { syncProcessingFeeInvoice } from "@/server/billing";
 import { toE164 } from "@/server/twilio-client";
 import { notifyAffiliateOfNewDeal, notifyAffiliateOfStageChange } from "@/server/actions/referral-affiliates";
-import { notifyAdminOfNewDeal, notifyBorrowerOfSubmission } from "@/server/deal-notifications";
+import { notifyAdminOfNewDeal, notifyBorrowerOfSubmission, notifyProcessorOfPaidDeal } from "@/server/deal-notifications";
 
 const HARD_MONEY_DRAW_CATEGORIES = new Set(["fix_and_flip", "new_construction"]);
 
@@ -331,6 +331,21 @@ export async function updateDealRoles(dealId: string, formData: FormData) {
       updatedAt: new Date(),
     })
     .where(eq(deals.id, dealId));
+
+  // A processor assigned to a deal that's already past the paid-invoice
+  // handoff (Application or later) missed the automatic email that fires when
+  // the fee is paid — send it now, once. Assigning one earlier sends nothing.
+  const updated = await db.query.deals.findFirst({ where: eq(deals.id, dealId) });
+  if (
+    updated?.assignedProcessorId &&
+    updated.stripeInvoiceStatus === "paid" &&
+    ["application", "processing", "conditional_approval", "clear_to_close"].includes(updated.stage) &&
+    updated.processorReadyNotifiedUserId !== updated.assignedProcessorId
+  ) {
+    await notifyProcessorOfPaidDeal(dealId).catch((err) => {
+      console.error("Failed to send processor ready-to-process notification:", err);
+    });
+  }
 
   revalidatePath(`/deals/${dealId}`);
   revalidatePath("/");
