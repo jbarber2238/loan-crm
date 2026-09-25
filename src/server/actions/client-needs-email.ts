@@ -85,11 +85,12 @@ export async function previewClientNeedsUpdateEmail(dealId: string, needIds: str
   const ids = getNeedIds(needIds);
   const deal = await loadDealForEmail(dealId);
 
+  // Needs on hold are never mentioned to the borrower, even if selected.
   const needs = await db.query.dealClientNeeds.findMany({
-    where: and(eq(dealClientNeeds.dealId, dealId), inArray(dealClientNeeds.id, ids)),
+    where: and(eq(dealClientNeeds.dealId, dealId), inArray(dealClientNeeds.id, ids), isNull(dealClientNeeds.onHoldAt)),
     with: { documents: true },
   });
-  if (!needs.length) throw new Error("Couldn't find the selected client needs");
+  if (!needs.length) throw new Error("The selected client needs are on hold (or couldn't be found) — nothing to send.");
 
   const rejectedNeedRows = needs.filter((n) => n.documents.some((d) => d.reviewStatus === "rejected"));
   const rejectedIds = new Set(rejectedNeedRows.map((n) => n.id));
@@ -179,7 +180,7 @@ export async function sendClientNeedsUpdateEmail(
   await db
     .update(dealClientNeeds)
     .set({ sentAt: new Date() })
-    .where(and(inArray(dealClientNeeds.id, ids), isNull(dealClientNeeds.sentAt)));
+    .where(and(inArray(dealClientNeeds.id, ids), isNull(dealClientNeeds.sentAt), isNull(dealClientNeeds.onHoldAt)));
   for (const id of ids) await recomputeNeedStatus(id);
 
   revalidatePath(`/deals/${dealId}/loan-center`);

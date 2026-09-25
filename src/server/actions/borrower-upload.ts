@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { deals, dealClientNeeds, dealClientNeedDocuments, dealClientNeedAnswers } from "@/server/db/schema";
@@ -52,7 +52,8 @@ export async function getDealForBorrowerUpload(token: string) {
   if (!deal) return null;
 
   const needs = await db.query.dealClientNeeds.findMany({
-    where: eq(dealClientNeeds.dealId, deal.id),
+    // Needs on hold are hidden from the borrower entirely.
+    where: and(eq(dealClientNeeds.dealId, deal.id), isNull(dealClientNeeds.onHoldAt)),
     with: {
       documents: { columns: { reviewStatus: true, rejectionNote: true } },
       answers: {

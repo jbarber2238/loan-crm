@@ -1051,6 +1051,12 @@ export const dealClientNeeds = pgTable("deal_client_needs", {
   customFormData: jsonb("custom_form_data").$type<Record<string, string>>(),
   customFormSubmittedAt: timestamp("custom_form_submitted_at", { mode: "date" }),
   sentAt: timestamp("sent_at", { mode: "date" }),
+  // On hold: a flag layered over `status` (which keeps its real value) so
+  // resuming restores exactly where the need was. While set, the need is
+  // left out of borrower emails and the borrower upload page; the note is
+  // required so the reason is still known later.
+  onHoldAt: timestamp("on_hold_at", { mode: "date", withTimezone: true }),
+  onHoldNote: text("on_hold_note"),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 

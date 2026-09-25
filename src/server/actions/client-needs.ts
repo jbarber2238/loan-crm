@@ -301,6 +301,28 @@ export async function deleteClientNeedFromDeal(dealId: string, needId: string) {
   revalidatePath(`/deals/${dealId}/loan-center`);
 }
 
+// Holds are a flag over `status`, not a status of their own — see
+// dealClientNeeds.onHoldAt. The note is mandatory so the reason survives.
+export async function putClientNeedOnHold(dealId: string, needId: string, note: string) {
+  await requireUser();
+  const trimmed = note.trim();
+  if (!trimmed) throw new Error("Add a note explaining why this need is on hold");
+  await db
+    .update(dealClientNeeds)
+    .set({ onHoldAt: new Date(), onHoldNote: trimmed })
+    .where(and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)));
+  revalidatePath(`/deals/${dealId}/loan-center`);
+}
+
+export async function resumeClientNeedFromHold(dealId: string, needId: string) {
+  await requireUser();
+  await db
+    .update(dealClientNeeds)
+    .set({ onHoldAt: null, onHoldNote: null })
+    .where(and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)));
+  revalidatePath(`/deals/${dealId}/loan-center`);
+}
+
 const NEED_STATUS_LABEL: Record<string, string> = {
   not_sent: "Not Sent",
   awaiting_docs: "Awaiting Docs",
@@ -330,7 +352,8 @@ export async function buildClientNeedsContextNote(dealId: string): Promise<strin
     }
   }
 
-  const outstanding = needs.filter((n) => n.status !== "accepted");
+  const onHold = needs.filter((n) => n.onHoldAt && n.status !== "accepted");
+  const outstanding = needs.filter((n) => n.status !== "accepted" && !n.onHoldAt);
   const accepted = needs.filter((n) => n.status === "accepted");
 
   const lines: string[] = [
@@ -353,7 +376,15 @@ export async function buildClientNeedsContextNote(dealId: string): Promise<strin
     lines.push("");
   }
 
-  lines.push(`Summary: ${accepted.length} accepted, ${outstanding.length} outstanding, ${needs.length} total.`);
+  if (onHold.length > 0) {
+    lines.push("On hold:");
+    lines.push(...onHold.map((n) => `- ${n.itemName} — ${n.onHoldNote ?? "no reason given"}`));
+    lines.push("");
+  }
+
+  lines.push(
+    `Summary: ${accepted.length} accepted, ${outstanding.length} outstanding${onHold.length ? `, ${onHold.length} on hold` : ""}, ${needs.length} total.`
+  );
 
   return lines.join("\n");
 }

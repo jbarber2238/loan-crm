@@ -10,6 +10,8 @@ import {
   updateClientNeed,
   deleteClientNeedFromDeal,
   autoGenerateClientNeedsForProduct,
+  putClientNeedOnHold,
+  resumeClientNeedFromHold,
 } from "@/server/actions/client-needs";
 import {
   attachDocumentToClientNeed,
@@ -75,6 +77,8 @@ export interface ClientNeed {
   needType: "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form" | "custom_form";
   minFiles: number;
   sentAt: Date | null;
+  onHoldAt: Date | null;
+  onHoldNote: string | null;
   linkUrl: string | null;
   templateFileName: string | null;
   pandadocDocumentId: string | null;
@@ -458,10 +462,74 @@ function EditNeedDialog({
   );
 }
 
+function HoldNeedDialog({
+  dealId,
+  need,
+  open,
+  onOpenChange,
+}: {
+  dealId: string;
+  need: ClientNeed;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const note = String(new FormData(e.currentTarget).get("note") ?? "");
+    startTransition(async () => {
+      try {
+        await putClientNeedOnHold(dealId, need.id, note);
+        onOpenChange(false);
+        toast.success("Need put on hold");
+        router.refresh();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Couldn't put this need on hold.";
+        setError(message);
+        toast.error(message);
+      }
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Put &ldquo;{need.itemName}&rdquo; on hold</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            A note is required so you remember why later. While on hold, this need won&apos;t appear in reminder or
+            update emails and is hidden from the borrower&apos;s upload page.
+          </p>
+          <Textarea name="note" rows={3} placeholder="Why is this on hold?" required />
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <Button type="submit" className="w-full" disabled={pending}>
+            {pending ? "Saving…" : "Put on hold"}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function NeedActionsMenu({ dealId, need }: { dealId: string; need: ClientNeed }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [editOpen, setEditOpen] = useState(false);
+  const [holdOpen, setHoldOpen] = useState(false);
+
+  function handleResume() {
+    startTransition(async () => {
+      await resumeClientNeedFromHold(dealId, need.id);
+      toast.success("Need resumed");
+      router.refresh();
+    });
+  }
 
   function handleDelete() {
     const warning =
@@ -485,12 +553,18 @@ function NeedActionsMenu({ dealId, need }: { dealId: string; need: ClientNeed })
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => setEditOpen(true)}>Edit</DropdownMenuItem>
+          {need.onHoldAt ? (
+            <DropdownMenuItem onClick={handleResume}>Resume (take off hold)</DropdownMenuItem>
+          ) : need.status !== "accepted" ? (
+            <DropdownMenuItem onClick={() => setHoldOpen(true)}>Put on hold</DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem variant="destructive" onClick={handleDelete}>
             Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <EditNeedDialog dealId={dealId} need={need} open={editOpen} onOpenChange={setEditOpen} />
+      <HoldNeedDialog dealId={dealId} need={need} open={holdOpen} onOpenChange={setHoldOpen} />
     </>
   );
 }
@@ -579,6 +653,7 @@ function ClientNeedRow({
               ) : (
                 <Badge variant={STATUS_VARIANT[need.status]}>{STATUS_LABEL[need.status]}</Badge>
               )}
+              {need.onHoldAt && <Badge variant="outline">On Hold</Badge>}
               {aiFlagCount > 0 && (
                 <Badge variant="warning" title="Flagged by AI review — open the document viewer to see why">
                   <Sparkles className="size-3" />
@@ -601,6 +676,11 @@ function ClientNeedRow({
                 </span>
               )}
             </p>
+            {need.onHoldAt && (
+              <p className="text-xs text-amber-600">
+                On hold since {need.onHoldAt.toLocaleDateString()}: {need.onHoldNote}
+              </p>
+            )}
             {need.description && <p className="text-sm text-muted-foreground">{need.description}</p>}
             {need.needType === "document_upload" && need.minFiles > 1 && (
               <p className="text-xs text-amber-600">Requires {need.minFiles} files (e.g. front &amp; back) before it can be accepted</p>
@@ -1074,7 +1154,7 @@ export function ClientNeedsTab({
   const esignNeeds = needs.filter((n) => ESIGN_NEED_TYPES.has(n.needType));
   const visibleNeeds = activeTab === "docs" ? docsNeeds : esignNeeds;
 
-  const selectedNeeds = needs.filter((n) => selectedIds.has(n.id));
+  const selectedNeeds = needs.filter((n) => selectedIds.has(n.id) && !n.onHoldAt);
   // "Select all" only ever touches the tab you're looking at — flipping to
   // the other tab shouldn't silently grab (or drop) items you can't see.
   const allVisibleSelected = visibleNeeds.length > 0 && visibleNeeds.every((n) => selectedIds.has(n.id));
