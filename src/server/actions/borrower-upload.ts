@@ -6,9 +6,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { deals, dealClientNeeds, dealClientNeedDocuments, dealClientNeedAnswers } from "@/server/db/schema";
 import { recomputeNeedStatus } from "@/server/client-need-status";
-import { sendGmailAs } from "@/server/gmail/send";
-import { getCompanyName } from "@/server/settings";
-import { emailShell, htmlBulletList, escapeHtml } from "@/lib/email-html";
+import { recordBorrowerActivity } from "@/server/borrower-activity";
 import { createSigningSessionUrl } from "@/server/pandadoc";
 import { parsePropertyAddress } from "@/lib/format";
 import { getCustomFormDefinition, syncedFieldsFor } from "@/lib/custom-need-forms/registry";
@@ -119,63 +117,6 @@ export async function getPandaDocSigningUrl(token: string, needId: string): Prom
   return createSigningSessionUrl(need.pandadocDocumentId, deal.borrowerEmail);
 }
 
-async function notifyBorrowerAndStaff(dealId: string, uploadedNeedNames: string[]) {
-  const deal = await db.query.deals.findFirst({
-    where: eq(deals.id, dealId),
-    with: { assignedLoanOfficer: true, assignedProcessor: true },
-  });
-  if (!deal) return;
-
-  const companyName = await getCompanyName();
-  const sender = deal.assignedLoanOfficer;
-  if (!sender?.email) return; // no connected staff mailbox to send as — skip quietly
-
-  const itemsHtml = htmlBulletList(uploadedNeedNames.map((name) => ({ name })));
-
-  // Borrower gets a short thank-you confirming what just came in.
-  if (deal.borrowerEmail) {
-    try {
-      const html = emailShell({
-        companyName,
-        heading: "Got it — thanks for uploading",
-        bodyHtml: `<p style="margin:0 0 16px;">Hi ${escapeHtml(firstName(deal.borrowerName))},</p><p style="margin:0 0 16px;">We received the following and it's now marked complete on our end:</p>${itemsHtml}`,
-      });
-      await sendGmailAs(sender.id, sender.email, {
-        to: deal.borrowerEmail,
-        subject: `Received — ${deal.propertyAddress}`,
-        body: html + (sender.emailSignatureHtml ?? ""),
-        html: true,
-      });
-    } catch (err) {
-      console.error("Failed to send borrower upload-confirmation email:", err);
-    }
-  }
-
-  // Internal notice to whoever's working the file.
-  const staffEmails = [deal.assignedProcessor?.email, deal.assignedLoanOfficer?.email].filter(
-    (e): e is string => Boolean(e)
-  );
-  if (staffEmails.length > 0) {
-    try {
-      const html = emailShell({
-        companyName,
-        heading: "New documents from your borrower",
-        bodyHtml: `<p style="margin:0 0 16px;">${escapeHtml(deal.borrowerName)} just uploaded the following on ${escapeHtml(deal.propertyAddress)}:</p>${itemsHtml}`,
-      });
-      for (const to of staffEmails) {
-        await sendGmailAs(sender.id, sender.email, {
-          to,
-          subject: `New borrower upload — ${deal.propertyAddress}`,
-          body: html,
-          html: true,
-        });
-      }
-    } catch (err) {
-      console.error("Failed to send borrower-upload staff notification:", err);
-    }
-  }
-}
-
 /** Borrower-side upload — token-gated instead of requireUser(). */
 export async function uploadBorrowerDocument(token: string, needId: string, formData: FormData) {
   const deal = await db.query.deals.findFirst({ where: eq(deals.borrowerUploadToken, token) });
@@ -213,9 +154,9 @@ export async function uploadBorrowerDocument(token: string, needId: string, form
   // The upload itself already succeeded and is the important part — never
   // fail the borrower's request over a notification email hiccup.
   try {
-    await notifyBorrowerAndStaff(deal.id, [need.itemName]);
+    await recordBorrowerActivity(deal.id, needId, need.itemName, "upload");
   } catch (err) {
-    console.error("Failed to send borrower-upload notification emails:", err);
+    console.error("Failed to record borrower activity:", err);
   }
 
   revalidatePath(`/borrower-upload/${token}`);
@@ -271,9 +212,9 @@ export async function submitClientNeedAnswers(token: string, needId: string, for
     .where(eq(dealClientNeeds.id, needId));
 
   try {
-    await notifyBorrowerAndStaff(deal.id, [need.itemName]);
+    await recordBorrowerActivity(deal.id, needId, need.itemName, "questionnaire");
   } catch (err) {
-    console.error("Failed to send borrower-submission notification emails:", err);
+    console.error("Failed to record borrower activity:", err);
   }
 
   revalidatePath(`/borrower-upload/${token}`);
@@ -410,9 +351,9 @@ export async function submitCustomFormAnswers(token: string, needId: string, for
   }
 
   try {
-    await notifyBorrowerAndStaff(deal.id, [need.itemName]);
+    await recordBorrowerActivity(deal.id, needId, need.itemName, "application");
   } catch (err) {
-    console.error("Failed to send borrower-submission notification emails:", err);
+    console.error("Failed to record borrower activity:", err);
   }
 
   revalidatePath(`/borrower-upload/${token}`);

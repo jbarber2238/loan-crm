@@ -1720,3 +1720,20 @@ export const dealCallLogsRelations = relations(dealCallLogs, ({ one }) => ({
 export const phoneUnmatchedRoutingRelations = relations(phoneUnmatchedRouting, ({ one }) => ({
   user: one(users, { fields: [phoneUnmatchedRouting.userId], references: [users.id] }),
 }));
+
+// Every task a borrower completes (upload, questionnaire, application form,
+// signed PandaDoc form) is logged here instead of triggering an email. A
+// cron sweep (src/server/borrower-activity.ts) waits for the borrower to go
+// quiet, then sends ONE combined email covering everything since the last
+// one — so a 30-minute session is a single message, not one per task.
+export const borrowerActivityEvents = pgTable("borrower_activity_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  dealId: uuid("deal_id")
+    .notNull()
+    .references(() => deals.id, { onDelete: "cascade" }),
+  needId: uuid("need_id").references(() => dealClientNeeds.id, { onDelete: "set null" }),
+  itemName: text("item_name").notNull(),
+  kind: text("kind").notNull(), // upload | questionnaire | application | signed
+  occurredAt: timestamp("occurred_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  notifiedAt: timestamp("notified_at", { mode: "date", withTimezone: true }),
+});

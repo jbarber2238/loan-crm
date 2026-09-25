@@ -3,6 +3,7 @@ import { db } from "@/server/db/client";
 import { dealClientNeeds, dealClientNeedDocuments, termSheets } from "@/server/db/schema";
 import { verifyWebhookSignature, downloadCompletedDocumentWithRetry } from "@/server/pandadoc";
 import { recomputeNeedStatus } from "@/server/client-need-status";
+import { recordBorrowerActivity } from "@/server/borrower-activity";
 import { performTermSheetAcceptance } from "@/server/actions/term-sheets";
 
 interface PandaDocEvent {
@@ -38,6 +39,11 @@ export async function POST(request: Request) {
       await db.update(dealClientNeeds).set({ pandadocStatus: data.status }).where(eq(dealClientNeeds.id, need.id));
 
       if (data.status === "document.completed") {
+        try {
+          await recordBorrowerActivity(need.dealId, need.id, need.itemName, "signed");
+        } catch (err) {
+          console.error("Failed to record borrower activity:", err);
+        }
         try {
           const pdf = await downloadCompletedDocumentWithRetry(data.id);
           if (pdf) {
