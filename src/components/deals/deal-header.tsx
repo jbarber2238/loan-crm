@@ -1,7 +1,7 @@
 import { Mail } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ClickToCopy } from "@/components/deals/click-to-copy";
+import { CopyBorrowerContactButton } from "@/components/deals/copy-borrower-contact-button";
 import { ContactQuickActions } from "@/components/messaging/contact-quick-actions";
 import { IntroButtons } from "@/components/deals/intro-buttons";
 import { StageSelect } from "@/components/deals/stage-select";
@@ -56,13 +56,13 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
             <span>{deal.borrowerName}</span>
             {deal.borrowerPhone && (
               <span className="flex items-center gap-1">
-                · <ClickToCopy value={deal.borrowerPhone} label="Phone number" />
+                · {deal.borrowerPhone}
                 <ContactQuickActions phone={deal.borrowerPhone} name={deal.borrowerName} contactType="Borrower" dealId={deal.id} />
               </span>
             )}
             {deal.borrowerEmail && (
               <span className="flex items-center gap-1">
-                · <ClickToCopy value={deal.borrowerEmail} label="Email address" />
+                · {deal.borrowerEmail}
                 <Button asChild variant="ghost" size="icon-sm" title="Email borrower" aria-label="Email borrower">
                   <a href={`mailto:${deal.borrowerEmail}`}>
                     <Mail className="size-3.5" />
@@ -70,6 +70,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
                 </Button>
               </span>
             )}
+            <CopyBorrowerContactButton name={deal.borrowerName} phone={deal.borrowerPhone} email={deal.borrowerEmail} />
           </div>
           <p className="mt-1.5 text-sm font-semibold text-foreground">
             {labelFor(LOAN_CATEGORIES, deal.loanCategory)} · LO: {deal.assignedLoanOfficer.name}
