@@ -188,6 +188,25 @@ export async function sendDocumentForSignature(documentId: string) {
 }
 
 /**
+ * A document that just reached "draft" can still refuse to send for a few
+ * seconds while PandaDoc finishes processing it — retries briefly instead of
+ * failing and leaving it stuck as an unsent draft.
+ */
+export async function sendDocumentWithRetry(documentId: string, { maxAttempts = 4, delayMs = 2500 } = {}) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      await sendDocumentForSignature(documentId);
+      return;
+    } catch (err) {
+      lastError = err;
+      if (attempt < maxAttempts - 1) await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  throw lastError;
+}
+
+/**
  * Creates a fresh, time-limited signing-session URL for the borrower to
  * fill/sign the document — generated on demand each time they click "Fill
  * out" rather than stored, since sessions expire.

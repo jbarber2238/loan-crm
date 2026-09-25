@@ -7,7 +7,7 @@ import { dealClientNeeds, deals, products, termSheets } from "@/server/db/schema
 import { requireUser } from "@/server/auth/guards";
 import { sendGmailAs } from "@/server/gmail/send";
 import { extractTermSheetFields } from "@/lib/term-sheet-fields";
-import { createDocumentFromPdfUrl, waitUntilDraft, sendDocumentForSignature } from "@/server/pandadoc";
+import { createDocumentFromPdfUrl, waitUntilDraft, sendDocumentWithRetry } from "@/server/pandadoc";
 import { syncProcessingFeeInvoice, sendProcessingFeeInvoiceEmail } from "@/server/billing";
 import { conservativeValueBasis, calculateLtarv, calculateLtc } from "@/lib/term-sheet-calculations";
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
@@ -306,13 +306,17 @@ export async function sendTermSheetForSignature(dealId: string, termSheetId: str
     recipientFirstName: firstName || deal.borrowerName,
     recipientLastName: rest.join(" "),
   });
-  await waitUntilDraft(id);
-  await sendDocumentForSignature(id);
-
+  // Saved before the send attempt so a failed send never leaves an
+  // untracked draft sitting in PandaDoc that the app has no record of.
   await db
     .update(termSheets)
-    .set({ pandadocDocumentId: id, pandadocStatus: "document.sent" })
+    .set({ pandadocDocumentId: id, pandadocStatus: "document.draft" })
     .where(eq(termSheets.id, termSheetId));
+
+  await waitUntilDraft(id);
+  await sendDocumentWithRetry(id);
+
+  await db.update(termSheets).set({ pandadocStatus: "document.sent" }).where(eq(termSheets.id, termSheetId));
 
   revalidatePath(`/deals/${dealId}`);
 }
