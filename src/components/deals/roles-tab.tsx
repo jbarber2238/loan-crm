@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { KeyContactCard } from "@/components/deals/key-contact-card";
+import { EditFollowerDialog } from "@/components/deals/edit-follower-dialog";
 import { ContactQuickActions } from "@/components/messaging/contact-quick-actions";
 
 interface UserOption {
@@ -177,11 +178,14 @@ export function RolesTab({
                       </p>
                     )}
                   </div>
-                  <ActionForm action={remove} successMessage="Follower removed">
-                    <SubmitButton size="sm" variant="ghost">
-                      Remove
-                    </SubmitButton>
-                  </ActionForm>
+                  <div className="flex items-center gap-1">
+                    <EditFollowerDialog dealId={dealId} follower={f} />
+                    <ActionForm action={remove} successMessage="Follower removed">
+                      <SubmitButton size="sm" variant="ghost">
+                        Remove
+                      </SubmitButton>
+                    </ActionForm>
+                  </div>
                 </li>
               );
             })}

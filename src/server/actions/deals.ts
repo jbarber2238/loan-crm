@@ -356,6 +356,27 @@ export async function addDealFollower(dealId: string, formData: FormData) {
   revalidatePath(`/deals/${dealId}`);
 }
 
+export async function updateDealFollower(dealId: string, followerId: string, formData: FormData) {
+  await requireUser();
+
+  const name = str(formData, "name");
+  const email = str(formData, "email");
+  if (!name) throw new Error("Name is required");
+  if (!email) throw new Error("Email is required");
+
+  await db
+    .update(dealFollowers)
+    .set({
+      name,
+      email,
+      phone: nullableStr(formData, "phone"),
+      roleLabel: nullableStr(formData, "roleLabel"),
+    })
+    .where(and(eq(dealFollowers.id, followerId), eq(dealFollowers.dealId, dealId)));
+
+  revalidatePath(`/deals/${dealId}`);
+}
+
 export async function removeDealFollower(dealId: string, followerId: string) {
   await requireUser();
   await db.delete(dealFollowers).where(eq(dealFollowers.id, followerId));
