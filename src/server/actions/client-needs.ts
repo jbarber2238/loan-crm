@@ -1,12 +1,13 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { clientNeeds, deals, dealClientNeeds, productClientNeeds, categoryClientNeeds, products } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { copyQuestionsToNewNeeds } from "@/server/client-need-questions";
 import { createClientNeed } from "@/server/actions/client-need-catalog";
+import { activeRulesFor } from "@/server/client-need-rules";
 import { createDocumentFromTemplate, waitUntilDraft, sendDocumentSilently } from "@/server/pandadoc";
 
 type CatalogNeedRow = {
@@ -22,6 +23,7 @@ type CatalogNeedRow = {
   templateFileSize: number | null;
   pandadocTemplateUuid: string | null;
   customFormKey: string | null;
+  autoRule?: string | null;
 };
 
 // Creates and sends the PandaDoc document for one need — called from
@@ -128,8 +130,43 @@ async function resolveClientNeedsForProduct(productId: string): Promise<CatalogN
 // this specific lender's product) onto a deal — used when a term sheet is
 // accepted. Skips items that already exist on the deal by name.
 export async function populateClientNeedsFromProduct(dealId: string, productId: string) {
-  const catalogNeeds = await resolveClientNeedsForProduct(productId);
+  const catalogNeeds = [
+    ...(await resolveClientNeedsForProduct(productId)),
+    ...(await conditionalNeedsForDeal(dealId)),
+  ];
   return addCatalogNeedsToDeal(dealId, catalogNeeds);
+}
+
+// Catalog items whose autoRule condition currently holds for this deal
+// (tenant-occupied DSCR → lease agreement; refi with a payoff amount →
+// payoff statement + mortgage statement).
+async function conditionalNeedsForDeal(dealId: string): Promise<CatalogNeedRow[]> {
+  const deal = await db.query.deals.findFirst({
+    where: eq(deals.id, dealId),
+    columns: { loanCategory: true, currentOccupancy: true, mortgagePayoffAmount: true },
+  });
+  if (!deal) return [];
+  const rules = activeRulesFor(deal);
+  if (!rules.length) return [];
+  return db.query.clientNeeds.findMany({ where: inArray(clientNeeds.autoRule, rules) });
+}
+
+/**
+ * Called after a deal's details are edited: once a deal already has a
+ * checklist, a newly-true condition (occupancy set to tenant-occupied, a
+ * payoff amount entered) adds its needs right away. Add-only — turning a
+ * condition back off never removes a need someone may already be working.
+ * Before the checklist exists, acceptance builds it and picks these up then.
+ */
+export async function syncConditionalClientNeeds(dealId: string) {
+  const existing = await db.query.dealClientNeeds.findFirst({
+    where: eq(dealClientNeeds.dealId, dealId),
+    columns: { id: true },
+  });
+  if (!existing) return 0;
+  const added = await addCatalogNeedsToDeal(dealId, await conditionalNeedsForDeal(dealId));
+  if (added) revalidatePath(`/deals/${dealId}/loan-center`);
+  return added;
 }
 
 // The "Auto Generate" button's entry point — same 3-layer resolution, just
@@ -137,7 +174,10 @@ export async function populateClientNeedsFromProduct(dealId: string, productId: 
 // client component instead of only from server-side acceptance logic.
 export async function autoGenerateClientNeedsForProduct(dealId: string, productId: string) {
   await requireUser();
-  const catalogNeeds = await resolveClientNeedsForProduct(productId);
+  const catalogNeeds = [
+    ...(await resolveClientNeedsForProduct(productId)),
+    ...(await conditionalNeedsForDeal(dealId)),
+  ];
   if (!catalogNeeds.length) {
     throw new Error("No client needs are set up for this loan category or lender yet.");
   }

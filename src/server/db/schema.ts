@@ -532,6 +532,10 @@ export const clientNeeds = pgTable("client_needs", {
   // custom_form: which hand-built form definition to render — a key into
   // CUSTOM_NEED_FORM_REGISTRY (src/lib/custom-need-forms/registry.ts).
   customFormKey: text("custom_form_key"),
+  // Deal-specific trigger (see src/server/client-need-rules.ts) — when set,
+  // this item is added to a deal only if that rule's condition holds for it
+  // (e.g. the property is tenant-occupied), on top of the normal catalog layers.
+  autoRule: text("auto_rule"),
   // document_upload: an optional blank/fillable file (e.g. a lender
   // application PDF) the borrower downloads, fills in, and re-uploads.
   templateFileName: text("template_file_name"),

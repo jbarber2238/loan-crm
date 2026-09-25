@@ -35,6 +35,7 @@ import { conservativeValueBasis, calculateLtarv, calculateLtc } from "@/lib/term
 import { syncProcessingFeeInvoice } from "@/server/billing";
 import { toE164 } from "@/server/twilio-client";
 import { notifyAffiliateOfNewDeal, notifyAffiliateOfStageChange } from "@/server/actions/referral-affiliates";
+import { syncConditionalClientNeeds } from "@/server/actions/client-needs";
 import { notifyAdminOfNewDeal, notifyBorrowerOfSubmission, notifyProcessorOfPaidDeal } from "@/server/deal-notifications";
 
 const HARD_MONEY_DRAW_CATEGORIES = new Set(["fix_and_flip", "new_construction"]);
@@ -310,6 +311,8 @@ export async function updateDealDetails(dealId: string, formData: FormData) {
       updatedAt: new Date(),
     })
     .where(eq(deals.id, dealId));
+
+  await syncConditionalClientNeeds(dealId);
 
   revalidatePath(`/deals/${dealId}`);
   revalidatePath("/");
