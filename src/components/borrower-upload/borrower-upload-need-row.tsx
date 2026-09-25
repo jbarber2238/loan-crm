@@ -62,8 +62,11 @@ function QuestionnaireForm({ token, need }: { token: string; need: BorrowerUploa
     <form onSubmit={handleSubmit} className="space-y-3">
       {need.answers.map((a) => (
         <div key={a.id} className="space-y-1">
-          <Label htmlFor={`answer-${a.id}`}>{a.questionText}</Label>
-          <Input id={`answer-${a.id}`} name={`answer-${a.id}`} defaultValue={a.answerText ?? ""} />
+          <Label htmlFor={`answer-${a.id}`}>
+            {a.questionText}
+            {a.required && <span className="text-destructive"> *</span>}
+          </Label>
+          <Input id={`answer-${a.id}`} name={`answer-${a.id}`} defaultValue={a.answerText ?? ""} required={a.required} />
         </div>
       ))}
       {error && <p className="text-xs text-destructive">{error}</p>}

@@ -34,11 +34,14 @@ function needTypeFrom(formData: FormData): NeedType {
     : "document_upload";
 }
 
-function questionsFrom(formData: FormData): string[] {
-  return formData
-    .getAll("questionText")
-    .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
-    .map((v) => v.trim());
+// questionText and questionRequired are rendered together per row, so they
+// line up by index; blank questions are dropped along with their flag.
+function questionsFrom(formData: FormData): { questionText: string; required: boolean }[] {
+  const texts = formData.getAll("questionText");
+  const flags = formData.getAll("questionRequired");
+  return texts
+    .map((v, i) => ({ questionText: typeof v === "string" ? v.trim() : "", required: flags[i] === "1" }))
+    .filter((q) => q.questionText.length > 0);
 }
 
 async function templateFileFields(formData: FormData) {
@@ -60,10 +63,10 @@ async function templateFileFields(formData: FormData) {
   return {};
 }
 
-async function insertQuestions(clientNeedId: string, questions: string[]) {
+async function insertQuestions(clientNeedId: string, questions: { questionText: string; required: boolean }[]) {
   if (!questions.length) return;
   await db.insert(clientNeedQuestions).values(
-    questions.map((questionText, i) => ({ clientNeedId, questionText, sortOrder: i }))
+    questions.map((q, i) => ({ clientNeedId, questionText: q.questionText, required: q.required, sortOrder: i }))
   );
 }
 

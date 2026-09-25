@@ -35,7 +35,7 @@ export interface ExistingClientNeed {
   isCustom: boolean;
   isGlobal: boolean;
   loanCategories: string[];
-  questions: { questionText: string }[];
+  questions: { questionText: string; required: boolean }[];
 }
 
 export function ClientNeedForm({
@@ -71,8 +71,10 @@ export function ClientNeedForm({
   const [linkUrl, setLinkUrl] = useState(clientNeed?.linkUrl ?? "");
   const [pandadocTemplateUuid, setPandadocTemplateUuid] = useState(clientNeed?.pandadocTemplateUuid ?? "");
   const [customFormKey, setCustomFormKey] = useState(clientNeed?.customFormKey ?? "");
-  const [questions, setQuestions] = useState<string[]>(
-    clientNeed?.questions.length ? clientNeed.questions.map((q) => q.questionText) : [""]
+  const [questions, setQuestions] = useState<{ text: string; required: boolean }[]>(
+    clientNeed?.questions.length
+      ? clientNeed.questions.map((q) => ({ text: q.questionText, required: q.required }))
+      : [{ text: "", required: false }]
   );
   const [removeFile, setRemoveFile] = useState(false);
 
@@ -112,7 +114,9 @@ export function ClientNeedForm({
         setDescription(draft.description);
         setNeedType(draft.needType);
         setEsignVendor(draft.esignVendor ?? "");
-        setQuestions(draft.questions.length ? draft.questions : [""]);
+        setQuestions(
+          draft.questions.length ? draft.questions.map((text) => ({ text, required: false })) : [{ text: "", required: false }]
+        );
       } catch (err) {
         setAiError(err instanceof Error ? err.message : "Couldn't generate a draft.");
       }
@@ -423,13 +427,25 @@ export function ClientNeedForm({
           <div className="space-y-2">
             <Label>Questions</Label>
             {questions.map((q, i) => (
-              <div key={i} className="flex gap-2">
+              <div key={i} className="flex items-center gap-2">
                 <Input
                   name="questionText"
-                  value={q}
-                  onChange={(e) => setQuestions((prev) => prev.map((p, j) => (j === i ? e.target.value : p)))}
+                  value={q.text}
+                  onChange={(e) =>
+                    setQuestions((prev) => prev.map((p, j) => (j === i ? { ...p, text: e.target.value } : p)))
+                  }
                   placeholder={`Question ${i + 1}`}
                 />
+                <input type="hidden" name="questionRequired" value={q.required ? "1" : "0"} />
+                <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                  <Checkbox
+                    checked={q.required}
+                    onCheckedChange={(v) =>
+                      setQuestions((prev) => prev.map((p, j) => (j === i ? { ...p, required: v === true } : p)))
+                    }
+                  />
+                  Required
+                </label>
                 <Button
                   type="button"
                   size="sm"
@@ -441,7 +457,7 @@ export function ClientNeedForm({
                 </Button>
               </div>
             ))}
-            <Button type="button" size="sm" variant="outline" onClick={() => setQuestions((prev) => [...prev, ""])}>
+            <Button type="button" size="sm" variant="outline" onClick={() => setQuestions((prev) => [...prev, { text: "", required: false }])}>
               + Add question
             </Button>
           </div>

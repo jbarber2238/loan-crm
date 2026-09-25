@@ -32,6 +32,7 @@ export async function copyQuestionsToNewNeeds(
     (byCatalogId.get(e.catalogClientNeedId) ?? []).map((q) => ({
       clientNeedId: e.dealNeedId,
       questionText: q.questionText,
+      required: q.required,
       sortOrder: q.sortOrder,
     }))
   );

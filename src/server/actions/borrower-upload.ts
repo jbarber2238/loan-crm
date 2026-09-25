@@ -21,6 +21,7 @@ function firstName(fullName: string): string {
 export interface BorrowerUploadAnswer {
   id: string;
   questionText: string;
+  required: boolean;
   answerText: string | null;
 }
 
@@ -55,7 +56,7 @@ export async function getDealForBorrowerUpload(token: string) {
     with: {
       documents: { columns: { reviewStatus: true, rejectionNote: true } },
       answers: {
-        columns: { id: true, questionText: true, answerText: true },
+        columns: { id: true, questionText: true, required: true, answerText: true },
         orderBy: (a, { asc }) => asc(a.sortOrder),
       },
     },
@@ -239,6 +240,14 @@ export async function submitClientNeedAnswers(token: string, needId: string, for
     return typeof value === "string" && value.trim().length > 0;
   });
   if (!answered.length) throw new Error("Please fill in at least one field");
+  const missingRequired = need.answers.filter((a) => {
+    if (!a.required) return false;
+    const value = formData.get(`answer-${a.id}`);
+    return typeof value !== "string" || !value.trim();
+  });
+  if (missingRequired.length) {
+    throw new Error(`Please answer: ${missingRequired.map((a) => a.questionText).join("; ")}`);
+  }
 
   const now = new Date();
   for (const a of need.answers) {

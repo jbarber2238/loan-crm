@@ -566,6 +566,9 @@ export const clientNeedQuestions = pgTable("client_need_questions", {
     .notNull()
     .references(() => clientNeeds.id, { onDelete: "cascade" }),
   questionText: text("question_text").notNull(),
+  // The borrower can't submit the form until every required question has an
+  // answer — copied onto dealClientNeedAnswers when the need is added to a deal.
+  required: boolean("required").notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
@@ -1080,6 +1083,7 @@ export const dealClientNeedAnswers = pgTable("deal_client_need_answers", {
     .notNull()
     .references(() => dealClientNeeds.id, { onDelete: "cascade" }),
   questionText: text("question_text").notNull(),
+  required: boolean("required").notNull().default(false),
   answerText: text("answer_text"),
   sortOrder: integer("sort_order").notNull().default(0),
   answeredAt: timestamp("answered_at", { mode: "date" }),

@@ -25,7 +25,7 @@ export interface BrowsableClientNeed {
   isCustom: boolean;
   isGlobal: boolean;
   loanCategories: string[];
-  questions: { questionText: string }[];
+  questions: { questionText: string; required: boolean }[];
   productCount: number;
 }
 
@@ -103,7 +103,10 @@ function Row({
           {item.needType === "questionnaire" && item.questions.length > 0 && (
             <ul className="list-inside list-disc text-xs text-muted-foreground">
               {item.questions.map((q, i) => (
-                <li key={i}>{q.questionText}</li>
+                <li key={i}>
+                  {q.questionText}
+                  {q.required && <span className="text-destructive"> *</span>}
+                </li>
               ))}
             </ul>
           )}
