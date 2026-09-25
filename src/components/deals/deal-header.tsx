@@ -70,29 +70,21 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
               </span>
             )}
           </div>
+          <p className="mt-1.5 text-sm font-semibold text-foreground">
+            {labelFor(LOAN_CATEGORIES, deal.loanCategory)} · LO: {deal.assignedLoanOfficer.name}
+            {deal.assignedProcessor && ` · Processor: ${deal.assignedProcessor.name}`}
+          </p>
           {currentUser.baseRole === "processor" && (
             <div className="mt-1.5">
               <IntroButtons dealId={deal.id} />
             </div>
           )}
-          {deal.lenderId && deal.lender ? (
-            <p className="text-xs text-muted-foreground">
-              {labelFor(LOAN_CATEGORIES, deal.loanCategory)} · LO:{" "}
-              {deal.assignedLoanOfficer.name}
-              {deal.assignedProcessor && ` · Processor: ${deal.assignedProcessor.name}`}
-            </p>
-          ) : (
+          {deal.lenderId && deal.lender ? null : (
             (() => {
               const loanAmount = Number(deal.loanAmountRequested);
-              const tail = (
-                <>
-                  {" "}
-                  · LO: {deal.assignedLoanOfficer.name}
-                  {deal.assignedProcessor && ` · Processor: ${deal.assignedProcessor.name}`}
-                  {deal.estimatedClosingDate &&
-                    ` · Est. Closing: ${deal.estimatedClosingDate.toLocaleDateString()}`}
-                </>
-              );
+              const tail = deal.estimatedClosingDate
+                ? ` · Est. Closing: ${deal.estimatedClosingDate.toLocaleDateString()}`
+                : "";
 
               // Rehab/construction deals (fix-and-flip, new construction,
               // bridge) are sized against the after-repair value and the
@@ -107,8 +99,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
                 const ltc = totalProjectCost ? (loanAmount / totalProjectCost) * 100 : null;
                 return (
                   <p className="text-xs text-muted-foreground">
-                    {labelFor(LOAN_CATEGORIES, deal.loanCategory)} · Requested loan amount: $
-                    {loanAmount.toLocaleString()}
+                    Requested loan amount: ${loanAmount.toLocaleString()}
                     {ltarv !== null && ` · LTARV: ${ltarv.toFixed(1)}%`}
                     {ltc !== null && ` · LTC: ${ltc.toFixed(1)}%`}
                     {tail}
@@ -124,8 +115,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
               const requestedLtv = basis ? (loanAmount / basis) * 100 : null;
               return (
                 <p className="text-xs text-muted-foreground">
-                  {labelFor(LOAN_CATEGORIES, deal.loanCategory)} · Requested loan amount: $
-                  {loanAmount.toLocaleString()}
+                  Requested loan amount: ${loanAmount.toLocaleString()}
                   {requestedLtv !== null && ` · Requested LTV: ${requestedLtv.toFixed(1)}%`}
                   {tail}
                 </p>
