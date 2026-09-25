@@ -4,7 +4,7 @@ import { deals, users } from "@/server/db/schema";
 import { sendGmailAs } from "@/server/gmail/send";
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
-import { emailShell, htmlButton, htmlFactList } from "@/lib/email-html";
+import { emailShell, htmlButton, htmlFactList, escapeHtml } from "@/lib/email-html";
 import { labelFor, LOAN_CATEGORIES } from "@/lib/labels";
 import {
   ratioMetricsFor,
@@ -117,6 +117,69 @@ export async function notifyBorrowerOfAcceptedTerms(dealId: string): Promise<voi
      ${htmlFactList(terms)}
      <p>The loan processor assigned to your file will be reaching out shortly to introduce themselves and begin collecting the documents needed for your application to the lender.</p>`
   );
+}
+
+/**
+ * Fires only when the processing-fee invoice is paid and the deal
+ * auto-advances into Application (see the Stripe webhook) — deliberately
+ * NOT when a processor is merely assigned in Roles, so a pre-assigned
+ * processor hears nothing until there's real work to start. Sent from the
+ * deal's loan officer's own Gmail, like every other deal notification.
+ */
+export async function notifyProcessorOfPaidDeal(dealId: string): Promise<void> {
+  const deal = await db.query.deals.findFirst({
+    where: eq(deals.id, dealId),
+    with: { assignedLoanOfficer: true, assignedProcessor: true, lender: true },
+  });
+  if (!deal?.assignedProcessor?.email) return; // no processor assigned yet — nothing to send
+  const sender = deal.assignedLoanOfficer;
+  if (!sender?.email) return;
+
+  const term =
+    deal.finalLoanTermMonths != null
+      ? `${deal.finalLoanTermMonths} months`
+      : deal.finalLoanTermYears != null
+        ? `${deal.finalLoanTermYears} years`
+        : deal.finalTerms;
+  const points = deal.originationPointsOverride != null ? Number(deal.originationPointsOverride) : 2;
+
+  const facts = [
+    { label: "Borrower", value: deal.borrowerName },
+    { label: "Property", value: deal.propertyAddress },
+    { label: "Loan type", value: labelFor(LOAN_CATEGORIES, deal.loanCategory) },
+    deal.lender ? { label: "Lender", value: deal.lender.name } : null,
+    deal.approvedLoanAmount ? { label: "Loan amount", value: money(deal.approvedLoanAmount) } : null,
+    deal.finalRate ? { label: "Interest rate", value: `${Number(deal.finalRate)}%` } : null,
+    term ? { label: "Loan term", value: term } : null,
+    deal.finalAmortizationType ? { label: "Amortization", value: deal.finalAmortizationType } : null,
+    { label: "Origination points", value: `${points}%` },
+    { label: "Loan officer", value: sender.name ?? sender.email },
+  ].filter((f): f is { label: string; value: string } => f !== null);
+
+  const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+  const [companyName, logoHtml, signatureHtml] = await Promise.all([
+    getCompanyName(),
+    getCompanyLogoHtml(),
+    getUserEmailSignatureHtml(sender.id),
+  ]);
+
+  const body = emailShell({
+    companyName,
+    heading: "New deal ready to process",
+    bodyHtml: `
+      <p>Hi ${escapeHtml(firstName(deal.assignedProcessor.name ?? "there"))},</p>
+      <p>The borrower has paid the processing fee and this deal has moved into Application — it's ready for you to start processing.</p>
+      ${htmlFactList(facts)}
+      <p>${htmlButton("View Deal", `${appUrl}/deals/${deal.id}`)}</p>
+    `,
+  });
+
+  await sendGmailAs(sender.id, sender.email, {
+    to: deal.assignedProcessor.email,
+    subject: `Ready to process — ${deal.borrowerName} (${deal.propertyAddress})`,
+    body: logoHtml + body + signatureHtml,
+    html: true,
+  });
 }
 
 /**

@@ -3,7 +3,7 @@ import { db } from "@/server/db/client";
 import { deals } from "@/server/db/schema";
 import { constructStripeWebhookEvent } from "@/server/stripe";
 import { advanceDealStage } from "@/server/actions/deals";
-import { notifyBorrowerOfAcceptedTerms } from "@/server/deal-notifications";
+import { notifyBorrowerOfAcceptedTerms, notifyProcessorOfPaidDeal } from "@/server/deal-notifications";
 import type Stripe from "stripe";
 
 // No auth beyond the signature check below — Stripe calls this directly,
@@ -39,6 +39,9 @@ export async function POST(request: Request) {
         if (advanced) {
           await notifyBorrowerOfAcceptedTerms(deal.id).catch((err) => {
             console.error("Failed to send borrower accepted-terms notification:", err);
+          });
+          await notifyProcessorOfPaidDeal(deal.id).catch((err) => {
+            console.error("Failed to send processor ready-to-process notification:", err);
           });
         }
       }
