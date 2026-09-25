@@ -2,8 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { deals } from "@/server/db/schema";
 import { constructStripeWebhookEvent } from "@/server/stripe";
-import { advanceDealStage } from "@/server/actions/deals";
-import { notifyBorrowerOfAcceptedTerms, notifyProcessorOfPaidDeal } from "@/server/deal-notifications";
+import { handleProcessingFeePaid } from "@/server/processing-fee-paid";
 import type Stripe from "stripe";
 
 // No auth beyond the signature check below — Stripe calls this directly,
@@ -25,25 +24,18 @@ export async function POST(request: Request) {
 
   if (event.type === "invoice.paid" || event.type === "invoice.payment_failed") {
     const invoice = event.data.object as Stripe.Invoice;
-    const deal = await db.query.deals.findFirst({ where: eq(deals.stripeInvoiceId, invoice.id) });
+    let deal = await db.query.deals.findFirst({ where: eq(deals.stripeInvoiceId, invoice.id) });
+    // A paid invoice the deal isn't tracking (e.g. a duplicate created by
+    // overlapping term-sheet acceptances) still belongs to its deal via the
+    // dealId stamped on it at creation — pay attention to that too.
+    if (!deal && event.type === "invoice.paid" && invoice.metadata?.dealId) {
+      deal = await db.query.deals.findFirst({ where: eq(deals.id, invoice.metadata.dealId) });
+    }
     if (deal) {
-      await db
-        .update(deals)
-        .set({ stripeInvoiceStatus: event.type === "invoice.paid" ? "paid" : "payment_failed" })
-        .where(eq(deals.id, deal.id));
-
-      // No-op if the deal isn't currently at Negotiation (e.g. a retried
-      // webhook delivery for the same already-processed invoice).
       if (event.type === "invoice.paid") {
-        const advanced = await advanceDealStage(deal.id, "negotiation", "application", null);
-        if (advanced) {
-          await notifyBorrowerOfAcceptedTerms(deal.id).catch((err) => {
-            console.error("Failed to send borrower accepted-terms notification:", err);
-          });
-          await notifyProcessorOfPaidDeal(deal.id).catch((err) => {
-            console.error("Failed to send processor ready-to-process notification:", err);
-          });
-        }
+        await handleProcessingFeePaid(deal.id, null);
+      } else {
+        await db.update(deals).set({ stripeInvoiceStatus: "payment_failed" }).where(eq(deals.id, deal.id));
       }
     }
   }

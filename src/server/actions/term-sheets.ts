@@ -3,7 +3,9 @@
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
-import { dealClientNeeds, deals, products, termSheets } from "@/server/db/schema";
+import { dealClientNeeds, dealNotes, deals, products, termSheets } from "@/server/db/schema";
+import { voidStripeInvoice } from "@/server/stripe";
+import { handleProcessingFeePaid } from "@/server/processing-fee-paid";
 import { requireUser } from "@/server/auth/guards";
 import { sendGmailAs } from "@/server/gmail/send";
 import { extractTermSheetFields } from "@/lib/term-sheet-fields";
@@ -476,6 +478,34 @@ export async function sendBookACallEmail(dealId: string, to: string, cc: string,
   // No-op if the deal isn't currently at Term Sheet — e.g. a re-send, or
   // "Send to borrower" already advanced it first.
   await advanceDealStage(dealId, "term_sheet", "negotiation", user.id);
+
+  revalidatePath(`/deals/${dealId}`);
+}
+
+/**
+ * Manual override for when Stripe shows the processing fee paid but the deal
+ * never found out (typically a duplicate invoice the deal wasn't tracking).
+ * The UI makes staff explicitly confirm they've verified the payment in
+ * Stripe first. Also voids whatever invoice the deal *is* still tracking if
+ * it's unpaid, so the borrower can't be charged twice — best-effort, since
+ * if the tracked invoice was the paid one there's nothing to void.
+ */
+export async function markProcessingFeePaidManually(dealId: string) {
+  const user = await requireUser();
+  const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId) });
+  if (!deal) throw new Error("Deal not found");
+  if (!deal.stripeInvoiceId) throw new Error("This deal has no processing-fee invoice to mark paid");
+  if (deal.stripeInvoiceStatus === "paid") throw new Error("This invoice is already marked paid");
+
+  await voidStripeInvoice(deal.stripeInvoiceId).catch(() => {});
+  const advanced = await handleProcessingFeePaid(dealId, user.id);
+
+  await db.insert(dealNotes).values({
+    dealId,
+    authorUserId: user.id,
+    source: "system",
+    body: `${user.name ?? "A team member"} manually marked the processing-fee invoice paid after confirming payment in Stripe${advanced ? " — deal advanced to Application" : ""}.`,
+  });
 
   revalidatePath(`/deals/${dealId}`);
 }

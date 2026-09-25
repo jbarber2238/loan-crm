@@ -3,7 +3,9 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { CheckCircle2, Clock, AlertCircle } from "lucide-react";
-import { resendProcessingFeeInvoice } from "@/server/actions/term-sheets";
+import { resendProcessingFeeInvoice, markProcessingFeePaidManually } from "@/server/actions/term-sheets";
+import { useRouter } from "next/navigation";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "cn";
 
@@ -30,6 +32,9 @@ export function ProcessingFeeInvoiceStatus({
 }) {
   const [copied, setCopied] = useState(false);
   const [resending, startResend] = useTransition();
+  const router = useRouter();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [marking, startMark] = useTransition();
 
   const style = STYLES[status] ?? STYLES.open;
   const Icon = style.icon;
@@ -55,6 +60,19 @@ export function ProcessingFeeInvoiceStatus({
     });
   }
 
+  function handleMarkPaid() {
+    setConfirmOpen(false);
+    startMark(async () => {
+      try {
+        await markProcessingFeePaidManually(dealId);
+        toast.success("Marked paid");
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't mark this paid");
+      }
+    });
+  }
+
   return (
     <div className={cn("flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm", style.bar)}>
       <div className="flex items-center gap-2 font-medium">
@@ -72,7 +90,19 @@ export function ProcessingFeeInvoiceStatus({
             {resending ? "Resending…" : "Resend invoice"}
           </Button>
         )}
+        {canAct && (
+          <Button type="button" variant="outline" size="sm" className="bg-white" disabled={marking} onClick={() => setConfirmOpen(true)}>
+            {marking ? "Marking…" : "Mark paid"}
+          </Button>
+        )}
       </div>
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Mark this invoice paid?"
+        message="Are you certain this has been paid and you have confirmed the payment went through in Stripe? Marking it paid moves the deal to Application and notifies the borrower and the assigned processor. Any other unpaid invoice still tracked on this deal will be voided."
+        onConfirm={handleMarkPaid}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   );
 }

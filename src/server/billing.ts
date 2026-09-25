@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { deals } from "@/server/db/schema";
 import { createProcessingFeeInvoice, voidStripeInvoice } from "@/server/stripe";
@@ -87,51 +87,63 @@ export async function sendProcessingFeeInvoiceEmail(
  * been paid.
  */
 export async function syncProcessingFeeInvoice(dealId: string): Promise<void> {
-  const deal = await db.query.deals.findFirst({
-    where: eq(deals.id, dealId),
-    with: { assignedLoanOfficer: { columns: { id: true, name: true, email: true } } },
-  });
-  if (!deal || !deal.borrowerEmail) return;
-  if (deal.stripeInvoiceStatus === "paid") return;
-
-  const amount = deal.processingFeeOverride ? Number(deal.processingFeeOverride) : STANDARD_PROCESSING_FEE;
-
-  if (deal.stripeInvoiceId && deal.stripeInvoiceAmount !== null && Number(deal.stripeInvoiceAmount) === amount) {
-    return;
-  }
-
   try {
-    if (deal.stripeInvoiceId) {
-      await voidStripeInvoice(deal.stripeInvoiceId).catch((err) => {
-        console.error(
-          `Failed to void stale processing-fee invoice ${deal.stripeInvoiceId} for deal ${dealId} (continuing to create the new one anyway):`,
-          err
-        );
-      });
-    }
+    // Serialized per deal: two overlapping runs (a duplicate PandaDoc
+    // webhook delivery, a double-click) used to both see "no invoice yet"
+    // and each create one — Stripe ended up with two, only one of which the
+    // deal tracked, so paying the untracked one never advanced the deal.
+    // The second run now waits here, re-reads the deal, sees the first
+    // run's invoice, and returns without creating another.
+    const created = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${dealId}))`);
 
-    const { customerId, invoiceId, hostedInvoiceUrl } = await createProcessingFeeInvoice({
-      dealId,
-      existingCustomerId: deal.stripeCustomerId,
-      borrowerName: deal.borrowerName,
-      borrowerEntityName: deal.borrowerEntityName,
-      borrowerEmail: deal.borrowerEmail,
-      propertyAddress: deal.propertyAddress,
-      amount,
+      const deal = await tx.query.deals.findFirst({
+        where: eq(deals.id, dealId),
+        with: { assignedLoanOfficer: { columns: { id: true, name: true, email: true } } },
+      });
+      if (!deal || !deal.borrowerEmail) return null;
+      if (deal.stripeInvoiceStatus === "paid") return null;
+
+      const amount = deal.processingFeeOverride ? Number(deal.processingFeeOverride) : STANDARD_PROCESSING_FEE;
+
+      if (deal.stripeInvoiceId && deal.stripeInvoiceAmount !== null && Number(deal.stripeInvoiceAmount) === amount) {
+        return null;
+      }
+
+      if (deal.stripeInvoiceId) {
+        await voidStripeInvoice(deal.stripeInvoiceId).catch((err) => {
+          console.error(
+            `Failed to void stale processing-fee invoice ${deal.stripeInvoiceId} for deal ${dealId} (continuing to create the new one anyway):`,
+            err
+          );
+        });
+      }
+
+      const { customerId, invoiceId, hostedInvoiceUrl } = await createProcessingFeeInvoice({
+        dealId,
+        existingCustomerId: deal.stripeCustomerId,
+        borrowerName: deal.borrowerName,
+        borrowerEntityName: deal.borrowerEntityName,
+        borrowerEmail: deal.borrowerEmail,
+        propertyAddress: deal.propertyAddress,
+        amount,
+      });
+
+      await tx
+        .update(deals)
+        .set({
+          stripeCustomerId: customerId,
+          stripeInvoiceId: invoiceId,
+          stripeInvoiceStatus: "open",
+          stripeInvoiceAmount: String(amount),
+          stripeInvoiceUrl: hostedInvoiceUrl,
+        })
+        .where(eq(deals.id, dealId));
+
+      return { deal, amount, hostedInvoiceUrl };
     });
 
-    await db
-      .update(deals)
-      .set({
-        stripeCustomerId: customerId,
-        stripeInvoiceId: invoiceId,
-        stripeInvoiceStatus: "open",
-        stripeInvoiceAmount: String(amount),
-        stripeInvoiceUrl: hostedInvoiceUrl,
-      })
-      .where(eq(deals.id, dealId));
-
-    await sendProcessingFeeInvoiceEmail(deal, amount, hostedInvoiceUrl);
+    if (created) await sendProcessingFeeInvoiceEmail(created.deal, created.amount, created.hostedInvoiceUrl);
   } catch (err) {
     console.error(`Failed to create processing-fee invoice for deal ${dealId}:`, err);
   }
