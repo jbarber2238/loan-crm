@@ -25,9 +25,12 @@ function chevronClipPath(index: number, total: number): string | undefined {
 export function PipelineStepper({
   stage,
   pausedFromStage,
+  onDark = false,
 }: {
   stage: string;
   pausedFromStage: string | null;
+  /** Light-on-dark palette, for placing the bar on a dark banner. */
+  onDark?: boolean;
 }) {
   if (TERMINAL_NEGATIVE_STAGES.has(stage)) {
     return (
@@ -44,6 +47,10 @@ export function PipelineStepper({
     PIPELINE_STAGES.findIndex((s) => s.value === anchorStage)
   );
   const total = PIPELINE_STAGES.length;
+  const doneBar = onDark ? "bg-green-500" : "bg-green-600";
+  const todoBar = onDark ? "bg-white/25" : "bg-muted";
+  const doneLabel = onDark ? "font-medium text-primary-foreground" : "font-medium text-foreground";
+  const todoLabel = onDark ? "text-primary-foreground/60" : "text-muted-foreground";
   const cols = `repeat(${total}, 1fr)`;
 
   return (
@@ -58,7 +65,7 @@ export function PipelineStepper({
           {PIPELINE_STAGES.map((s, i) => (
             <div
               key={s.value}
-              className={i <= currentIndex ? "bg-green-600" : "bg-muted"}
+              className={i <= currentIndex ? doneBar : todoBar}
               style={{
                 clipPath: chevronClipPath(i, total),
                 marginLeft: i === 0 ? 0 : -CHEVRON_DEPTH,
@@ -71,7 +78,7 @@ export function PipelineStepper({
             <span
               key={s.value}
               className={`px-0.5 text-center text-[9px] leading-tight ${
-                i <= currentIndex ? "font-medium text-foreground" : "text-muted-foreground"
+                i <= currentIndex ? doneLabel : todoLabel
               }`}
             >
               {s.label}

@@ -78,6 +78,14 @@ export default async function BorrowerUploadPage({ params }: { params: Promise<{
       <div className="overflow-hidden rounded-xl border shadow-sm">
         <div className="bg-primary px-6 py-6 text-primary-foreground md:px-8">
           <p className="text-xs font-semibold text-primary-foreground/70 uppercase tracking-wide">{companyName}</p>
+          {deal.showPipeline && (
+            <div className="mt-4 mb-5 space-y-2">
+              <p className="text-xs font-semibold text-primary-foreground/70 uppercase tracking-wide">
+                Where your loan is
+              </p>
+              <PipelineStepper stage={deal.pipelineStage} pausedFromStage={null} onDark />
+            </div>
+          )}
           <h1 className="mt-1 text-xl font-semibold text-balance">{headline}</h1>
           <p className="mt-1 text-sm text-primary-foreground/80">{subheadline}</p>
           <p className="mt-3 text-xs text-primary-foreground/70">
@@ -86,13 +94,6 @@ export default async function BorrowerUploadPage({ params }: { params: Promise<{
         </div>
 
         <div className="space-y-6 bg-card p-6 md:p-8">
-          {deal.showPipeline && (
-            <div className="space-y-2">
-              <SectionLabel>Where your loan is</SectionLabel>
-              <PipelineStepper stage={deal.pipelineStage} pausedFromStage={null} />
-            </div>
-          )}
-
           {total > 0 && <ProgressBar completed={acceptedNeeds.length} total={total} />}
 
           {orderedNeeded.length > 0 && (
