@@ -1,6 +1,7 @@
 import { Mail } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ClickToCopy } from "@/components/deals/click-to-copy";
 import { ContactQuickActions } from "@/components/messaging/contact-quick-actions";
 import { IntroButtons } from "@/components/deals/intro-buttons";
 import { StageSelect } from "@/components/deals/stage-select";
@@ -55,13 +56,13 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
             <span>{deal.borrowerName}</span>
             {deal.borrowerPhone && (
               <span className="flex items-center gap-1">
-                · {deal.borrowerPhone}
+                · <ClickToCopy value={deal.borrowerPhone} label="Phone number" />
                 <ContactQuickActions phone={deal.borrowerPhone} name={deal.borrowerName} contactType="Borrower" dealId={deal.id} />
               </span>
             )}
             {deal.borrowerEmail && (
               <span className="flex items-center gap-1">
-                · {deal.borrowerEmail}
+                · <ClickToCopy value={deal.borrowerEmail} label="Email address" />
                 <Button asChild variant="ghost" size="icon-sm" title="Email borrower" aria-label="Email borrower">
                   <a href={`mailto:${deal.borrowerEmail}`}>
                     <Mail className="size-3.5" />
