@@ -54,13 +54,19 @@ export async function previewIntroEmail(dealId: string) {
     getEmailRecipientCandidates(dealId, { includeAllStaff: true }),
   ]);
 
+  const loanOfficer = await db.query.users.findFirst({ where: eq(users.id, deal.assignedLoanOfficerId) });
+  const loanOfficerEmail =
+    loanOfficer?.email && loanOfficer.email.toLowerCase() !== deal.borrowerEmail?.toLowerCase() ? loanOfficer.email : "";
+
   const fallback = defaultIntro(deal, user.name ?? "your loan processor");
   return {
     // Left blank (not an error) when the deal has no borrower email, so the
     // processor can type one in — server-action errors are masked in
     // production, which made expected cases like this look like crashes.
     to: deal.borrowerEmail ?? "",
-    cc: "",
+    // The deal's loan officer is always copied on intro emails by default
+    // (removable in the dialog), so they see exactly what the borrower got.
+    cc: loanOfficerEmail,
     subject: hasTemplate ? renderTemplate(me!.borrowerIntroEmailSubject!, tokens) : fallback.subject,
     body: plainTextToHtmlWithBlocks(
       hasTemplate ? renderTemplate(me!.borrowerIntroEmailBody!, tokens) : fallback.email,
