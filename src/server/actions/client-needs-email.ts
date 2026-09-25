@@ -114,7 +114,7 @@ export async function previewClientNeedsUpdateEmail(dealId: string, needIds: str
       extra: {
         clientNeedsStatusList: formatStatusList(rejectedNeeds, outstandingNeeds),
         clientNeedsUploadUrl: uploadUrl,
-        clientNeedsUploadButton: htmlButton("Upload your documents", uploadUrl),
+        clientNeedsUploadButton: htmlButton("Complete your tasks here", uploadUrl),
       },
     }),
     getUserEmailSignatureHtml(user.id),
