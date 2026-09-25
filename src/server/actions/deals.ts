@@ -349,6 +349,7 @@ export async function addDealFollower(dealId: string, formData: FormData) {
     dealId,
     name,
     email,
+    phone: nullableStr(formData, "phone"),
     roleLabel: nullableStr(formData, "roleLabel"),
   });
 

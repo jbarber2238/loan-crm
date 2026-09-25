@@ -1413,6 +1413,7 @@ export const dealFollowers = pgTable("deal_followers", {
     .references(() => deals.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   email: text("email").notNull(),
+  phone: text("phone"),
   roleLabel: text("role_label"),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });

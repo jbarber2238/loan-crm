@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { KeyContactCard } from "@/components/deals/key-contact-card";
+import { ContactQuickActions } from "@/components/messaging/contact-quick-actions";
 
 interface UserOption {
   id: string;
@@ -30,6 +31,7 @@ interface Follower {
   id: string;
   name: string;
   email: string;
+  phone: string | null;
   roleLabel: string | null;
 }
 
@@ -168,6 +170,12 @@ export function RolesTab({
                       {f.name} {f.roleLabel && <Badge variant="secondary">{f.roleLabel}</Badge>}
                     </p>
                     <p className="text-muted-foreground">{f.email}</p>
+                    {f.phone && (
+                      <p className="flex items-center gap-1 text-muted-foreground">
+                        {f.phone}
+                        <ContactQuickActions phone={f.phone} name={f.name} contactType="Other" dealId={dealId} />
+                      </p>
+                    )}
                   </div>
                   <ActionForm action={remove} successMessage="Follower removed">
                     <SubmitButton size="sm" variant="ghost">
@@ -186,7 +194,7 @@ export function RolesTab({
             action={addFollower}
             successMessage="Follower added"
             confirmMessage="You're adding someone from outside your organization. They will receive all client need emails. Are you sure you want to add them?"
-            className="grid grid-cols-1 gap-3 border-t pt-4 md:grid-cols-[1fr_1fr_1fr_auto] items-end"
+            className="grid grid-cols-1 gap-3 border-t pt-4 md:grid-cols-[1fr_1fr_1fr_1fr_auto] items-end"
           >
             <div className="space-y-1.5">
               <Label htmlFor="name">Name</Label>
@@ -195,6 +203,10 @@ export function RolesTab({
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
               <Input id="email" name="email" type="email" required />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="phone">Phone (optional)</Label>
+              <Input id="phone" name="phone" type="tel" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="roleLabel">Label (optional)</Label>
