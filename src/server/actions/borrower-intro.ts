@@ -13,6 +13,19 @@ import { buildAllDealTokens } from "@/server/deal-tokens";
 import { renderTemplate } from "@/server/pricing-templates";
 import { plainTextToHtmlWithBlocks } from "@/lib/email-html";
 import { getOrCreateConversationForPhone } from "@/server/conversations";
+import { labelFor, LOAN_CATEGORIES } from "@/lib/labels";
+
+// Used when the processor hasn't set up her own template yet — she can still
+// preview, edit, add recipients, and send; her template just replaces this.
+function defaultIntro(deal: { borrowerName: string; propertyAddress: string; loanCategory: string }, senderName: string) {
+  const first = deal.borrowerName.trim().split(/\s+/)[0] || deal.borrowerName;
+  const loanType = labelFor(LOAN_CATEGORIES, deal.loanCategory);
+  return {
+    subject: `Introduction — ${deal.propertyAddress}`,
+    email: `Hi ${first},\n\nMy name is ${senderName} and I'll be your loan processor on your ${loanType} loan for ${deal.propertyAddress}.\n\nI'll be reaching out as we gather the documents we need to move your file forward. Please reply here or call me with any questions.`,
+    text: `Hi ${first}, this is ${senderName}, your loan processor for ${deal.propertyAddress}. I'll be reaching out shortly about the documents we need. Feel free to text me any questions!`,
+  };
+}
 
 async function introTokens(dealId: string, senderName: string) {
   const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId) });
@@ -32,25 +45,30 @@ export async function previewIntroEmail(dealId: string) {
   const user = await requireUser();
 
   const me = await db.query.users.findFirst({ where: eq(users.id, user.id) });
-  if (!me?.borrowerIntroEmailSubject?.trim() || !me.borrowerIntroEmailBody?.trim()) {
-    throw new Error("Set up your intro email first, in Settings → My Profile.");
-  }
+  const hasTemplate = Boolean(me?.borrowerIntroEmailSubject?.trim() && me?.borrowerIntroEmailBody?.trim());
 
   const { deal, tokens } = await introTokens(dealId, user.name ?? "");
-  if (!deal.borrowerEmail) throw new Error("This deal has no borrower email on file");
 
   const [signatureHtml, candidates] = await Promise.all([
     getUserEmailSignatureHtml(user.id),
     getEmailRecipientCandidates(dealId, { includeAllStaff: true }),
   ]);
 
+  const fallback = defaultIntro(deal, user.name ?? "your loan processor");
   return {
-    to: deal.borrowerEmail,
+    // Left blank (not an error) when the deal has no borrower email, so the
+    // processor can type one in — server-action errors are masked in
+    // production, which made expected cases like this look like crashes.
+    to: deal.borrowerEmail ?? "",
     cc: "",
-    subject: renderTemplate(me.borrowerIntroEmailSubject, tokens),
-    body: plainTextToHtmlWithBlocks(renderTemplate(me.borrowerIntroEmailBody, tokens), {}),
+    subject: hasTemplate ? renderTemplate(me!.borrowerIntroEmailSubject!, tokens) : fallback.subject,
+    body: plainTextToHtmlWithBlocks(
+      hasTemplate ? renderTemplate(me!.borrowerIntroEmailBody!, tokens) : fallback.email,
+      {}
+    ),
     signatureHtml,
     candidates,
+    usedDefaultTemplate: !hasTemplate,
   };
 }
 
@@ -81,9 +99,6 @@ export async function prepareIntroText(dealId: string) {
   const user = await requireUser();
 
   const me = await db.query.users.findFirst({ where: eq(users.id, user.id) });
-  if (!me?.borrowerIntroTextBody?.trim()) {
-    throw new Error("Set up your intro text first, in Settings → My Profile.");
-  }
 
   const { deal, tokens } = await introTokens(dealId, user.name ?? "");
   if (!deal.borrowerPhone) throw new Error("This deal has no borrower phone on file");
@@ -94,6 +109,8 @@ export async function prepareIntroText(dealId: string) {
     conversationId: conversation.id,
     contactName: deal.borrowerName,
     contactPhone: conversation.primaryPhone,
-    body: renderTemplate(me.borrowerIntroTextBody, tokens),
+    body: me?.borrowerIntroTextBody?.trim()
+      ? renderTemplate(me.borrowerIntroTextBody, tokens)
+      : defaultIntro(deal, user.name ?? "your loan processor").text,
   };
 }

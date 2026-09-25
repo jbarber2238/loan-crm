@@ -23,6 +23,7 @@ export function IntroButtons({ dealId }: { dealId: string }) {
   const [sending, startSend] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [compose, setCompose] = useState<EmailComposeState | null>(null);
+  const [usedDefault, setUsedDefault] = useState(false);
   const [textPending, startTextTransition] = useTransition();
   const { openChat } = useChatDock();
 
@@ -33,7 +34,10 @@ export function IntroButtons({ dealId }: { dealId: string }) {
     setCompose(null);
     setLoading(true);
     previewIntroEmail(dealId)
-      .then(setCompose)
+      .then(({ usedDefaultTemplate, ...state }) => {
+        setUsedDefault(usedDefaultTemplate);
+        setCompose(state);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "Couldn't build this email."))
       .finally(() => setLoading(false));
   }
@@ -91,6 +95,12 @@ export function IntroButtons({ dealId }: { dealId: string }) {
             <p className="text-sm text-destructive">{error}</p>
           ) : compose ? (
             <div className="space-y-3">
+              {usedDefault && (
+                <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                  You haven&apos;t saved your own intro email yet, so this is a starter message — edit it freely
+                  below. You can save your own version in Settings → My Profile to have it pre-filled every time.
+                </p>
+              )}
               <ComposeFields idPrefix="intro-email" compose={compose} setCompose={setCompose} bodyRef={bodyRef} />
               {error && <p className="text-sm text-destructive">{error}</p>}
               <Button type="button" className="w-full" disabled={sending} onClick={handleSend}>
