@@ -13,6 +13,7 @@ import {
 import { getChatRooms, type ChatRoomSummary } from "@/server/actions/team-chat";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { GLOBAL_CHAT_CHANNEL, getRealtimeClient } from "@/lib/realtime";
 
 function CountBubble({ n }: { n: number }) {
   if (n <= 0) return null;
@@ -154,8 +155,14 @@ function TeamChatMenu() {
   );
   useEffect(() => {
     load();
-    const t = setInterval(load, 10_000);
-    return () => clearInterval(t);
+    const t = setInterval(load, 20_000);
+    // Instant refresh whenever anyone sends a team message.
+    const rt = getRealtimeClient();
+    const channel = rt?.channel(GLOBAL_CHAT_CHANNEL).on("broadcast", { event: "changed" }, () => void load()).subscribe();
+    return () => {
+      clearInterval(t);
+      if (rt && channel) void rt.removeChannel(channel);
+    };
   }, [load, pathname]);
 
   return (
