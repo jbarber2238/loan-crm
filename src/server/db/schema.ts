@@ -1821,3 +1821,21 @@ export const teamChatMembers = pgTable(
   },
   (t) => [primaryKey({ columns: [t.roomId, t.userId] })]
 );
+
+// Files and voice clips attached to a team chat message. Stored base64 in
+// the row like every other upload in this app. `kind` is "audio" for a
+// recorded voice clip (with the on-device speech-to-text `transcript`).
+export const teamChatAttachments = pgTable("team_chat_attachments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  messageId: uuid("message_id")
+    .notNull()
+    .references(() => teamChatMessages.id, { onDelete: "cascade" }),
+  fileName: text("file_name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  fileSize: integer("file_size").notNull(),
+  data: text("data").notNull(),
+  kind: text("kind").notNull().default("file"), // file | audio
+  durationSeconds: integer("duration_seconds"),
+  transcript: text("transcript"),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});

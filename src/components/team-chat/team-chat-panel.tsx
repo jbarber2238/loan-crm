@@ -2,17 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { MessageSquare } from "lucide-react";
+import { FileText, MessageSquare, Mic, Paperclip, Square, X } from "lucide-react";
 import {
   getRoomState,
   markRoomRead,
   sendTeamMessage,
+  type ChatAttachment,
   type ChatMessage,
   type ChatRoomState,
 } from "@/server/actions/team-chat";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useVoiceRecorder, type VoiceClip } from "@/components/messaging/use-voice-recorder";
 import { RoomMembersDialog } from "@/components/team-chat/room-members-dialog";
 import { cn } from "@/lib/utils";
 import { GLOBAL_CHAT_CHANNEL, getRealtimeClient, roomChannelName } from "@/lib/realtime";
@@ -30,6 +32,16 @@ function timeLabel(iso: string): string {
   return d.toDateString() === today.toDateString() ? time : `${d.toLocaleDateString([], { month: "short", day: "numeric" })}, ${time}`;
 }
 
+export interface OutgoingMessage {
+  text: string;
+  files: File[];
+  clip: VoiceClip | null;
+}
+
+function formatDuration(totalSeconds: number): string {
+  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, "0")}`;
+}
+
 function Composer({
   placeholder,
   onSend,
@@ -37,48 +49,175 @@ function Composer({
   autoFocus,
 }: {
   placeholder: string;
-  onSend: (text: string) => Promise<void>;
+  onSend: (message: OutgoingMessage) => Promise<void>;
   onTyping?: () => void;
   autoFocus?: boolean;
 }) {
   const [text, setText] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [clip, setClip] = useState<VoiceClip | null>(null);
   const [pending, startTransition] = useTransition();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const voice = useVoiceRecorder();
+
+  const canSend = Boolean(text.trim() || files.length || clip);
 
   function submit() {
-    const value = text.trim();
-    if (!value) return;
+    if (!canSend || voice.recording) return;
     startTransition(async () => {
       try {
-        await onSend(value);
+        await onSend({ text: text.trim(), files, clip });
         setText("");
+        setFiles([]);
+        setClip(null);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Couldn't send that");
       }
     });
   }
 
+  async function toggleRecording() {
+    if (voice.recording) {
+      setClip(await voice.stop());
+      return;
+    }
+    try {
+      await voice.start();
+    } catch (err) {
+      toast.error(err instanceof Error && err.name === "NotAllowedError" ? "Allow microphone access to record" : "Couldn't start recording");
+    }
+  }
+
   return (
-    <div className="flex items-end gap-2">
-      <Textarea
-        value={text}
-        rows={1}
-        autoFocus={autoFocus}
-        placeholder={placeholder}
-        onChange={(e) => {
-          setText(e.target.value);
-          if (e.target.value) onTyping?.();
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            submit();
-          }
-        }}
-        className="min-h-9 resize-none"
-      />
-      <Button type="button" size="sm" disabled={pending || !text.trim()} onClick={submit}>
-        Send
-      </Button>
+    <div className="space-y-2">
+      {(files.length > 0 || clip) && (
+        <div className="flex flex-wrap gap-2">
+          {files.map((f, i) => (
+            <span key={`${f.name}-${i}`} className="flex items-center gap-1.5 rounded-md border bg-muted/40 px-2 py-1 text-xs">
+              <Paperclip className="size-3" />
+              <span className="max-w-40 truncate">{f.name}</span>
+              <button type="button" aria-label={`Remove ${f.name}`} onClick={() => setFiles(files.filter((_, n) => n !== i))}>
+                <X className="size-3" />
+              </button>
+            </span>
+          ))}
+          {clip && (
+            <div className="w-full space-y-1 rounded-md border bg-muted/40 p-2 text-xs">
+              <div className="flex items-center gap-2">
+                <Mic className="size-3" />
+                Voice clip · {formatDuration(clip.seconds)}
+                <button type="button" aria-label="Remove voice clip" className="ml-auto" onClick={() => setClip(null)}>
+                  <X className="size-3" />
+                </button>
+              </div>
+              <Textarea
+                value={clip.transcript}
+                rows={2}
+                placeholder="Transcript (edit if it got a word wrong)"
+                onChange={(e) => setClip({ ...clip, transcript: e.target.value })}
+                className="text-xs"
+              />
+            </div>
+          )}
+        </div>
+      )}
+      {voice.recording && (
+        <p className="flex items-center gap-2 text-xs text-red-600">
+          <span className="size-2 animate-pulse rounded-full bg-red-600" />
+          Recording… {formatDuration(voice.seconds)} — tap the mic again to stop
+        </p>
+      )}
+      <div className="flex items-end gap-2">
+        <input
+          ref={fileInput}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            setFiles([...files, ...Array.from(e.target.files ?? [])]);
+            e.target.value = "";
+          }}
+        />
+        <Button type="button" size="icon-sm" variant="ghost" title="Attach a file" aria-label="Attach a file" onClick={() => fileInput.current?.click()}>
+          <Paperclip className="size-4" />
+        </Button>
+        <Button
+          type="button"
+          size="icon-sm"
+          variant={voice.recording ? "destructive" : "ghost"}
+          title={voice.recording ? "Stop recording" : "Record a voice clip"}
+          aria-label={voice.recording ? "Stop recording" : "Record a voice clip"}
+          onClick={toggleRecording}
+        >
+          {voice.recording ? <Square className="size-4" /> : <Mic className="size-4" />}
+        </Button>
+        <Textarea
+          value={text}
+          rows={1}
+          autoFocus={autoFocus}
+          placeholder={placeholder}
+          onChange={(e) => {
+            setText(e.target.value);
+            if (e.target.value) onTyping?.();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              submit();
+            }
+          }}
+          className="min-h-9 resize-none"
+        />
+        <Button type="button" size="sm" disabled={pending || voice.recording || !canSend} onClick={submit}>
+          {pending ? "Sending…" : "Send"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function Attachments({ items }: { items: ChatAttachment[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="mt-1.5 space-y-2">
+      {items.map((a) => {
+        const src = `/api/team-chat/attachments/${a.id}`;
+        if (a.kind === "audio") {
+          return (
+            <div key={a.id} className="max-w-sm space-y-1 rounded-md border bg-muted/30 p-2">
+              <audio controls preload="none" src={src} className="h-9 w-full" />
+              {a.transcript ? (
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium">Transcript:</span> {a.transcript}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">No transcript</p>
+              )}
+            </div>
+          );
+        }
+        if (a.mimeType.startsWith("image/")) {
+          return (
+            <a key={a.id} href={src} target="_blank" rel="noreferrer" className="block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={src} alt={a.fileName} className="max-h-64 max-w-xs rounded-md border object-contain" />
+            </a>
+          );
+        }
+        return (
+          <a
+            key={a.id}
+            href={src}
+            target="_blank"
+            rel="noreferrer"
+            className="flex max-w-sm items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm hover:bg-muted/60"
+          >
+            <FileText className="size-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{a.fileName}</span>
+            <span className="shrink-0 text-xs text-muted-foreground">{Math.max(1, Math.round(a.fileSize / 1024))} KB</span>
+          </a>
+        );
+      })}
     </div>
   );
 }
@@ -94,7 +233,8 @@ function MessageRow({ m, mine, compact }: { m: ChatMessage; mine: boolean; compa
         <p className="text-xs text-muted-foreground">
           <span className="font-medium text-foreground">{mine ? "You" : m.authorName}</span> · {timeLabel(m.createdAt)}
         </p>
-        <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>
+        {m.body && <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>}
+        <Attachments items={m.attachments} />
       </div>
     </div>
   );
@@ -229,8 +369,17 @@ export function TeamChatPanel({
     }
   }
 
-  async function send(text: string, parentId: string | null = null) {
-    await sendTeamMessage(roomId, text, parentId);
+  async function send(message: OutgoingMessage, parentId: string | null = null) {
+    const form = new FormData();
+    form.set("body", message.text);
+    if (parentId) form.set("parentId", parentId);
+    for (const f of message.files) form.append("file", f);
+    if (message.clip) {
+      form.set("audio", message.clip.file);
+      form.set("audioTranscript", message.clip.transcript);
+      form.set("audioSeconds", String(message.clip.seconds));
+    }
+    await sendTeamMessage(roomId, form);
     broadcastChanged();
     await refresh();
   }
@@ -278,7 +427,7 @@ export function TeamChatPanel({
                     {thread.map((r) => (
                       <MessageRow key={r.id} m={r} mine={r.userId === state.currentUserId} compact />
                     ))}
-                    {isOpen && <Composer placeholder="Reply in thread…" autoFocus onSend={(t) => send(t, m.id)} onTyping={announceTyping} />}
+                    {isOpen && <Composer placeholder="Reply in thread…" autoFocus onSend={(msg) => send(msg, m.id)} onTyping={announceTyping} />}
                   </div>
                 )}
               </div>
@@ -296,7 +445,7 @@ export function TeamChatPanel({
         )}
         <Composer
           placeholder="Message the team (internal only — clients never see this)"
-          onSend={(t) => send(t)}
+          onSend={(msg) => send(msg)}
           onTyping={announceTyping}
         />
       </div>

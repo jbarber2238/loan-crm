@@ -2,38 +2,19 @@
 
 import { and, asc, desc, eq, gt, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { deals, teamChatMembers, teamChatMessages, teamChatReads, teamChatRooms, users } from "@/server/db/schema";
+import {
+  deals,
+  teamChatAttachments,
+  teamChatMembers,
+  teamChatMessages,
+  teamChatReads,
+  teamChatRooms,
+  users,
+} from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
+import { roomAccess } from "@/server/team-chat-access";
 
 // Internal-only: nothing in here touches the client texting tables.
-
-// Access rules: General is open to every active user; a group chat is its
-// members only; a deal chat is that deal's loan officer, processor, assistant
-// and admins, plus anyone explicitly added (e.g. a covering processor).
-async function roomAccess(roomId: string, user: { id: string; isAdmin: boolean }) {
-  const [room] = await db
-    .select({
-      id: teamChatRooms.id,
-      kind: teamChatRooms.kind,
-      name: teamChatRooms.name,
-      createdByUserId: teamChatRooms.createdByUserId,
-      dealId: teamChatRooms.dealId,
-      loId: deals.assignedLoanOfficerId,
-      procId: deals.assignedProcessorId,
-      asstId: deals.assignedAssistantId,
-    })
-    .from(teamChatRooms)
-    .leftJoin(deals, eq(deals.id, teamChatRooms.dealId))
-    .where(eq(teamChatRooms.id, roomId));
-  if (!room) return { room: null, allowed: false };
-  if (room.kind === "general") return { room, allowed: true };
-  const member = await db.query.teamChatMembers.findFirst({
-    where: and(eq(teamChatMembers.roomId, roomId), eq(teamChatMembers.userId, user.id)),
-  });
-  if (room.kind === "group") return { room, allowed: Boolean(member) };
-  const onDeal = [room.loId, room.procId, room.asstId].includes(user.id);
-  return { room, allowed: user.isAdmin || onDeal || Boolean(member) };
-}
 
 async function requireRoomAccess(roomId: string) {
   const user = await requireUser();
@@ -41,6 +22,7 @@ async function requireRoomAccess(roomId: string) {
   if (!room || !allowed) throw new Error("You don't have access to this chat");
   return { user, room };
 }
+
 
 async function generalRoomId(): Promise<string> {
   const existing = await db.query.teamChatRooms.findFirst({ where: eq(teamChatRooms.kind, "general") });
@@ -66,6 +48,16 @@ export async function getDealRoomId(dealId: string): Promise<string | null> {
   return allowed ? room.id : null;
 }
 
+export interface ChatAttachment {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  kind: "file" | "audio";
+  durationSeconds: number | null;
+  transcript: string | null;
+}
+
 export interface ChatMessage {
   id: string;
   userId: string;
@@ -74,6 +66,7 @@ export interface ChatMessage {
   body: string;
   parentId: string | null;
   createdAt: string;
+  attachments: ChatAttachment[];
 }
 
 export interface ChatRoomState {
@@ -106,12 +99,32 @@ export async function getRoomState(roomId: string): Promise<ChatRoomState> {
       .innerJoin(users, eq(users.id, teamChatReads.userId))
       .where(eq(teamChatReads.roomId, roomId)),
   ]);
+  const ids = messages.map((m) => m.id);
+  const atts = ids.length
+    ? await db
+        .select({
+          id: teamChatAttachments.id,
+          messageId: teamChatAttachments.messageId,
+          fileName: teamChatAttachments.fileName,
+          mimeType: teamChatAttachments.mimeType,
+          fileSize: teamChatAttachments.fileSize,
+          kind: teamChatAttachments.kind,
+          durationSeconds: teamChatAttachments.durationSeconds,
+          transcript: teamChatAttachments.transcript,
+        })
+        .from(teamChatAttachments)
+        .where(inArray(teamChatAttachments.messageId, ids))
+        .orderBy(asc(teamChatAttachments.createdAt))
+    : [];
   return {
     currentUserId: user.id,
     messages: messages.map((m) => ({
       ...m,
       authorName: m.authorName ?? "Someone",
       createdAt: m.createdAt.toISOString(),
+      attachments: atts
+        .filter((a) => a.messageId === m.id)
+        .map((a) => ({ ...a, kind: a.kind as "file" | "audio" })),
     })),
     readers: reads.map((r) => ({ userId: r.userId, name: r.name ?? "Someone", lastReadAt: r.lastReadAt.toISOString() })),
   };
@@ -128,14 +141,68 @@ export async function markRoomRead(roomId: string) {
     });
 }
 
-export async function sendTeamMessage(roomId: string, body: string, parentId: string | null = null) {
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+
+/**
+ * Sends a team message. `formData` carries: body (text, optional if there's
+ * an attachment), parentId (thread reply), file (repeatable), and for a
+ * voice clip: audio (the recording), audioTranscript, audioSeconds.
+ */
+export async function sendTeamMessage(roomId: string, formData: FormData) {
   const { user } = await requireRoomAccess(roomId);
-  const text = body.trim();
-  if (!text) throw new Error("Type a message first");
+  const text = String(formData.get("body") ?? "").trim();
+  const parentId = String(formData.get("parentId") ?? "") || null;
+  const files = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
+  const audio = formData.get("audio");
+  const audioFile = audio instanceof File && audio.size > 0 ? audio : null;
+
+  if (!text && files.length === 0 && !audioFile) throw new Error("Type a message or attach something first");
   if (text.length > 4000) throw new Error("That message is too long");
-  await db.insert(teamChatMessages).values({ roomId, userId: user.id, body: text, parentId });
+  for (const f of [...files, ...(audioFile ? [audioFile] : [])]) {
+    if (f.size > MAX_ATTACHMENT_BYTES) throw new Error(`${f.name || "That file"} is over the 25MB limit`);
+  }
+
+  const [message] = await db
+    .insert(teamChatMessages)
+    .values({ roomId, userId: user.id, body: text, parentId })
+    .returning({ id: teamChatMessages.id });
+
+  for (const f of files) {
+    await db.insert(teamChatAttachments).values({
+      messageId: message.id,
+      fileName: f.name || "file",
+      mimeType: f.type || "application/octet-stream",
+      fileSize: f.size,
+      data: Buffer.from(await f.arrayBuffer()).toString("base64"),
+      kind: "file",
+    });
+  }
+  if (audioFile) {
+    const seconds = Number(formData.get("audioSeconds"));
+    await db.insert(teamChatAttachments).values({
+      messageId: message.id,
+      fileName: audioFile.name || "Voice clip",
+      mimeType: audioFile.type || "audio/webm",
+      fileSize: audioFile.size,
+      data: Buffer.from(await audioFile.arrayBuffer()).toString("base64"),
+      kind: "audio",
+      durationSeconds: Number.isFinite(seconds) ? Math.round(seconds) : null,
+      transcript: String(formData.get("audioTranscript") ?? "").trim() || null,
+    });
+  }
+
   await db.update(teamChatRooms).set({ lastMessageAt: new Date() }).where(eq(teamChatRooms.id, roomId));
   await markRoomRead(roomId);
+}
+
+async function attachmentPreview(messageId: string): Promise<string> {
+  const [a] = await db
+    .select({ kind: teamChatAttachments.kind, fileName: teamChatAttachments.fileName, transcript: teamChatAttachments.transcript })
+    .from(teamChatAttachments)
+    .where(eq(teamChatAttachments.messageId, messageId))
+    .limit(1);
+  if (!a) return "";
+  return a.kind === "audio" ? `🎤 Voice clip${a.transcript ? `: ${a.transcript}` : ""}` : `📎 ${a.fileName}`;
 }
 
 export interface ChatRoomSummary {
@@ -172,7 +239,12 @@ export async function getChatRooms(onlyWithActivity = false): Promise<{ rooms: C
     const { allowed } = await roomAccess(r.id, user);
     if (!allowed) continue;
     const [last] = await db
-      .select({ body: teamChatMessages.body, createdAt: teamChatMessages.createdAt, authorName: users.name })
+      .select({
+        id: teamChatMessages.id,
+        body: teamChatMessages.body,
+        createdAt: teamChatMessages.createdAt,
+        authorName: users.name,
+      })
       .from(teamChatMessages)
       .innerJoin(users, eq(users.id, teamChatMessages.userId))
       .where(eq(teamChatMessages.roomId, r.id))
@@ -204,7 +276,11 @@ export async function getChatRooms(onlyWithActivity = false): Promise<{ rooms: C
             ? (r.name ?? "Group chat")
             : `${r.borrowerName} · ${r.propertyAddress}`,
       lastMessage: last
-        ? { authorName: last.authorName ?? "Someone", body: last.body, createdAt: last.createdAt.toISOString() }
+        ? {
+            authorName: last.authorName ?? "Someone",
+            body: last.body || (await attachmentPreview(last.id)),
+            createdAt: last.createdAt.toISOString(),
+          }
         : null,
       unread: n,
     });
