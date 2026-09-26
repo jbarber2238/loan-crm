@@ -1737,3 +1737,19 @@ export const borrowerActivityEvents = pgTable("borrower_activity_events", {
   occurredAt: timestamp("occurred_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
   notifiedAt: timestamp("notified_at", { mode: "date", withTimezone: true }),
 });
+
+// In-app notifications (the sidebar's Notifications page + unread badge).
+// One row per recipient; `href` is where clicking it goes.
+export const notifications = pgTable("notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  dealId: uuid("deal_id").references(() => deals.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  title: text("title").notNull(),
+  body: text("body"),
+  href: text("href"),
+  readAt: timestamp("read_at", { mode: "date", withTimezone: true }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});

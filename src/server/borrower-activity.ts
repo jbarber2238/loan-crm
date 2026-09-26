@@ -4,6 +4,7 @@ import { borrowerActivityEvents, deals } from "@/server/db/schema";
 import { sendGmailAs } from "@/server/gmail/send";
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
+import { createNotifications } from "@/server/notifications";
 import { emailShell, htmlBulletList, htmlButton, escapeHtml } from "@/lib/email-html";
 
 // The borrower has to be quiet this long before a digest goes out, so a
@@ -40,8 +41,21 @@ async function sendDigestForDeal(dealId: string, events: Event[]) {
     where: eq(deals.id, dealId),
     with: { assignedLoanOfficer: true, assignedProcessor: true },
   });
-  const sender = deal?.assignedLoanOfficer;
-  if (!deal || !sender?.email) return; // nothing to send as — events are still marked handled by the caller
+  if (!deal) return;
+
+  // In-app notification first — one entry per session, not per task, and
+  // independent of whether email can be sent below.
+  const itemCount = new Set(events.map((e) => e.itemName)).size;
+  await createNotifications([deal.assignedLoanOfficerId, deal.assignedProcessorId], {
+    type: "client_needs_completed",
+    title: `${deal.borrowerName} has completed client needs for ${deal.propertyAddress}`,
+    body: `${itemCount} ${itemCount === 1 ? "item" : "items"} ready for review`,
+    href: `/deals/${deal.id}/loan-center`,
+    dealId: deal.id,
+  });
+
+  const sender = deal.assignedLoanOfficer;
+  if (!sender?.email) return; // nothing to email as — events are still marked handled by the caller
 
   // One line per need (a need with several files/answers is still one item),
   // remembering how it came in.

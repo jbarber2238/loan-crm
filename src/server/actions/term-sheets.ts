@@ -14,6 +14,7 @@ import { syncProcessingFeeInvoice, sendProcessingFeeInvoiceEmail } from "@/serve
 import { conservativeValueBasis, calculateLtarv, calculateLtc } from "@/lib/term-sheet-calculations";
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
+import { createNotifications, dealTeamUserIds } from "@/server/notifications";
 import { buildBorrowerEmail } from "@/server/borrower-templates";
 import { plainTextToHtmlWithBlocks, htmlButton } from "@/lib/email-html";
 import {
@@ -166,6 +167,17 @@ export async function performTermSheetAcceptance(dealId: string, termSheetId: st
     .update(termSheets)
     .set({ status: "accepted", acceptedAt: new Date() })
     .where(eq(termSheets.id, termSheetId));
+
+  const team = await dealTeamUserIds(dealId);
+  if (team) {
+    await createNotifications(team.userIds, {
+      type: "term_sheet_accepted",
+      title: `Term sheet accepted — ${team.borrowerName}`,
+      body: team.propertyAddress,
+      href: `/deals/${dealId}/term-sheets`,
+      dealId,
+    });
+  }
 
   const rateValue = termSheet.fields.interestRate;
   const loanAmountValue = termSheet.fields.loanAmount;

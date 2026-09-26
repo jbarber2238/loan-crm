@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { deals } from "@/server/db/schema";
+import { createNotifications, dealTeamUserIds } from "@/server/notifications";
 import { advanceDealStage } from "@/server/actions/deals";
 import { notifyBorrowerOfAcceptedTerms, notifyProcessorOfPaidDeal } from "@/server/deal-notifications";
 
@@ -17,6 +18,16 @@ export async function handleProcessingFeePaid(dealId: string, changedByUserId: s
 
   const advanced = await advanceDealStage(dealId, "negotiation", "application", changedByUserId);
   if (advanced) {
+    const team = await dealTeamUserIds(dealId);
+    if (team) {
+      await createNotifications(team.userIds, {
+        type: "processing_fee_paid",
+        title: `${team.borrowerName} paid the processing fee`,
+        body: `${team.propertyAddress} moved to Application`,
+        href: `/deals/${dealId}`,
+        dealId,
+      });
+    }
     await notifyBorrowerOfAcceptedTerms(dealId).catch((err) => {
       console.error("Failed to send borrower accepted-terms notification:", err);
     });

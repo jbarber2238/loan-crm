@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { dealConversations, dealMessages } from "@/server/db/schema";
 import { verifiedTwilioParams, twimlResponse } from "@/server/twilio-client";
+import { activeAdminIds, createNotifications, dealTeamUserIds } from "@/server/notifications";
 import { findOrCreateConversationForInbound } from "@/server/conversations";
 
 // Twilio calls this for every inbound SMS to the shared company number.
@@ -34,6 +35,29 @@ export async function POST(request: Request) {
     twilioSid: messageSid,
   });
   await db.update(dealConversations).set({ lastMessageAt: new Date() }).where(eq(dealConversations.id, conversation.id));
+
+  try {
+    const preview = body.length > 120 ? `${body.slice(0, 120)}…` : body;
+    const team = conversation.dealId ? await dealTeamUserIds(conversation.dealId) : null;
+    if (team && conversation.dealId) {
+      await createNotifications(team.userIds, {
+        type: "inbound_text",
+        title: `New text on ${team.propertyAddress}`,
+        body: preview,
+        href: `/deals/${conversation.dealId}/messages`,
+        dealId: conversation.dealId,
+      });
+    } else {
+      await createNotifications(await activeAdminIds(), {
+        type: "inbound_text",
+        title: `New text from ${from}`,
+        body: preview,
+        href: "/inbox",
+      });
+    }
+  } catch (err) {
+    console.error("Failed to create inbound-text notification:", err);
+  }
 
   // Empty <Response/> — no auto-reply. STOP/HELP keywords are handled by
   // Twilio's Advanced Opt-Out feature at the number level, before this
