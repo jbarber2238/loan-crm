@@ -121,6 +121,8 @@ export function LoanCenterTab({
   titleNotes,
   keyDateEvents,
   appraisalDocumentFileName,
+  initialTab,
+  teamChat,
 }: {
   dealId: string;
   loanCategory: string;
@@ -163,16 +165,20 @@ export function LoanCenterTab({
   titleNotes: string | null;
   keyDateEvents: KeyDateEvent[];
   appraisalDocumentFileName: string | null;
+  initialTab?: string;
+  /** Server-rendered internal team chat for this deal. */
+  teamChat: React.ReactNode;
 }) {
   return (
     <div className="space-y-4">
-      <Tabs defaultValue="client-needs">
+      <Tabs defaultValue={initialTab ?? "client-needs"}>
         <TabsList>
           <TabsTrigger value="client-needs">Client Needs</TabsTrigger>
           <TabsTrigger value="conditions">Conditions</TabsTrigger>
           <TabsTrigger value="roles">Roles and Key Contacts</TabsTrigger>
           <TabsTrigger value="key-dates">Key Dates</TabsTrigger>
           <TabsTrigger value="notes">Notes</TabsTrigger>
+          <TabsTrigger value="team-chat">Team Chat</TabsTrigger>
         </TabsList>
 
         <TabsContent value="client-needs">
@@ -239,6 +245,8 @@ export function LoanCenterTab({
         <TabsContent value="notes">
           <NotesTab dealId={dealId} notes={notes} />
         </TabsContent>
+
+        <TabsContent value="team-chat">{teamChat}</TabsContent>
       </Tabs>
     </div>
   );

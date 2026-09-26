@@ -3,14 +3,19 @@ import { db } from "@/server/db/client";
 import { getDealDetail } from "@/server/data/deal-detail";
 import { getAllProductOptions } from "@/server/actions/client-need-catalog";
 import { requireUser } from "@/server/auth/guards";
+import { getDealRoomId } from "@/server/actions/team-chat";
+import { TeamChatPanel } from "@/components/team-chat/team-chat-panel";
 import { LoanCenterTab } from "@/components/deals/loan-center-tab";
 
 export default async function DealLoanCenterPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { id } = await params;
+  const { tab } = await searchParams;
   const user = await requireUser();
   const deal = await getDealDetail(id);
   if (!deal) notFound();
@@ -61,6 +66,15 @@ export default async function DealLoanCenterPage({
 
   return (
     <LoanCenterTab
+      initialTab={tab}
+      teamChat={
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Internal only — the borrower never sees this. Client texts live under Communications.
+          </p>
+          <TeamChatPanel roomId={await getDealRoomId(deal.id)} />
+        </div>
+      }
       dealId={deal.id}
       loanCategory={deal.loanCategory}
       assignedLoanOfficerId={deal.assignedLoanOfficerId}

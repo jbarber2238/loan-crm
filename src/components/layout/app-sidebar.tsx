@@ -17,12 +17,10 @@ import {
   Layers,
   Inbox,
   Users,
-  Bell,
 } from "lucide-react";
 import { signOutAction } from "@/server/actions/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { NotificationUnreadBadge } from "@/components/notifications/unread-badge";
 import { cn } from "@/lib/utils";
 
 interface SidebarUser {
@@ -57,7 +55,6 @@ export function AppSidebar({
     ...(user.isAdmin || user.baseRole === "processor"
       ? [{ href: "/client-needs", label: "Client Needs", icon: ClipboardList, exact: true }]
       : []),
-    { href: "/notifications", label: "Notifications", icon: Bell, exact: true },
     { href: "/inbox", label: "Communications", icon: Inbox, exact: false },
     { href: "/directory", label: "Contacts Directory", icon: Users, exact: true },
   ];
@@ -148,7 +145,6 @@ export function AppSidebar({
               >
                 <Icon className="size-4" />
                 {link.label}
-                {link.href === "/notifications" && <NotificationUnreadBadge />}
               </Link>
             );
           })

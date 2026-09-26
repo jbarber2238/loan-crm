@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { getCompanyName, getCompanyLogo } from "@/server/settings";
+import { TopBar } from "@/components/layout/top-bar";
 import { ChatDockProvider } from "@/components/messaging/chat-dock-context";
 import { ChatDockRoot } from "@/components/messaging/chat-dock-root";
 
@@ -31,7 +32,10 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     <ChatDockProvider>
       <div>
         <AppSidebar user={session.user} companyName={companyName} logo={logo} />
-        <main className="ml-60 min-h-screen p-4 md:p-6">{children}</main>
+        <main className="ml-60 min-h-screen">
+          <TopBar />
+          <div className="p-4 md:p-6">{children}</div>
+        </main>
       </div>
       <ChatDockRoot />
     </ChatDockProvider>

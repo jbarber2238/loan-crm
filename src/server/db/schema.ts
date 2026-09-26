@@ -1753,3 +1753,46 @@ export const notifications = pgTable("notifications", {
   readAt: timestamp("read_at", { mode: "date", withTimezone: true }),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
 });
+
+// Internal team chat — never visible to borrowers, and fully separate from
+// the texting/calling tables (dealConversations etc.). One room is the
+// team-wide "General"; every deal can also have its own room (created on
+// first use). Replies to a message point at it via parentId (a thread).
+export const teamChatRooms = pgTable("team_chat_rooms", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  kind: text("kind").notNull(), // general | deal
+  dealId: uuid("deal_id")
+    .unique()
+    .references(() => deals.id, { onDelete: "cascade" }),
+  lastMessageAt: timestamp("last_message_at", { mode: "date", withTimezone: true }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
+export const teamChatMessages = pgTable("team_chat_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  roomId: uuid("room_id")
+    .notNull()
+    .references(() => teamChatRooms.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id),
+  body: text("body").notNull(),
+  parentId: uuid("parent_id"),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
+// Each person's "read up to here" marker per room — drives unread counts
+// and the "Seen by" receipts.
+export const teamChatReads = pgTable(
+  "team_chat_reads",
+  {
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => teamChatRooms.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    lastReadAt: timestamp("last_read_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.roomId, t.userId] })]
+);

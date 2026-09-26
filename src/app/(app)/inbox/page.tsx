@@ -12,7 +12,7 @@ export default async function CommunicationsPage() {
   ]);
 
   return (
-    <div className="h-[calc(100vh-2rem)] md:h-[calc(100vh-3rem)]">
+    <div className="h-[calc(100vh-5.5rem)] md:h-[calc(100vh-6.5rem)]">
       <CommunicationsView conversations={conversations} allDeals={allDeals} />
     </div>
   );
