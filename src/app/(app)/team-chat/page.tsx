@@ -1,15 +1,22 @@
 import Link from "next/link";
 import { getChatRooms, getGeneralRoomId } from "@/server/actions/team-chat";
+import { requireUser } from "@/server/auth/guards";
+import { NewChatDialog } from "@/components/team-chat/new-chat-dialog";
 import { TeamChatPanel } from "@/components/team-chat/team-chat-panel";
 import { cn } from "@/lib/utils";
 
 export default async function TeamChatPage({ searchParams }: { searchParams: Promise<{ room?: string }> }) {
   const { room } = await searchParams;
+  const me = await requireUser();
   const [{ rooms }, generalId] = await Promise.all([getChatRooms(), getGeneralRoomId()]);
   const activeId = rooms.some((r) => r.roomId === room) ? room! : generalId;
   const active = rooms.find((r) => r.roomId === activeId);
   // General first, then deal chats that have had any activity.
-  const list = [...rooms.filter((r) => r.kind === "general"), ...rooms.filter((r) => r.kind === "deal" && r.lastMessage)];
+  const list = [
+    ...rooms.filter((r) => r.kind === "general"),
+    ...rooms.filter((r) => r.kind === "group"),
+    ...rooms.filter((r) => r.kind === "deal" && r.lastMessage),
+  ];
 
   return (
     <div className="space-y-4">
@@ -18,6 +25,8 @@ export default async function TeamChatPage({ searchParams }: { searchParams: Pro
         <p className="text-sm text-muted-foreground">Internal only. Borrowers never see anything here.</p>
       </div>
       <div className="grid gap-4 md:grid-cols-[280px_1fr]">
+        <div className="space-y-2">
+        <NewChatDialog currentUserId={me.id} />
         <ul className="space-y-1">
           {list.map((r) => (
             <li key={r.roomId}>
@@ -42,10 +51,12 @@ export default async function TeamChatPage({ searchParams }: { searchParams: Pro
                   </span>
                 )}
                 {r.kind === "deal" && r.dealId && <span className="block text-[11px] text-muted-foreground">Deal chat</span>}
+                {r.kind === "group" && <span className="block text-[11px] text-muted-foreground">Group chat</span>}
               </Link>
             </li>
           ))}
         </ul>
+        </div>
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold">{active?.title ?? "General"}</h2>
@@ -55,7 +66,12 @@ export default async function TeamChatPage({ searchParams }: { searchParams: Pro
               </Link>
             )}
           </div>
-          <TeamChatPanel key={activeId} roomId={activeId} heightClass="h-[calc(100vh-14rem)] min-h-[420px]" />
+          <TeamChatPanel
+            key={activeId}
+            roomId={activeId}
+            showMembers={active?.kind !== "general"}
+            heightClass="h-[calc(100vh-14rem)] min-h-[420px]"
+          />
         </div>
       </div>
     </div>

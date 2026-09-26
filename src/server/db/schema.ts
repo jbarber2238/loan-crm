@@ -1760,7 +1760,9 @@ export const notifications = pgTable("notifications", {
 // first use). Replies to a message point at it via parentId (a thread).
 export const teamChatRooms = pgTable("team_chat_rooms", {
   id: uuid("id").primaryKey().defaultRandom(),
-  kind: text("kind").notNull(), // general | deal
+  kind: text("kind").notNull(), // general | group | deal
+  name: text("name"), // group chats only
+  createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
   dealId: uuid("deal_id")
     .unique()
     .references(() => deals.id, { onDelete: "cascade" }),
@@ -1793,6 +1795,24 @@ export const teamChatReads = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     lastReadAt: timestamp("last_read_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.roomId, t.userId] })]
+);
+
+// Explicit membership: everyone in a group chat, and anyone specifically
+// added to a deal chat (on top of the deal's own loan officer / processor /
+// assistant / admins, who always have access without a row here).
+export const teamChatMembers = pgTable(
+  "team_chat_members",
+  {
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => teamChatRooms.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    addedByUserId: uuid("added_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    addedAt: timestamp("added_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.roomId, t.userId] })]
 );

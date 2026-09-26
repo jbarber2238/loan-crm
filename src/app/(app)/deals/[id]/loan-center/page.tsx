@@ -16,6 +16,7 @@ export default async function DealLoanCenterPage({
 }) {
   const { id } = await params;
   const { tab } = await searchParams;
+  const teamChatRoomId = await getDealRoomId(id);
   const user = await requireUser();
   const deal = await getDealDetail(id);
   if (!deal) notFound();
@@ -72,7 +73,13 @@ export default async function DealLoanCenterPage({
           <p className="text-sm text-muted-foreground">
             Internal only — the borrower never sees this. Client texts live under Communications.
           </p>
-          <TeamChatPanel roomId={await getDealRoomId(deal.id)} />
+          {teamChatRoomId ? (
+            <TeamChatPanel roomId={teamChatRoomId} />
+          ) : (
+            <p className="rounded-md border p-4 text-sm text-muted-foreground">
+              You&apos;re not on this deal&apos;s chat. Ask its loan officer or an admin to add you.
+            </p>
+          )}
         </div>
       }
       dealId={deal.id}

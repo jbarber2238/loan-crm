@@ -13,6 +13,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { RoomMembersDialog } from "@/components/team-chat/room-members-dialog";
 import { cn } from "@/lib/utils";
 import { GLOBAL_CHAT_CHANNEL, getRealtimeClient, roomChannelName } from "@/lib/realtime";
 
@@ -104,7 +105,15 @@ function MessageRow({ m, mine, compact }: { m: ChatMessage; mine: boolean; compa
  * every few seconds while open, marks the room read as messages arrive, and
  * shows replies as threads. Purely internal — nothing here reaches a borrower.
  */
-export function TeamChatPanel({ roomId, heightClass = "h-[560px]" }: { roomId: string; heightClass?: string }) {
+export function TeamChatPanel({
+  roomId,
+  heightClass = "h-[560px]",
+  showMembers = true,
+}: {
+  roomId: string;
+  heightClass?: string;
+  showMembers?: boolean;
+}) {
   const [state, setState] = useState<ChatRoomState | null>(null);
   const [openThread, setOpenThread] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -238,6 +247,11 @@ export function TeamChatPanel({ roomId, heightClass = "h-[560px]" }: { roomId: s
 
   return (
     <div className={cn("flex flex-col rounded-md border", heightClass)}>
+      {showMembers && (
+        <div className="flex justify-end border-b px-3 py-2">
+          <RoomMembersDialog roomId={roomId} />
+        </div>
+      )}
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {topLevel.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center gap-1 text-center text-sm text-muted-foreground">
