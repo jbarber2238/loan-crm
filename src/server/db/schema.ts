@@ -214,6 +214,11 @@ export const users = pgTable("user", {
   // tcpaOutboundStart/End at the point a call/text is actually sent — this
   // column is just this person's own preference within that ceiling, not a
   // legal boundary itself.
+  // Alert sounds (My Profile → Notification sounds): a soft tone in the app
+  // when a team-chat message / a notification arrives. On by default.
+  soundChat: boolean("sound_chat").notNull().default(true),
+  soundTexts: boolean("sound_texts").notNull().default(true),
+  soundNotifications: boolean("sound_notifications").notNull().default(true),
   inboundHoursStart: time("inbound_hours_start"),
   inboundHoursEnd: time("inbound_hours_end"),
   outboundHoursStart: time("outbound_hours_start"),

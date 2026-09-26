@@ -1,17 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { Bell, MessageCircle } from "lucide-react";
 import {
-  getUnreadNotificationCount,
+  getMySoundPrefs,
+  getUnreadNotificationSummary,
   listMyNotifications,
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/server/actions/notifications";
 import { getChatRooms, type ChatRoomSummary } from "@/server/actions/team-chat";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { playSound } from "@/lib/notification-sound";
 import { cn } from "@/lib/utils";
 import { GLOBAL_CHAT_CHANNEL, getRealtimeClient } from "@/lib/realtime";
 
@@ -58,7 +60,27 @@ function NotificationsMenu() {
   const [items, setItems] = useState<Notif[]>([]);
   const [, startTransition] = useTransition();
 
-  const loadCount = useCallback(() => getUnreadNotificationCount().then(setCount).catch(() => {}), []);
+  const prevCount = useRef<{ total: number; texts: number } | null>(null);
+  const loadCount = useCallback(
+    () =>
+      Promise.all([getUnreadNotificationSummary(), getMySoundPrefs()])
+        .then(([summary, prefs]) => {
+          // Sound only when something NEW arrives after the first load; a
+          // client text gets its own sound, everything else the chime.
+          const prev = prevCount.current;
+          if (prev) {
+            if (summary.texts > prev.texts) {
+              if (prefs.soundTexts) playSound("text");
+            } else if (summary.total > prev.total && prefs.soundNotifications) {
+              playSound("notification");
+            }
+          }
+          prevCount.current = summary;
+          setCount(summary.total);
+        })
+        .catch(() => {}),
+    []
+  );
   useEffect(() => {
     loadCount();
     const t = setInterval(loadCount, 30_000);
@@ -143,10 +165,13 @@ function TeamChatMenu() {
   const [unread, setUnread] = useState(0);
   const [rooms, setRooms] = useState<ChatRoomSummary[]>([]);
 
+  const prevUnread = useRef<number | null>(null);
   const load = useCallback(
     () =>
-      getChatRooms(true)
-        .then((r) => {
+      Promise.all([getChatRooms(true), getMySoundPrefs()])
+        .then(([r, prefs]) => {
+          if (prevUnread.current !== null && r.totalUnread > prevUnread.current && prefs.soundChat) playSound("chat");
+          prevUnread.current = r.totalUnread;
           setUnread(r.totalUnread);
           setRooms(r.rooms);
         })

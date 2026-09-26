@@ -1,5 +1,7 @@
 import { requireUser } from "@/server/auth/guards";
 import { updateMyProfile } from "@/server/actions/users";
+import { getMySoundPrefs } from "@/server/actions/notifications";
+import { NotificationSoundSettings } from "@/components/settings/notification-sound-settings";
 import { getTcpaOutboundWindow } from "@/server/settings";
 import { TCPA_ABSOLUTE_START, TCPA_ABSOLUTE_END } from "@/lib/tcpa";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +19,7 @@ import { SubmitButton } from "@/components/forms/submit-button";
 export default async function MyProfilePage() {
   const user = await requireUser();
   const tcpaWindow = await getTcpaOutboundWindow();
+  const soundPrefs = await getMySoundPrefs();
   const outboundMin = tcpaWindow?.start.slice(0, 5) ?? TCPA_ABSOLUTE_START;
   const outboundMax = tcpaWindow?.end.slice(0, 5) ?? TCPA_ABSOLUTE_END;
 
@@ -151,6 +154,8 @@ export default async function MyProfilePage() {
           </div>
           <SubmitButton>Save</SubmitButton>
         </ActionForm>
+
+        <NotificationSoundSettings initial={soundPrefs} />
 
         <ActionForm action={updateMyProfile} successMessage="Signature saved" className="space-y-1.5 border-t pt-4">
           <Label>Email signature</Label>
