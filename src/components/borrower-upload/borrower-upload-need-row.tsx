@@ -81,53 +81,51 @@ function QuestionnaireForm({ token, need }: { token: string; need: BorrowerUploa
 function PandaDocFormButton({ token, need }: { token: string; need: BorrowerUploadNeed }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [manualUrl, setManualUrl] = useState<string | null>(null);
+  const [url, setUrl] = useState<string | null>(null);
 
+  // Browsers don't give JavaScript a reliable way to tell "the popup I just
+  // opened was actually blocked" — Chrome, in particular, can hand back a
+  // window object that looks perfectly fine to JS while showing nothing to
+  // the person. Trying to detect a block and show a fallback link only when
+  // one is detected (the first version of this fix) can silently miss it
+  // for exactly that reason. So: don't guess. Fetch the real link, try an
+  // automatic open as a convenience, but ALWAYS render the link itself as
+  // a plain, visible, real <a> right on the page too — a genuine click on
+  // a genuine link is never subject to popup blocking, unlike window.open().
   function handleClick() {
     setError(null);
-    setManualUrl(null);
-    // Open the tab SYNCHRONOUSLY, inside the click itself, before the
-    // network round-trip below — that's what popup blockers actually check
-    // for (a window opened from a real, immediate click). Opening it only
-    // after `await getPandaDocSigningUrl` resolves is exactly the pattern
-    // browsers flag as an unrequested popup, since by then the click that
-    // triggered it is no longer "live" as far as the blocker's concerned.
-    // This is almost certainly why it worked for staff testing it (a fast
-    // local response can slip under the timing some browsers allow) but
-    // failed for a borrower on a slower connection or a stricter browser.
-    const opened = window.open("about:blank", "_blank", "noopener,noreferrer");
     startTransition(async () => {
       try {
-        const url = await getPandaDocSigningUrl(token, need.id);
-        if (opened && !opened.closed) {
-          opened.location.href = url;
-        } else {
-          // Blocked anyway (or the borrower's browser closed the blank tab
-          // immediately) — fall back to a real link they can click
-          // themselves, which carries its own genuine click and isn't
-          // subject to the same popup check.
-          setManualUrl(url);
-        }
+        const signingUrl = await getPandaDocSigningUrl(token, need.id);
+        setUrl(signingUrl);
+        window.open(signingUrl, "_blank", "noopener,noreferrer");
       } catch (err) {
-        opened?.close();
         setError(err instanceof Error ? err.message : "Couldn't open that form.");
       }
     });
   }
 
   return (
-    <div className="space-y-1">
-      <Button type="button" size="sm" disabled={pending} onClick={handleClick}>
-        {pending ? "Opening…" : "Fill out and sign"}
-      </Button>
-      {manualUrl && (
-        <p className="text-xs text-muted-foreground">
-          Your browser blocked the pop-up.{" "}
-          <a href={manualUrl} target="_blank" rel="noreferrer" className="font-medium text-primary underline">
-            Click here to open the form
+    <div className="space-y-1.5">
+      {!url && (
+        <Button type="button" size="sm" disabled={pending} onClick={handleClick}>
+          {pending ? "Loading…" : "Fill out and sign"}
+        </Button>
+      )}
+      {url && (
+        <div className="space-y-1 rounded-md border border-primary/30 bg-primary/5 p-2">
+          <p className="text-xs text-muted-foreground">
+            If a new tab didn&apos;t open automatically, use this link:
+          </p>
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="block truncate text-sm font-semibold text-primary underline underline-offset-2"
+          >
+            Open and sign your form
           </a>
-          .
-        </p>
+        </div>
       )}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
