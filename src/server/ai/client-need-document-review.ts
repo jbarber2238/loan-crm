@@ -24,6 +24,11 @@ type Deal = typeof deals.$inferSelect;
 
 function buildDealContextSummary(deal: Deal): string {
   return [
+    // The model's own sense of "today" comes from training data and is
+    // unreliable — without this, it has flagged real, ordinary dates as
+    // suspiciously "in the future." Always give it the actual current date
+    // to reason against instead.
+    `Today's Date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`,
     `Borrower: ${deal.borrowerName}`,
     deal.borrowerEntityName ? `Borrowing Entity: ${deal.borrowerEntityName}` : null,
     `Property Address: ${deal.propertyAddress}`,
@@ -65,10 +70,11 @@ There ${documentCount === 1 ? "is 1 document" : `are ${documentCount} documents`
 This lender underwrites on the asset/entity, not the borrower's personal income — DTI (debt-to-income ratio) is never a factor here. Do not calculate, mention, or flag DTI, or anything framed as "verify income supports this debt load" or similar. Ignore that angle entirely, even on bank statements or applications.
 
 General guidance — apply whatever's relevant to these specific documents, skip what isn't:
+- Schedule of Real Estate Owned (REO): the single most important check here is title/vesting on EACH property listed, especially the subject property in "Property Address" above — does the entity or individual holding title match the Borrowing Entity (or borrower, if there's no entity) on file? If a property, and especially the subject property, is vested in some other entity or person not already known on this deal, that is always worth flagging: we don't yet have that entity's formation documents, and proof of that entity (and the borrower's relationship to it) needs to be requested before closing. Flag this even if nothing else on the schedule looks wrong.
 - Entity documents (operating agreement, articles of organization, corporate resolution, etc.): Is it signed/executed? Are all members/managers clearly identified? Is the borrower actually listed as a member/manager? Does the borrower's ownership percentage look sufficient to bind the entity to debt (majority interest, or explicit signing authority language)?
 - Bank statements: Does the account holder name match the borrower or borrowing entity? Do the statement dates, taken together across all documents provided, cover the period requested? Any large unexplained deposits, overdrafts, or NSF fees worth asking about? (Not a DTI check — just source-of-funds and account-identity questions.)
 - Applications or loan forms: Does anything here contradict the deal details above (loan amount, property address, borrower name, entity name)? Is any field that looks required left blank?
-- Any document: Is a signature or date missing where one is clearly expected? Does a document reference pages that weren't included (e.g. "page 1 of 3" but only one page attached)?
+- Any document: Is a signature or date missing where one is clearly expected? Does a document reference pages that weren't included (e.g. "page 1 of 3" but only one page attached)? A date should only be flagged as wrong or "in the future" if it's actually after Today's Date above — don't flag an ordinary past or present date just because it looks recent.
 
 Respond with ONLY a JSON object, no prose outside it, in this exact shape:
 {"flags": [{"document": <1-indexed number matching "Document N" above>, "page": <page number within that document, or null>, "quote": "<a short phrase copied closely from the document, near the issue>", "concern": "<one sentence: what to check and why>"}]}
