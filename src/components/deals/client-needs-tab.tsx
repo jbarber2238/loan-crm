@@ -102,6 +102,21 @@ const STATUS_LABEL: Record<ClientNeed["status"], string> = {
   accepted: "Accepted",
 };
 
+// Not sent yet → sent and waiting → submitted and awaiting review →
+// accepted, last. Array.sort is stable, so needs sharing a status keep
+// whatever order they arrived in (currently creation order) rather than
+// being shuffled.
+const STATUS_SORT_ORDER: Record<ClientNeed["status"], number> = {
+  not_sent: 0,
+  awaiting_docs: 1,
+  review_needed: 2,
+  accepted: 3,
+};
+
+function sortByStatus(list: ClientNeed[]): ClientNeed[] {
+  return [...list].sort((a, b) => STATUS_SORT_ORDER[a.status] - STATUS_SORT_ORDER[b.status]);
+}
+
 const STATUS_VARIANT: Record<ClientNeed["status"], "destructive" | "secondary" | "warning" | "success"> = {
   not_sent: "destructive",
   awaiting_docs: "secondary",
@@ -1150,8 +1165,9 @@ export function ClientNeedsTab({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<"docs" | "esign">("docs");
 
-  const docsNeeds = needs.filter((n) => !ESIGN_NEED_TYPES.has(n.needType));
-  const esignNeeds = needs.filter((n) => ESIGN_NEED_TYPES.has(n.needType));
+  const sortedNeeds = sortByStatus(needs);
+  const docsNeeds = sortedNeeds.filter((n) => !ESIGN_NEED_TYPES.has(n.needType));
+  const esignNeeds = sortedNeeds.filter((n) => ESIGN_NEED_TYPES.has(n.needType));
   const visibleNeeds = activeTab === "docs" ? docsNeeds : esignNeeds;
 
   const selectedNeeds = needs.filter((n) => selectedIds.has(n.id) && !n.onHoldAt);
