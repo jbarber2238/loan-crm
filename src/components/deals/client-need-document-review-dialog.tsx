@@ -37,7 +37,18 @@ export interface ReviewableDocument {
   aiReviewedAt: Date | null;
 }
 
-const SUPPORTED_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]);
+// heic/heif are included here even though the raw file isn't browser-viewable —
+// /api/client-need-documents/[id] converts those to JPEG on the fly, so by
+// the time it reaches this <img>, it always is one.
+const SUPPORTED_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+]);
 
 const STATUS_BADGE: Record<ReviewableDocument["reviewStatus"], { label: string; variant: "success" | "destructive" | "warning" }> = {
   approved: { label: "Approved", variant: "success" },
