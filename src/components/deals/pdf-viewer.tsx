@@ -6,6 +6,9 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  Download,
+  Printer,
+  RotateCw,
   Search,
   X,
   ZoomIn,
@@ -51,11 +54,20 @@ const ZOOM_STEPS = [0.75, 1, 1.25, 1.5, 2, 2.5, 3];
  * in the PDF (a scanned page with no text layer has nothing to search,
  * same limitation Chrome's own viewer has).
  */
-export function PdfViewer({ fileUrl, jumpToPage }: { fileUrl: string; jumpToPage?: number | null }) {
+export function PdfViewer({
+  fileUrl,
+  fileName,
+  jumpToPage,
+}: {
+  fileUrl: string;
+  fileName: string;
+  jumpToPage?: number | null;
+}) {
   const [doc, setDoc] = useState<PdfDocument | null>(null);
   const [numPages, setNumPages] = useState(0);
   const [pageNum, setPageNum] = useState(jumpToPage ?? 1);
   const [scale, setScale] = useState(1.25);
+  const [rotation, setRotation] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [searchOpen, setSearchOpen] = useState(false);
@@ -63,7 +75,9 @@ export function PdfViewer({ fileUrl, jumpToPage }: { fileUrl: string; jumpToPage
   const [matches, setMatches] = useState<Match[]>([]);
   const [matchIndex, setMatchIndex] = useState(0);
   const [searching, setSearching] = useState(false);
+  const [searchProgress, setSearchProgress] = useState<{ done: number; total: number } | null>(null);
   const pageTextCache = useRef<Map<number, string[]>>(new Map());
+  const printFrameRef = useRef<HTMLIFrameElement | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
@@ -113,7 +127,7 @@ export function PdfViewer({ fileUrl, jumpToPage }: { fileUrl: string; jumpToPage
     (async () => {
       const page = await doc.getPage(pageNum);
       if (renderToken.current !== myToken) return;
-      const viewport = page.getViewport({ scale });
+      const viewport = page.getViewport({ scale, rotation });
       const canvas = canvasRef.current!;
       const ctx = canvas.getContext("2d")!;
       const outputScale = window.devicePixelRatio || 1;
@@ -169,7 +183,7 @@ export function PdfViewer({ fileUrl, jumpToPage }: { fileUrl: string; jumpToPage
       renderTask?.cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doc, pageNum, scale]);
+  }, [doc, pageNum, scale, rotation]);
 
   function applyHighlight(container: HTMLDivElement, page: number) {
     const q = query.trim().toLowerCase();
@@ -214,6 +228,15 @@ export function PdfViewer({ fileUrl, jumpToPage }: { fileUrl: string; jumpToPage
     return texts;
   }
 
+  // Pages are processed in small concurrent batches (much faster than one
+  // at a time on a 25-33 page document, where sequential off-screen
+  // renders were slow enough to look stuck on the current page) and each
+  // page is isolated in its own try/catch — one page that fails to render
+  // (unusual encoding, a corrupt embedded font) is skipped and logged
+  // rather than silently discarding every match already found on every
+  // other page, which is what a single unguarded loop would do.
+  const SEARCH_BATCH_SIZE = 5;
+
   async function runSearch() {
     const q = query.trim().toLowerCase();
     if (!q || !doc) {
@@ -221,19 +244,39 @@ export function PdfViewer({ fileUrl, jumpToPage }: { fileUrl: string; jumpToPage
       return;
     }
     setSearching(true);
+    setSearchProgress({ done: 0, total: numPages });
     try {
       const found: Match[] = [];
-      for (let p = 1; p <= numPages; p++) {
-        const texts = await getPageSpanTexts(p);
-        texts.forEach((t, spanIndex) => {
-          if (t.toLowerCase().includes(q)) found.push({ page: p, spanIndex });
-        });
+      let done = 0;
+      for (let start = 1; start <= numPages; start += SEARCH_BATCH_SIZE) {
+        const batch = Array.from(
+          { length: Math.min(SEARCH_BATCH_SIZE, numPages - start + 1) },
+          (_, i) => start + i
+        );
+        const results = await Promise.all(
+          batch.map(async (p) => {
+            try {
+              return { p, texts: await getPageSpanTexts(p) };
+            } catch (err) {
+              console.error(`Couldn't search page ${p} of this PDF, skipping it:`, err);
+              return { p, texts: [] as string[] };
+            }
+          })
+        );
+        for (const { p, texts } of results) {
+          texts.forEach((t, spanIndex) => {
+            if (t.toLowerCase().includes(q)) found.push({ page: p, spanIndex });
+          });
+        }
+        done += batch.length;
+        setSearchProgress({ done, total: numPages });
       }
       setMatches(found);
       setMatchIndex(0);
       if (found.length > 0) setPageNum(found[0].page);
     } finally {
       setSearching(false);
+      setSearchProgress(null);
     }
   }
 
@@ -299,6 +342,43 @@ export function PdfViewer({ fileUrl, jumpToPage }: { fileUrl: string; jumpToPage
 
         <div className="mx-1 h-5 w-px bg-border" />
 
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          onClick={() => setRotation((r) => (r + 90) % 360)}
+          title="Rotate"
+        >
+          <RotateCw className="size-4" />
+        </Button>
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          onClick={() => {
+            const a = document.createElement("a");
+            a.href = fileUrl;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+          }}
+          title="Download"
+        >
+          <Download className="size-4" />
+        </Button>
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          onClick={() => printFrameRef.current?.contentWindow?.print()}
+          title="Print"
+        >
+          <Printer className="size-4" />
+        </Button>
+
+        <div className="mx-1 h-5 w-px bg-border" />
+
         {searchOpen ? (
           <div className="flex flex-1 items-center gap-1">
             <div className="relative flex-1 max-w-xs">
@@ -321,7 +401,9 @@ export function PdfViewer({ fileUrl, jumpToPage }: { fileUrl: string; jumpToPage
               />
             </div>
             <Button type="button" size="sm" variant="outline" disabled={searching || !query.trim()} onClick={runSearch}>
-              {searching ? "Searching…" : "Find"}
+              {searching
+                ? `Searching… ${searchProgress ? `${searchProgress.done}/${searchProgress.total}` : ""}`
+                : "Find"}
             </Button>
             {matches.length > 0 && (
               <>
@@ -377,6 +459,11 @@ export function PdfViewer({ fileUrl, jumpToPage }: { fileUrl: string; jumpToPage
           </div>
         )}
       </div>
+
+      {/* Hidden, always-loaded iframe pointed at the raw file, purely so the
+          Print button can call the browser's own PDF print pipeline (proper
+          pagination) instead of trying to print our canvas renders. */}
+      <iframe ref={printFrameRef} src={fileUrl} title="" className="hidden" aria-hidden="true" />
     </div>
   );
 }
