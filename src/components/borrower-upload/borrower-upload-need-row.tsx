@@ -81,14 +81,35 @@ function QuestionnaireForm({ token, need }: { token: string; need: BorrowerUploa
 function PandaDocFormButton({ token, need }: { token: string; need: BorrowerUploadNeed }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [manualUrl, setManualUrl] = useState<string | null>(null);
 
   function handleClick() {
     setError(null);
+    setManualUrl(null);
+    // Open the tab SYNCHRONOUSLY, inside the click itself, before the
+    // network round-trip below — that's what popup blockers actually check
+    // for (a window opened from a real, immediate click). Opening it only
+    // after `await getPandaDocSigningUrl` resolves is exactly the pattern
+    // browsers flag as an unrequested popup, since by then the click that
+    // triggered it is no longer "live" as far as the blocker's concerned.
+    // This is almost certainly why it worked for staff testing it (a fast
+    // local response can slip under the timing some browsers allow) but
+    // failed for a borrower on a slower connection or a stricter browser.
+    const opened = window.open("about:blank", "_blank", "noopener,noreferrer");
     startTransition(async () => {
       try {
         const url = await getPandaDocSigningUrl(token, need.id);
-        window.open(url, "_blank", "noopener,noreferrer");
+        if (opened && !opened.closed) {
+          opened.location.href = url;
+        } else {
+          // Blocked anyway (or the borrower's browser closed the blank tab
+          // immediately) — fall back to a real link they can click
+          // themselves, which carries its own genuine click and isn't
+          // subject to the same popup check.
+          setManualUrl(url);
+        }
       } catch (err) {
+        opened?.close();
         setError(err instanceof Error ? err.message : "Couldn't open that form.");
       }
     });
@@ -99,6 +120,15 @@ function PandaDocFormButton({ token, need }: { token: string; need: BorrowerUplo
       <Button type="button" size="sm" disabled={pending} onClick={handleClick}>
         {pending ? "Opening…" : "Fill out and sign"}
       </Button>
+      {manualUrl && (
+        <p className="text-xs text-muted-foreground">
+          Your browser blocked the pop-up.{" "}
+          <a href={manualUrl} target="_blank" rel="noreferrer" className="font-medium text-primary underline">
+            Click here to open the form
+          </a>
+          .
+        </p>
+      )}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
