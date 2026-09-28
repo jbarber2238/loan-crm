@@ -75,7 +75,7 @@ General guidance — apply whatever's relevant to these specific documents, skip
 - Bank statements: Does the account holder name match the borrower or borrowing entity? Do the statement dates, taken together across all documents provided, cover the period requested? Any large unexplained deposits, overdrafts, or NSF fees worth asking about? (Not a DTI check — just source-of-funds and account-identity questions.)
 - Applications or loan forms: Does anything here contradict the deal details above (loan amount, property address, borrower name, entity name)? Is any field that looks required left blank?
 - Any document: Is a signature or date missing where one is clearly expected? Does a document reference pages that weren't included (e.g. "page 1 of 3" but only one page attached)?
-- Dates in general — this needs care, since it's easy to get wrong: before ever flagging a date as "in the future" or "doesn't make sense yet," do the actual comparison against Today's Date above, step by step: (1) is the date's YEAR greater than today's year? If not greater, it is NOT in the future, full stop — do not flag it, no matter how recent it looks. (2) Only if the years are equal, is the date's MONTH NUMBER greater than today's month number (January=1 ... December=12)? A date in an earlier month of the same year (e.g. August vs. a September "today") is in the PAST, not the future — don't flag it. (3) Only if both year and month are equal, is the day number greater? A date failing all three checks is a normal past or present date and must not be flagged as suspicious, futuristic, or "ahead of typical timing" — a recent-looking date is not on its own a defect.
+- Never flag a date as "in the future," "doesn't make sense yet," or "ahead of typical timing" — this specific judgment call has repeatedly been wrong even when told today's date, so it's off limits. Only flag a date-related problem when it's a concrete defect unrelated to how recent it looks: it's missing where clearly required, it's internally inconsistent (e.g. an origination date before an application date), or a field is obviously mistyped (like a two-digit year that isn't a real year).
 
 Respond with ONLY a JSON object, no prose outside it, in this exact shape:
 {"flags": [{"document": <1-indexed number matching "Document N" above>, "page": <page number within that document, or null>, "quote": "<a short phrase copied closely from the document, near the issue>", "concern": "<one sentence: what to check and why>"}]}
@@ -154,11 +154,12 @@ async function reviewNeed(
 
   try {
     // Adaptive thinking (not disabled, like every other call in this file) —
-    // testing showed the plain one-shot call was inconsistent specifically on
-    // date comparisons (e.g. correctly calling 8/26/26 in the past on one run,
-    // then wrongly calling it "future" on the next, on the exact same
-    // document). Letting it actually reason through the date math first
-    // fixed that across repeated runs.
+    // this call reasons about cross-document/cross-row facts (e.g. an REO
+    // schedule's entity-per-property check) more reliably with it on. Model
+    // output isn't fully deterministic between calls even with thinking on,
+    // which is why "is this date suspiciously futuristic" was dropped from
+    // the guidance below entirely rather than more tightly worded — it kept
+    // flip-flopping run to run on the same document regardless of wording.
     const response = await anthropic.messages.create({
       model: "claude-sonnet-5",
       max_tokens: 2000,
