@@ -20,6 +20,31 @@ export interface AiReviewFlag {
   concern: string;
 }
 
+export interface OperatingAgreementFacts {
+  entityName: { value: string | null; page: number | null };
+  managerName: { value: string | null; page: number | null };
+  effectiveDate: { value: string | null; page: number | null };
+  ownershipBreakdown: { value: string | null; page: number | null };
+  principalOffice: { value: string | null; page: number | null };
+  signatureType: { value: string | null; page: number | null };
+  unanimousConsentClause: { value: string | null; page: number | null };
+}
+
+const FACT_KEYS = [
+  "entityName",
+  "managerName",
+  "effectiveDate",
+  "ownershipBreakdown",
+  "principalOffice",
+  "signatureType",
+  "unanimousConsentClause",
+] as const;
+
+/** Matches by substring, not an exact catalog name, since this item may be worded slightly differently across lenders/products. */
+function isOperatingAgreementNeed(itemName: string): boolean {
+  return itemName.toLowerCase().includes("operating agreement");
+}
+
 type Deal = typeof deals.$inferSelect;
 
 function buildDealContextSummary(deal: Deal): string {
@@ -53,11 +78,25 @@ function fileToContentBlock(file: { mimeType: string; data: string }): Anthropic
   return null;
 }
 
+const OPERATING_AGREEMENT_FACTS_INSTRUCTIONS = `
+
+This checklist item is an LLC Operating Agreement, so — separately from the flags above, and regardless of whether anything looks wrong — always pull these specific facts, each with the page number (within whichever "Document N" it came from) where it's actually stated:
+- entityName: the LLC's full legal name.
+- managerName: the name(s) of the Manager(s) if manager-managed, or the Managing Member(s) if member-managed. If more than one, list all of them in one string.
+- effectiveDate: the agreement's stated effective or execution date.
+- ownershipBreakdown: every member's name with their ownership percentage or unit count, as one combined string (e.g. "Jane Doe 60%, John Smith 40%").
+- principalOffice: the entity's stated principal office address.
+- signatureType: whether the signature page shows a wet (physical ink) signature or an electronic one (DocuSign, Adobe Sign, a typed "/s/" signature block, or an attached signature certificate/audit trail) — answer exactly one of "Wet signature", "E-signed", or "Not signed" (if the signature page is blank/unsigned).
+- unanimousConsentClause: whether the agreement contains a clause requiring unanimous member consent for major decisions — answer exactly one of "Yes", "No", or "Not addressed", and if "Yes", briefly name what kind of decisions it applies to inside the same string (e.g. "Yes — sale of the property or additional capital calls").
+
+If a fact genuinely can't be found anywhere in the document, its value must be null (with page also null) — never guess, and never leave a fact out of the object entirely.`;
+
 const REVIEW_SYSTEM_PROMPT = (
   dealContext: string,
   itemName: string,
   description: string | null,
-  documentCount: number
+  documentCount: number,
+  extractOperatingAgreementFacts: boolean
 ) => `You are an experienced mortgage loan processor's assistant, reviewing the document(s) a borrower uploaded to satisfy one client-need checklist item. Your job is to flag anything a human reviewer should double-check before accepting them — you are not deciding accept/reject yourself.
 
 Deal context (use this to cross-check the documents — e.g. does the name, entity, or amount actually match what's on file):
@@ -76,22 +115,40 @@ General guidance — apply whatever's relevant to these specific documents, skip
 - Applications or loan forms: Does anything here contradict the deal details above (loan amount, property address, borrower name, entity name)? Is any field that looks required left blank?
 - Any document: Is a signature or date missing where one is clearly expected? Does a document reference pages that weren't included (e.g. "page 1 of 3" but only one page attached)?
 - Never flag a date as "in the future," "doesn't make sense yet," or "ahead of typical timing" — this specific judgment call has repeatedly been wrong even when told today's date, so it's off limits. Only flag a date-related problem when it's a concrete defect unrelated to how recent it looks: it's missing where clearly required, it's internally inconsistent (e.g. an origination date before an application date), or a field is obviously mistyped (like a two-digit year that isn't a real year).
-
+${extractOperatingAgreementFacts ? OPERATING_AGREEMENT_FACTS_INSTRUCTIONS : ""}
 Respond with ONLY a JSON object, no prose outside it, in this exact shape:
-{"flags": [{"document": <1-indexed number matching "Document N" above>, "page": <page number within that document, or null>, "quote": "<a short phrase copied closely from the document, near the issue>", "concern": "<one sentence: what to check and why>"}]}
+{"flags": [{"document": <1-indexed number matching "Document N" above>, "page": <page number within that document, or null>, "quote": "<a short phrase copied closely from the document, near the issue>", "concern": "<one sentence: what to check and why>"}]}${
+  extractOperatingAgreementFacts
+    ? `, "facts": {"document": <1-indexed number matching "Document N" — whichever document these facts actually came from>, "entityName": {"value": <string or null>, "page": <number or null>}, "managerName": {"value": <string or null>, "page": <number or null>}, "effectiveDate": {"value": <string or null>, "page": <number or null>}, "ownershipBreakdown": {"value": <string or null>, "page": <number or null>}, "principalOffice": {"value": <string or null>, "page": <number or null>}, "signatureType": {"value": <string or null>, "page": <number or null>}, "unanimousConsentClause": {"value": <string or null>, "page": <number or null>}}`
+    : ""
+}
 
 Rules:
 - Only flag things genuinely worth a second look. Don't invent issues on a clean set of documents — an empty flags array is a completely valid, good outcome.
 - Never flag anything DTI-related — see above. This lender doesn't underwrite on it, so it's not a "second look" item.
 - "quote" must be short (under 12 words) and taken directly from the document's actual text near the issue, not paraphrased — it exists to help a human find the spot fast, not to summarize it.
 - "page" is the 1-indexed page number within that specific document, or null if it doesn't apply (e.g. a single-page image, or a concern that isn't tied to one page).
-- A concern that spans multiple documents (e.g. a missing month) should still be attached to whichever single document is most relevant, with "page" set to null.`;
+- A concern that spans multiple documents (e.g. a missing month) should still be attached to whichever single document is most relevant, with "page" set to null.${
+  extractOperatingAgreementFacts ? ' "facts" is required whenever this checklist item is an operating agreement — include it even if every value inside it ends up null.' : ""
+}`;
 
-/** Buckets the model's flags by which "Document N" they were attached to (1-indexed, matching prompt order). */
-function parseReviewResponse(raw: string, documentCount: number): Map<number, AiReviewFlag[]> {
+function parseFact(raw: unknown): { value: string | null; page: number | null } {
+  if (typeof raw !== "object" || raw === null) return { value: null, page: null };
+  const f = raw as { value?: unknown; page?: unknown };
+  return {
+    value: typeof f.value === "string" && f.value.trim() ? f.value.trim() : null,
+    page: typeof f.page === "number" ? f.page : null,
+  };
+}
+
+/** Buckets the model's flags by which "Document N" they were attached to (1-indexed, matching prompt order), plus the operating-agreement facts block when the prompt asked for one. */
+function parseReviewResponse(
+  raw: string,
+  documentCount: number
+): { byDoc: Map<number, AiReviewFlag[]>; facts: { document: number; data: OperatingAgreementFacts } | null } {
   const match = raw.match(/\{[\s\S]*\}/);
   if (!match) throw new Error("Couldn't parse a review result from the AI response.");
-  let parsed: { flags?: unknown };
+  let parsed: { flags?: unknown; facts?: unknown };
   try {
     parsed = JSON.parse(match[0]);
   } catch {
@@ -99,29 +156,40 @@ function parseReviewResponse(raw: string, documentCount: number): Map<number, Ai
   }
 
   const byDoc = new Map<number, AiReviewFlag[]>();
-  if (!Array.isArray(parsed.flags)) return byDoc;
-
-  for (const raw of parsed.flags) {
-    if (typeof raw !== "object" || raw === null) continue;
-    const f = raw as { document?: unknown; page?: unknown; quote?: unknown; concern?: unknown };
-    const concern = typeof f.concern === "string" ? f.concern : "";
-    if (!concern) continue;
-    const docIndex =
-      typeof f.document === "number" && f.document >= 1 && f.document <= documentCount ? f.document : 1;
-    const flag: AiReviewFlag = {
-      page: typeof f.page === "number" ? f.page : null,
-      quote: typeof f.quote === "string" ? f.quote : "",
-      concern,
-    };
-    byDoc.set(docIndex, [...(byDoc.get(docIndex) ?? []), flag]);
+  if (Array.isArray(parsed.flags)) {
+    for (const raw of parsed.flags) {
+      if (typeof raw !== "object" || raw === null) continue;
+      const f = raw as { document?: unknown; page?: unknown; quote?: unknown; concern?: unknown };
+      const concern = typeof f.concern === "string" ? f.concern : "";
+      if (!concern) continue;
+      const docIndex =
+        typeof f.document === "number" && f.document >= 1 && f.document <= documentCount ? f.document : 1;
+      const flag: AiReviewFlag = {
+        page: typeof f.page === "number" ? f.page : null,
+        quote: typeof f.quote === "string" ? f.quote : "",
+        concern,
+      };
+      byDoc.set(docIndex, [...(byDoc.get(docIndex) ?? []), flag]);
+    }
   }
-  return byDoc;
+
+  let facts: { document: number; data: OperatingAgreementFacts } | null = null;
+  if (typeof parsed.facts === "object" && parsed.facts !== null) {
+    const raw = parsed.facts as Record<string, unknown>;
+    const docIndex =
+      typeof raw.document === "number" && raw.document >= 1 && raw.document <= documentCount ? raw.document : 1;
+    const data = Object.fromEntries(FACT_KEYS.map((key) => [key, parseFact(raw[key])])) as unknown as OperatingAgreementFacts;
+    facts = { document: docIndex, data };
+  }
+
+  return { byDoc, facts };
 }
 
 interface ReviewNeedResult {
   reviewedIds: string[];
   skipped: { id: string; error: string }[];
   totalFlags: number;
+  factsExtracted: boolean;
 }
 
 /** Reviews every (supported) document in a need together, in one call, so the model has cross-document context — e.g. whether two bank statements together cover the requested period. */
@@ -135,6 +203,7 @@ async function reviewNeed(
       reviewedIds: [],
       skipped: documents.map((d) => ({ id: d.id, error: "AI review isn't configured." })),
       totalFlags: 0,
+      factsExtracted: false,
     };
   }
 
@@ -145,12 +214,14 @@ async function reviewNeed(
     if (block) supported.push({ id: doc.id, fileName: doc.fileName, block });
     else skipped.push({ id: doc.id, error: "Unsupported file type for AI review." });
   }
-  if (!supported.length) return { reviewedIds: [], skipped, totalFlags: 0 };
+  if (!supported.length) return { reviewedIds: [], skipped, totalFlags: 0, factsExtracted: false };
 
   const contentBlocks: Anthropic.ContentBlockParam[] = supported.flatMap(({ fileName, block }, i) => [
     { type: "text", text: `Document ${i + 1}: ${fileName}` },
     block,
   ]);
+
+  const extractFacts = isOperatingAgreementNeed(need.itemName);
 
   try {
     // Adaptive thinking (not disabled, like every other call in this file) —
@@ -166,29 +237,42 @@ async function reviewNeed(
       thinking: { type: "adaptive" },
       // Not yet in this SDK version's types (0.124.0) — supported by the API.
       ...({ output_config: { effort: "medium" } } as object),
-      system: REVIEW_SYSTEM_PROMPT(dealContext, need.itemName, need.description, supported.length),
+      system: REVIEW_SYSTEM_PROMPT(dealContext, need.itemName, need.description, supported.length, extractFacts),
       messages: [{ role: "user", content: contentBlocks }],
     });
     const textBlock = response.content.find((b) => b.type === "text");
     const raw = textBlock && textBlock.type === "text" ? textBlock.text : "";
-    const byDoc = parseReviewResponse(raw, supported.length);
+    const { byDoc, facts } = parseReviewResponse(raw, supported.length);
 
     let totalFlags = 0;
     await Promise.all(
       supported.map(({ id }, i) => {
         const flags = byDoc.get(i + 1) ?? [];
         totalFlags += flags.length;
+        // Facts are attached to whichever document the model says they
+        // actually came from (usually the only document in this need, but
+        // not assumed) — every other document's column is left untouched.
+        const isFactsDoc = facts && facts.document === i + 1;
         return db
           .update(dealClientNeedDocuments)
-          .set({ aiReviewFlags: { flags }, aiReviewedAt: new Date() })
+          .set({
+            aiReviewFlags: { flags },
+            aiReviewedAt: new Date(),
+            ...(isFactsDoc ? { aiExtractedFacts: facts.data } : {}),
+          })
           .where(eq(dealClientNeedDocuments.id, id));
       })
     );
 
-    return { reviewedIds: supported.map((s) => s.id), skipped, totalFlags };
+    return { reviewedIds: supported.map((s) => s.id), skipped, totalFlags, factsExtracted: Boolean(facts) };
   } catch (err) {
     const message = err instanceof Error ? err.message : "AI review failed for this need.";
-    return { reviewedIds: [], skipped: [...skipped, ...supported.map((s) => ({ id: s.id, error: message }))], totalFlags: 0 };
+    return {
+      reviewedIds: [],
+      skipped: [...skipped, ...supported.map((s) => ({ id: s.id, error: message }))],
+      totalFlags: 0,
+      factsExtracted: false,
+    };
   }
 }
 
@@ -220,6 +304,7 @@ export async function reviewClientNeedDocuments(dealId: string, needId: string, 
     reviewed: result.reviewedIds.length,
     skipped: result.skipped.length,
     totalFlags: result.totalFlags,
+    factsExtracted: result.factsExtracted,
     errors: result.skipped.map((s) => s.error).filter(Boolean),
   };
 }
@@ -252,7 +337,8 @@ export async function reviewAllClientNeedDocumentsForDeal(dealId: string) {
   const reviewed = results.reduce((sum, r) => sum + r.reviewedIds.length, 0);
   const skipped = results.reduce((sum, r) => sum + r.skipped.length, 0);
   const totalFlags = results.reduce((sum, r) => sum + r.totalFlags, 0);
-  return { reviewed, skipped, totalFlags };
+  const factsExtracted = results.some((r) => r.factsExtracted);
+  return { reviewed, skipped, totalFlags, factsExtracted };
 }
 
 /** Answers an ad-hoc question about every document in a client need — stateless, no chat history kept. */

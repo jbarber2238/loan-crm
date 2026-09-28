@@ -1094,6 +1094,19 @@ export const dealClientNeedDocuments = pgTable("deal_client_need_documents", {
     flags: { page: number | null; quote: string; concern: string }[];
   }>(),
   aiReviewedAt: timestamp("ai_reviewed_at", { mode: "date" }),
+  // Structured fields always pulled from an LLC Operating Agreement need
+  // specifically (see isOperatingAgreementNeed in client-need-document-review.ts)
+  // — null for every other need type. Each field carries the page it was
+  // found on so a processor can jump straight to it.
+  aiExtractedFacts: jsonb("ai_extracted_facts").$type<{
+    entityName: { value: string | null; page: number | null };
+    managerName: { value: string | null; page: number | null };
+    effectiveDate: { value: string | null; page: number | null };
+    ownershipBreakdown: { value: string | null; page: number | null };
+    principalOffice: { value: string | null; page: number | null };
+    signatureType: { value: string | null; page: number | null };
+    unanimousConsentClause: { value: string | null; page: number | null };
+  }>(),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 

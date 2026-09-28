@@ -13,6 +13,7 @@ import {
   reviewClientNeedDocuments,
   askAboutClientNeedDocuments,
   type AiReviewFlag,
+  type OperatingAgreementFacts,
 } from "@/server/ai/client-need-document-review";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,7 +36,18 @@ export interface ReviewableDocument {
   rejectionNote: string | null;
   aiReviewFlags: { flags: AiReviewFlag[] } | null;
   aiReviewedAt: Date | null;
+  aiExtractedFacts: OperatingAgreementFacts | null;
 }
+
+const FACT_LABELS: Record<keyof OperatingAgreementFacts, string> = {
+  entityName: "Entity Name",
+  managerName: "Manager's Name",
+  effectiveDate: "Effective Date",
+  ownershipBreakdown: "Ownership Breakdown",
+  principalOffice: "Principal Office",
+  signatureType: "Signature Type",
+  unanimousConsentClause: "Unanimous Consent Clause",
+};
 
 // heic/heif are included here even though the raw file isn't browser-viewable —
 // /api/client-need-documents/[id] converts those to JPEG on the fly, so by
@@ -93,6 +105,9 @@ export function ClientNeedDocumentReviewDialog({
     ? `/api/client-need-documents/${current.id}${jumpPage ? `#page=${jumpPage}` : ""}`
     : "";
   const isImage = current ? SUPPORTED_IMAGE_TYPES.has(current.mimeType.toLowerCase()) : false;
+  // Whichever document the last AI Review actually pulled facts from — for
+  // an Operating Agreement need this is normally the only document anyway.
+  const factsDoc = documents.find((d) => d.aiExtractedFacts);
 
   function selectDocument(id: string) {
     setCurrentId(id);
@@ -109,11 +124,9 @@ export function ClientNeedDocumentReviewDialog({
     startReviewTransition(async () => {
       try {
         const result = await reviewClientNeedDocuments(dealId, needId);
-        toast.success(
-          result.totalFlags > 0
-            ? `Reviewed — ${result.totalFlags} thing${result.totalFlags === 1 ? "" : "s"} flagged`
-            : "Reviewed — nothing flagged"
-        );
+        const flagsPart =
+          result.totalFlags > 0 ? `${result.totalFlags} thing${result.totalFlags === 1 ? "" : "s"} flagged` : "nothing flagged";
+        toast.success(`Reviewed — ${flagsPart}${result.factsExtracted ? ", key facts extracted" : ""}`);
         if (result.errors.length) toast.error(String(result.errors[0]));
         router.refresh();
       } catch (err) {
@@ -363,6 +376,37 @@ export function ClientNeedDocumentReviewDialog({
                       Reject selected
                     </Button>
                   </div>
+                </div>
+              )}
+
+              {factsDoc && (
+                <div className="space-y-2 rounded-md border p-2">
+                  <p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <Sparkles className="size-3.5" />
+                    Key Facts
+                  </p>
+                  <dl className="space-y-1.5">
+                    {(Object.keys(FACT_LABELS) as (keyof OperatingAgreementFacts)[]).map((key) => {
+                      const fact = factsDoc.aiExtractedFacts![key];
+                      return (
+                        <div key={key} className="text-xs">
+                          <dt className="text-muted-foreground">{FACT_LABELS[key]}</dt>
+                          <dd className="flex items-start justify-between gap-2 font-medium">
+                            <span>{fact.value ?? "Not found"}</span>
+                            {fact.page && (
+                              <button
+                                type="button"
+                                onClick={() => jumpToFlag(factsDoc.id, fact.page)}
+                                className="shrink-0 text-primary hover:underline"
+                              >
+                                Page {fact.page}
+                              </button>
+                            )}
+                          </dd>
+                        </div>
+                      );
+                    })}
+                  </dl>
                 </div>
               )}
 

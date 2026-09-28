@@ -44,6 +44,7 @@ export default async function DealLoanCenterPage({
             rejectionNote: true,
             aiReviewFlags: true,
             aiReviewedAt: true,
+            aiExtractedFacts: true,
           },
           orderBy: (d, { asc }) => asc(d.createdAt),
         },
