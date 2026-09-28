@@ -205,43 +205,49 @@ export function ClientNeedDocumentReviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[90vh] w-[95vw] max-w-[calc(100%-2rem)] flex-col overflow-hidden sm:max-w-[1700px]">
+      <DialogContent className="flex h-[95vh] w-[98vw] max-w-[calc(100%-1rem)] flex-col overflow-hidden p-3 sm:max-w-[2200px]">
         <DialogHeader>
           <DialogTitle>
             Reviewing: {needName} ({documents.length} doc{documents.length === 1 ? "" : "s"})
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex min-h-0 flex-1 gap-3">
-          {/* Sidebar — switch which document is shown, check to multi-select */}
-          <div className="w-40 shrink-0 space-y-2 overflow-y-auto border-r pr-2">
-            {documents.map((doc) => (
-              <div
-                key={doc.id}
-                className={cn(
-                  "cursor-pointer space-y-1 rounded-md border p-1.5 text-center",
-                  doc.id === currentId && "border-primary ring-1 ring-primary"
-                )}
-              >
-                <div className="flex items-center justify-between">
-                  <Checkbox
-                    checked={checkedIds.has(doc.id)}
-                    onCheckedChange={(v) => toggleChecked(doc.id, v === true)}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  <Badge variant={STATUS_BADGE[doc.reviewStatus].variant} className="text-[9px]">
-                    {STATUS_BADGE[doc.reviewStatus].label}
-                  </Badge>
+        <div className="flex min-h-0 flex-1 gap-2">
+          {/* Sidebar — switch which document is shown, check to multi-select.
+              Kept slim on purpose: the document itself is what needs to be
+              readable, this strip is just for quick page/file switching. */}
+          {documents.length > 1 && (
+            <div className="w-[84px] shrink-0 space-y-1.5 overflow-y-auto border-r pr-1.5">
+              {documents.map((doc) => (
+                <div
+                  key={doc.id}
+                  className={cn(
+                    "cursor-pointer space-y-0.5 rounded-md border p-1 text-center",
+                    doc.id === currentId && "border-primary ring-1 ring-primary"
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <Checkbox
+                      checked={checkedIds.has(doc.id)}
+                      onCheckedChange={(v) => toggleChecked(doc.id, v === true)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="size-3.5"
+                    />
+                    <Badge variant={STATUS_BADGE[doc.reviewStatus].variant} className="px-1 py-0 text-[8px] leading-tight">
+                      {STATUS_BADGE[doc.reviewStatus].label}
+                    </Badge>
+                  </div>
+                  <button type="button" onClick={() => selectDocument(doc.id)} className="flex w-full flex-col items-center gap-0.5">
+                    <FileText className="size-5 text-muted-foreground" />
+                    <span className="line-clamp-2 text-[9px] leading-tight">{doc.fileName}</span>
+                  </button>
                 </div>
-                <button type="button" onClick={() => selectDocument(doc.id)} className="flex w-full flex-col items-center gap-1">
-                  <FileText className="size-8 text-muted-foreground" />
-                  <span className="line-clamp-2 text-[11px] leading-tight">{doc.fileName}</span>
-                </button>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
-          {/* Main viewer */}
+          {/* Main viewer — the reason this dialog exists, so it gets almost
+              all the width; the file list and AI panel are both kept slim. */}
           <div className="min-w-0 flex-1 overflow-hidden rounded-md border bg-muted/30">
             {current ? (
               isImage ? (
@@ -255,9 +261,10 @@ export function ClientNeedDocumentReviewDialog({
             )}
           </div>
 
-          {/* Current-document panel */}
+          {/* Current-document panel — kept narrow so the viewer stays the
+              star of the layout. */}
           {current && (
-            <div className="w-[420px] shrink-0 space-y-3 overflow-y-auto">
+            <div className="w-[300px] shrink-0 space-y-3 overflow-y-auto">
               <div>
                 {renamingId === current.id ? (
                   <div className="flex items-center gap-1">
