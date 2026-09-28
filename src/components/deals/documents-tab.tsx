@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText, Undo2 } from "lucide-react";
 import { CollapsibleSection } from "@/components/email-templates/collapsible-section";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { restoreRejectedDocuments } from "@/server/actions/client-need-documents";
 import type { DealDocumentRow } from "@/server/actions/client-need-documents";
 
 async function downloadZip(ids: string[], zipName: string) {
@@ -27,18 +29,24 @@ async function downloadZip(ids: string[], zipName: string) {
 }
 
 function DocumentSection({
+  dealId,
   title,
   rows,
   propertyLabel,
   showReason,
+  showRestore,
 }: {
+  dealId: string;
   title: string;
   rows: DealDocumentRow[];
   propertyLabel: string;
   showReason: boolean;
+  showRestore: boolean;
 }) {
+  const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [downloading, setDownloading] = useState(false);
+  const [restoring, startRestore] = useTransition();
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
 
   function toggleAll(checked: boolean) {
@@ -66,6 +74,21 @@ function DocumentSection({
     }
   }
 
+  function handleRestore() {
+    const ids = [...selected];
+    if (!ids.length) return;
+    startRestore(async () => {
+      try {
+        await restoreRejectedDocuments(dealId, ids);
+        toast.success(`Restored ${ids.length} document${ids.length === 1 ? "" : "s"} for review`);
+        setSelected(new Set());
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't restore these documents");
+      }
+    });
+  }
+
   return (
     <CollapsibleSection
       title={title}
@@ -82,6 +105,19 @@ function DocumentSection({
               Select all
             </label>
             <div className="flex items-center gap-2">
+              {showRestore && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={restoring || selected.size === 0}
+                  onClick={handleRestore}
+                  title="Puts the selected document(s) back under review on their original client need"
+                >
+                  <Undo2 className="size-3.5" />
+                  {restoring ? "Restoring…" : `Restore selection (${selected.size})`}
+                </Button>
+              )}
               <Button
                 type="button"
                 size="sm"
@@ -148,18 +184,34 @@ function DocumentSection({
 }
 
 export function DocumentsTab({
+  dealId,
   accepted,
   rejected,
   propertyLabel,
 }: {
+  dealId: string;
   accepted: DealDocumentRow[];
   rejected: DealDocumentRow[];
   propertyLabel: string;
 }) {
   return (
     <div className="space-y-6">
-      <DocumentSection title="Accepted" rows={accepted} propertyLabel={propertyLabel} showReason={false} />
-      <DocumentSection title="Rejected" rows={rejected} propertyLabel={propertyLabel} showReason />
+      <DocumentSection
+        dealId={dealId}
+        title="Accepted"
+        rows={accepted}
+        propertyLabel={propertyLabel}
+        showReason={false}
+        showRestore={false}
+      />
+      <DocumentSection
+        dealId={dealId}
+        title="Rejected"
+        rows={rejected}
+        propertyLabel={propertyLabel}
+        showReason
+        showRestore
+      />
     </div>
   );
 }

@@ -254,7 +254,7 @@ export function LoanCenterTab({
         </TabsContent>
 
         <TabsContent value="documents">
-          <DocumentsTab accepted={documents.accepted} rejected={documents.rejected} propertyLabel={propertyLabel} />
+          <DocumentsTab dealId={dealId} accepted={documents.accepted} rejected={documents.rejected} propertyLabel={propertyLabel} />
         </TabsContent>
 
         <TabsContent value="team-chat">{teamChat}</TabsContent>

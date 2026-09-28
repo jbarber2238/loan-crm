@@ -63,6 +63,36 @@ export async function approveClientNeedDocuments(dealId: string, needId: string,
   revalidatePath(`/deals/${dealId}/loan-center`);
 }
 
+/**
+ * Undoes an accidental rejection — puts the document(s) back to "pending"
+ * under whatever client need they already belong to, clearing the
+ * rejection note, so they re-enter the normal review flow rather than
+ * staying stuck as rejected. Used from the deal-wide Documents tab, where
+ * a selection can span several different client needs at once, so this
+ * looks up and recomputes each affected need itself rather than taking
+ * one needId like approve/reject above do.
+ */
+export async function restoreRejectedDocuments(dealId: string, documentIds: string[]) {
+  await requireUser();
+  if (!documentIds.length) return;
+
+  const docs = await db.query.dealClientNeedDocuments.findMany({
+    where: inArray(dealClientNeedDocuments.id, documentIds),
+    columns: { id: true, clientNeedId: true },
+  });
+  if (!docs.length) return;
+
+  await db
+    .update(dealClientNeedDocuments)
+    .set({ reviewStatus: "pending", reviewedAt: null, reviewedByUserId: null, rejectionNote: null })
+    .where(inArray(dealClientNeedDocuments.id, documentIds));
+
+  const needIds = [...new Set(docs.map((d) => d.clientNeedId))];
+  for (const needId of needIds) await recomputeNeedStatus(needId);
+
+  revalidatePath(`/deals/${dealId}/loan-center`);
+}
+
 export async function rejectClientNeedDocuments(
   dealId: string,
   needId: string,
