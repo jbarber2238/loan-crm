@@ -7,6 +7,7 @@ import { db } from "@/server/db/client";
 import { deals, dealClientNeeds, dealClientNeedDocuments, dealClientNeedAnswers } from "@/server/db/schema";
 import { recomputeNeedStatus } from "@/server/client-need-status";
 import { recordBorrowerActivity } from "@/server/borrower-activity";
+import { convertHeicIfNeeded } from "@/server/heic";
 import { createSigningSessionUrl } from "@/server/pandadoc";
 import { parsePropertyAddress } from "@/lib/format";
 import { getCustomFormDefinition, syncedFieldsFor } from "@/lib/custom-need-forms/registry";
@@ -135,13 +136,18 @@ export async function uploadBorrowerDocument(token: string, needId: string, form
   if (tooLarge) throw new Error(`${tooLarge.name} is too large (15MB max)`);
 
   for (const file of files) {
-    const dataBase64 = Buffer.from(await file.arrayBuffer()).toString("base64");
-    await db.insert(dealClientNeedDocuments).values({
-      clientNeedId: needId,
+    const original = Buffer.from(await file.arrayBuffer()).toString("base64");
+    const stored = await convertHeicIfNeeded({
       fileName: file.name,
       mimeType: file.type || "application/octet-stream",
-      fileSize: file.size,
-      data: dataBase64,
+      dataBase64: original,
+    });
+    await db.insert(dealClientNeedDocuments).values({
+      clientNeedId: needId,
+      fileName: stored.fileName,
+      mimeType: stored.mimeType,
+      fileSize: Buffer.byteLength(stored.dataBase64, "base64"),
+      data: stored.dataBase64,
       uploadedByUserId: null,
     });
   }

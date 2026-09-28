@@ -6,6 +6,7 @@ import { db } from "@/server/db/client";
 import { dealClientNeeds, dealClientNeedDocuments } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { recomputeNeedStatus } from "@/server/client-need-status";
+import { convertHeicIfNeeded } from "@/server/heic";
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
 
@@ -21,13 +22,18 @@ export async function attachDocumentToClientNeed(dealId: string, needId: string,
   }
 
   for (const file of files) {
-    const dataBase64 = Buffer.from(await file.arrayBuffer()).toString("base64");
-    await db.insert(dealClientNeedDocuments).values({
-      clientNeedId: needId,
+    const original = Buffer.from(await file.arrayBuffer()).toString("base64");
+    const stored = await convertHeicIfNeeded({
       fileName: file.name,
       mimeType: file.type || "application/octet-stream",
-      fileSize: file.size,
-      data: dataBase64,
+      dataBase64: original,
+    });
+    await db.insert(dealClientNeedDocuments).values({
+      clientNeedId: needId,
+      fileName: stored.fileName,
+      mimeType: stored.mimeType,
+      fileSize: Buffer.byteLength(stored.dataBase64, "base64"),
+      data: stored.dataBase64,
       uploadedByUserId: user.id,
     });
   }
