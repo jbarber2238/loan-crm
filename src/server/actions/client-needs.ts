@@ -60,15 +60,27 @@ export async function createAndSendPandaDocForm(dealId: string, dealNeedId: stri
 // Shared by every "copy these catalog items onto a deal" entry point —
 // inserts the deal-level snapshot rows (including a link URL or a
 // downloadable template file, if the catalog item has one) and copies any
-// questionnaire questions onto them. Skips items that already exist on the
-// deal by name.
-async function addCatalogNeedsToDeal(dealId: string, catalogNeeds: CatalogNeedRow[]) {
-  const existing = await db.query.dealClientNeeds.findMany({
-    where: eq(dealClientNeeds.dealId, dealId),
-    columns: { itemName: true },
-  });
-  const existingNames = new Set(existing.map((e) => e.itemName.toLowerCase()));
-  const toAdd = catalogNeeds.filter((n) => !existingNames.has(n.itemName.toLowerCase()));
+// questionnaire questions onto them.
+//
+// `dedupeByName` skips items that already exist on the deal by name — right
+// for the automatic flows (term-sheet acceptance, Auto Generate, the
+// conditional-rule sync), which can re-run on a deal that already has its
+// checklist and shouldn't pile up a second copy of everything every time.
+// It defaults to true for that reason, but a processor explicitly choosing
+// an item from "Select from List" or typing up a custom need is a
+// deliberate, one-off add — if two operating agreements are genuinely
+// needed, a second one has to actually get added, not silently dropped
+// while the UI still reports success. Those call sites pass `false`.
+async function addCatalogNeedsToDeal(dealId: string, catalogNeeds: CatalogNeedRow[], dedupeByName = true) {
+  let toAdd = catalogNeeds;
+  if (dedupeByName) {
+    const existing = await db.query.dealClientNeeds.findMany({
+      where: eq(dealClientNeeds.dealId, dealId),
+      columns: { itemName: true },
+    });
+    const existingNames = new Set(existing.map((e) => e.itemName.toLowerCase()));
+    toAdd = catalogNeeds.filter((n) => !existingNames.has(n.itemName.toLowerCase()));
+  }
   if (!toAdd.length) return 0;
 
   const inserted = await db
@@ -249,11 +261,15 @@ export async function reopenNonDocumentNeed(dealId: string, needId: string) {
 export async function addCatalogItemsToDeal(dealId: string, formData: FormData) {
   await requireUser();
   const ids = formData.getAll("clientNeedId").filter((v): v is string => typeof v === "string" && v.length > 0);
-  if (!ids.length) return;
+  if (!ids.length) return 0;
 
   const selected = await db.query.clientNeeds.findMany({ where: (cn, { inArray }) => inArray(cn.id, ids) });
-  await addCatalogNeedsToDeal(dealId, selected);
+  // Explicitly chosen by a processor — never dedupe by name here. Selecting
+  // "Entity Docs - Operating Agreement" a second time (e.g. two entities on
+  // one deal) must actually add a second one, not silently no-op.
+  const added = await addCatalogNeedsToDeal(dealId, selected, false);
   revalidatePath(`/deals/${dealId}/loan-center`);
+  return added;
 }
 
 // The deal's "Custom Need" tab — full parity with the catalog's own create
@@ -265,7 +281,8 @@ export async function addCatalogItemsToDeal(dealId: string, formData: FormData) 
 export async function addClientNeedToDeal(dealId: string, formData: FormData) {
   const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId), columns: { productId: true } });
   const created = await createClientNeed(formData, { attachToProductId: deal?.productId ?? undefined });
-  await addCatalogNeedsToDeal(dealId, [created]);
+  // Same reasoning as addCatalogItemsToDeal above — a deliberate, one-off add.
+  await addCatalogNeedsToDeal(dealId, [created], false);
 
   revalidatePath(`/deals/${dealId}/loan-center`);
   if (formData.get("isStandard") === "on") revalidatePath("/client-needs");

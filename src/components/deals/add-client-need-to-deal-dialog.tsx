@@ -24,12 +24,15 @@ export function AddClientNeedToDealDialog({
   dealId,
   catalog,
   allProducts,
+  existingCounts = {},
   open,
   onOpenChange,
 }: {
   dealId: string;
   catalog: DealCatalogItem[];
   allProducts: { id: string; label: string }[];
+  /** itemName (lowercased) → how many are already on this deal — shown so adding a deliberate duplicate (e.g. a 2nd Operating Agreement) is an informed choice, never a blocked one. */
+  existingCounts?: Record<string, number>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -50,9 +53,9 @@ export function AddClientNeedToDealDialog({
     const formData = new FormData(e.currentTarget);
     startTransition(async () => {
       try {
-        await addCatalogItemsToDeal(dealId, formData);
+        const added = await addCatalogItemsToDeal(dealId, formData);
         onOpenChange(false);
-        toast.success("Needs added");
+        toast.success(`${added} need${added === 1 ? "" : "s"} added`);
         router.refresh();
       } catch (err) {
         const message = err instanceof Error ? err.message : "Couldn't add those needs.";
@@ -97,6 +100,7 @@ export function AddClientNeedToDealDialog({
               <div className="max-h-72 space-y-1 overflow-y-auto rounded-md border p-2">
                 {sorted.map((item) => {
                   const matches = item.itemName.toLowerCase().includes(search.toLowerCase());
+                  const existingCount = existingCounts[item.itemName.toLowerCase()] ?? 0;
                   return (
                     <label
                       key={item.id}
@@ -104,6 +108,15 @@ export function AddClientNeedToDealDialog({
                     >
                       <Checkbox name="clientNeedId" value={item.id} />
                       <span className="flex-1">{item.itemName}</span>
+                      {existingCount > 0 && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px]"
+                          title="Already on this deal — checking it again adds another one, e.g. a 2nd Operating Agreement for a 2nd entity"
+                        >
+                          Already added{existingCount > 1 ? ` ×${existingCount}` : ""}
+                        </Badge>
+                      )}
                       {item.isCustom && (
                         <Badge variant="secondary" className="text-[10px]">
                           Custom

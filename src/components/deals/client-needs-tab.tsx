@@ -1132,6 +1132,10 @@ function MoreActionsMenu({
         dealId={dealId}
         catalog={catalog}
         allProducts={allProducts}
+        existingCounts={needs.reduce<Record<string, number>>((acc, n) => {
+          acc[n.itemName.toLowerCase()] = (acc[n.itemName.toLowerCase()] ?? 0) + 1;
+          return acc;
+        }, {})}
         open={addNeedOpen}
         onOpenChange={setAddNeedOpen}
       />
