@@ -70,11 +70,12 @@ There ${documentCount === 1 ? "is 1 document" : `are ${documentCount} documents`
 This lender underwrites on the asset/entity, not the borrower's personal income — DTI (debt-to-income ratio) is never a factor here. Do not calculate, mention, or flag DTI, or anything framed as "verify income supports this debt load" or similar. Ignore that angle entirely, even on bank statements or applications.
 
 General guidance — apply whatever's relevant to these specific documents, skip what isn't:
-- Schedule of Real Estate Owned (REO): the single most important check here is title/vesting on EACH property listed, especially the subject property in "Property Address" above — does the entity or individual holding title match the Borrowing Entity (or borrower, if there's no entity) on file? If a property, and especially the subject property, is vested in some other entity or person not already known on this deal, that is always worth flagging: we don't yet have that entity's formation documents, and proof of that entity (and the borrower's relationship to it) needs to be requested before closing. Flag this even if nothing else on the schedule looks wrong.
+- Schedule of Real Estate Owned (REO): this document exists to prove the borrower's ownership and track record, so the single most important check is title/vesting on EVERY property row, not just the subject property in "Property Address" above. For each property titled to an entity or person that is NOT the Borrowing Entity (or borrower) already on file, flag that specific entity by name: we don't have that entity's formation documents, so we can't yet credit that property as the borrower's real experience, and proof of the entity (and the borrower's relationship to it) needs to be requested. If the same unfamiliar entity holds more than one property on the schedule, one flag naming that entity covers all of them — don't repeat an identical flag per row. Flag this even if nothing else on the schedule looks wrong.
 - Entity documents (operating agreement, articles of organization, corporate resolution, etc.): Is it signed/executed? Are all members/managers clearly identified? Is the borrower actually listed as a member/manager? Does the borrower's ownership percentage look sufficient to bind the entity to debt (majority interest, or explicit signing authority language)?
 - Bank statements: Does the account holder name match the borrower or borrowing entity? Do the statement dates, taken together across all documents provided, cover the period requested? Any large unexplained deposits, overdrafts, or NSF fees worth asking about? (Not a DTI check — just source-of-funds and account-identity questions.)
 - Applications or loan forms: Does anything here contradict the deal details above (loan amount, property address, borrower name, entity name)? Is any field that looks required left blank?
-- Any document: Is a signature or date missing where one is clearly expected? Does a document reference pages that weren't included (e.g. "page 1 of 3" but only one page attached)? A date should only be flagged as wrong or "in the future" if it's actually after Today's Date above — don't flag an ordinary past or present date just because it looks recent.
+- Any document: Is a signature or date missing where one is clearly expected? Does a document reference pages that weren't included (e.g. "page 1 of 3" but only one page attached)?
+- Dates in general — this needs care, since it's easy to get wrong: before ever flagging a date as "in the future" or "doesn't make sense yet," do the actual comparison against Today's Date above, step by step: (1) is the date's YEAR greater than today's year? If not greater, it is NOT in the future, full stop — do not flag it, no matter how recent it looks. (2) Only if the years are equal, is the date's MONTH NUMBER greater than today's month number (January=1 ... December=12)? A date in an earlier month of the same year (e.g. August vs. a September "today") is in the PAST, not the future — don't flag it. (3) Only if both year and month are equal, is the day number greater? A date failing all three checks is a normal past or present date and must not be flagged as suspicious, futuristic, or "ahead of typical timing" — a recent-looking date is not on its own a defect.
 
 Respond with ONLY a JSON object, no prose outside it, in this exact shape:
 {"flags": [{"document": <1-indexed number matching "Document N" above>, "page": <page number within that document, or null>, "quote": "<a short phrase copied closely from the document, near the issue>", "concern": "<one sentence: what to check and why>"}]}
@@ -152,10 +153,18 @@ async function reviewNeed(
   ]);
 
   try {
+    // Adaptive thinking (not disabled, like every other call in this file) —
+    // testing showed the plain one-shot call was inconsistent specifically on
+    // date comparisons (e.g. correctly calling 8/26/26 in the past on one run,
+    // then wrongly calling it "future" on the next, on the exact same
+    // document). Letting it actually reason through the date math first
+    // fixed that across repeated runs.
     const response = await anthropic.messages.create({
       model: "claude-sonnet-5",
       max_tokens: 2000,
-      thinking: { type: "disabled" },
+      thinking: { type: "adaptive" },
+      // Not yet in this SDK version's types (0.124.0) — supported by the API.
+      ...({ output_config: { effort: "medium" } } as object),
       system: REVIEW_SYSTEM_PROMPT(dealContext, need.itemName, need.description, supported.length),
       messages: [{ role: "user", content: contentBlocks }],
     });
