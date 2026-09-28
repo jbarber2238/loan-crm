@@ -1,3 +1,5 @@
+import { DocumentsTab } from "@/components/deals/documents-tab";
+import type { DealDocumentRow } from "@/server/actions/client-need-documents";
 import { updateDealDates } from "@/server/actions/deals";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -123,6 +125,8 @@ export function LoanCenterTab({
   appraisalDocumentFileName,
   initialTab,
   teamChat,
+  documents,
+  propertyLabel,
 }: {
   dealId: string;
   loanCategory: string;
@@ -168,6 +172,8 @@ export function LoanCenterTab({
   initialTab?: string;
   /** Server-rendered internal team chat for this deal. */
   teamChat: React.ReactNode;
+  documents: { accepted: DealDocumentRow[]; rejected: DealDocumentRow[] };
+  propertyLabel: string;
 }) {
   return (
     <div className="space-y-4">
@@ -178,6 +184,7 @@ export function LoanCenterTab({
           <TabsTrigger value="roles">Roles and Key Contacts</TabsTrigger>
           <TabsTrigger value="key-dates">Key Dates</TabsTrigger>
           <TabsTrigger value="notes">Notes</TabsTrigger>
+          <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="team-chat">Team Chat</TabsTrigger>
         </TabsList>
 
@@ -244,6 +251,10 @@ export function LoanCenterTab({
 
         <TabsContent value="notes">
           <NotesTab dealId={dealId} notes={notes} />
+        </TabsContent>
+
+        <TabsContent value="documents">
+          <DocumentsTab accepted={documents.accepted} rejected={documents.rejected} propertyLabel={propertyLabel} />
         </TabsContent>
 
         <TabsContent value="team-chat">{teamChat}</TabsContent>

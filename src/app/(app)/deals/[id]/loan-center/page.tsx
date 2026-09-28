@@ -5,6 +5,7 @@ import { getAllProductOptions } from "@/server/actions/client-need-catalog";
 import { requireUser } from "@/server/auth/guards";
 import { getDealRoomId } from "@/server/actions/team-chat";
 import { TeamChatPanel } from "@/components/team-chat/team-chat-panel";
+import { getDealDocumentsForDocumentsTab } from "@/server/actions/client-need-documents";
 import { LoanCenterTab } from "@/components/deals/loan-center-tab";
 
 export default async function DealLoanCenterPage({
@@ -21,7 +22,7 @@ export default async function DealLoanCenterPage({
   const deal = await getDealDetail(id);
   if (!deal) notFound();
 
-  const [allUsers, clientNeedsCatalog, conditions, clientNeeds, categoryProducts, allProducts] = await Promise.all([
+  const [allUsers, clientNeedsCatalog, conditions, clientNeeds, categoryProducts, allProducts, documents] = await Promise.all([
     db.query.users.findMany({ where: (users, { eq }) => eq(users.active, true) }),
     db.query.clientNeeds.findMany({
       columns: { id: true, itemName: true, needType: true, isCustom: true },
@@ -59,6 +60,7 @@ export default async function DealLoanCenterPage({
       orderBy: (p, { asc }) => asc(p.name),
     }),
     getAllProductOptions(),
+    getDealDocumentsForDocumentsTab(id),
   ]);
 
   const loanOfficers = allUsers.filter((u) => u.baseRole === "loan_officer");
@@ -82,6 +84,8 @@ export default async function DealLoanCenterPage({
           )}
         </div>
       }
+      documents={documents}
+      propertyLabel={deal.propertyAddress}
       dealId={deal.id}
       loanCategory={deal.loanCategory}
       assignedLoanOfficerId={deal.assignedLoanOfficerId}

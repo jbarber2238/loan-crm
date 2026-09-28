@@ -110,3 +110,43 @@ export async function deleteClientNeedDocument(dealId: string, needId: string, d
   await recomputeNeedStatus(needId);
   revalidatePath(`/deals/${dealId}/loan-center`);
 }
+
+export interface DealDocumentRow {
+  id: string;
+  fileName: string;
+  itemName: string;
+  rejectionNote: string | null;
+  createdAt: Date;
+}
+
+/** Every accepted/rejected document on a deal, for the Documents tab — grouped client-side by status. */
+export async function getDealDocumentsForDocumentsTab(dealId: string): Promise<{
+  accepted: DealDocumentRow[];
+  rejected: DealDocumentRow[];
+}> {
+  await requireUser();
+  const rows = await db.query.dealClientNeedDocuments.findMany({
+    where: (d, { inArray, eq: eqD }) =>
+      inArray(
+        d.clientNeedId,
+        db.select({ id: dealClientNeeds.id }).from(dealClientNeeds).where(eqD(dealClientNeeds.dealId, dealId))
+      ),
+    with: { clientNeed: { columns: { itemName: true } } },
+    orderBy: (d, { desc }) => desc(d.createdAt),
+  });
+
+  const accepted: DealDocumentRow[] = [];
+  const rejected: DealDocumentRow[] = [];
+  for (const r of rows) {
+    const row: DealDocumentRow = {
+      id: r.id,
+      fileName: r.fileName,
+      itemName: r.clientNeed.itemName,
+      rejectionNote: r.rejectionNote,
+      createdAt: r.createdAt,
+    };
+    if (r.reviewStatus === "approved") accepted.push(row);
+    else if (r.reviewStatus === "rejected") rejected.push(row);
+  }
+  return { accepted, rejected };
+}
