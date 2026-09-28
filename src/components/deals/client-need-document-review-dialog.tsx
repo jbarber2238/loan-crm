@@ -26,7 +26,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "cn";
-import { PdfViewer } from "@/components/deals/pdf-viewer";
 
 export interface ReviewableDocument {
   id: string;
@@ -254,11 +253,6 @@ export function ClientNeedDocumentReviewDialog({
               isImage ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={fileUrl} alt={current.fileName} className="h-full w-full object-contain" />
-              ) : current.mimeType.toLowerCase() === "application/pdf" ? (
-                // Our own viewer (canvas + pdf.js's text layer) instead of
-                // handing the file to Chrome's opaque built-in PDF plugin —
-                // that plugin can't be given a search box of our own, this can.
-                <PdfViewer key={current.id} fileUrl={fileUrl} fileName={current.fileName} jumpToPage={jumpPage} />
               ) : (
                 <iframe src={fileUrl} title={current.fileName} className="h-full w-full" />
               )
