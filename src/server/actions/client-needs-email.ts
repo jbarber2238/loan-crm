@@ -29,7 +29,7 @@ import {
 // rejected yet, just the outstanding section) and a follow-up after a
 // rejection, rather than two separate email types. Rendered as HTML so it
 // reads like a real formatted email, not a plain-text dump.
-function formatStatusList(
+export function formatStatusList(
   rejectedNeeds: { itemName: string; documents: { fileName: string; rejectionNote: string | null }[] }[],
   outstandingNeeds: { itemName: string; description: string | null }[]
 ): string {
@@ -62,7 +62,7 @@ function formatStatusList(
   return sections.join("");
 }
 
-async function loadDealForEmail(dealId: string) {
+export async function loadDealForEmail(dealId: string) {
   const deal = await db.query.deals.findFirst({
     where: eq(deals.id, dealId),
     with: { assignedLoanOfficer: true, followers: true },
@@ -154,6 +154,8 @@ export async function sendClientNeedsUpdateEmail(
   if (!user.email) throw new Error("Your account has no email on file");
   if (!to.trim()) throw new Error("No recipient on file for this email");
   const ids = getNeedIds(needIds);
+  // Whoever actually sends this becomes the "original sender" for these
+  // needs — the automated reminder later follows up from this same person.
   await loadDealForEmail(dealId);
 
   if (!subject.trim() || !body.trim()) throw new Error("Subject and body can't be empty");
@@ -188,7 +190,7 @@ export async function sendClientNeedsUpdateEmail(
 
   await db
     .update(dealClientNeeds)
-    .set({ sentAt: new Date() })
+    .set({ sentAt: new Date(), sentByUserId: user.id })
     .where(and(inArray(dealClientNeeds.id, ids), isNull(dealClientNeeds.sentAt), isNull(dealClientNeeds.onHoldAt)));
   for (const id of ids) await recomputeNeedStatus(id);
 

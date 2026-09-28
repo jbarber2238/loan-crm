@@ -36,7 +36,7 @@ export async function attachDocumentToClientNeed(dealId: string, needId: string,
   // it sent if it wasn't already, so status derivation has a sentAt to work from.
   const need = await db.query.dealClientNeeds.findFirst({ where: eq(dealClientNeeds.id, needId) });
   if (need && !need.sentAt) {
-    await db.update(dealClientNeeds).set({ sentAt: new Date() }).where(eq(dealClientNeeds.id, needId));
+    await db.update(dealClientNeeds).set({ sentAt: new Date(), sentByUserId: user.id }).where(eq(dealClientNeeds.id, needId));
   }
 
   await recomputeNeedStatus(needId);

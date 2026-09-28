@@ -832,6 +832,10 @@ export const deals = pgTable("deals", {
   clientNeedsReminderIntervalHours: integer("client_needs_reminder_interval_hours")
     .notNull()
     .default(24),
+  // When the automated reminder sweep last actually sent a reminder for
+  // this deal — null until the first one goes out. See
+  // src/server/client-needs-auto-reminders.ts.
+  clientNeedsLastReminderAt: timestamp("client_needs_last_reminder_at", { mode: "date", withTimezone: true }),
   driveLink: text("drive_link"),
 
   // Processing-fee invoice, auto-generated via Stripe right after the
@@ -1056,6 +1060,11 @@ export const dealClientNeeds = pgTable("deal_client_needs", {
   customFormData: jsonb("custom_form_data").$type<Record<string, string>>(),
   customFormSubmittedAt: timestamp("custom_form_submitted_at", { mode: "date" }),
   sentAt: timestamp("sent_at", { mode: "date" }),
+  // Whoever actually clicked "Send to Borrower" (or the borrower-facing
+  // action that first set sentAt) — the automated reminder sends from this
+  // person's own Gmail, not always the loan officer's, since it's common
+  // for a processor to be the one who originally requested an item.
+  sentByUserId: uuid("sent_by_user_id").references(() => users.id),
   // On hold: a flag layered over `status` (which keeps its real value) so
   // resuming restores exactly where the need was. While set, the need is
   // left out of borrower emails and the borrower upload page; the note is
