@@ -91,6 +91,8 @@ export async function sendIntroEmail(dealId: string, to: string, cc: string, sub
     subject,
     body: logoHtml + body + signatureHtml,
     html: true,
+    dealId,
+    category: "borrower_intro",
   });
 
   revalidatePath(`/deals/${dealId}`);

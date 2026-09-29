@@ -416,6 +416,8 @@ export async function sendTermSheetsToBorrowerEmail(
     subject,
     body: logoHtml + body + signatureHtml,
     html: true,
+    dealId,
+    category: "term_sheet",
   });
 
   if (termSheetIds.length) {
@@ -483,6 +485,8 @@ export async function sendBookACallEmail(dealId: string, to: string, cc: string,
     subject,
     body: logoHtml + body + signatureHtml,
     html: true,
+    dealId,
+    category: "book_a_call",
   });
 
   await db.update(deals).set({ bookACallSentAt: new Date() }).where(eq(deals.id, dealId));

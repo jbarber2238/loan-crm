@@ -67,6 +67,8 @@ export async function sendProcessingFeeInvoiceEmail(
     subject,
     body: logoHtml + body + signatureHtml,
     html: true,
+    dealId: deal.id,
+    category: "processing_fee_invoice",
   });
 }
 

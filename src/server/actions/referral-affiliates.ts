@@ -85,6 +85,7 @@ export async function inviteAffiliate(formData: FormData) {
         subject: `You've been invited to ${companyName}'s referral program`,
         body: logoHtml + body + signatureHtml,
         html: true,
+        category: "referral_affiliate",
       });
     } catch (err) {
       console.error("Failed to send affiliate invite email:", err);
@@ -168,6 +169,7 @@ export async function completeAffiliateSignup(affiliateId: string, formData: For
           subject: `Welcome to ${companyName}'s affiliate program`,
           body: logoHtml + body + signatureHtml,
           html: true,
+          category: "referral_affiliate",
         });
       }
     } catch (err) {
@@ -189,7 +191,14 @@ export async function markReferralFeePaid(dealId: string) {
 // Shared by every affiliate lifecycle email below — same shape sendGmailAs
 // needs, best-effort (a failed send never blocks the deal action that
 // triggered it).
-async function sendAffiliateEmail(affiliateInvitedByUserId: string, affiliateInvitedByEmail: string | null, to: string, subject: string, bodyHtml: string) {
+async function sendAffiliateEmail(
+  affiliateInvitedByUserId: string,
+  affiliateInvitedByEmail: string | null,
+  to: string,
+  subject: string,
+  bodyHtml: string,
+  dealId?: string
+) {
   if (!affiliateInvitedByEmail) return;
   const [companyName, logoHtml, signatureHtml] = await Promise.all([
     getCompanyName(),
@@ -201,6 +210,8 @@ async function sendAffiliateEmail(affiliateInvitedByUserId: string, affiliateInv
     subject: subject.replace("{company}", companyName),
     body: logoHtml + bodyHtml + signatureHtml,
     html: true,
+    dealId,
+    category: "referral_affiliate",
   });
 }
 
@@ -223,7 +234,7 @@ export async function notifyAffiliateOfNewDeal(dealId: string) {
     </p>
     <p>We'll keep you posted as it moves forward.</p>
   `;
-  await sendAffiliateEmail(affiliate.invitedByUserId, affiliate.invitedBy.email, affiliate.email, "A deal was submitted to your referral link", body);
+  await sendAffiliateEmail(affiliate.invitedByUserId, affiliate.invitedBy.email, affiliate.email, "A deal was submitted to your referral link", body, dealId);
 }
 
 // Fires at most once per deal per stage — "application" and "lost" are pure
@@ -246,7 +257,7 @@ export async function notifyAffiliateOfStageChange(dealId: string, newStage: str
       <p>Good news — ${deal.borrowerName} has decided to move forward with a loan on ${deal.propertyAddress}.</p>
       <p>We'll let you know as soon as it closes.</p>
     `;
-    await sendAffiliateEmail(affiliate.invitedByUserId, affiliate.invitedBy.email, affiliate.email, "Your referral is moving forward", body);
+    await sendAffiliateEmail(affiliate.invitedByUserId, affiliate.invitedBy.email, affiliate.email, "Your referral is moving forward", body, dealId);
     await db.update(deals).set({ referralApplicationEmailSentAt: new Date() }).where(eq(deals.id, dealId));
     return;
   }
@@ -260,7 +271,7 @@ export async function notifyAffiliateOfStageChange(dealId: string, newStage: str
         Property: ${deal.propertyAddress}
       </p>
     `;
-    await sendAffiliateEmail(affiliate.invitedByUserId, affiliate.invitedBy.email, affiliate.email, "Update on your referral", body);
+    await sendAffiliateEmail(affiliate.invitedByUserId, affiliate.invitedBy.email, affiliate.email, "Update on your referral", body, dealId);
     await db.update(deals).set({ referralLostEmailSentAt: new Date() }).where(eq(deals.id, dealId));
     return;
   }
@@ -275,7 +286,7 @@ export async function notifyAffiliateOfStageChange(dealId: string, newStage: str
     <p>${htmlButton("Upload payment info", `${appUrl}/affiliate-payment-upload/${uploadToken}`)}</p>
     <p>Once we have it on file, we'll get your payment issued.</p>
   `;
-  await sendAffiliateEmail(affiliate.invitedByUserId, affiliate.invitedBy.email, affiliate.email, "Your referral closed — send us your payment info", body);
+  await sendAffiliateEmail(affiliate.invitedByUserId, affiliate.invitedBy.email, affiliate.email, "Your referral closed — send us your payment info", body, dealId);
   await db.update(deals).set({ referralClosedEmailSentAt: new Date() }).where(eq(deals.id, dealId));
 }
 

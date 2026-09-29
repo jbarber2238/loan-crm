@@ -244,6 +244,9 @@ async function sendReminderForDeal(deal: typeof deals.$inferSelect, now: Date): 
         subject: built.subject,
         body: logoHtml + built.body + signatureHtml,
         html: true,
+        dealId: deal.id,
+        category: "client_needs_reminder_auto",
+        needIds: group.map((n) => n.id),
       });
       sentAny = true;
     } catch (err) {

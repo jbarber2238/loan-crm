@@ -148,6 +148,9 @@ export async function sendClientNeedsUpdateEmail(
     subject,
     body: logoHtml + body + signatureHtml,
     html: true,
+    dealId,
+    category: "client_needs_update",
+    needIds: ids,
   });
 
   await db

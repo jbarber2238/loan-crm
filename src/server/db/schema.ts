@@ -1160,6 +1160,35 @@ export const dealConditions = pgTable("deal_conditions", {
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 
+// Every email the app has ever sent — written from inside sendGmailAs
+// itself (src/server/gmail/send.ts) so nothing has to remember to log
+// separately, whether it's a processor's manual "Send to Borrower" or an
+// automated reminder. dealId is nullable since a few email types (staff
+// invites, affiliate invites) aren't tied to any one deal.
+export const emailLogEntries = pgTable("email_log_entries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  dealId: uuid("deal_id").references(() => deals.id, { onDelete: "cascade" }),
+  sentByUserId: uuid("sent_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  toEmail: text("to_email").notNull(),
+  ccEmail: text("cc_email"),
+  subject: text("subject").notNull(),
+  bodyHtml: text("body_html").notNull(),
+  // A short machine key naming what kind of email this was (e.g.
+  // "client_needs_update", "client_needs_reminder_auto", "term_sheet") —
+  // see EMAIL_LOG_CATEGORY_LABELS for the human-readable version. Whether
+  // it was "manual" vs "automatic" is inferred from the category itself
+  // (the *_auto categories) rather than a separate flag.
+  category: text("category").notNull(),
+  // Which specific client needs this email was about — set only for
+  // client_needs_update / client_needs_reminder_auto sends (a reminder can
+  // cover several needs' items in one message). Powers the per-need "audit
+  // log" (how many times has this need been reminded about, by date) without
+  // a separate join table.
+  needIds: jsonb("need_ids").$type<string[]>(),
+  gmailMessageId: text("gmail_message_id"),
+  sentAt: timestamp("sent_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
 export const dealNotes = pgTable("deal_notes", {
   id: uuid("id").primaryKey().defaultRandom(),
   dealId: uuid("deal_id")

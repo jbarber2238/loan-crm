@@ -85,6 +85,8 @@ async function sendDigestForDeal(dealId: string, events: Event[]) {
         subject: `Received — ${deal.propertyAddress}`,
         body: logoHtml + html + signatureHtml,
         html: true,
+        dealId: deal.id,
+        category: "borrower_activity_digest",
       });
     } catch (err) {
       console.error("Failed to send borrower activity confirmation:", err);
@@ -104,6 +106,8 @@ async function sendDigestForDeal(dealId: string, events: Event[]) {
       subject: `Borrower activity — ${deal.borrowerName} (${deal.propertyAddress})`,
       body: logoHtml + html,
       html: true,
+      dealId: deal.id,
+      category: "staff_activity_digest",
     });
   } catch (err) {
     console.error("Failed to send staff activity digest:", err);

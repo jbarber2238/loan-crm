@@ -41,7 +41,7 @@ function firstName(fullName: string): string {
  * this in a catch anyway, but a missing prerequisite here isn't an error to
  * begin with.
  */
-async function sendBorrowerNotification(dealId: string, subject: string, bodyHtml: string): Promise<void> {
+async function sendBorrowerNotification(dealId: string, subject: string, bodyHtml: string, category: string): Promise<void> {
   const deal = await db.query.deals.findFirst({
     where: eq(deals.id, dealId),
     with: { assignedLoanOfficer: true },
@@ -63,6 +63,8 @@ async function sendBorrowerNotification(dealId: string, subject: string, bodyHtm
     subject,
     body: logoHtml + body + signatureHtml,
     html: true,
+    dealId,
+    category,
   });
 }
 
@@ -75,7 +77,8 @@ export async function notifyBorrowerOfSubmission(dealId: string): Promise<void> 
     dealId,
     `We've received your loan inquiry — ${deal.propertyAddress}`,
     `<p>Hi ${firstName(deal.borrowerName)},</p>
-     <p>Thanks for reaching out — we've received your loan inquiry for ${deal.propertyAddress}. Our team is reviewing and will price out terms shortly.</p>`
+     <p>Thanks for reaching out — we've received your loan inquiry for ${deal.propertyAddress}. Our team is reviewing and will price out terms shortly.</p>`,
+    "borrower_submission_received"
   );
 }
 
@@ -88,7 +91,8 @@ export async function notifyBorrowerOfRateShopping(dealId: string): Promise<void
     dealId,
     `We're pricing out terms for you — ${deal.propertyAddress}`,
     `<p>Hi ${firstName(deal.borrowerName)},</p>
-     <p>The team has reviewed your deal and is pricing out terms for you. We'll follow up as soon as we have options to share.</p>`
+     <p>The team has reviewed your deal and is pricing out terms for you. We'll follow up as soon as we have options to share.</p>`,
+    "borrower_rate_shopping"
   );
 }
 
@@ -115,7 +119,8 @@ export async function notifyBorrowerOfAcceptedTerms(dealId: string): Promise<voi
     `<p>Hi ${firstName(deal.borrowerName)},</p>
      <p>Congratulations on accepting the following terms:</p>
      ${htmlFactList(terms)}
-     <p>The loan processor assigned to your file will be reaching out shortly to introduce themselves and begin collecting the documents needed for your application to the lender.</p>`
+     <p>The loan processor assigned to your file will be reaching out shortly to introduce themselves and begin collecting the documents needed for your application to the lender.</p>`,
+    "borrower_accepted_terms"
   );
 }
 
@@ -180,6 +185,8 @@ export async function notifyProcessorOfPaidDeal(dealId: string, overrideTo?: str
     subject: `Ready to process — ${deal.borrowerName} (${deal.propertyAddress})`,
     body: logoHtml + body + signatureHtml,
     html: true,
+    dealId,
+    category: "processor_ready",
   });
 
   // Recorded only after a successful send, so a failed send retries next time.
@@ -275,5 +282,7 @@ export async function notifyAdminOfNewDeal(dealId: string): Promise<void> {
     subject: `New deal submitted — ${deal.borrowerName} (${deal.propertyAddress})`,
     body: logoHtml + body + signatureHtml,
     html: true,
+    dealId,
+    category: "admin_new_deal",
   });
 }

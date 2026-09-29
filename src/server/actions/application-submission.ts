@@ -163,5 +163,7 @@ export async function sendApplicationSubmissionEmail(
     body: logoHtml + body + signatureHtml,
     html: true,
     attachments,
+    dealId,
+    category: "application_submission",
   });
 }

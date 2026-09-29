@@ -77,6 +77,7 @@ export async function inviteUser(formData: FormData) {
         subject: `You've been invited to ${companyName}'s CRM`,
         body: logoHtml + body + signatureHtml,
         html: true,
+        category: "staff_invite",
       });
     } catch (err) {
       console.error("Failed to send invite email:", err);

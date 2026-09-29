@@ -151,6 +151,8 @@ export async function sendKeyDateOrderEmail(
     subject,
     body: logoHtml + body + signatureHtml,
     html: true,
+    dealId,
+    category: "key_date_order",
   });
 
   const existing = await db.query.dealKeyDateEvents.findFirst({

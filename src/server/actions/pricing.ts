@@ -146,6 +146,8 @@ async function sendOnePricingRequest(user: { id: string; email: string }, reques
     subject: request.emailSubject,
     body: logoHtml + request.emailBody + signatureHtml,
     html: true,
+    dealId: request.dealId,
+    category: "pricing_request",
   });
 
   await db
