@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown, ChevronRight, MoreVertical, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronRight, MoreVertical, Sparkles, Trash2 } from "lucide-react";
 import {
   markNonDocumentNeedAccepted,
   reopenNonDocumentNeed,
@@ -54,6 +54,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { CopyClientNeedsButton } from "@/components/deals/copy-client-needs-button";
 import { AddClientNeedToDealDialog, type DealCatalogItem } from "@/components/deals/add-client-need-to-deal-dialog";
+import { BulkDeleteClientNeedsDialog } from "@/components/deals/bulk-delete-client-needs-dialog";
 import {
   ClientNeedDocumentReviewDialog,
   type ReviewableDocument,
@@ -1175,6 +1176,8 @@ export function ClientNeedsTab({
   const visibleNeeds = activeTab === "docs" ? docsNeeds : esignNeeds;
 
   const selectedNeeds = needs.filter((n) => selectedIds.has(n.id) && !n.onHoldAt);
+  // Deletion doesn't care about hold status, unlike sending to the borrower.
+  const selectedForDelete = needs.filter((n) => selectedIds.has(n.id));
   // "Select all" only ever touches the tab you're looking at — flipping to
   // the other tab shouldn't silently grab (or drop) items you can't see.
   const allVisibleSelected = visibleNeeds.length > 0 && visibleNeeds.every((n) => selectedIds.has(n.id));
@@ -1233,6 +1236,16 @@ export function ClientNeedsTab({
               reminderIntervalHours={reminderIntervalHours}
             />
           </div>
+          <BulkDeleteClientNeedsDialog
+            dealId={dealId}
+            needs={selectedForDelete.map((n) => ({ id: n.id, itemName: n.itemName, documentCount: n.documents.length }))}
+            trigger={
+              <Button type="button" size="sm" variant="outline" disabled={selectedForDelete.length === 0} className="text-destructive hover:text-destructive">
+                <Trash2 className="size-3.5" />
+                Delete selected ({selectedForDelete.length})
+              </Button>
+            }
+          />
           <MoreActionsMenu dealId={dealId} catalog={catalog} allProducts={allProducts} needs={needs} />
         </div>
       </div>

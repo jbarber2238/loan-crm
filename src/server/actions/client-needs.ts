@@ -318,6 +318,23 @@ export async function deleteClientNeedFromDeal(dealId: string, needId: string) {
   revalidatePath(`/deals/${dealId}/loan-center`);
 }
 
+/**
+ * Bulk version — same cascade behavior (any uploaded documents go with
+ * their need), gated on the UI side by a "type DELETE to confirm" dialog
+ * rather than anything enforced here, since this is meant for a deliberate
+ * multi-select cleanup, not a single accidental click.
+ */
+export async function deleteClientNeedsFromDeal(dealId: string, needIds: string[]) {
+  await requireUser();
+  if (!needIds.length) return 0;
+  const deleted = await db
+    .delete(dealClientNeeds)
+    .where(and(eq(dealClientNeeds.dealId, dealId), inArray(dealClientNeeds.id, needIds)))
+    .returning({ id: dealClientNeeds.id });
+  revalidatePath(`/deals/${dealId}/loan-center`);
+  return deleted.length;
+}
+
 // Holds are a flag over `status`, not a status of their own — see
 // dealClientNeeds.onHoldAt. The note is mandatory so the reason survives.
 export async function putClientNeedOnHold(dealId: string, needId: string, note: string) {
