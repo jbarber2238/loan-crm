@@ -61,7 +61,7 @@ export async function getDealForBorrowerUpload(token: string) {
         orderBy: (a, { asc }) => asc(a.sortOrder),
       },
     },
-    orderBy: (n, { asc }) => asc(n.createdAt),
+    orderBy: (n, { asc }) => asc(n.sortOrder),
   });
 
   // Every need comes back now, accepted ones included — the page groups them

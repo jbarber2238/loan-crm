@@ -53,7 +53,7 @@ export default async function DealLoanCenterPage({
           orderBy: (a, { asc }) => asc(a.sortOrder),
         },
       },
-      orderBy: (dcn, { asc }) => asc(dcn.createdAt),
+      orderBy: (dcn, { asc }) => asc(dcn.sortOrder),
     }),
     db.query.products.findMany({
       where: (p, { eq: eqP, and: andP }) => andP(eqP(p.category, deal.loanCategory), eqP(p.active, true)),

@@ -207,6 +207,10 @@ export async function cloneNewConstructionDeal(originalDealId: string, formData:
         templateFileData: need.templateFileData,
         templateFileSize: need.templateFileSize,
         customFormKey: need.customFormKey,
+        // Carries the original's relative display order over directly —
+        // it's still meaningful on the new deal, and there's nothing more
+        // correct to reset it to (see sortOrder's own comment in schema.ts).
+        sortOrder: need.sortOrder,
         // Left at defaults deliberately: this is a fresh copy on a new
         // deal, not a continuation — no PandaDoc doc/status, no sentAt, no
         // previously-submitted custom_form answers, and status starts over

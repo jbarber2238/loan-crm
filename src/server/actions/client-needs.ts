@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { clientNeeds, deals, dealClientNeeds, productClientNeeds, categoryClientNeeds, products } from "@/server/db/schema";
@@ -83,10 +83,19 @@ async function addCatalogNeedsToDeal(dealId: string, catalogNeeds: CatalogNeedRo
   }
   if (!toAdd.length) return 0;
 
+  // sortOrder is what the UI actually displays needs in (see the column's
+  // own comment in schema.ts) — assigned explicitly here, continuing from
+  // whatever's already on the deal, rather than left to createdAt, which
+  // every need in this same batch would otherwise share identically.
+  const [{ maxSortOrder } = { maxSortOrder: 0 }] = await db
+    .select({ maxSortOrder: sql<number>`coalesce(max(${dealClientNeeds.sortOrder}), 0)` })
+    .from(dealClientNeeds)
+    .where(eq(dealClientNeeds.dealId, dealId));
+
   const inserted = await db
     .insert(dealClientNeeds)
     .values(
-      toAdd.map((n) => ({
+      toAdd.map((n, i) => ({
         dealId,
         itemName: n.itemName,
         description: n.description,
@@ -99,6 +108,7 @@ async function addCatalogNeedsToDeal(dealId: string, catalogNeeds: CatalogNeedRo
         templateFileSize: n.templateFileSize,
         pandadocTemplateUuid: n.pandadocTemplateUuid,
         customFormKey: n.customFormKey,
+        sortOrder: maxSortOrder + i + 1,
       }))
     )
     .returning({ id: dealClientNeeds.id });
@@ -372,7 +382,7 @@ export async function buildClientNeedsContextNote(dealId: string): Promise<strin
   const needs = await db.query.dealClientNeeds.findMany({
     where: eq(dealClientNeeds.dealId, dealId),
     with: { documents: { columns: { fileName: true, createdAt: true } } },
-    orderBy: (n, { asc }) => asc(n.createdAt),
+    orderBy: (n, { asc }) => asc(n.sortOrder),
   });
 
   const todayStart = new Date();

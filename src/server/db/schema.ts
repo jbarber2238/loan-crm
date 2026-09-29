@@ -1072,6 +1072,16 @@ export const dealClientNeeds = pgTable("deal_client_needs", {
   onHoldAt: timestamp("on_hold_at", { mode: "date", withTimezone: true }),
   onHoldNote: text("on_hold_note"),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  // The real, stable display order — assigned explicitly at insert time
+  // (see addCatalogNeedsToDeal), never touched again. `createdAt` alone
+  // isn't safe to sort by: every need in one batch insert (Auto Generate,
+  // term-sheet acceptance, a multi-select "Add") gets the exact same
+  // timestamp, since Postgres evaluates defaultNow() once per statement,
+  // not once per row. With that many ties, Postgres has no obligation to
+  // return them in the same order twice — editing any one of the tied
+  // rows rewrites its physical copy (MVCC), which was observed to actually
+  // change its position in a plain `ORDER BY created_at` on a later read.
+  sortOrder: integer("sort_order").notNull().default(0),
 });
 
 export const dealClientNeedDocuments = pgTable("deal_client_need_documents", {
