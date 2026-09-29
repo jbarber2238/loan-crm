@@ -1,8 +1,10 @@
 import type { CustomFormDefinition } from "./types";
 import { CV3_DSCR_PURCHASE } from "./cv3-dscr-purchase";
+import { CV3_DSCR_REFINANCE } from "./cv3-dscr-refinance";
 
 export const CUSTOM_NEED_FORM_REGISTRY: Record<string, CustomFormDefinition> = {
   [CV3_DSCR_PURCHASE.key]: CV3_DSCR_PURCHASE,
+  [CV3_DSCR_REFINANCE.key]: CV3_DSCR_REFINANCE,
 };
 
 export const CUSTOM_NEED_FORM_OPTIONS = Object.values(CUSTOM_NEED_FORM_REGISTRY).map((f) => ({

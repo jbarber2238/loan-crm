@@ -328,6 +328,26 @@ function DocumentRow({
   );
 }
 
+// Raw dates come straight from a native <input type="date"> (always
+// yyyy-mm-dd) and raw phone numbers are often prefilled from deal.borrowerPhone
+// in E.164 form (+15635293842) — neither is what a processor wants to copy
+// into CV3's own site. Formatting them here (display only, not the stored
+// value) means a triple-click grabs exactly mm/dd/yyyy or the bare 10-digit
+// number, no country code to select around.
+function formatCustomFormDate(raw: string): string {
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return raw;
+  const [, year, month, day] = match;
+  return `${month}/${day}/${year}`;
+}
+
+function formatCustomFormPhone(raw: string): string {
+  let digits = raw.replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("1")) digits = digits.slice(1);
+  if (digits.length !== 10) return raw;
+  return `(${digits.slice(0, 3)})-${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
 // A custom_form need's answers are one JSONB blob keyed by field name — this
 // looks up each field's label from the same shared definition the borrower's
 // own form was rendered from, grouped by section, so staff reviewing a
@@ -358,7 +378,9 @@ function CustomFormAnswersSummary({
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{section.title}</p>
             {answered.map((f) => {
               const raw = data[f.name];
-              const display = f.options?.find((o) => o.value === raw)?.label ?? raw;
+              const display =
+                f.options?.find((o) => o.value === raw)?.label ??
+                (f.type === "date" ? formatCustomFormDate(raw) : f.type === "tel" ? formatCustomFormPhone(raw) : raw);
               return (
                 <p key={f.name} className="text-sm">
                   <span className="text-muted-foreground">{f.label}: </span>

@@ -231,11 +231,11 @@ function strOrEmpty(value: string | number | null | undefined): string {
   return value === null || value === undefined ? "" : String(value);
 }
 
-// One-off convenience prefills specific to this form (not written back to
+// One-off convenience prefills shared by both CV3 forms (not written back to
 // the deal, just a nicer starting point than a blank field) — separate from
 // the generic syncDealField mechanism, which handles the fields that really
 // are the same shared piece of data (see registry.ts's syncedFieldsFor).
-function cv3DscrPurchaseConvenienceDefaults(deal: typeof deals.$inferSelect): Record<string, string> {
+function cv3ConvenienceDefaults(deal: typeof deals.$inferSelect): Record<string, string> {
   const [firstName, ...rest] = deal.borrowerName.trim().split(/\s+/);
   const address = parsePropertyAddress(deal.propertyAddress);
   return {
@@ -276,8 +276,8 @@ export async function getCustomFormNeed(token: string, needId: string) {
   if (!definition) return null;
 
   const defaultValues: Record<string, string> = {};
-  if (need.customFormKey === "cv3_dscr_purchase") {
-    Object.assign(defaultValues, cv3DscrPurchaseConvenienceDefaults(deal));
+  if (need.customFormKey === "cv3_dscr_purchase" || need.customFormKey === "cv3_dscr_refinance") {
+    Object.assign(defaultValues, cv3ConvenienceDefaults(deal));
   }
   for (const { name, dealField } of syncedFieldsFor(definition)) {
     const value = (deal as unknown as Record<string, unknown>)[dealField];

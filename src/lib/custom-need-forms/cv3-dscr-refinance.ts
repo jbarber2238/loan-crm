@@ -5,20 +5,18 @@ const YES_NO = [
   { value: "no", label: "No" },
 ] as const;
 
-// Mirrors CV3's own DSCR/Bridge Purchase application field-for-field,
-// restricted to the choices that actually apply to this business (e.g. no
-// "Individual" title-holding option — see project notes from 2026-09-24).
-// Used for CV3's DSCR Purchase and Bridge – Purchase products (see the
-// productClientNeeds links on the catalog item, not this file). The key
-// stays "cv3_dscr_purchase" even though the label has broadened, since an
-// existing deal (7552 Wheat Rd) already has answers stored under this key.
-// See cv3-dscr-refinance.ts for the refinance sibling — kept as a
-// hand-maintained near-duplicate rather than a shared base, since CV3
-// genuinely runs these as two separate applications; keep both in sync by
-// hand when a shared field changes.
-export const CV3_DSCR_PURCHASE: CustomFormDefinition = {
-  key: "cv3_dscr_purchase",
-  label: "CV3 — DSCR/Bridge Purchase Application",
+// The refinance sibling of cv3-dscr-purchase.ts — same borrower/property
+// sections, plus a "Refinance Details" section for the cash-out-use and
+// existing-lien-payoff questions CV3 only asks on a refinance. Used for
+// CV3's DSCR Rate & Term Refinance, DSCR Cash-Out Refinance, and Bridge –
+// Refinance products (see the productClientNeeds links on the catalog item,
+// not this file). Kept as a hand-maintained near-duplicate of
+// cv3-dscr-purchase.ts rather than a shared base, since CV3 genuinely runs
+// these as two separate applications — keep both in sync by hand when a
+// shared field changes.
+export const CV3_DSCR_REFINANCE: CustomFormDefinition = {
+  key: "cv3_dscr_refinance",
+  label: "CV3 — DSCR/Bridge Refinance Application",
   sections: [
     {
       title: "Loan Structure",
@@ -351,6 +349,35 @@ export const CV3_DSCR_PURCHASE: CustomFormDefinition = {
             { value: "30_year_fixed", label: "30 Year Fixed" },
             { value: "5_6_arm", label: "5/6 ARM" },
           ],
+        },
+      ],
+    },
+    {
+      title: "Refinance Details",
+      fields: [
+        {
+          name: "cashOutProceedsUse",
+          label: "How will the business purpose cash-out proceeds be used?",
+          type: "select",
+          options: [
+            { value: "no_cash_out", label: "No cash out requested" },
+            { value: "acquire_investment_property", label: "Acquire investment property" },
+            { value: "renovate_investment_property", label: "Renovate investment property" },
+            { value: "other_business_purpose", label: "Other business purpose" },
+          ],
+        },
+        {
+          name: "cashOutProceedsOtherExplanation",
+          label: "If other business purpose, please provide further explanation",
+          type: "text",
+          optional: true,
+          showIf: { field: "cashOutProceedsUse", equals: "other_business_purpose" },
+        },
+        {
+          name: "existingLienPayoffAmount",
+          label: "Total Amount of Existing Lien Payoff",
+          type: "currency",
+          syncDealField: "mortgagePayoffAmount",
         },
       ],
     },
