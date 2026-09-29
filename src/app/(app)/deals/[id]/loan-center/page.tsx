@@ -6,6 +6,7 @@ import { requireUser } from "@/server/auth/guards";
 import { getDealRoomId } from "@/server/actions/team-chat";
 import { TeamChatPanel } from "@/components/team-chat/team-chat-panel";
 import { getDealDocumentsForDocumentsTab } from "@/server/actions/client-need-documents";
+import { getEmailLogForDeal } from "@/server/actions/email-log";
 import { LoanCenterTab } from "@/components/deals/loan-center-tab";
 
 export default async function DealLoanCenterPage({
@@ -22,7 +23,7 @@ export default async function DealLoanCenterPage({
   const deal = await getDealDetail(id);
   if (!deal) notFound();
 
-  const [allUsers, clientNeedsCatalog, conditions, clientNeeds, categoryProducts, allProducts, documents] = await Promise.all([
+  const [allUsers, clientNeedsCatalog, conditions, clientNeeds, categoryProducts, allProducts, documents, emailLog] = await Promise.all([
     db.query.users.findMany({ where: (users, { eq }) => eq(users.active, true) }),
     db.query.clientNeeds.findMany({
       columns: { id: true, itemName: true, needType: true, isCustom: true },
@@ -62,6 +63,7 @@ export default async function DealLoanCenterPage({
     }),
     getAllProductOptions(),
     getDealDocumentsForDocumentsTab(id),
+    getEmailLogForDeal(id),
   ]);
 
   const loanOfficers = allUsers.filter((u) => u.baseRole === "loan_officer");
@@ -141,6 +143,7 @@ export default async function DealLoanCenterPage({
         createdByName: e.createdBy?.name ?? null,
       }))}
       appraisalDocumentFileName={deal.appraisalDocumentFileName}
+      emailLog={emailLog}
     />
   );
 }

@@ -14,6 +14,8 @@ import { NotesTab } from "@/components/deals/notes-tab";
 import { KeyDateTracker } from "@/components/deals/key-date-tracker";
 import type { KeyDateEvent } from "@/lib/key-date-tracker";
 import type { DealCatalogItem } from "@/components/deals/add-client-need-to-deal-dialog";
+import { EmailLogTab } from "@/components/deals/email-log-tab";
+import type { EmailLogEntry } from "@/server/actions/email-log";
 
 function toDateInputValue(date: Date | null) {
   if (!date) return "";
@@ -123,6 +125,7 @@ export function LoanCenterTab({
   titleNotes,
   keyDateEvents,
   appraisalDocumentFileName,
+  emailLog,
   initialTab,
   teamChat,
   documents,
@@ -169,6 +172,7 @@ export function LoanCenterTab({
   titleNotes: string | null;
   keyDateEvents: KeyDateEvent[];
   appraisalDocumentFileName: string | null;
+  emailLog: EmailLogEntry[];
   initialTab?: string;
   /** Server-rendered internal team chat for this deal. */
   teamChat: React.ReactNode;
@@ -183,6 +187,7 @@ export function LoanCenterTab({
           <TabsTrigger value="conditions">Conditions</TabsTrigger>
           <TabsTrigger value="roles">Roles and Key Contacts</TabsTrigger>
           <TabsTrigger value="key-dates">Key Dates</TabsTrigger>
+          <TabsTrigger value="email-log">Email Log</TabsTrigger>
           <TabsTrigger value="notes">Notes</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="team-chat">Team Chat</TabsTrigger>
@@ -247,6 +252,10 @@ export function LoanCenterTab({
             appraisalDocumentFileName={appraisalDocumentFileName}
           />
           <OtherDatesSection dealId={dealId} creditPullDate={creditPullDate} driveLink={driveLink} />
+        </TabsContent>
+
+        <TabsContent value="email-log">
+          <EmailLogTab entries={emailLog} />
         </TabsContent>
 
         <TabsContent value="notes">

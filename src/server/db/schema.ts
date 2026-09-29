@@ -1572,6 +1572,11 @@ export const dealNotesRelations = relations(dealNotes, ({ one }) => ({
   author: one(users, { fields: [dealNotes.authorUserId], references: [users.id] }),
 }));
 
+export const emailLogEntriesRelations = relations(emailLogEntries, ({ one }) => ({
+  deal: one(deals, { fields: [emailLogEntries.dealId], references: [deals.id] }),
+  sentByUser: one(users, { fields: [emailLogEntries.sentByUserId], references: [users.id] }),
+}));
+
 export const pricingRequestsRelations = relations(pricingRequests, ({ one, many }) => ({
   deal: one(deals, { fields: [pricingRequests.dealId], references: [deals.id] }),
   lender: one(lenders, { fields: [pricingRequests.lenderId], references: [lenders.id] }),

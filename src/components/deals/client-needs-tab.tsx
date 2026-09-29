@@ -55,6 +55,7 @@ import {
 import { CopyClientNeedsButton } from "@/components/deals/copy-client-needs-button";
 import { AddClientNeedToDealDialog, type DealCatalogItem } from "@/components/deals/add-client-need-to-deal-dialog";
 import { BulkDeleteClientNeedsDialog } from "@/components/deals/bulk-delete-client-needs-dialog";
+import { ClientNeedReminderAuditDialog } from "@/components/deals/client-need-reminder-audit-dialog";
 import {
   ClientNeedDocumentReviewDialog,
   type ReviewableDocument,
@@ -538,6 +539,7 @@ function NeedActionsMenu({ dealId, need }: { dealId: string; need: ClientNeed })
   const [pending, startTransition] = useTransition();
   const [editOpen, setEditOpen] = useState(false);
   const [holdOpen, setHoldOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
 
   function handleResume() {
     startTransition(async () => {
@@ -574,6 +576,7 @@ function NeedActionsMenu({ dealId, need }: { dealId: string; need: ClientNeed })
           ) : need.status !== "accepted" ? (
             <DropdownMenuItem onClick={() => setHoldOpen(true)}>Put on hold</DropdownMenuItem>
           ) : null}
+          <DropdownMenuItem onClick={() => setAuditOpen(true)}>Reminder history</DropdownMenuItem>
           <DropdownMenuItem variant="destructive" onClick={handleDelete}>
             Delete
           </DropdownMenuItem>
@@ -581,6 +584,13 @@ function NeedActionsMenu({ dealId, need }: { dealId: string; need: ClientNeed })
       </DropdownMenu>
       <EditNeedDialog dealId={dealId} need={need} open={editOpen} onOpenChange={setEditOpen} />
       <HoldNeedDialog dealId={dealId} need={need} open={holdOpen} onOpenChange={setHoldOpen} />
+      <ClientNeedReminderAuditDialog
+        dealId={dealId}
+        needId={need.id}
+        needName={need.itemName}
+        open={auditOpen}
+        onOpenChange={setAuditOpen}
+      />
     </>
   );
 }
