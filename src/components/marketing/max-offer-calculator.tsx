@@ -1,11 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Download, Loader2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, ResultRow, money, num } from "@/components/marketing/loan-calculators";
 import { downloadMaxOfferExcel } from "@/lib/max-offer-excel-export";
+import { computeCashInvested, computeCashOnCashReturnPct } from "@/lib/lead-scoring";
+import { APPLY_PATH } from "@/lib/lead-constants";
+import { logCalculatorUsed, logExcelDownloaded, logCtaClicked, submitDealQuestions, type CtaTier } from "@/server/actions/leads";
 
 const TEAL = "#143D4A";
 const MOSS = "#68735F";
@@ -167,7 +171,123 @@ function MarginGauge({ pct, label }: { pct: number; label: string }) {
   );
 }
 
-export function MaxOfferCalculator() {
+const CTA_COPY: Record<CtaTier, { text: string; bg: string }> = {
+  below_target: { text: "This deal is thin. Let's find the fix.", bg: RED },
+  getting_close: { text: "Close. Let's tighten it up.", bg: AMBER },
+  on_target: { text: "This deal pencils. Get a term sheet.", bg: GREEN },
+};
+
+function DynamicCta({ tier, onNavigate }: { tier: CtaTier; onNavigate: () => void }) {
+  const { text, bg } = CTA_COPY[tier];
+  return (
+    <Link
+      href={APPLY_PATH}
+      onClick={onNavigate}
+      className="block rounded-sm p-5 text-center text-base font-medium text-white transition-opacity hover:opacity-90"
+      style={{ backgroundColor: bg }}
+    >
+      {text}
+    </Link>
+  );
+}
+
+const CLOSING_TIMELINE_OPTIONS: { label: string; days: number }[] = [
+  { label: "0–30 days", days: 15 },
+  { label: "31–60 days", days: 45 },
+  { label: "61–90 days", days: 75 },
+  { label: "90+ days", days: 120 },
+];
+
+function DealQuestionsCard({
+  submitting,
+  onSubmit,
+}: {
+  submitting: boolean;
+  onSubmit: (hasDealUnderContract: boolean, timelineLabel: string, timelineDays: number | null) => void;
+}) {
+  const [hasDeal, setHasDeal] = useState<boolean | null>(null);
+  const [timeline, setTimeline] = useState("");
+
+  function submit() {
+    if (hasDeal === null) return;
+    const match = CLOSING_TIMELINE_OPTIONS.find((o) => o.label === timeline);
+    onSubmit(hasDeal, timeline || "Not sure yet", match?.days ?? null);
+  }
+
+  return (
+    <div className="rounded-sm border bg-white p-6 md:p-8" style={{ borderColor: "rgba(20,61,74,0.15)" }}>
+      <h3 className="text-base font-medium" style={{ color: TEAL }}>
+        Two quick questions
+      </h3>
+      <p className="mt-1.5 text-sm leading-relaxed" style={{ color: BASALT }}>
+        Helps us follow up with the right next step, if you want one.
+      </p>
+
+      <div className="mt-5 space-y-5">
+        <div>
+          <p className="text-xs font-medium tracking-wide" style={{ color: BASALT }}>
+            Do you have a deal under contract?
+          </p>
+          <div className="mt-2 flex gap-2">
+            {([
+              { label: "Yes", value: true },
+              { label: "No", value: false },
+            ] as const).map((opt) => (
+              <button
+                key={opt.label}
+                type="button"
+                onClick={() => setHasDeal(opt.value)}
+                className="rounded-sm border px-4 py-2 text-sm font-medium transition-colors"
+                style={{
+                  borderColor: "rgba(20,61,74,0.2)",
+                  backgroundColor: hasDeal === opt.value ? TEAL : "transparent",
+                  color: hasDeal === opt.value ? "#FAF7F2" : BASALT,
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-medium tracking-wide" style={{ color: BASALT }}>
+            When do you need to close?
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {CLOSING_TIMELINE_OPTIONS.map((opt) => (
+              <button
+                key={opt.label}
+                type="button"
+                onClick={() => setTimeline(opt.label)}
+                className="rounded-sm border px-3 py-2 text-sm font-medium transition-colors"
+                style={{
+                  borderColor: "rgba(20,61,74,0.2)",
+                  backgroundColor: timeline === opt.label ? TEAL : "transparent",
+                  color: timeline === opt.label ? "#FAF7F2" : BASALT,
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={submit}
+          disabled={hasDeal === null || submitting}
+          className="rounded-sm px-6 py-2.5 text-sm font-medium tracking-wide transition-opacity hover:opacity-90 disabled:opacity-60"
+          style={{ backgroundColor: GOLD, color: BASALT }}
+        >
+          {submitting ? "Saving…" : "Save"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function MaxOfferCalculator({ leadId }: { leadId: string }) {
   // --- Section 1: Max Allowable Offer ---
   const [arv, setArv] = useState("400000");
   const [rehabBudget, setRehabBudget] = useState("60000");
@@ -217,6 +337,9 @@ export function MaxOfferCalculator() {
   const saleProceeds = arvNum - dispoCost;
   const profit = saleProceeds - totalProjectCost;
   const profitMarginPct = arvNum > 0 ? (profit / arvNum) * 100 : 0;
+  const cashInvested = computeCashInvested(totalProjectCost, loanAmount);
+  const cashOnCashPct = computeCashOnCashReturnPct(profit, cashInvested);
+  const ctaTier: CtaTier = profitMarginPct < 10 ? "below_target" : profitMarginPct < 15 ? "getting_close" : "on_target";
 
   const [stressPct, setStressPct] = useState(0);
   const stressedArv = arvNum * (1 - stressPct / 100);
@@ -244,8 +367,49 @@ export function MaxOfferCalculator() {
         originationPts,
         dispoPct,
       });
+      logExcelDownloaded(leadId).catch((err) => console.error("Failed to log excel download:", err));
     } finally {
       setDownloading(false);
+    }
+  }
+
+  // Debounced — logs at most once per 30s of activity (server-side debounce
+  // enforces this too; this just avoids firing a request on every slider
+  // tick while dragging). Skipped entirely until there's a real ARV, so it
+  // doesn't log the moment the calculator first renders with its defaults.
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (arvNum <= 0) return;
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      logCalculatorUsed(
+        leadId,
+        { arv: arvNum, rehabBudget: rehabNum, offerPct, purchasePrice: effectivePurchasePrice, ltcPct, ltarvPct, carryRatePct, timelineMonths, acqPct, originationPts, dispoPct },
+        { loanAmount, totalInterest, totalHolding, profit, profitMarginPct, cashInvested, cashOnCashPct }
+      ).catch((err) => console.error("Failed to log calculator use:", err));
+    }, 800);
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arvNum, rehabNum, offerPct, effectivePurchasePrice, ltcPct, ltarvPct, carryRatePct, timelineMonths, acqPct, originationPts, dispoPct]);
+
+  function handleCtaClick() {
+    logCtaClicked(leadId, ctaTier).catch((err) => console.error("Failed to log CTA click:", err));
+  }
+
+  const [dealQuestionsAnswered, setDealQuestionsAnswered] = useState(false);
+  const [submittingDealQuestions, setSubmittingDealQuestions] = useState(false);
+  async function handleDealQuestions(hasDealUnderContract: boolean, timelineLabel: string, timelineDays: number | null) {
+    setSubmittingDealQuestions(true);
+    try {
+      await submitDealQuestions(leadId, hasDealUnderContract, timelineLabel, timelineDays);
+      setDealQuestionsAnswered(true);
+    } catch (err) {
+      console.error("Failed to submit deal questions:", err);
+      setDealQuestionsAnswered(true);
+    } finally {
+      setSubmittingDealQuestions(false);
     }
   }
 
@@ -475,6 +639,11 @@ export function MaxOfferCalculator() {
           </div>
         </div>
 
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <ResultRow label="Total Cash Invested" value={money(cashInvested)} />
+          <ResultRow label="Cash-on-Cash Return" value={`${cashOnCashPct.toFixed(1)}%`} />
+        </div>
+
         <MarginGauge pct={profitMarginPct} label="Profit Margin (% of ARV) — target 15–20%" />
 
         <div>
@@ -495,6 +664,12 @@ export function MaxOfferCalculator() {
           )}
         </div>
       </SectionCard>
+
+      <DynamicCta tier={ctaTier} onNavigate={handleCtaClick} />
+
+      {!dealQuestionsAnswered && (
+        <DealQuestionsCard submitting={submittingDealQuestions} onSubmit={handleDealQuestions} />
+      )}
 
       <div
         className="flex flex-col items-center gap-3 rounded-sm p-6 text-center md:p-8"

@@ -32,3 +32,15 @@ export async function requireAdminOrProcessor() {
 // normal deal work, not just by admins — full parity with admin, standard
 // entries included (see requireAdminOrProcessor).
 export const requireClientNeedsEditor = requireAdminOrProcessor;
+
+// The Leads pipeline (marketing-site lead magnets) is deliberately narrower
+// than the deals Pipeline — loan officers work these as prospects, admins
+// oversee everything, but assistants and processors (who work active deals,
+// not cold leads) don't see the tab at all.
+export async function requireAdminOrLoanOfficer() {
+  const user = await requireUser();
+  if (!user.isAdmin && user.baseRole !== "loan_officer") {
+    throw new Error("Only admins and loan officers can access leads");
+  }
+  return user;
+}

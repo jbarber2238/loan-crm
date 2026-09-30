@@ -41,6 +41,7 @@ function encodeMessage({
   from,
   to,
   cc,
+  replyTo,
   subject,
   body,
   html,
@@ -49,6 +50,7 @@ function encodeMessage({
   from: string;
   to: string;
   cc?: string | null;
+  replyTo?: string | null;
   subject: string;
   body: string;
   html?: boolean;
@@ -58,6 +60,7 @@ function encodeMessage({
     `From: ${from}`,
     `To: ${to}`,
     cc ? `Cc: ${cc}` : null,
+    replyTo ? `Reply-To: ${replyTo}` : null,
     `Subject: ${encodeHeaderValue(subject)}`,
     "MIME-Version: 1.0",
   ].filter((line): line is string => line !== null);
@@ -118,6 +121,7 @@ export async function sendGmailAs(
   message: {
     to: string;
     cc?: string | null;
+    replyTo?: string | null;
     subject: string;
     body: string;
     html?: boolean;

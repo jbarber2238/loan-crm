@@ -1189,20 +1189,82 @@ export const emailLogEntries = pgTable("email_log_entries", {
   sentAt: timestamp("sent_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
 });
 
-// A submission from a gated public lead magnet on the marketing site (e.g.
-// the Max Allowable Offer calculator) — no login, no deal, just a name to
-// harvest for outreach later. `source` is a short machine key identifying
-// which lead magnet it came from, so a future second one doesn't need its
-// own table.
-export const leadMagnetSubmissions = pgTable("lead_magnet_submissions", {
+// A visitor who unlocked a gated lead magnet on the marketing site (e.g.
+// the Max Allowable Offer calculator) — no login, no deal yet, just a name
+// and number to work. Deliberately separate from `deals` (which requires
+// borrowerName/propertyAddress/loanCategory a calculator visitor never
+// gives you) rather than shoehorned into it; `convertedDealId` is the one
+// link between the two, set when a lead actually starts a real
+// application. `source` is a short machine key identifying which lead
+// magnet it came from (e.g. "max_allowable_offer_calculator") — a future
+// second magnet reuses this same table rather than getting its own, so
+// reporting across magnets is one GROUP BY instead of a UNION.
+export const leadStatusEnum = pgEnum("lead_status", [
+  "new",
+  "engaged",
+  "hot",
+  "contacted",
+  "nurture",
+  "converted",
+  "dead",
+]);
+
+export const leads = pgTable("leads", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   email: text("email").notNull(),
   phone: text("phone").notNull(),
   marketingConsent: boolean("marketing_consent").notNull().default(false),
+  // The exact consent copy shown at signup, plus when/from where — kept
+  // verbatim rather than just the boolean, in case anyone ever needs to
+  // show what someone actually agreed to.
+  consentText: text("consent_text"),
+  consentIp: text("consent_ip"),
+  consentAt: timestamp("consent_at", { mode: "date", withTimezone: true }),
   source: text("source").notNull(),
+  status: leadStatusEnum("status").notNull().default("new"),
+  priorFlip: boolean("prior_flip"),
+  hasDealUnderContract: boolean("has_deal_under_contract"),
+  closingTimeline: text("closing_timeline"),
+  lastCalculatorInputs: jsonb("last_calculator_inputs"),
+  lastCalculatorResults: jsonb("last_calculator_results"),
+  excelDownloadedAt: timestamp("excel_downloaded_at", { mode: "date", withTimezone: true }),
+  contactedAt: timestamp("contacted_at", { mode: "date", withTimezone: true }),
+  convertedDealId: uuid("converted_deal_id").references(() => deals.id, { onDelete: "set null" }),
+  lastActivityAt: timestamp("last_activity_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
 });
+
+export const leadActivityTypeEnum = pgEnum("lead_activity_type", [
+  "form_submitted",
+  "calculator_used",
+  "excel_downloaded",
+  "cta_clicked",
+  "deal_question_answered",
+  "email_sent",
+  "call_logged",
+  "status_changed",
+  "converted_to_deal",
+]);
+
+export const leadActivities = pgTable("lead_activities", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  leadId: uuid("lead_id")
+    .notNull()
+    .references(() => leads.id, { onDelete: "cascade" }),
+  type: leadActivityTypeEnum("type").notNull(),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
+export const leadsRelations = relations(leads, ({ many, one }) => ({
+  activities: many(leadActivities),
+  convertedDeal: one(deals, { fields: [leads.convertedDealId], references: [deals.id] }),
+}));
+
+export const leadActivitiesRelations = relations(leadActivities, ({ one }) => ({
+  lead: one(leads, { fields: [leadActivities.leadId], references: [leads.id] }),
+}));
 
 export const dealNotes = pgTable("deal_notes", {
   id: uuid("id").primaryKey().defaultRandom(),

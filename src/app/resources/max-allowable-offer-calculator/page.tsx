@@ -24,9 +24,11 @@ export default function MaxOfferCalculatorPage() {
             INVESTOR RESOURCES
           </p>
           <h1 className="mt-4 max-w-2xl text-3xl leading-[1.15] font-normal md:text-4xl" style={{ color: BASALT }}>
-            <span className="block">Max Allowable Offer</span>
-            <span className="block">Calculator</span>
+            Know Your Numbers Before You Write an Offer
           </h1>
+          <p className="mt-3 text-sm font-medium tracking-wide" style={{ color: TEAL }}>
+            Max Allowable Offer Calculator
+          </p>
           <p className="mt-4 max-w-xl text-base leading-relaxed" style={{ color: BASALT }}>
             Run the whole deal — offer price, leverage, carrying costs, holding costs, and closing costs — and see
             your real profit margin before you ever write an offer.
@@ -35,7 +37,7 @@ export default function MaxOfferCalculatorPage() {
       </section>
 
       <section style={{ backgroundColor: OFF_WHITE }}>
-        <div className="mx-auto max-w-3xl px-6 py-16 md:py-20">
+        <div className="mx-auto max-w-4xl px-6 py-16 md:py-20">
           <MaxOfferCalculatorGate />
         </div>
       </section>

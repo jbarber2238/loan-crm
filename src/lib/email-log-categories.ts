@@ -21,6 +21,9 @@ export const EMAIL_LOG_CATEGORY_LABELS: Record<string, string> = {
   admin_new_deal: "New deal notification",
   referral_affiliate: "Referral affiliate",
   staff_invite: "Staff invite",
+  lead_magnet_welcome: "Lead magnet welcome email",
+  lead_magnet_hot_alert: "Hot lead alert",
+  lead_magnet_daily_digest: "Lead daily digest",
   other: "Other",
 };
 
@@ -39,4 +42,7 @@ export const AUTOMATIC_EMAIL_CATEGORIES = new Set([
   "borrower_accepted_terms",
   "processor_ready",
   "admin_new_deal",
+  "lead_magnet_welcome",
+  "lead_magnet_hot_alert",
+  "lead_magnet_daily_digest",
 ]);
