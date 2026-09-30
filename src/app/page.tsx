@@ -38,27 +38,38 @@ const HOW_WE_LEND = ["No Tax Returns Required", "No Income Verification", "Asset
 const PROGRAMS = [
   {
     name: "DSCR Purchase",
-    bullets: ["$50K–$3.5M loan amounts", "Up to 85% LTV", "600 FICO minimum", "30-yr fixed or interest-only"],
+    bullets: ["$50K–$3.5M loan amounts", "Up to 85% LTV", "600 FICO minimum", "30- and 40-year fixed, interest-only and 5/6 ARM options"],
   },
   {
     name: "DSCR Cash-Out Refi",
-    bullets: ["Up to 80% LTV", "$50K–$3.5M loan amounts", "600 FICO minimum", "No income verification"],
+    bullets: ["Up to 80% LTV", "$50K–$3.5M loan amounts", "600 FICO minimum", "30- and 40-year fixed, interest-only and 5/6 ARM options"],
   },
   {
     name: "DSCR Rate & Term Refi",
-    bullets: ["Reprice an existing loan", "$50K–$3.5M loan amounts", "600 FICO minimum", "30-yr fixed or interest-only"],
+    bullets: ["Reprice an existing loan", "$50K–$3.5M loan amounts", "600 FICO minimum", "30- and 40-year fixed, interest-only and 5/6 ARM options"],
   },
   {
     name: "Fix & Flip",
-    bullets: ["$75K–$7M+ loan amounts", "Up to 100% of project cost", "90–95% LTC on light rehab", "Interest-only, no prepay"],
+    bullets: [
+      "$75K–$7M+ loan amounts",
+      "80% to 90% LTC for most borrowers, up to 100% loan-to-cost for qualified borrowers",
+      "75% of After-Repair Value (ARV)",
+      "No experience required",
+      "660 FICO minimum",
+    ],
   },
   {
     name: "Ground-Up Construction",
-    bullets: ["$75K–$7M+ loan amounts", "Up to 100% loan-to-cost", "75% of after-completion value", "No experience required"],
+    bullets: [
+      "$75K–$7M+ loan amounts",
+      "80% to 90% LTC for most borrowers, up to 100% loan-to-cost for qualified borrowers",
+      "75% of Gross Development Value (GDV)",
+      "660 FICO minimum",
+    ],
   },
   {
     name: "Bridge Financing",
-    bullets: ["$75K–$7M+ loan amounts", "Fast, flexible closings", "Purchase, rehab, or bridge-to-rent", "No appraisal on qualifying deals"],
+    bullets: ["$75K–$7M+ loan amounts", "600 FICO minimum"],
   },
 ];
 

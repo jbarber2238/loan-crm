@@ -28,7 +28,6 @@ export interface MaxOfferExcelInputs {
   rehabBudget: number;
   offerPct: number; // 0-100
   purchasePrice: number;
-  hasExperience: boolean;
   ltcPct: number; // 0-100
   ltarvPct: number; // 0-100
   carryRatePct: number; // e.g. 10.5
@@ -154,10 +153,8 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
   inputCell("B12", inputs.ltcPct / 100, PERCENT);
   note(
     12,
-    inputs.hasExperience
-      ? "With prior experience, lenders will go up to 100% LTC — but only as long as the loan still stays within 75% of ARV."
-      : "Without prior fix & flip experience, 90% LTC is the typical ceiling.",
-    4
+    "Without prior experience, LTC typically ranges between 80% and 90% depending on the lender. With prior experience, there are options up to 100% LTC.",
+    5
   );
   label("A13", "Loan-to-ARV (LTARV) % — enter yours");
   inputCell("B13", inputs.ltarvPct / 100, PERCENT);
@@ -197,7 +194,7 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
   header(30, "5. CLOSING COSTS");
   label("A31", "Acquisition Closing % — enter yours");
   inputCell("B31", inputs.acqPct / 100, PERCENT);
-  note(31, "Excludes lender points. Use 1–2% for an off-market deal, 3–5% for one bought on the MLS.", 3);
+  note(31, "Excludes lender points. Use 1–2% for an off-market deal, 3–7% for one bought on the MLS.", 3);
   label("A32", "Lender Origination Points — enter yours");
   inputCell("B32", inputs.originationPts / 100, PERCENT);
   note(32, "Standard broker points on hard money debt typically start around 2 and run up to 5.", 3);
@@ -205,8 +202,8 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
   inputCell("B33", inputs.dispoPct / 100, PERCENT);
   note(
     33,
-    "Includes realtor commissions & seller fees. Can run as low as 3% with a single agent on both sides, or if you're a licensed agent yourself.",
-    4
+    "Includes realtor commissions & seller fees. Can run as low as 3% with a single agent on both sides, or if you're a licensed agent yourself. But could be up to 7% between buyer and seller agents.",
+    5
   );
   label("A34", "Acquisition Cost $ (auto)");
   formulaCell("B34", "B11*B31", CURRENCY);

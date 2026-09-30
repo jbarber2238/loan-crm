@@ -233,7 +233,6 @@ export function MaxOfferCalculator() {
         rehabBudget: rehabNum,
         offerPct,
         purchasePrice: Math.max(effectivePurchasePrice, 0),
-        hasExperience,
         ltcPct,
         ltarvPct,
         carryRatePct,
@@ -348,11 +347,7 @@ export function MaxOfferCalculator() {
           min={hasExperience ? 70 : 70}
           max={hasExperience ? 100 : 90}
           format={(v) => `${v}%`}
-          note={
-            hasExperience
-              ? "With prior experience, lenders will go up to 100% LTC — but only as long as the loan still stays within 75% of ARV."
-              : "Without prior fix & flip experience, 90% LTC is the typical ceiling."
-          }
+          note="Without prior experience, LTC typically ranges between 80% and 90% depending on the lender. With prior experience, there are options up to 100% LTC."
         />
         <RangeSlider
           label="Loan-to-After-Repair Value (LTARV)"
@@ -431,10 +426,10 @@ export function MaxOfferCalculator() {
           value={acqPct}
           onChange={setAcqPct}
           min={1}
-          max={5}
+          max={7}
           step={0.5}
           format={(v) => `${v}%`}
-          note="Excludes lender points. Use 1–2% for an off-market deal, 3–5% for one bought on the MLS."
+          note="Excludes lender points. Use 1–2% for an off-market deal, 3–7% for one bought on the MLS."
         />
         <RangeSlider
           label="Lender Origination Points"
@@ -454,7 +449,7 @@ export function MaxOfferCalculator() {
           max={8}
           step={0.5}
           format={(v) => `${v}%`}
-          note="Includes realtor commissions & seller fees. Can run as low as 3% with a single agent on both sides, or if you're a licensed agent yourself."
+          note="Includes realtor commissions & seller fees. Can run as low as 3% with a single agent on both sides, or if you're a licensed agent yourself. But could be up to 7% between buyer and seller agents."
         />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <ResultRow label="Acquisition Costs" value={money(acqCost)} />
