@@ -14,6 +14,8 @@
 // round trip. exceljs supports styling, sheet protection, and image
 // embedding natively, which is what real branding requires here.
 
+import { APPLY_URL, COMPANY_PHONE, COMPANY_EMAIL } from "@/lib/lead-constants";
+
 const TEAL = "FF143D4A";
 const GOLD_LIGHT = "FFF3E4C0";
 const WHITE = "FFFFFFFF";
@@ -212,7 +214,7 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
   label("A36", "Disposition Cost $ (auto)");
   formulaCell("B36", "B5*B33", CURRENCY);
 
-  // Section 6 — rows 38-42
+  // Section 6 — rows 38-44
   header(38, "6. PROFIT & MARGIN");
   label("A39", "Total Project Cost (auto)");
   formulaCell("B39", "B11+B6+B34+B35+B22+B28", CURRENCY);
@@ -220,13 +222,17 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
   formulaCell("B40", "B5-B36", CURRENCY);
   label("A41", "Profit (auto)");
   formulaCell("B41", "B40-B39", CURRENCY, true);
-  label("A42", "Profit Margin % of ARV (auto)");
-  formulaCell("B42", "B41/B5", PERCENT, true);
-  note(42, "Target profit margin is typically 15–20% of ARV.", 2);
+  label("A42", "Total Cash Invested (auto)");
+  formulaCell("B42", "B39-B17", CURRENCY);
+  label("A43", "Cash-on-Cash Return (auto)");
+  formulaCell("B43", "IF(B42<=0,0,B41/B42)", PERCENT, true);
+  label("A44", "Profit Margin % of ARV (auto)");
+  formulaCell("B44", "B41/B5", PERCENT, true);
+  note(44, "Target profit margin is typically 15–20% of ARV.", 2);
 
-  // Stress test — rows 44-49 (uses columns A-D)
-  header(44, "STRESS TEST — WHAT IF THE SALE PRICE COMES IN LOWER?");
-  const stressHeaderRow = ws.getRow(45);
+  // Stress test — rows 46-51 (uses columns A-D)
+  header(46, "STRESS TEST — WHAT IF THE SALE PRICE COMES IN LOWER?");
+  const stressHeaderRow = ws.getRow(47);
   ["ARV Change — enter your own scenarios", "Stressed ARV (auto)", "Stressed Profit (auto)", "Stressed Margin % (auto)"].forEach(
     (text, i) => {
       const cell = stressHeaderRow.getCell(i + 1);
@@ -236,15 +242,26 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
     }
   );
   [0, 5, 10, 15].forEach((stressPct, i) => {
-    const row = 46 + i;
+    const row = 48 + i;
     inputCell(`A${row}`, stressPct / 100, PERCENT);
     formulaCell(`B${row}`, `B5*(1-A${row})`, CURRENCY);
     formulaCell(`C${row}`, `B${row}-(B${row}*$B$33)-$B$39`, CURRENCY);
     formulaCell(`D${row}`, `C${row}/B${row}`, PERCENT, true);
   });
 
-  ws.mergeCells("A51:D51");
-  const disclaimer = ws.getCell("A51");
+  // Ready-to-move-forward CTA block — rows 53-56
+  header(53, "READY TO MOVE FORWARD?");
+  ws.mergeCells("A54:D54");
+  ws.getCell("A54").value = `Call or text: ${COMPANY_PHONE}`;
+  ws.mergeCells("A55:D55");
+  ws.getCell("A55").value = `Email: ${COMPANY_EMAIL}`;
+  ws.mergeCells("A56:D56");
+  const applyCell = ws.getCell("A56");
+  applyCell.value = { text: "Apply now", hyperlink: APPLY_URL };
+  applyCell.font = { color: { argb: "FF1D4ED8" }, underline: true };
+
+  ws.mergeCells("A58:D58");
+  const disclaimer = ws.getCell("A58");
   disclaimer.value =
     "This spreadsheet is for planning purposes only and is not a quote, pre-qualification, or commitment to lend.";
   disclaimer.font = { italic: true, size: 9, color: { argb: "FF68735F" } };
