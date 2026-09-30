@@ -120,7 +120,9 @@ export async function submitLead(source: string, formData: FormData): Promise<{ 
 
   const lead = await db.query.leads.findFirst({ where: eq(leads.id, leadId) });
   if (lead) {
-    const calculatorUrl = "https://mannalendingco.com/resources/max-allowable-offer-calculator";
+    // Carries the lead's own id so clicking the emailed link re-unlocks the
+    // calculator directly instead of showing the gate form again.
+    const calculatorUrl = `https://mannalendingco.com/resources/max-allowable-offer-calculator?lead=${leadId}`;
     const excelNote =
       "Once you've run your numbers, there's a “Download as Excel” button that hands you the same calculator, live formulas included, to keep stress-testing on your own.";
     await sendLeadWelcomeEmail(lead, calculatorUrl, excelNote).catch((err) =>
@@ -129,6 +131,15 @@ export async function submitLead(source: string, formData: FormData): Promise<{ 
   }
 
   return { leadId };
+}
+
+// Public, unauthenticated — lets the emailed "here's your calculator" link
+// re-unlock the gate without asking someone to fill out the form a second
+// time. Only confirms the id is a real lead (already past the hard consent
+// gate at submission); returns no other data.
+export async function verifyLeadId(id: string): Promise<boolean> {
+  const lead = await db.query.leads.findFirst({ where: eq(leads.id, id), columns: { id: true } });
+  return Boolean(lead);
 }
 
 // --- Post-unlock event logging -------------------------------------------

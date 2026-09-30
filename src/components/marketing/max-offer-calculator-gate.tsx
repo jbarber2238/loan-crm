@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import { LeadGateForm } from "@/components/marketing/lead-gate-form";
 import { MaxOfferCalculator } from "@/components/marketing/max-offer-calculator";
+import { verifyLeadId } from "@/server/actions/leads";
 
 const LEAD_SOURCE = "max_allowable_offer_calculator";
 const STORAGE_KEY = `manna-lead-id:${LEAD_SOURCE}`;
@@ -53,7 +54,7 @@ function ResultsPreview() {
   );
 }
 
-export function MaxOfferCalculatorGate() {
+export function MaxOfferCalculatorGate({ leadIdFromUrl }: { leadIdFromUrl?: string }) {
   const [leadId, setLeadId] = useState<string | null>(null);
   const [checkedStorage, setCheckedStorage] = useState(false);
 
@@ -62,7 +63,25 @@ export function MaxOfferCalculatorGate() {
     // than synchronously in the effect body — avoids a hydration mismatch
     // (the server always renders the gate first) while still resolving
     // before the next paint.
-    Promise.resolve().then(() => {
+    Promise.resolve().then(async () => {
+      // The emailed "here's your calculator" link carries the lead's own id
+      // so a returning visitor (any device, not just the one that submitted
+      // the form) skips straight past the gate — verified server-side so a
+      // hand-typed/garbage id can't be used to bypass the consent gate.
+      if (leadIdFromUrl) {
+        const valid = await verifyLeadId(leadIdFromUrl).catch(() => false);
+        if (valid) {
+          setLeadId(leadIdFromUrl);
+          try {
+            localStorage.setItem(STORAGE_KEY, leadIdFromUrl);
+          } catch {
+            // Non-fatal — the calculator still works for this visit either way.
+          }
+          setCheckedStorage(true);
+          return;
+        }
+      }
+
       let stored: string | null = null;
       try {
         stored = localStorage.getItem(STORAGE_KEY);
@@ -72,7 +91,7 @@ export function MaxOfferCalculatorGate() {
       setLeadId(stored);
       setCheckedStorage(true);
     });
-  }, []);
+  }, [leadIdFromUrl]);
 
   function handleUnlock(id: string) {
     setLeadId(id);

@@ -13,7 +13,13 @@ const SAND = "#CBB8A0";
 const TEAL = "#143D4A";
 const BASALT = "#1E1E1E";
 
-export default function MaxOfferCalculatorPage() {
+export default async function MaxOfferCalculatorPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ lead?: string }>;
+}) {
+  const { lead } = await searchParams;
+
   return (
     <div style={{ fontFamily: "var(--font-archivo), Archivo, sans-serif" }}>
       <SiteHeader />
@@ -38,7 +44,7 @@ export default function MaxOfferCalculatorPage() {
 
       <section style={{ backgroundColor: OFF_WHITE }}>
         <div className="mx-auto max-w-4xl px-6 py-16 md:py-20">
-          <MaxOfferCalculatorGate />
+          <MaxOfferCalculatorGate leadIdFromUrl={lead} />
         </div>
       </section>
 

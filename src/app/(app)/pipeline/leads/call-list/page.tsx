@@ -4,23 +4,10 @@ import { requireUser } from "@/server/auth/guards";
 import { getLeads } from "@/server/actions/leads";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import { MarkContactedButton } from "@/components/leads/mark-contacted-button";
+import { leadDealSummary } from "@/lib/lead-format";
 
 const CALL_LIST_STATUSES = ["hot", "engaged", "new"] as const;
 const STATUS_RANK: Record<string, number> = { hot: 0, engaged: 1, new: 2 };
-
-function money(n: number): string {
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-}
-
-function dealSummary(inputsRaw: unknown, resultsRaw: unknown): string | null {
-  const inputs = inputsRaw as { arv?: number; purchasePrice?: number } | null;
-  const results = resultsRaw as { profitMarginPct?: number } | null;
-  if (!inputs?.arv) return null;
-  const parts = [`ARV ${money(inputs.arv)}`];
-  if (inputs.purchasePrice) parts.push(`Purchase ${money(inputs.purchasePrice)}`);
-  if (results?.profitMarginPct !== undefined) parts.push(`Margin ${results.profitMarginPct.toFixed(1)}%`);
-  return parts.join(" · ");
-}
 
 export default async function CallListPage() {
   const user = await requireUser();
@@ -63,9 +50,9 @@ export default async function CallListPage() {
                 <p className="text-sm text-muted-foreground">
                   {lead.source} · Last activity {lead.lastActivityAt.toLocaleString()}
                 </p>
-                {dealSummary(lead.lastCalculatorInputs, lead.lastCalculatorResults) && (
+                {leadDealSummary(lead.lastCalculatorInputs, lead.lastCalculatorResults) && (
                   <p className="mt-1 text-sm font-medium">
-                    {dealSummary(lead.lastCalculatorInputs, lead.lastCalculatorResults)}
+                    {leadDealSummary(lead.lastCalculatorInputs, lead.lastCalculatorResults)}
                   </p>
                 )}
               </div>
