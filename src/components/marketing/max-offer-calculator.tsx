@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { Download, Loader2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, ResultRow, money, num } from "@/components/marketing/loan-calculators";
+import { downloadMaxOfferExcel } from "@/lib/max-offer-excel-export";
 
 const TEAL = "#143D4A";
 const MOSS = "#68735F";
@@ -221,6 +223,31 @@ export function MaxOfferCalculator() {
   const stressedDispoCost = stressedArv * (dispoPct / 100);
   const stressedProfit = stressedArv - stressedDispoCost - totalProjectCost;
   const stressedMarginPct = stressedArv > 0 ? (stressedProfit / stressedArv) * 100 : 0;
+
+  const [downloading, setDownloading] = useState(false);
+  async function handleDownload() {
+    setDownloading(true);
+    try {
+      await downloadMaxOfferExcel({
+        arv: arvNum,
+        rehabBudget: rehabNum,
+        offerPct,
+        purchasePrice: Math.max(effectivePurchasePrice, 0),
+        ltcPct,
+        ltarvPct,
+        carryRatePct,
+        timelineMonths,
+        annualTaxes: num(annualTaxes),
+        annualInsurance: num(annualInsurance),
+        monthlyMisc,
+        acqPct,
+        originationPts,
+        dispoPct,
+      });
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   const segments: CostSegment[] = [
     { label: "Purchase Price", amount: Math.max(effectivePurchasePrice, 0), color: TEAL },
@@ -472,6 +499,27 @@ export function MaxOfferCalculator() {
           )}
         </div>
       </SectionCard>
+
+      <div
+        className="flex flex-col items-center gap-3 rounded-sm p-6 text-center md:p-8"
+        style={{ backgroundColor: TEAL }}
+      >
+        <p className="text-base font-medium text-white">Keep stress-testing this deal in Excel</p>
+        <p className="max-w-md text-sm leading-relaxed" style={{ color: "rgba(250,247,242,0.75)" }}>
+          Download this exact deal as a spreadsheet — every number above is a live formula, so you can keep
+          changing assumptions after you leave this page.
+        </p>
+        <button
+          type="button"
+          onClick={handleDownload}
+          disabled={downloading}
+          className="mt-1 flex items-center gap-2 rounded-sm px-6 py-3 text-sm font-medium tracking-wide transition-opacity hover:opacity-90 disabled:opacity-60"
+          style={{ backgroundColor: GOLD, color: BASALT }}
+        >
+          {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+          {downloading ? "Preparing your file…" : "Download as Excel"}
+        </button>
+      </div>
 
       <p className="text-xs leading-relaxed" style={{ color: MOSS }}>
         This tool is for planning purposes only and is not a quote, pre-qualification, or commitment to lend.
