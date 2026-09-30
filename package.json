@@ -21,6 +21,7 @@
     "cn": "^0.2.5",
     "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.2",
+    "exceljs": "^4.4.0",
     "googleapis": "^178.0.0",
     "heic-convert": "^2.1.0",
     "jszip": "^3.10.2",

@@ -1,17 +1,26 @@
-// Exports the Max Allowable Offer calculator's current numbers as a working
-// Excel file — not a snapshot of the results, but the same formulas the
-// calculator itself runs, so someone can keep changing ARV, rehab, rates,
-// etc. after they've left the site and see everything recalculate. Cell
-// addresses below are hand-tracked (SheetJS has no "next row" helper that
-// also knows formula references), so any row inserted/removed here has to
-// be re-checked against every formula that references it.
+// Exports the Max Allowable Offer calculator's current numbers as a working,
+// on-brand Excel file — not a snapshot of the results, but the same
+// formulas the calculator itself runs, so someone can clear the gold
+// (editable) cells, drop in a different deal's numbers, and watch every
+// other cell recalculate. Cell addresses below are hand-tracked (there's no
+// "next row" helper that also knows formula references), so any row
+// inserted/removed here has to be re-checked against every formula that
+// references it — see the exhaustive address list this was verified
+// against when it shipped.
 //
-// SheetJS's free build (the version installed here, from sheetjs.com's own
-// CDN rather than the outdated npm registry package) writes formulas and
-// number formats correctly, but does not persist cell fill/font styling —
-// confirmed by writing a styled cell and reading it back. So instead of
-// color-coding input vs. computed cells, every input row's label ends in
-// "— enter yours" and every computed row's label ends in "(auto)".
+// Uses exceljs rather than the xlsx (SheetJS) package already in this repo
+// — SheetJS's free build writes formulas fine but silently drops cell
+// fills/fonts and can't embed images, both confirmed by a real write+read
+// round trip. exceljs supports styling, sheet protection, and image
+// embedding natively, which is what real branding requires here.
+
+const TEAL = "FF143D4A";
+const GOLD_LIGHT = "FFF3E4C0";
+const WHITE = "FFFFFFFF";
+const SAND_LIGHT = "FFEDE6DA";
+
+const CURRENCY = "$#,##0";
+const PERCENT = "0.0%";
 
 export interface MaxOfferExcelInputs {
   arv: number;
@@ -30,110 +39,192 @@ export interface MaxOfferExcelInputs {
   dispoPct: number; // 0-100
 }
 
-const CURRENCY = "$#,##0";
-const PERCENT = "0.0%";
-
-type Cell = string | number | { f: string; z?: string } | { v: number; t: "n"; z?: string };
-
-function n(v: number, z?: string): Cell {
-  return { v, t: "n", z };
-}
-
-function pct(v0to100: number, z = PERCENT): Cell {
-  return { v: v0to100 / 100, t: "n", z };
-}
-
-function f(formula: string, z?: string): Cell {
-  return { f: formula, z };
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
 }
 
 export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promise<void> {
-  const XLSX = await import("xlsx");
+  // The "reversed" (white) lockup, not the primary teal one — this sits on
+  // the teal title band, where the teal-on-transparent version would be
+  // invisible.
+  const [ExcelJS, logoResponse] = await Promise.all([
+    import("exceljs"),
+    fetch("/brand/manna-lending-onecolor-white-transparent.png").catch(() => null),
+  ]);
 
-  const rows: Cell[][] = [
-    ["Manna Lending — Max Allowable Offer Calculator", ""],
-    ["Change any “enter yours” cell — everything marked (auto) recalculates. Keep stress-testing below.", ""],
-    ["", ""],
-    // Section 1 — rows 4-8
-    ["1. MAX ALLOWABLE OFFER", ""],
-    ["After-Repair Value (ARV) — enter yours", n(inputs.arv, CURRENCY)],
-    ["Rehab Budget — enter yours", n(inputs.rehabBudget, CURRENCY)],
-    ["Percent of ARV — enter yours", pct(inputs.offerPct)],
-    ["Max Allowable Offer (auto)", f("B5*B7-B6", CURRENCY)],
-    ["", ""],
-    // Section 2 — rows 10-17
-    ["2. PURCHASE PRICE & LEVERAGE", ""],
-    ["Purchase Price — enter yours (defaults to Max Offer)", n(inputs.purchasePrice, CURRENCY)],
-    ["Loan-to-Cost (LTC) % — enter yours", pct(inputs.ltcPct)],
-    ["Loan-to-ARV (LTARV) % — enter yours", pct(inputs.ltarvPct)],
-    ["Cost Basis (auto)", f("B11+B6", CURRENCY)],
-    ["Max Loan by LTC (auto)", f("B14*B12", CURRENCY)],
-    ["Max Loan by LTARV (auto)", f("B5*B13", CURRENCY)],
-    ["Loan Amount (auto)", f("MIN(B15,B16)", CURRENCY)],
-    ["", ""],
-    // Section 3 — rows 19-22
-    ["3. CARRYING COSTS (DEBT)", ""],
-    ["Annual Interest Rate % — enter yours", pct(inputs.carryRatePct)],
-    ["Project Timeline (months) — enter yours", n(inputs.timelineMonths)],
-    ["Total Interest (auto)", f("B17*B20*(B21/12)", CURRENCY)],
-    ["", ""],
-    // Section 4 — rows 24-28
-    ["4. HOLDING COSTS (PROPERTY)", ""],
-    ["Annual Property Taxes — enter yours", n(inputs.annualTaxes, CURRENCY)],
-    ["Annual Insurance — enter yours", n(inputs.annualInsurance, CURRENCY)],
-    ["Monthly Misc. Holding Costs (utilities, HOA, lawn, snow) — enter yours", n(inputs.monthlyMisc, CURRENCY)],
-    ["Total Holding Costs (auto)", f("(B25/12+B26/12+B27)*B21", CURRENCY)],
-    ["", ""],
-    // Section 5 — rows 30-36
-    ["5. CLOSING COSTS", ""],
-    ["Acquisition Closing % — enter yours", pct(inputs.acqPct)],
-    ["Lender Origination Points — enter yours", pct(inputs.originationPts)],
-    ["Disposition Closing % — enter yours", pct(inputs.dispoPct)],
-    ["Acquisition Cost $ (auto)", f("B11*B31", CURRENCY)],
-    ["Lender Points $ (auto)", f("B17*B32", CURRENCY)],
-    ["Disposition Cost $ (auto)", f("B5*B33", CURRENCY)],
-    ["", ""],
-    // Section 6 — rows 38-42
-    ["6. PROFIT & MARGIN", ""],
-    ["Total Project Cost (auto)", f("B11+B6+B34+B35+B22+B28", CURRENCY)],
-    ["Sale Proceeds (auto)", f("B5-B36", CURRENCY)],
-    ["Profit (auto)", f("B40-B39", CURRENCY)],
-    ["Profit Margin % of ARV (auto)", f("B41/B5", PERCENT)],
-    ["", ""],
-    // Stress test — rows 44-50 (uses columns A-D)
-    ["STRESS TEST — WHAT IF THE SALE PRICE COMES IN LOWER?", "", "", ""],
-    ["ARV Change — enter your own scenarios", "Stressed ARV (auto)", "Stressed Profit (auto)", "Stressed Margin % (auto)"],
-    [pct(0), f("B5*(1-A46)", CURRENCY), f("B46-(B46*$B$33)-$B$39", CURRENCY), f("C46/B46", PERCENT)],
-    [pct(5), f("B5*(1-A47)", CURRENCY), f("B47-(B47*$B$33)-$B$39", CURRENCY), f("C47/B47", PERCENT)],
-    [pct(10), f("B5*(1-A48)", CURRENCY), f("B48-(B48*$B$33)-$B$39", CURRENCY), f("C48/B48", PERCENT)],
-    [pct(15), f("B5*(1-A49)", CURRENCY), f("B49-(B49*$B$33)-$B$39", CURRENCY), f("C49/B49", PERCENT)],
-    ["", ""],
-    [
-      "This spreadsheet is for planning purposes only and is not a quote, pre-qualification, or commitment to lend.",
-      "",
-    ],
-  ];
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Manna Lending";
+  const ws = wb.addWorksheet("Max Offer Calculator", {
+    views: [{ showGridLines: false }],
+  });
 
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws["!cols"] = [{ wch: 52 }, { wch: 18 }, { wch: 18 }, { wch: 18 }];
-  ws["!merges"] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } },
-    { s: { r: 3, c: 0 }, e: { r: 3, c: 3 } },
-    { s: { r: 9, c: 0 }, e: { r: 9, c: 3 } },
-    { s: { r: 18, c: 0 }, e: { r: 18, c: 3 } },
-    { s: { r: 23, c: 0 }, e: { r: 23, c: 3 } },
-    { s: { r: 29, c: 0 }, e: { r: 29, c: 3 } },
-    { s: { r: 37, c: 0 }, e: { r: 37, c: 3 } },
-    { s: { r: 43, c: 0 }, e: { r: 43, c: 3 } },
-    { s: { r: 50, c: 0 }, e: { r: 50, c: 3 } },
-  ];
+  ws.columns = [{ width: 52 }, { width: 18 }, { width: 18 }, { width: 18 }];
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Max Offer Calculator");
+  function label(addr: string, text: string) {
+    ws.getCell(addr).value = text;
+  }
 
-  const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  const blob = new Blob([wbout], { type: "application/octet-stream" });
+  function header(row: number, text: string) {
+    ws.mergeCells(`A${row}:D${row}`);
+    const cell = ws.getCell(`A${row}`);
+    cell.value = text;
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: TEAL } };
+    cell.font = { bold: true, color: { argb: WHITE }, size: 12 };
+    cell.alignment = { vertical: "middle" };
+    ws.getRow(row).height = 22;
+  }
+
+  function inputCell(addr: string, value: number, numFmt: string) {
+    const cell = ws.getCell(addr);
+    cell.value = value;
+    cell.numFmt = numFmt;
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: GOLD_LIGHT } };
+    cell.protection = { locked: false };
+    cell.border = { top: { style: "thin", color: { argb: "FFD8C48C" } }, bottom: { style: "thin", color: { argb: "FFD8C48C" } }, left: { style: "thin", color: { argb: "FFD8C48C" } }, right: { style: "thin", color: { argb: "FFD8C48C" } } };
+  }
+
+  function formulaCell(addr: string, formula: string, numFmt: string, emphasize = false) {
+    const cell = ws.getCell(addr);
+    cell.value = { formula };
+    cell.numFmt = numFmt;
+    if (emphasize) cell.font = { bold: true, color: { argb: TEAL }, size: 12 };
+  }
+
+  // --- Title ---
+  ws.getRow(1).height = 66;
+  ws.mergeCells("A1:D1");
+  const titleCell = ws.getCell("A1");
+  titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: TEAL } };
+  titleCell.value = "Max Allowable Offer Calculator";
+  titleCell.font = { bold: true, color: { argb: WHITE }, size: 16 };
+  titleCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+
+  ws.mergeCells("A2:D2");
+  const subtitleCell = ws.getCell("A2");
+  subtitleCell.value =
+    "Clear the gold cells and enter a new deal's numbers — every other cell recalculates automatically. Keep stress-testing below.";
+  subtitleCell.font = { italic: true, size: 10, color: { argb: "FF68735F" } };
+  subtitleCell.alignment = { wrapText: true, vertical: "middle" };
+  ws.getRow(2).height = 28;
+
+  if (logoResponse?.ok) {
+    const logoBuffer = await logoResponse.arrayBuffer();
+    const imageId = wb.addImage({ base64: arrayBufferToBase64(logoBuffer), extension: "png" });
+    // Real aspect ratio of the source asset is 840x320 (2.625:1) — sized to
+    // fit inside the 66pt title row without distortion, anchored to the
+    // right side of the teal band so it never overlaps the title text.
+    ws.addImage(imageId, { tl: { col: 2.75, row: 0.18 }, ext: { width: 108, height: 41 } });
+  }
+
+  // Section 1 — rows 4-8
+  header(4, "1. MAX ALLOWABLE OFFER");
+  label("A5", "After-Repair Value (ARV) — enter yours");
+  inputCell("B5", inputs.arv, CURRENCY);
+  label("A6", "Rehab Budget — enter yours");
+  inputCell("B6", inputs.rehabBudget, CURRENCY);
+  label("A7", "Percent of ARV — enter yours");
+  inputCell("B7", inputs.offerPct / 100, PERCENT);
+  label("A8", "Max Allowable Offer (auto)");
+  formulaCell("B8", "B5*B7-B6", CURRENCY, true);
+
+  // Section 2 — rows 10-17
+  header(10, "2. PURCHASE PRICE & LEVERAGE");
+  label("A11", "Purchase Price — enter yours (defaults to Max Offer)");
+  inputCell("B11", inputs.purchasePrice, CURRENCY);
+  label("A12", "Loan-to-Cost (LTC) % — enter yours");
+  inputCell("B12", inputs.ltcPct / 100, PERCENT);
+  label("A13", "Loan-to-ARV (LTARV) % — enter yours");
+  inputCell("B13", inputs.ltarvPct / 100, PERCENT);
+  label("A14", "Cost Basis (auto)");
+  formulaCell("B14", "B11+B6", CURRENCY);
+  label("A15", "Max Loan by LTC (auto)");
+  formulaCell("B15", "B14*B12", CURRENCY);
+  label("A16", "Max Loan by LTARV (auto)");
+  formulaCell("B16", "B5*B13", CURRENCY);
+  label("A17", "Loan Amount (auto)");
+  formulaCell("B17", "MIN(B15,B16)", CURRENCY, true);
+
+  // Section 3 — rows 19-22
+  header(19, "3. CARRYING COSTS (DEBT)");
+  label("A20", "Annual Interest Rate % — enter yours");
+  inputCell("B20", inputs.carryRatePct / 100, PERCENT);
+  label("A21", "Project Timeline (months) — enter yours");
+  inputCell("B21", inputs.timelineMonths, "0");
+  label("A22", "Total Interest (auto)");
+  formulaCell("B22", "B17*B20*(B21/12)", CURRENCY, true);
+
+  // Section 4 — rows 24-28
+  header(24, "4. HOLDING COSTS (PROPERTY)");
+  label("A25", "Annual Property Taxes — enter yours");
+  inputCell("B25", inputs.annualTaxes, CURRENCY);
+  label("A26", "Annual Insurance — enter yours");
+  inputCell("B26", inputs.annualInsurance, CURRENCY);
+  label("A27", "Monthly Misc. Holding Costs (utilities, HOA, lawn, snow) — enter yours");
+  inputCell("B27", inputs.monthlyMisc, CURRENCY);
+  label("A28", "Total Holding Costs (auto)");
+  formulaCell("B28", "(B25/12+B26/12+B27)*B21", CURRENCY, true);
+
+  // Section 5 — rows 30-36
+  header(30, "5. CLOSING COSTS");
+  label("A31", "Acquisition Closing % — enter yours");
+  inputCell("B31", inputs.acqPct / 100, PERCENT);
+  label("A32", "Lender Origination Points — enter yours");
+  inputCell("B32", inputs.originationPts / 100, PERCENT);
+  label("A33", "Disposition Closing % — enter yours");
+  inputCell("B33", inputs.dispoPct / 100, PERCENT);
+  label("A34", "Acquisition Cost $ (auto)");
+  formulaCell("B34", "B11*B31", CURRENCY);
+  label("A35", "Lender Points $ (auto)");
+  formulaCell("B35", "B17*B32", CURRENCY);
+  label("A36", "Disposition Cost $ (auto)");
+  formulaCell("B36", "B5*B33", CURRENCY);
+
+  // Section 6 — rows 38-42
+  header(38, "6. PROFIT & MARGIN");
+  label("A39", "Total Project Cost (auto)");
+  formulaCell("B39", "B11+B6+B34+B35+B22+B28", CURRENCY);
+  label("A40", "Sale Proceeds (auto)");
+  formulaCell("B40", "B5-B36", CURRENCY);
+  label("A41", "Profit (auto)");
+  formulaCell("B41", "B40-B39", CURRENCY, true);
+  label("A42", "Profit Margin % of ARV (auto)");
+  formulaCell("B42", "B41/B5", PERCENT, true);
+
+  // Stress test — rows 44-49 (uses columns A-D)
+  header(44, "STRESS TEST — WHAT IF THE SALE PRICE COMES IN LOWER?");
+  const stressHeaderRow = ws.getRow(45);
+  ["ARV Change — enter your own scenarios", "Stressed ARV (auto)", "Stressed Profit (auto)", "Stressed Margin % (auto)"].forEach(
+    (text, i) => {
+      const cell = stressHeaderRow.getCell(i + 1);
+      cell.value = text;
+      cell.font = { bold: true, size: 10 };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: SAND_LIGHT } };
+    }
+  );
+  [0, 5, 10, 15].forEach((stressPct, i) => {
+    const row = 46 + i;
+    inputCell(`A${row}`, stressPct / 100, PERCENT);
+    formulaCell(`B${row}`, `B5*(1-A${row})`, CURRENCY);
+    formulaCell(`C${row}`, `B${row}-(B${row}*$B$33)-$B$39`, CURRENCY);
+    formulaCell(`D${row}`, `C${row}/B${row}`, PERCENT, true);
+  });
+
+  ws.mergeCells("A51:D51");
+  const disclaimer = ws.getCell("A51");
+  disclaimer.value =
+    "This spreadsheet is for planning purposes only and is not a quote, pre-qualification, or commitment to lend.";
+  disclaimer.font = { italic: true, size: 9, color: { argb: "FF68735F" } };
+
+  // Soft guardrail, not real security — no password, so anyone can
+  // Unprotect in one click, but a stray keystroke won't blow away a
+  // formula while someone's plugging in their own deal.
+  ws.protect("", { selectLockedCells: true, selectUnlockedCells: true });
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: "application/octet-stream" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
