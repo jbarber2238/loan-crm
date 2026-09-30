@@ -233,6 +233,7 @@ export function MaxOfferCalculator() {
         rehabBudget: rehabNum,
         offerPct,
         purchasePrice: Math.max(effectivePurchasePrice, 0),
+        hasExperience,
         ltcPct,
         ltarvPct,
         carryRatePct,

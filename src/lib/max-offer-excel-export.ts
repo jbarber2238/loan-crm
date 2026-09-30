@@ -18,6 +18,7 @@ const TEAL = "FF143D4A";
 const GOLD_LIGHT = "FFF3E4C0";
 const WHITE = "FFFFFFFF";
 const SAND_LIGHT = "FFEDE6DA";
+const MOSS = "FF68735F";
 
 const CURRENCY = "$#,##0";
 const PERCENT = "0.0%";
@@ -27,6 +28,7 @@ export interface MaxOfferExcelInputs {
   rehabBudget: number;
   offerPct: number; // 0-100
   purchasePrice: number;
+  hasExperience: boolean;
   ltcPct: number; // 0-100
   ltarvPct: number; // 0-100
   carryRatePct: number; // e.g. 10.5
@@ -93,6 +95,19 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
     if (emphasize) cell.font = { bold: true, color: { argb: TEAL }, size: 12 };
   }
 
+  // Same rule-of-thumb copy shown under each slider on the web calculator —
+  // fine print in C:D, next to the input it explains, per Justin's request
+  // that the spreadsheet not lose that guidance. `lines` sets the row
+  // height so longer notes don't get clipped.
+  function note(row: number, text: string, lines = 3) {
+    ws.mergeCells(`C${row}:D${row}`);
+    const cell = ws.getCell(`C${row}`);
+    cell.value = text;
+    cell.font = { italic: true, size: 8, color: { argb: MOSS } };
+    cell.alignment = { wrapText: true, vertical: "middle" };
+    ws.getRow(row).height = Math.max(ws.getRow(row).height ?? 15, lines * 11 + 8);
+  }
+
   // --- Title ---
   ws.getRow(1).height = 66;
   ws.mergeCells("A1:D1");
@@ -127,6 +142,7 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
   inputCell("B6", inputs.rehabBudget, CURRENCY);
   label("A7", "Percent of ARV — enter yours");
   inputCell("B7", inputs.offerPct / 100, PERCENT);
+  note(7, "70% is the classic flipper's rule of thumb — move it up in a hot, low-risk market or down for a heavier rehab.", 4);
   label("A8", "Max Allowable Offer (auto)");
   formulaCell("B8", "B5*B7-B6", CURRENCY, true);
 
@@ -136,8 +152,16 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
   inputCell("B11", inputs.purchasePrice, CURRENCY);
   label("A12", "Loan-to-Cost (LTC) % — enter yours");
   inputCell("B12", inputs.ltcPct / 100, PERCENT);
+  note(
+    12,
+    inputs.hasExperience
+      ? "With prior experience, lenders will go up to 100% LTC — but only as long as the loan still stays within 75% of ARV."
+      : "Without prior fix & flip experience, 90% LTC is the typical ceiling.",
+    4
+  );
   label("A13", "Loan-to-ARV (LTARV) % — enter yours");
   inputCell("B13", inputs.ltarvPct / 100, PERCENT);
+  note(13, "75% of ARV is the hard ceiling almost every hard money lender holds to, regardless of experience.", 3);
   label("A14", "Cost Basis (auto)");
   formulaCell("B14", "B11+B6", CURRENCY);
   label("A15", "Max Loan by LTC (auto)");
@@ -151,6 +175,7 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
   header(19, "3. CARRYING COSTS (DEBT)");
   label("A20", "Annual Interest Rate % — enter yours");
   inputCell("B20", inputs.carryRatePct / 100, PERCENT);
+  note(20, "Typical range for fix & flip bridge debt is 9.5%–12% simple interest.", 2);
   label("A21", "Project Timeline (months) — enter yours");
   inputCell("B21", inputs.timelineMonths, "0");
   label("A22", "Total Interest (auto)");
@@ -164,6 +189,7 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
   inputCell("B26", inputs.annualInsurance, CURRENCY);
   label("A27", "Monthly Misc. Holding Costs (utilities, HOA, lawn, snow) — enter yours");
   inputCell("B27", inputs.monthlyMisc, CURRENCY);
+  note(27, "Covers utilities, HOA dues, lawn care, and snow removal in one rough monthly estimate.", 3);
   label("A28", "Total Holding Costs (auto)");
   formulaCell("B28", "(B25/12+B26/12+B27)*B21", CURRENCY, true);
 
@@ -171,10 +197,17 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
   header(30, "5. CLOSING COSTS");
   label("A31", "Acquisition Closing % — enter yours");
   inputCell("B31", inputs.acqPct / 100, PERCENT);
+  note(31, "Excludes lender points. Use 1–2% for an off-market deal, 3–5% for one bought on the MLS.", 3);
   label("A32", "Lender Origination Points — enter yours");
   inputCell("B32", inputs.originationPts / 100, PERCENT);
+  note(32, "Standard broker points on hard money debt typically start around 2 and run up to 5.", 3);
   label("A33", "Disposition Closing % — enter yours");
   inputCell("B33", inputs.dispoPct / 100, PERCENT);
+  note(
+    33,
+    "Includes realtor commissions & seller fees. Can run as low as 3% with a single agent on both sides, or if you're a licensed agent yourself.",
+    4
+  );
   label("A34", "Acquisition Cost $ (auto)");
   formulaCell("B34", "B11*B31", CURRENCY);
   label("A35", "Lender Points $ (auto)");
@@ -192,6 +225,7 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
   formulaCell("B41", "B40-B39", CURRENCY, true);
   label("A42", "Profit Margin % of ARV (auto)");
   formulaCell("B42", "B41/B5", PERCENT, true);
+  note(42, "Target profit margin is typically 15–20% of ARV.", 2);
 
   // Stress test — rows 44-49 (uses columns A-D)
   header(44, "STRESS TEST — WHAT IF THE SALE PRICE COMES IN LOWER?");
