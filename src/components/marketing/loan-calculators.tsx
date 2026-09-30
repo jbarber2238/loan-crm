@@ -10,11 +10,11 @@ const MOSS = "#68735F";
 const BASALT = "#1E1E1E";
 const SAND = "#CBB8A0";
 
-function money(n: number): string {
+export function money(n: number): string {
   return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 }
 
-function Field({
+export function Field({
   label,
   value,
   onChange,
@@ -52,7 +52,7 @@ function Field({
   );
 }
 
-function ResultRow({ label, value }: { label: string; value: string }) {
+export function ResultRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between border-t py-2.5" style={{ borderColor: "rgba(20,61,74,0.15)" }}>
       <span className="text-sm" style={{ color: BASALT }}>
@@ -65,7 +65,7 @@ function ResultRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function num(v: string): number {
+export function num(v: string): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
@@ -241,7 +241,7 @@ export function DscrCalculator() {
   );
 }
 
-function SliderField({
+export function SliderField({
   label,
   value,
   onChange,

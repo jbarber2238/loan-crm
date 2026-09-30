@@ -1189,6 +1189,21 @@ export const emailLogEntries = pgTable("email_log_entries", {
   sentAt: timestamp("sent_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
 });
 
+// A submission from a gated public lead magnet on the marketing site (e.g.
+// the Max Allowable Offer calculator) — no login, no deal, just a name to
+// harvest for outreach later. `source` is a short machine key identifying
+// which lead magnet it came from, so a future second one doesn't need its
+// own table.
+export const leadMagnetSubmissions = pgTable("lead_magnet_submissions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone").notNull(),
+  marketingConsent: boolean("marketing_consent").notNull().default(false),
+  source: text("source").notNull(),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
 export const dealNotes = pgTable("deal_notes", {
   id: uuid("id").primaryKey().defaultRandom(),
   dealId: uuid("deal_id")

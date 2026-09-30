@@ -27,6 +27,12 @@ const CALCULATORS = [
     description:
       "Size a fix & flip, ground-up construction, or bridge loan by both Loan-to-Cost and Loan-to-After-Repair Value, and see which one a lender will use.",
   },
+  {
+    nameLines: ["Max Allowable Offer", "Calculator"],
+    href: "/resources/max-allowable-offer-calculator",
+    description:
+      "Build your entire fix & flip offer — leverage, carrying costs, holding costs, closing costs — and see your real profit margin before you write an offer.",
+  },
 ];
 
 export default function ResourcesPage() {

@@ -72,6 +72,14 @@ export function SiteHeader() {
                   <span className="block">Hard Money</span>
                   <span className="block">Leverage Calculator</span>
                 </Link>
+                <Link
+                  href="/resources/max-allowable-offer-calculator"
+                  className="block px-4 py-3 text-sm leading-snug font-medium transition-colors hover:bg-[rgba(20,61,74,0.06)]"
+                  style={{ color: BASALT }}
+                >
+                  <span className="block">Max Allowable Offer</span>
+                  <span className="block">Calculator</span>
+                </Link>
               </div>
             )}
           </div>
