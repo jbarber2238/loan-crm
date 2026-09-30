@@ -43,7 +43,7 @@ export default async function MaxOfferCalculatorPage({
       </section>
 
       <section style={{ backgroundColor: OFF_WHITE }}>
-        <div className="mx-auto max-w-4xl px-6 py-16 md:py-20">
+        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
           <MaxOfferCalculatorGate leadIdFromUrl={lead} />
         </div>
       </section>

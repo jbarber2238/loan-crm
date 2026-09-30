@@ -4,8 +4,7 @@ import Link from "next/link";
 import { submitLead } from "@/server/actions/leads";
 import { ActionForm, useFormPending } from "@/components/forms/action-form";
 
-const TEAL = "#143D4A";
-const MOSS = "#68735F";
+const SAND = "#CBB8A0";
 const BASALT = "#1E1E1E";
 
 function GateSubmitButton({ label }: { label: string }) {
@@ -14,8 +13,8 @@ function GateSubmitButton({ label }: { label: string }) {
     <button
       type="submit"
       disabled={isPending}
-      className="w-full rounded-sm py-2.5 text-sm font-medium tracking-wide text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-      style={{ backgroundColor: TEAL }}
+      className="w-full rounded-sm py-3 text-sm font-bold tracking-wide transition-opacity hover:opacity-90 disabled:opacity-60"
+      style={{ backgroundColor: SAND, color: BASALT }}
     >
       {isPending ? "Unlocking…" : label}
     </button>
@@ -35,17 +34,15 @@ function GateField({
 }) {
   return (
     <label className="block" htmlFor={id}>
-      <span className="text-xs font-medium tracking-wide" style={{ color: BASALT }}>
-        {label}
-      </span>
+      <span className="text-xs font-medium tracking-wide text-white/85">{label}</span>
       <input
         id={id}
         name={id}
         type={type}
         required
         placeholder={placeholder}
-        className="mt-1.5 w-full rounded-sm border bg-white px-3 py-2.5 text-sm outline-none"
-        style={{ borderColor: "rgba(30,30,30,0.2)", color: BASALT }}
+        className="mt-1.5 w-full rounded-sm bg-white px-3 py-2.5 text-sm outline-none"
+        style={{ color: BASALT }}
       />
     </label>
   );
@@ -74,11 +71,12 @@ export function LeadGateForm({
   }
 
   return (
-    <div className="mx-auto max-w-md rounded-sm border bg-white p-6 shadow-[0_12px_32px_rgba(20,61,74,0.12)] md:p-8">
-      <h2 className="text-lg font-medium" style={{ color: TEAL }}>
-        Get instant access
-      </h2>
-      <p className="mt-1.5 text-sm leading-relaxed" style={{ color: BASALT }}>
+    <div
+      className="mx-auto max-w-md rounded-lg p-6 shadow-[0_24px_48px_rgba(20,20,20,0.25)] md:p-8"
+      style={{ backgroundColor: "#143D4A" }}
+    >
+      <h2 className="text-lg font-semibold text-white">Get instant access</h2>
+      <p className="mt-1.5 text-sm leading-relaxed text-white/72">
         Enter your info and the calculator unlocks right below — no download, no waiting.
       </p>
 
@@ -93,16 +91,16 @@ export function LeadGateForm({
         <GateField id="name" label="Full Name" placeholder="Jane Investor" />
         <GateField id="phone" label="Phone Number" type="tel" placeholder="(555) 123-4567" />
         <GateField id="email" label="Email Address" type="email" placeholder="jane@example.com" />
-        <label className="flex items-start gap-2 text-xs leading-relaxed" style={{ color: MOSS }}>
+        <label className="flex items-start gap-2 text-xs leading-relaxed text-white/68">
           <input type="checkbox" name="consent" required className="mt-0.5 size-3.5 shrink-0" />
           <span>
             I agree to receive emails and phone calls from Manna Lending about my deals and financing options. See
             our{" "}
-            <Link href="/privacy" target="_blank" className="underline">
+            <Link href="/privacy" target="_blank" className="text-white underline">
               Privacy Policy
             </Link>{" "}
             and{" "}
-            <Link href="/terms" target="_blank" className="underline">
+            <Link href="/terms" target="_blank" className="text-white underline">
               Terms &amp; Conditions
             </Link>
             .
