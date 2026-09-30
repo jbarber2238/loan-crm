@@ -48,7 +48,7 @@ export default async function LeadsPipelinePage({
             </TableHeader>
             <TableBody>
               {leads.map((lead) => (
-                <TableRow key={lead.id} className="cursor-pointer">
+                <TableRow key={lead.id}>
                   <TableCell className="font-medium">
                     <Link href={`/pipeline/leads/${lead.id}`} className="hover:underline">
                       {lead.name}
@@ -59,7 +59,7 @@ export default async function LeadsPipelinePage({
                   </TableCell>
                   <TableCell className="text-muted-foreground">{lead.source}</TableCell>
                   <TableCell>
-                    <a href={`tel:${lead.phone}`} className="hover:underline" onClick={(e) => e.stopPropagation()}>
+                    <a href={`tel:${lead.phone}`} className="hover:underline">
                       {lead.phone}
                     </a>
                   </TableCell>
