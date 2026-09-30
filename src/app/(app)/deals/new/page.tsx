@@ -18,10 +18,12 @@ import {
 export default async function NewDealPage({
   searchParams,
 }: {
-  searchParams: Promise<{ phone?: string; conversationId?: string }>;
+  searchParams: Promise<{ phone?: string; conversationId?: string; leadId?: string; name?: string; email?: string }>;
 }) {
   const user = await requireUser();
-  const { phone, conversationId } = await searchParams;
+  const { phone, conversationId, leadId, name, email } = await searchParams;
+  const [firstName, ...rest] = name?.trim().split(/\s+/) ?? [];
+  const lastName = rest.join(" ") || undefined;
 
   const allUsers = await db.query.users.findMany({
     where: (users, { eq }) => eq(users.active, true),
@@ -95,7 +97,11 @@ export default async function NewDealPage({
             </section>
 
             {conversationId && <input type="hidden" name="conversationId" value={conversationId} />}
-            <IntakeFormFields defaultBorrowerPhone={phone} />
+            {leadId && <input type="hidden" name="leadId" value={leadId} />}
+            <IntakeFormFields
+              defaultBorrowerPhone={phone}
+              defaultValues={{ firstName, lastName, borrowerEmail: email }}
+            />
 
             <SubmitButton className="w-full">Create Deal</SubmitButton>
           </ActionForm>

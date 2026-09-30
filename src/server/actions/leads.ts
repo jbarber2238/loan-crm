@@ -211,6 +211,8 @@ export interface LeadListItem {
   source: string;
   lastActivityAt: Date;
   createdAt: Date;
+  lastCalculatorInputs: unknown;
+  lastCalculatorResults: unknown;
 }
 
 export async function getLeads(filter?: { status?: LeadStatus; source?: string }): Promise<LeadListItem[]> {

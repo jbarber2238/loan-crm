@@ -7,13 +7,14 @@ import Link from "next/link";
 import { KanbanBoard, type BoardDeal } from "@/components/board/kanban-board";
 import { BoardFilters } from "@/components/board/board-filters";
 import { BoardSearch } from "@/components/board/board-search";
+import { PipelineTabs } from "@/components/board/pipeline-tabs";
 
 export default async function PipelinePage({
   searchParams,
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  await requireUser();
+  const user = await requireUser();
   await expireStaleFollowUps();
   await autoArchiveStaleDeals();
   await purgeExpiredDeletedDeals();
@@ -109,6 +110,7 @@ export default async function PipelinePage({
         </div>
         <BoardSearch />
       </div>
+      <PipelineTabs showLeads={user.isAdmin || user.baseRole === "loan_officer"} />
       <BoardFilters loanOfficers={loanOfficers} processors={processors} lenders={lenderOptions} />
       <KanbanBoard deals={boardDeals} />
     </div>

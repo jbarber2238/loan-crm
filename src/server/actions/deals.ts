@@ -13,6 +13,8 @@ import {
   dealStageEnum,
   dealStageHistory,
   deals,
+  leadActivities,
+  leads,
   termSheets,
 } from "@/server/db/schema";
 import { requireUser, requireAdmin } from "@/server/auth/guards";
@@ -94,6 +96,15 @@ export async function createDeal(formData: FormData) {
   const conversationId = nullableStr(formData, "conversationId");
   if (conversationId) {
     await db.update(dealConversations).set({ dealId }).where(eq(dealConversations.id, conversationId));
+  }
+
+  // Started from a marketing-site lead — mark it converted and link it to
+  // the deal it became, so the Leads pipeline reflects the outcome.
+  const leadId = nullableStr(formData, "leadId");
+  if (leadId) {
+    await db.update(leads).set({ status: "converted", convertedDealId: dealId }).where(eq(leads.id, leadId));
+    await db.insert(leadActivities).values({ leadId, type: "converted_to_deal", metadata: { dealId } });
+    revalidatePath("/pipeline/leads");
   }
 
   revalidatePath("/");
