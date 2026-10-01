@@ -7,8 +7,7 @@ import { getUserEmailSignatureHtml } from "@/server/users";
 import { buildBorrowerEmail } from "@/server/borrower-templates";
 import { formatStatusList } from "@/server/client-needs-email-format";
 import { htmlButton } from "@/lib/email-html";
-
-const HOUR_MS = 60 * 60 * 1000;
+import { checkReminderDue, REMINDER_HOUR_ET, REMINDER_MINUTE_ET } from "@/lib/reminder-schedule";
 
 /**
  * The automated follow-up: only items the borrower was already sent and
@@ -171,10 +170,18 @@ async function evaluateDeal(
   }, null);
   const baseline = deal.clientNeedsLastReminderAt ?? earliestSentAt;
   if (!baseline) return { due: false, reason: "Outstanding items have no sentAt yet (shouldn't happen)" };
-  const dueAt = baseline.getTime() + deal.clientNeedsReminderIntervalHours * HOUR_MS;
-  if (now.getTime() < dueAt) {
-    const hoursLeft = Math.ceil((dueAt - now.getTime()) / HOUR_MS);
-    return { due: false, reason: `Not due for ~${hoursLeft}h (next due ${new Date(dueAt).toISOString()})` };
+
+  // Day-count, not elapsed hours: fires at REMINDER_HOUR_ET on the Nth
+  // Eastern calendar day after baseline, regardless of what time of day
+  // baseline itself fell on. The stored value is still hours (24/48/72/168)
+  // for backward compatibility with existing deal settings — just
+  // reinterpreted here as a day count (see checkReminderDue).
+  const check = checkReminderDue(baseline, now, deal.clientNeedsReminderIntervalHours);
+  if (!check.due) {
+    return {
+      due: false,
+      reason: `Not due for ~${check.daysUntilDue} more day(s) (next at ${REMINDER_HOUR_ET}:${String(REMINDER_MINUTE_ET).padStart(2, "0")} AM ET)`,
+    };
   }
 
   const dealWithRelations = await loadDealWithRelations(deal.id);

@@ -1105,9 +1105,18 @@ function ReminderSettingsDialog({
   );
 }
 
+// Reminders fire at a fixed 7:00 AM ET each day they're due (see
+// REMINDER_HOUR_ET in client-needs-auto-reminders.ts), not N hours after the
+// original send — these options are day-counts, with "hours" kept only as
+// the stored unit for backward compatibility with existing deal settings.
 const REMINDER_INTERVAL_OPTIONS = CLIENT_NEEDS_REMINDER_INTERVAL_HOURS.map((hours) => ({
   hours,
-  label: hours === 24 ? "24 hours (default)" : hours === 168 ? "Once a week" : `${hours} hours`,
+  label:
+    hours === 24
+      ? "Every day at 7 AM ET (default)"
+      : hours === 168
+        ? "Once a week at 7 AM ET"
+        : `Every ${hours / 24} days at 7 AM ET`,
 }));
 
 // The caret half of the Send to Borrower split button — everything about
