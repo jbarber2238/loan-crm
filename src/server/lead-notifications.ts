@@ -3,6 +3,7 @@ import { db } from "@/server/db/client";
 import { leads, users, type leadStatusEnum } from "@/server/db/schema";
 import { sendGmailAs } from "@/server/gmail/send";
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
+import { getUserEmailSignatureHtml } from "@/server/users";
 import { htmlButton, emailShell } from "@/lib/email-html";
 import { NOTIFY_EMAIL } from "@/lib/lead-constants";
 
@@ -33,6 +34,7 @@ export async function sendLeadWelcomeEmail(lead: Lead, calculatorUrl: string, ex
 
   const companyName = await getCompanyName();
   const logoHtml = await getCompanyLogoHtml();
+  const signatureHtml = await getUserEmailSignatureHtml(sender.id);
   const firstName = lead.name.trim().split(/\s+/)[0] || lead.name;
 
   const body = emailShell({
@@ -51,7 +53,7 @@ export async function sendLeadWelcomeEmail(lead: Lead, calculatorUrl: string, ex
     to: lead.email,
     replyTo: NOTIFY_EMAIL,
     subject: "Your Max Allowable Offer Calculator",
-    body: logoHtml + body,
+    body: logoHtml + body + signatureHtml,
     html: true,
     category: "lead_magnet_welcome",
   });

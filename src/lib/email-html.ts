@@ -155,7 +155,7 @@ export function emailShell({
   bodyHtml: string;
 }): string {
   return `<div style="font-family:Arial,Helvetica,sans-serif; color:#1f2937; max-width:600px; font-size:14px;">
-<p style="margin:0 0 4px; font-size:12px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:#1d4ed8;">${escapeHtml(companyName)}</p>
+<p style="margin:0 0 4px; font-size:12px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:#143D4A;">${escapeHtml(companyName)}</p>
 <h2 style="margin:0 0 20px; font-size:20px; font-weight:700; color:#111827;">${heading}</h2>
 ${bodyHtml}
 </div>`;
