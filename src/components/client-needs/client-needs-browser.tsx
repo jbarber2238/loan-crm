@@ -17,6 +17,7 @@ export interface BrowsableClientNeed {
   description: string | null;
   category: string | null;
   needType: "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form" | "custom_form";
+  minFiles: number;
   esignVendor: string | null;
   linkUrl: string | null;
   pandadocTemplateUuid: string | null;
@@ -118,6 +119,7 @@ function Row({
                 description: item.description,
                 category: item.category,
                 needType: item.needType,
+                minFiles: item.minFiles,
                 esignVendor: item.esignVendor,
                 linkUrl: item.linkUrl,
                 pandadocTemplateUuid: item.pandadocTemplateUuid,

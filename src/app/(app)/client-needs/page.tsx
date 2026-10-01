@@ -24,6 +24,7 @@ export default async function ClientNeedsPage() {
     description: item.description,
     category: item.category,
     needType: item.needType,
+    minFiles: item.minFiles,
     esignVendor: item.esignVendor,
     linkUrl: item.linkUrl,
     pandadocTemplateUuid: item.pandadocTemplateUuid,

@@ -521,6 +521,25 @@ function EditNeedDialog({
             <Label htmlFor={`edit-desc-${need.id}`}>Description</Label>
             <Textarea id={`edit-desc-${need.id}`} name="description" rows={3} defaultValue={need.description ?? ""} />
           </div>
+          {need.needType === "document_upload" && (
+            <div className="space-y-1.5">
+              <Label htmlFor={`edit-minfiles-${need.id}`}>Documents required to accept</Label>
+              <Input
+                id={`edit-minfiles-${need.id}`}
+                name="minFiles"
+                type="number"
+                min={1}
+                step={1}
+                className="w-24"
+                defaultValue={need.minFiles}
+              />
+              <p className="text-xs text-muted-foreground">
+                How many separate approved documents this need requires before it counts as Accepted — e.g. 2 for two
+                entities&apos; signed agreements. Approving fewer than this keeps it at Awaiting Docs (and in the
+                reminder emails).
+              </p>
+            </div>
+          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" className="w-full" disabled={pending}>
             {pending ? "Saving…" : "Save"}

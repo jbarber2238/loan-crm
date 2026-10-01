@@ -23,6 +23,14 @@ function nullableStr(formData: FormData, key: string) {
   return value.length ? value : null;
 }
 
+// Clamped to a positive integer, defaulting to 1 — a need that isn't
+// document_upload, or a blank/invalid field, always means "one document is
+// enough," never zero or a negative count.
+function minFilesFrom(formData: FormData): number {
+  const parsed = Number.parseInt(str(formData, "minFiles"), 10);
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1;
+}
+
 function needTypeFrom(formData: FormData): NeedType {
   const value = str(formData, "needType");
   return value === "esign" ||
@@ -183,6 +191,7 @@ export async function createClientNeed(formData: FormData, { attachToProductId }
       linkUrl: needType === "link" ? nullableStr(formData, "linkUrl") : null,
       pandadocTemplateUuid: needType === "pandadoc_form" ? nullableStr(formData, "pandadocTemplateUuid") : null,
       customFormKey: needType === "custom_form" ? nullableStr(formData, "customFormKey") : null,
+      minFiles: needType === "document_upload" ? minFilesFrom(formData) : 1,
       isCustom,
       isGlobal,
       createdByUserId: user.id,
@@ -236,6 +245,7 @@ export async function updateClientNeed(clientNeedId: string, formData: FormData)
       linkUrl: needType === "link" ? nullableStr(formData, "linkUrl") : null,
       pandadocTemplateUuid: needType === "pandadoc_form" ? nullableStr(formData, "pandadocTemplateUuid") : null,
       customFormKey: needType === "custom_form" ? nullableStr(formData, "customFormKey") : null,
+      minFiles: needType === "document_upload" ? minFilesFrom(formData) : 1,
       // Lets a processor promote a custom need to standard once they see it
       // asked for across more than one lender — no admin gate on that switch.
       isCustom: str(formData, "isStandard") !== "on",

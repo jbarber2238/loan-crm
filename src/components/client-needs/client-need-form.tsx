@@ -27,6 +27,7 @@ export interface ExistingClientNeed {
   description: string | null;
   category: string | null;
   needType: NeedType;
+  minFiles: number;
   esignVendor: string | null;
   linkUrl: string | null;
   pandadocTemplateUuid: string | null;
@@ -67,6 +68,7 @@ export function ClientNeedForm({
   const [productIdsLoading, setProductIdsLoading] = useState(isEdit);
   const [productSearch, setProductSearch] = useState("");
   const [needType, setNeedType] = useState<NeedType>(clientNeed?.needType ?? "document_upload");
+  const [minFiles, setMinFiles] = useState(String(clientNeed?.minFiles ?? 1));
   const [esignVendor, setEsignVendor] = useState(clientNeed?.esignVendor ?? "");
   const [linkUrl, setLinkUrl] = useState(clientNeed?.linkUrl ?? "");
   const [pandadocTemplateUuid, setPandadocTemplateUuid] = useState(clientNeed?.pandadocTemplateUuid ?? "");
@@ -317,6 +319,27 @@ export function ClientNeedForm({
             </SelectContent>
           </Select>
         </div>
+
+        {needType === "document_upload" && (
+          <div className="space-y-1.5">
+            <Label htmlFor={`${formId}-minFiles`}>Documents required to accept</Label>
+            <Input
+              id={`${formId}-minFiles`}
+              name="minFiles"
+              type="number"
+              min={1}
+              step={1}
+              className="w-24"
+              value={minFiles}
+              onChange={(e) => setMinFiles(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              How many separate documents must be approved before this need counts as accepted — e.g. 2 for a
+              driver&apos;s license front and back, or two entities&apos; signed agreements. Leave at 1 for a normal,
+              single-document need.
+            </p>
+          </div>
+        )}
 
         {needType === "document_upload" && (
           <div className="space-y-1.5 rounded-md bg-muted/40 p-3">

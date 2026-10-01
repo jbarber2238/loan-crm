@@ -9,6 +9,7 @@ import { copyQuestionsToNewNeeds } from "@/server/client-need-questions";
 import { createClientNeed } from "@/server/actions/client-need-catalog";
 import { activeRulesFor } from "@/server/client-need-rules";
 import { createDocumentFromTemplate, waitUntilDraft, sendDocumentSilently } from "@/server/pandadoc";
+import { recomputeNeedStatus } from "@/server/client-need-status";
 
 type CatalogNeedRow = {
   id: string;
@@ -330,14 +331,27 @@ export async function updateClientNeed(dealId: string, needId: string, formData:
     throw new Error("Item name can't be empty");
   }
 
+  // Clamped to a positive integer, defaulting to 1 (the same rule the
+  // catalog form uses) — a blank/invalid field never means "accept with
+  // zero documents."
+  const minFilesRaw = formData.get("minFiles");
+  const minFilesParsed = typeof minFilesRaw === "string" ? Number.parseInt(minFilesRaw, 10) : NaN;
+  const minFiles = Number.isFinite(minFilesParsed) && minFilesParsed >= 1 ? minFilesParsed : 1;
+
   await db
     .update(dealClientNeeds)
     .set({
       itemName: itemName.trim(),
       description: typeof description === "string" && description.trim() ? description.trim() : null,
+      minFiles,
     })
     .where(and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)));
 
+  // Changing minFiles can flip the derived status immediately (e.g. raising
+  // it from 1 to 2 should un-accept a need that only has one approved
+  // document so far) — recompute right away rather than waiting for the
+  // next document event.
+  await recomputeNeedStatus(needId);
   revalidatePath(`/deals/${dealId}/loan-center`);
 }
 
