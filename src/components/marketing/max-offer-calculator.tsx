@@ -8,7 +8,15 @@ import { money } from "@/components/marketing/loan-calculators";
 import { downloadMaxOfferExcel } from "@/lib/max-offer-excel-export";
 import { calculate, offerVsMax, status, stressTest, type MaxOfferCalcInputs, type MarginStatus } from "@/lib/max-offer-calc";
 import { APPLY_PATH } from "@/lib/lead-constants";
-import { logCalculatorUsed, logExcelDownloaded, logCtaClicked, submitDealQuestions, submitLead, type CtaTier } from "@/server/actions/leads";
+import {
+  logCalculatorUsed,
+  logExcelDownloaded,
+  logCtaClicked,
+  submitDealQuestions,
+  submitLead,
+  sendMaxOfferExcelEmailAction,
+  type CtaTier,
+} from "@/server/actions/leads";
 
 const TEAL = "#143D4A";
 const MOSS = "#68735F";
@@ -168,7 +176,8 @@ const TIPS = {
   rate: "A planning placeholder. Fix and flip bridge debt often runs 9.5%–12% simple interest, but real rates depend on the lender and the borrower.",
   pctOfArv: "The 70% rule: most flippers will not pay more than 70% of ARV minus rehab. Move it up in a hot, low-risk market or down for a heavier rehab.",
   ltc: "Loan-to-cost. Without prior experience, typically 80%–90% depending on the lender. With experience, some options go up to 100%.",
-  taxesIns: "Annual property taxes plus insurance, prorated over your timeline.",
+  annualTaxes: "Annual property taxes, prorated over your timeline.",
+  annualInsurance: "Annual insurance premium, prorated over your timeline.",
   misc: "Utilities, HOA dues, lawn care and snow removal in one rough monthly number.",
   acq: "Closing costs on the way in, excluding lender points. Use 1–2% for off-market deals, 3–7% for MLS deals.",
   points: "A planning placeholder. Lender points vary a lot by lender and borrower.",
@@ -187,7 +196,8 @@ const PRIMARY_META: InputMeta[] = [
 const ADVANCED_META: InputMeta[] = [
   { key: "rate", label: "Interest rate (placeholder)", suffix: "%", tip: TIPS.rate },
   { key: "ltc", label: "Loan-to-cost", suffix: "%", tip: TIPS.ltc },
-  { key: "taxesIns", label: "Taxes + insurance / yr", prefix: "$", tip: TIPS.taxesIns, money: true },
+  { key: "annualTaxes", label: "Annual property taxes", prefix: "$", tip: TIPS.annualTaxes, money: true },
+  { key: "annualInsurance", label: "Annual insurance", prefix: "$", tip: TIPS.annualInsurance, money: true },
   { key: "misc", label: "Misc. holding / mo", prefix: "$", tip: TIPS.misc, money: true },
   { key: "acq", label: "Buying closing costs", suffix: "%", tip: TIPS.acq },
   { key: "points", label: "Lender points (placeholder)", suffix: "pts", tip: TIPS.points },
@@ -201,7 +211,8 @@ interface RawInputs {
   months: string;
   rate: string;
   ltc: string;
-  taxesIns: string;
+  annualTaxes: string;
+  annualInsurance: string;
   misc: string;
   acq: string;
   points: string;
@@ -216,7 +227,8 @@ const DEFAULT_RAW: RawInputs = {
   months: "6",
   rate: "10.5",
   ltc: "90",
-  taxesIns: "5,100",
+  annualTaxes: "3,600",
+  annualInsurance: "1,500",
   misc: "150",
   acq: "2",
   points: "2",
@@ -232,7 +244,8 @@ function toCalcInputs(raw: RawInputs): MaxOfferCalcInputs {
     months: toNum(raw.months),
     rate: toNum(raw.rate) / 100,
     ltc: toNum(raw.ltc) / 100,
-    taxesInsPerYear: toNum(raw.taxesIns),
+    annualTaxes: toNum(raw.annualTaxes),
+    annualInsurance: toNum(raw.annualInsurance),
     miscPerMonth: toNum(raw.misc),
     acqPct: toNum(raw.acq) / 100,
     pointsPct: toNum(raw.points) / 100,
@@ -577,20 +590,7 @@ export function MaxOfferCalculator({ initialLeadId }: { initialLeadId: string | 
   async function runDownload(id: string) {
     setDownloading(true);
     try {
-      await downloadMaxOfferExcel({
-        arv: inputs.arv,
-        rehab: inputs.rehab,
-        pctOfArv: inputs.pctOfArv,
-        months: inputs.months,
-        rate: inputs.rate,
-        ltc: inputs.ltc,
-        taxesInsPerYear: inputs.taxesInsPerYear,
-        miscPerMonth: inputs.miscPerMonth,
-        acqPct: inputs.acqPct,
-        pointsPct: inputs.pointsPct,
-        sellPct: inputs.sellPct,
-        offer: inputs.offer,
-      });
+      await downloadMaxOfferExcel(inputs);
       logExcelDownloaded(id).catch((err) => console.error("Failed to log excel download:", err));
     } finally {
       setDownloading(false);
@@ -613,7 +613,13 @@ export function MaxOfferCalculator({ initialLeadId }: { initialLeadId: string | 
         console.error("Failed to submit deal questions:", err)
       );
     }
+    // Immediate in-browser download, plus a follow-up email with the same
+    // file attached (in case the browser download gets lost, or they want
+    // it on a different device) and a link back to the calculator.
     await runDownload(id);
+    sendMaxOfferExcelEmailAction(id, inputs, dealUnderContract).catch((err) =>
+      console.error("Failed to send max offer excel email:", err)
+    );
   }
 
   function handleQualifyClick() {
@@ -927,7 +933,7 @@ export function MaxOfferCalculator({ initialLeadId }: { initialLeadId: string | 
             style={{ backgroundColor: GOLD, color: BASALT }}
           >
             {downloading ? <Loader2 className="size-4 animate-spin" /> : null}
-            {downloading ? "Preparing your file…" : "Get the Excel version"}
+            {downloading ? "Preparing your file…" : "Get the Excel Version"}
           </button>
         </div>
       )}

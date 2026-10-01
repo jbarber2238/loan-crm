@@ -9,6 +9,16 @@
 // tracks ARV/rehab/offer edits — the one correctness bug the old single-
 // formula export had and this structure fixes by construction.
 //
+// Every formula cell also gets a cached `result` value, computed up front
+// from the same shared max-offer-calc.ts engine the web page uses. exceljs
+// never evaluates formulas itself — it only writes the formula text — so
+// without a cached value, any viewer that doesn't run its own calculation
+// pass on open (macOS Quick Look, some lightweight previewers) shows a
+// blank or zero instead of a real number. A real spreadsheet app (Excel,
+// Google Sheets, LibreOffice) still recalculates live from the formulas the
+// moment a gold cell is edited — the cached value is only a fallback for
+// viewers that never recalculate at all.
+//
 // Cell addresses below are hand-tracked (there's no "next row" helper that
 // also knows formula references), so any row inserted/removed here has to
 // be re-checked against every formula that references it.
@@ -21,7 +31,7 @@
 // and the handoff's acceptance checklist both require.
 
 import { APPLY_URL, COMPANY_PHONE, COMPANY_EMAIL } from "@/lib/lead-constants";
-import { LTARV_CAP, type MaxOfferCalcInputs } from "@/lib/max-offer-calc";
+import { LTARV_CAP, calculate, status, stressTest, breakEven, type MaxOfferCalcInputs, type MarginStatus } from "@/lib/max-offer-calc";
 
 const TEAL = "FF143D4A";
 const GOLD_LIGHT = "FFF3E4C0";
@@ -38,6 +48,8 @@ const STATUS_RED_FG = "FF8A2A22";
 
 const CURRENCY = "$#,##0;($#,##0);-";
 const PERCENT = "0.0%";
+
+const STATUS_LABEL: Record<MarginStatus, string> = { on_target: "On target", thin: "Thin", below_target: "Below target" };
 
 export type MaxOfferExcelInputs = MaxOfferCalcInputs;
 
@@ -66,14 +78,93 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary);
 }
 
-export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promise<void> {
-  const [ExcelJS, logoResponse] = await Promise.all([
-    import("exceljs"),
-    // The "reversed" (white) lockup, not the primary teal one — this sits on
-    // the teal title band, where the teal-on-transparent version would be
-    // invisible.
-    fetch("/brand/manna-lending-onecolor-white-transparent.png").catch(() => null),
-  ]);
+// Matches Excel's `"$#,##0"` TEXT() format: rounded to the dollar, thousands
+// separators, no sign (callers prepend their own).
+function fmtInt(n: number): string {
+  return Math.round(Math.abs(n)).toLocaleString("en-US");
+}
+
+// Pure workbook-building logic — no browser globals (fetch/document/Blob) —
+// so it can run both client-side (downloadMaxOfferExcel below) and
+// server-side (generateMaxOfferExcelAttachment, for emailing the file as an
+// attachment). The caller supplies the already-fetched/read logo bytes,
+// since "fetch a relative URL" and "read a local file" are different on
+// each side.
+export async function buildMaxOfferWorkbookBuffer(inputs: MaxOfferExcelInputs, logoBuffer: ArrayBuffer | null): Promise<ArrayBuffer> {
+  const ExcelJS = await import("exceljs");
+
+  // --- Pre-compute every number the sheet will show, via the same tested
+  // engine the web page uses, so every formula cell can carry a correct
+  // cached value alongside its live formula. ----------------------------
+  const result = calculate(inputs);
+  const hasOffer = Boolean(inputs.offer && inputs.offer > 0);
+  const active = hasOffer ? result.atOffer : result;
+  const stress = stressTest(inputs, active.price);
+  const breakEvenValue = breakEven(inputs);
+  const statusMax = status(result.margin);
+  const verdictText =
+    statusMax === "on_target"
+      ? "At the max, this deal pencils."
+      : statusMax === "thin"
+        ? "At the max, the margin is thin. Try a lower price or a smaller rehab."
+        : "At the max, this deal does not pencil.";
+
+  const diff = hasOffer ? inputs.offer! - result.mao : 0;
+  const offerVsMaxText = !hasOffer
+    ? "Enter an offer to compare"
+    : diff > 0.5
+      ? `$${fmtInt(diff)} over your max`
+      : diff < -0.5
+        ? `$${fmtInt(diff)} under your max. Great job.`
+        : "Right at your max.";
+  const scenarioText = hasOffer ? "your offer" : "the max allowable offer";
+
+  // One source of truth for every "Workings" B/C cell's cached value,
+  // mirroring the formulas below row for row — B is always the "at the max"
+  // scenario, C is "at your offer, or the max if blank" (the active price).
+  function wkField(row: number, side: "B" | "C"): number | string {
+    const s = side === "B" ? result : active;
+    switch (row) {
+      case 2:
+        return s.price;
+      case 3:
+        return inputs.rehab;
+      case 4:
+        return inputs.ltc;
+      case 5:
+        return (s.price + inputs.rehab) * inputs.ltc;
+      case 6:
+        return inputs.arv * LTARV_CAP;
+      case 7:
+        return s.loan;
+      case 8:
+        return s.limitedBy;
+      case 9:
+        return s.interest;
+      case 10:
+        return s.holding;
+      case 11:
+        return s.acquisition;
+      case 12:
+        return s.points;
+      case 13:
+        return s.selling;
+      case 14:
+        return s.totalCost;
+      case 15:
+        return s.profit;
+      case 16:
+        return s.cashIn;
+      case 17:
+        return s.margin;
+      case 18:
+        return s.cashOnCash;
+      case 19:
+        return STATUS_LABEL[status(s.margin)];
+      default:
+        throw new Error(`no cached value for Workings row ${row}`);
+    }
+  }
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "Manna Lending";
@@ -138,8 +229,8 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
     put(ws, addr, text, { font: font(10), align: LEFT, border: GRID });
   }
 
-  function formula(addr: string, f: string, numFmt: string, emphasize = false) {
-    put(ws, addr, { formula: f }, { font: emphasize ? font(12, true, TEAL) : font(10), align: RIGHT, numFmt, border: GRID });
+  function formula(addr: string, f: string, result: number | string, numFmt: string, emphasize = false) {
+    put(ws, addr, { formula: f, result }, { font: emphasize ? font(12, true, TEAL) : font(10), align: RIGHT, numFmt, border: GRID });
   }
 
   // --- Title band -----------------------------------------------------------
@@ -152,13 +243,12 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
   });
   ws.getRow(2).height = 20;
 
-  if (logoResponse?.ok) {
-    const logoBuffer = await logoResponse.arrayBuffer();
+  if (logoBuffer) {
     const imageId = wb.addImage({ base64: arrayBufferToBase64(logoBuffer), extension: "png" });
     ws.addImage(imageId, { tl: { col: 6.7, row: 0.15 }, ext: { width: 108, height: 41 } });
   }
 
-  // --- Deal inputs (A:B rows 5-16) -------------------------------------------
+  // --- Deal inputs (A:B rows 5-17) -------------------------------------------
   header(ws, "A4:B4", "DEAL INPUTS");
   label("A5", "After-repair value (ARV)");
   goldInput("B5", inputs.arv, CURRENCY, "What the property should sell for once the rehab is finished. Use recent comps.");
@@ -194,16 +284,18 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
     PERCENT,
     "Without prior experience, typically 80%-90% depending on the lender. With experience, some options go up to 100%."
   );
-  label("A12", "Taxes + insurance per year");
-  goldInput("B12", inputs.taxesInsPerYear, CURRENCY, "Annual property taxes plus insurance, prorated over your timeline.");
-  label("A13", "Misc. holding per month");
-  goldInput("B13", inputs.miscPerMonth, CURRENCY, "Utilities, HOA dues, lawn care and snow removal in one rough monthly number.");
-  label("A14", "Buying closing costs");
-  goldInput("B14", inputs.acqPct, PERCENT, "Closing costs on the way in, excluding lender points. Use 1-2% for off-market deals, 3-7% for MLS deals.");
-  label("A15", "Lender points (placeholder)");
-  goldInput("B15", inputs.pointsPct, PERCENT, "A planning placeholder. Lender points vary a lot by lender and borrower.");
-  label("A16", "Selling costs");
-  goldInput("B16", inputs.sellPct, PERCENT, "Costs on the way out: realtor commissions and seller fees. As low as 3% with one agent, up to 7% with two.");
+  label("A12", "Annual property taxes");
+  goldInput("B12", inputs.annualTaxes, CURRENCY, "Annual property taxes, prorated over your timeline.");
+  label("A13", "Annual insurance");
+  goldInput("B13", inputs.annualInsurance, CURRENCY, "Annual insurance premium, prorated over your timeline.");
+  label("A14", "Misc. holding per month");
+  goldInput("B14", inputs.miscPerMonth, CURRENCY, "Utilities, HOA dues, lawn care and snow removal in one rough monthly number.");
+  label("A15", "Buying closing costs");
+  goldInput("B15", inputs.acqPct, PERCENT, "Closing costs on the way in, excluding lender points. Use 1-2% for off-market deals, 3-7% for MLS deals.");
+  label("A16", "Lender points (placeholder)");
+  goldInput("B16", inputs.pointsPct, PERCENT, "A planning placeholder. Lender points vary a lot by lender and borrower.");
+  label("A17", "Selling costs");
+  goldInput("B17", inputs.sellPct, PERCENT, "Costs on the way out: realtor commissions and seller fees. As low as 3% with one agent, up to 7% with two.");
 
   // --- Result (D:F rows 5-16) -------------------------------------------------
   header(ws, "D4:F4", "RESULT");
@@ -214,8 +306,8 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
   const OFFERED = "N($B$9)>0";
   function dual(row: number, label2: string, workingsRow: number, numFmt: string, opts?: { bold?: boolean; big?: boolean }) {
     put(ws, `D${row}`, label2, { font: font(10, opts?.bold), align: LEFT, border: GRID });
-    formula(`E${row}`, `=Workings!B${workingsRow}`, numFmt, opts?.big);
-    formula(`F${row}`, `=IF(${OFFERED},Workings!C${workingsRow},"-")`, numFmt, opts?.big);
+    formula(`E${row}`, `=Workings!B${workingsRow}`, wkField(workingsRow, "B"), numFmt, opts?.big);
+    formula(`F${row}`, `=IF(${OFFERED},Workings!C${workingsRow},"-")`, hasOffer ? wkField(workingsRow, "C") : "-", numFmt, opts?.big);
   }
   dual(6, "Purchase price", 2, CURRENCY);
   put(ws, "D7", "Offer vs. the max", { font: font(10), align: LEFT, border: GRID });
@@ -226,6 +318,7 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
     {
       formula:
         '=IF(N($B$9)<=0,"Enter an offer to compare",IF($B$9>E6+0.5,TEXT($B$9-E6,"$#,##0")&" over your max",IF($B$9<E6-0.5,TEXT(E6-$B$9,"$#,##0")&" under your max. Great job.","Right at your max.")))',
+      result: offerVsMaxText,
     },
     { font: font(10, true, TEAL), align: RIGHT, border: GRID }
   );
@@ -244,28 +337,34 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
     {
       formula:
         '=IF(Workings!B19="On target","At the max, this deal pencils.",IF(Workings!B19="Thin","At the max, the margin is thin. Try a lower price or a smaller rehab.","At the max, this deal does not pencil."))',
+      result: verdictText,
     },
     { font: font(10, true, TEAL), align: { horizontal: "left", vertical: "middle", indent: 1, wrapText: true } }
   );
   put(ws, "D15", "Profit change vs. buying at the max", { font: font(10), align: LEFT, border: GRID });
   ws.mergeCells("E15:F15");
-  put(ws, "E15", { formula: "=IF(N($B$9)>0,Workings!C15-Workings!B15,\"-\")" }, { font: font(10, true), align: RIGHT, numFmt: "+$#,##0;-$#,##0;$0", border: GRID });
+  put(
+    ws,
+    "E15",
+    { formula: "=IF(N($B$9)>0,Workings!C15-Workings!B15,\"-\")", result: hasOffer ? result.atOffer.profit - result.profit : "-" },
+    { font: font(10, true), align: RIGHT, numFmt: "+$#,##0;-$#,##0;$0", border: GRID }
+  );
   put(ws, "D16", "Break-even offer (profit hits zero)", { font: font(10), align: LEFT, border: GRID });
   ws.mergeCells("E16:F16");
-  put(ws, "E16", { formula: "=Workings!B25" }, { font: font(10, true), align: RIGHT, numFmt: CURRENCY, border: GRID });
+  put(ws, "E16", { formula: "=Workings!B25", result: breakEvenValue }, { font: font(10, true), align: RIGHT, numFmt: CURRENCY, border: GRID });
 
   // --- Lender block (H:I) -----------------------------------------------------
   header(ws, "H4:I4", "HOW MUCH COULD YOU BORROW?");
-  const lender: [number, string, string, string, boolean][] = [
-    [5, "Up to (if you qualify)", "=Workings!C7", CURRENCY, true],
-    [6, "Based on buying at", '=IF(N($B$9)>0,"your offer","the max")', "@", false],
-    [7, "Limited by", "=Workings!C8", "@", false],
-    [8, "Loan as % of ARV", "=IF($B$5>0,Workings!C7/$B$5,0)", PERCENT, false],
-    [9, "You would put in about", "=Workings!C16", CURRENCY, false],
+  const lender: [number, string, string, number | string, string, boolean][] = [
+    [5, "Up to (if you qualify)", "=Workings!C7", active.loan, CURRENCY, true],
+    [6, "Based on buying at", '=IF(N($B$9)>0,"your offer","the max")', scenarioText, "@", false],
+    [7, "Limited by", "=Workings!C8", active.limitedBy, "@", false],
+    [8, "Loan as % of ARV", "=IF($B$5>0,Workings!C7/$B$5,0)", inputs.arv > 0 ? active.loan / inputs.arv : 0, PERCENT, false],
+    [9, "You would put in about", "=Workings!C16", active.cashIn, CURRENCY, false],
   ];
-  for (const [row, text, f, numFmt, big] of lender) {
+  for (const [row, text, f, cachedResult, numFmt, big] of lender) {
     put(ws, `H${row}`, text, { font: font(10, big), align: LEFT, border: GRID });
-    formula(`I${row}`, f, numFmt, big);
+    formula(`I${row}`, f, cachedResult, numFmt, big);
   }
   ws.mergeCells("H10:I12");
   put(
@@ -308,11 +407,16 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
     const row = 20 + i;
     const last = text === "Your profit";
     put(ws, `A${row}`, text, { font: font(10, last), align: LEFT, border: GRID });
-    formula(`B${row}`, `=Workings!C${workingsRow}`, CURRENCY, last);
+    formula(`B${row}`, `=Workings!C${workingsRow}`, wkField(workingsRow, "C"), CURRENCY, last);
     if (last) ws.getCell(`B${row}`).font = font(10, true, STATUS_GREEN_FG);
   });
   ws.mergeCells("A28:B28");
-  put(ws, "A28", { formula: '="Based on buying at "&IF(N($B$9)>0,"your offer","the max allowable offer")' }, { font: font(9, false, MOSS, true) });
+  put(
+    ws,
+    "A28",
+    { formula: '="Based on buying at "&IF(N($B$9)>0,"your offer","the max allowable offer")', result: `Based on buying at ${scenarioText}` },
+    { font: font(9, false, MOSS, true) }
+  );
 
   // --- Stress test (D:I rows 19-25) -------------------------------------------
   header(ws, "D19:I19", "IF THE SALE PRICE COMES IN LOWER");
@@ -322,9 +426,9 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
   put(ws, "G20", "", { fill: SAND_LIGHT });
   put(ws, "H20", "Margin", { font: font(10, true), fill: SAND_LIGHT, align: RIGHT });
   put(ws, "I20", "Status", { font: font(10, true), fill: SAND_LIGHT, align: CENTER });
-  [0, 0.05, 0.1, 0.15].forEach((drop, i) => {
+  stress.forEach((s, i) => {
     const row = 21 + i;
-    const cell = put(ws, `D${row}`, drop, {
+    const cell = put(ws, `D${row}`, s.drop, {
       font: font(10, true, "FF0000FF"),
       fill: GOLD_LIGHT,
       align: LEFT,
@@ -332,14 +436,15 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
       border: GOLD_BORDER,
     });
     cell.protection = { locked: false };
-    formula(`E${row}`, `=$B$5*(1-D${row})`, CURRENCY);
-    formula(`F${row}`, `=E${row}-E${row}*$B$16-Workings!$C$14`, CURRENCY, true);
-    formula(`H${row}`, `=IF(E${row}>0,F${row}/E${row},0)`, PERCENT, true);
-    put(ws, `I${row}`, { formula: `=IF(H${row}>=Workings!$F$3,"On target",IF(H${row}>=Workings!$F$4,"Thin","Below target"))` }, {
-      font: font(10, true),
-      align: CENTER,
-      border: GRID,
-    });
+    formula(`E${row}`, `=$B$5*(1-D${row})`, s.salePrice, CURRENCY);
+    formula(`F${row}`, `=E${row}-E${row}*$B$17-Workings!$C$14`, s.profit, CURRENCY, true);
+    formula(`H${row}`, `=IF(E${row}>0,F${row}/E${row},0)`, s.margin, PERCENT, true);
+    put(
+      ws,
+      `I${row}`,
+      { formula: `=IF(H${row}>=Workings!$F$3,"On target",IF(H${row}>=Workings!$F$4,"Thin","Below target"))`, result: STATUS_LABEL[status(s.margin)] },
+      { font: font(10, true), align: CENTER, border: GRID }
+    );
   });
   ws.mergeCells("D25:I25");
   put(
@@ -431,9 +536,10 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
   dv("B11", { type: "decimal", operator: "between", formulae: ["0", "1"], error: "Enter a loan-to-cost between 0% and 100%." });
   dv("B12", { type: "decimal", operator: "greaterThanOrEqual", formulae: ["0"], error: "Enter a dollar amount of 0 or more." });
   dv("B13", { type: "decimal", operator: "greaterThanOrEqual", formulae: ["0"], error: "Enter a dollar amount of 0 or more." });
-  dv("B14", { type: "decimal", operator: "between", formulae: ["0", "0.15"], error: "Enter a percent between 0% and 15%." });
-  dv("B15", { type: "decimal", operator: "between", formulae: ["0", "0.1"], error: "Enter lender points as a percent of the loan, 0% to 10%." });
-  dv("B16", { type: "decimal", operator: "between", formulae: ["0", "0.2"], error: "Enter a percent between 0% and 20%." });
+  dv("B14", { type: "decimal", operator: "greaterThanOrEqual", formulae: ["0"], error: "Enter a dollar amount of 0 or more." });
+  dv("B15", { type: "decimal", operator: "between", formulae: ["0", "0.15"], error: "Enter a percent between 0% and 15%." });
+  dv("B16", { type: "decimal", operator: "between", formulae: ["0", "0.1"], error: "Enter lender points as a percent of the loan, 0% to 10%." });
+  dv("B17", { type: "decimal", operator: "between", formulae: ["0", "0.2"], error: "Enter a percent between 0% and 20%." });
   dv("D21:D24", { type: "decimal", operator: "between", formulae: ["0", "0.5"], error: "Enter a drop between 0% and 50%." });
 
   // --- Page setup / protection --------------------------------------------
@@ -463,8 +569,8 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
   wput("C1", "At your offer (or the max if blank)", { font: font(10, true, WHITE), fill: TEAL, align: CENTER });
 
   wput("A2", "Purchase price", { align: LEFT });
-  wput("B2", { formula: "=MAX(0,Calculator!$B$7*Calculator!$B$5-Calculator!$B$6)" }, { numFmt: CURRENCY, align: RIGHT });
-  wput("C2", { formula: "=IF(N(Calculator!$B$9)>0,Calculator!$B$9,B2)" }, { numFmt: CURRENCY, align: RIGHT });
+  wput("B2", { formula: "=MAX(0,Calculator!$B$7*Calculator!$B$5-Calculator!$B$6)", result: wkField(2, "B") }, { numFmt: CURRENCY, align: RIGHT });
+  wput("C2", { formula: "=IF(N(Calculator!$B$9)>0,Calculator!$B$9,B2)", result: wkField(2, "C") }, { numFmt: CURRENCY, align: RIGHT });
 
   const WK_ROWS: [number, string, string, string][] = [
     [3, "Rehab", "=Calculator!$B$6", CURRENCY],
@@ -474,10 +580,10 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
     [7, "Loan (up to)", "=MIN({c}5,{c}6)", CURRENCY],
     [8, "Limited by", '=IF({c}5<={c}6,"Loan-to-cost","Loan-to-ARV")', "@"],
     [9, "Loan interest (simple, full loan)", "={c}7*Calculator!$B$10*Calculator!$B$8/12", CURRENCY],
-    [10, "Holding costs", "=(Calculator!$B$12/12+Calculator!$B$13)*Calculator!$B$8", CURRENCY],
-    [11, "Buying closing costs", "={c}2*Calculator!$B$14", CURRENCY],
-    [12, "Lender points ($)", "={c}7*Calculator!$B$15", CURRENCY],
-    [13, "Selling costs", "=Calculator!$B$5*Calculator!$B$16", CURRENCY],
+    [10, "Holding costs", "=((Calculator!$B$12+Calculator!$B$13)/12+Calculator!$B$14)*Calculator!$B$8", CURRENCY],
+    [11, "Buying closing costs", "={c}2*Calculator!$B$15", CURRENCY],
+    [12, "Lender points ($)", "={c}7*Calculator!$B$16", CURRENCY],
+    [13, "Selling costs", "=Calculator!$B$5*Calculator!$B$17", CURRENCY],
     [14, "Total project cost", "={c}2+{c}3+{c}11+{c}12+{c}9+{c}10", CURRENCY],
     [15, "Profit", "=Calculator!$B$5-{c}13-{c}14", CURRENCY],
     [16, "Cash you put in", "={c}14-{c}7", CURRENCY],
@@ -487,20 +593,41 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
   ];
   for (const [row, text, f, numFmt] of WK_ROWS) {
     wput(`A${row}`, text, { align: LEFT });
-    for (const c of ["B", "C"]) {
-      wput(`${c}${row}`, { formula: f.replaceAll("{c}", c) }, { numFmt, align: RIGHT });
+    for (const c of ["B", "C"] as const) {
+      wput(`${c}${row}`, { formula: f.replaceAll("{c}", c), result: wkField(row, c) }, { numFmt, align: RIGHT });
     }
   }
 
+  // Break-even workings — cached by recomputing the same closed-form algebra
+  // in JS for rows 22-24, and by the authoritative, test-covered breakEven()
+  // from max-offer-calc.ts for row 25 (what Calculator!E16 actually shows).
+  const interestPointsShare = inputs.rate * (inputs.months / 12) + inputs.pointsPct;
+  const breakEvenByLtc =
+    (inputs.arv - result.selling - inputs.rehab - result.holding - inputs.rehab * inputs.ltc * interestPointsShare) /
+    (1 + inputs.acqPct + inputs.ltc * interestPointsShare);
+  const breakEvenByLtarv = (inputs.arv - result.selling - inputs.rehab - result.holding - inputs.arv * LTARV_CAP * interestPointsShare) / (1 + inputs.acqPct);
+
   wput("A21", "Break-even offer workings", { font: font(10, true, "FF143D4A") });
   wput("A22", "Interest + points as a share of the loan", { align: LEFT });
-  wput("B22", { formula: "=Calculator!$B$10*Calculator!$B$8/12+Calculator!$B$15" }, { numFmt: "0.0000", align: RIGHT });
+  wput(
+    "B22",
+    { formula: "=Calculator!$B$10*Calculator!$B$8/12+Calculator!$B$16", result: interestPointsShare },
+    { numFmt: "0.0000", align: RIGHT }
+  );
   wput("A23", "Break-even if loan-to-cost limits the loan", { align: LEFT });
-  wput("B23", { formula: "=(Calculator!$B$5-B13-B3-B10-B3*B4*B22)/(1+Calculator!$B$14+B4*B22)" }, { numFmt: CURRENCY, align: RIGHT });
+  wput(
+    "B23",
+    { formula: "=(Calculator!$B$5-B13-B3-B10-B3*B4*B22)/(1+Calculator!$B$15+B4*B22)", result: breakEvenByLtc },
+    { numFmt: CURRENCY, align: RIGHT }
+  );
   wput("A24", "Break-even if the loan-to-ARV cap limits the loan", { align: LEFT });
-  wput("B24", { formula: "=(Calculator!$B$5-B13-B3-B10-B6*B22)/(1+Calculator!$B$14)" }, { numFmt: CURRENCY, align: RIGHT });
+  wput("B24", { formula: "=(Calculator!$B$5-B13-B3-B10-B6*B22)/(1+Calculator!$B$15)", result: breakEvenByLtarv }, { numFmt: CURRENCY, align: RIGHT });
   wput("A25", "Break-even offer", { font: font(10, true), align: LEFT });
-  wput("B25", { formula: "=MAX(0,IF((B23+B3)*B4<=B6,B23,B24))" }, { font: font(10, true), numFmt: CURRENCY, align: RIGHT });
+  wput(
+    "B25",
+    { formula: "=MAX(0,IF((B23+B3)*B4<=B6,B23,B24))", result: breakEvenValue },
+    { font: font(10, true), numFmt: CURRENCY, align: RIGHT }
+  );
 
   wput("E1", "Constants (change here if lender norms change)", { font: font(10, true, WHITE), fill: TEAL });
   wk.getCell("F1").fill = fill(TEAL);
@@ -522,12 +649,24 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
     wk.getCell(`C${row}`).protection = { locked: true };
   }
 
-  const buffer = await wb.xlsx.writeBuffer();
+  return wb.xlsx.writeBuffer();
+}
+
+export const MAX_OFFER_EXCEL_FILE_NAME = () => `manna-lending-max-offer-calculator-${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promise<void> {
+  // The "reversed" (white) lockup, not the primary teal one — this sits on
+  // the teal title band, where the teal-on-transparent version would be
+  // invisible.
+  const logoResponse = await fetch("/brand/manna-lending-onecolor-white-transparent.png").catch(() => null);
+  const logoBuffer = logoResponse?.ok ? await logoResponse.arrayBuffer() : null;
+
+  const buffer = await buildMaxOfferWorkbookBuffer(inputs, logoBuffer);
   const blob = new Blob([buffer], { type: "application/octet-stream" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `manna-lending-max-offer-calculator-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.download = MAX_OFFER_EXCEL_FILE_NAME();
   a.click();
   URL.revokeObjectURL(url);
 }

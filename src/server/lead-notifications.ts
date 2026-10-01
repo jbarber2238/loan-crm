@@ -6,7 +6,9 @@ import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
 import { htmlButton, emailShell } from "@/lib/email-html";
 import { leadMarketingEmailFooter } from "@/lib/lead-email-footer";
-import { NOTIFY_EMAIL } from "@/lib/lead-constants";
+import { NOTIFY_EMAIL, APPLY_URL } from "@/lib/lead-constants";
+import { generateMaxOfferExcelAttachment } from "@/server/max-offer-excel-server";
+import type { MaxOfferExcelInputs } from "@/lib/max-offer-excel-export";
 
 type Lead = typeof leads.$inferSelect;
 
@@ -29,7 +31,22 @@ async function getSystemSender() {
 // alongside each sendGmailAs call — the status-transition and "should this
 // fire" logic above this layer doesn't change.
 
-export async function sendLeadWelcomeEmail(lead: Lead, calculatorUrl: string, excelNote: string): Promise<void> {
+// Sent the moment the Excel-download gate form is submitted — the Excel
+// file itself downloads immediately in the browser (see
+// downloadMaxOfferExcel), so this email isn't the delivery mechanism for
+// the file; it's the follow-up that gives them the same file as an
+// attachment (in case the browser download gets lost or they're on a
+// different device later), a link back to the live calculator, and —
+// deliberately, not a generic "what deal are you looking at?" question —
+// a next step that depends on whether they said they have a deal under
+// contract: a push to submit it if so, nothing pushy if not (that signal
+// alone already lowers their priority via computeStatusAfterEvent).
+export async function sendMaxOfferExcelEmail(
+  lead: Lead,
+  inputs: MaxOfferExcelInputs,
+  calculatorUrl: string,
+  hasDealUnderContract: boolean | null
+): Promise<void> {
   // Marketing email — honor an opt-out even though, in practice, a fresh
   // gate-form submission always clears this first (see submitLead).
   if (lead.unsubscribedAt) return;
@@ -37,20 +54,30 @@ export async function sendLeadWelcomeEmail(lead: Lead, calculatorUrl: string, ex
   const sender = await getSystemSender();
   if (!sender) return;
 
-  const companyName = await getCompanyName();
-  const logoHtml = await getCompanyLogoHtml();
-  const signatureHtml = await getUserEmailSignatureHtml(sender.id);
+  const [companyName, logoHtml, signatureHtml, attachment] = await Promise.all([
+    getCompanyName(),
+    getCompanyLogoHtml(),
+    getUserEmailSignatureHtml(sender.id),
+    generateMaxOfferExcelAttachment(inputs),
+  ]);
   const firstName = lead.name.trim().split(/\s+/)[0] || lead.name;
+
+  const nextStepHtml = hasDealUnderContract
+    ? `
+      <p style="margin:0 0 16px;">Since you've got a deal under contract, the fastest next step is to submit it so we can get you a term sheet:</p>
+      <p style="margin:0 0 16px;">${htmlButton("Submit your deal", APPLY_URL)}</p>
+    `
+    : "";
 
   const body = emailShell({
     companyName,
-    heading: "Here's your calculator",
+    heading: "Here's your Excel file",
     bodyHtml: `
       <p style="margin:0 0 16px;">Hi ${firstName},</p>
-      <p style="margin:0 0 16px;">Thanks for grabbing the Max Allowable Offer Calculator — here's your link back to it any time:</p>
+      <p style="margin:0 0 16px;">Your Max Allowable Offer Calculator is attached as an Excel file, pre-filled with the numbers you entered — the formulas are all live, so you can keep testing different deals right in the spreadsheet. Here's your link back to the calculator itself any time:</p>
       <p style="margin:0 0 16px;">${htmlButton("Open the calculator", calculatorUrl)}</p>
-      <p style="margin:0 0 16px;">${excelNote}</p>
-      <p style="margin:0 0 16px;">One question: what deal are you looking at? Just reply to this email and let me know — I'll take a look.</p>
+      ${nextStepHtml}
+      <p style="margin:0 0 16px;">If you have any questions about your numbers, just reply to this email.</p>
     `,
   });
 
@@ -61,6 +88,7 @@ export async function sendLeadWelcomeEmail(lead: Lead, calculatorUrl: string, ex
     body: logoHtml + body + signatureHtml + leadMarketingEmailFooter(lead.id),
     html: true,
     category: "lead_magnet_welcome",
+    attachments: [attachment],
   });
 }
 

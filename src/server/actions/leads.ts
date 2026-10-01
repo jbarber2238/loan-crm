@@ -8,7 +8,8 @@ import { leads, leadActivities, leadActivityTypeEnum } from "@/server/db/schema"
 import { requireAdminOrLoanOfficer } from "@/server/auth/guards";
 import { toE164 } from "@/server/twilio-client";
 import { computeStatusAfterEvent, type LeadStatus } from "@/lib/lead-scoring";
-import { sendLeadWelcomeEmail, sendHotLeadAlert } from "@/server/lead-notifications";
+import { sendMaxOfferExcelEmail, sendHotLeadAlert } from "@/server/lead-notifications";
+import type { MaxOfferExcelInputs } from "@/lib/max-offer-excel-export";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
@@ -121,19 +122,25 @@ export async function submitLead(source: string, formData: FormData): Promise<{ 
     await logActivity(leadId, "form_submitted", { source });
   }
 
-  const lead = await db.query.leads.findFirst({ where: eq(leads.id, leadId) });
-  if (lead) {
-    // Carries the lead's own id so clicking the emailed link re-unlocks the
-    // calculator directly instead of showing the gate form again.
-    const calculatorUrl = `https://mannalendingco.com/resources/max-allowable-offer-calculator?lead=${leadId}`;
-    const excelNote =
-      "Once you've run your numbers, there's a “Download as Excel” button that hands you the same calculator, live formulas included, to keep stress-testing on your own.";
-    await sendLeadWelcomeEmail(lead, calculatorUrl, excelNote).catch((err) =>
-      console.error("Failed to send lead welcome email:", err)
-    );
-  }
-
   return { leadId };
+}
+
+// Public, unauthenticated — called right after submitLead succeeds on the
+// Max Allowable Offer Calculator's Excel-download gate. Kept separate from
+// submitLead itself (a generic, reusable lead-capture function with no
+// calculator-specific knowledge) since this needs the calculator's current
+// inputs, which the gate form never collects.
+export async function sendMaxOfferExcelEmailAction(
+  leadId: string,
+  inputs: MaxOfferExcelInputs,
+  hasDealUnderContract: boolean | null
+): Promise<void> {
+  const lead = await db.query.leads.findFirst({ where: eq(leads.id, leadId) });
+  if (!lead) return;
+  const calculatorUrl = `https://mannalendingco.com/resources/max-allowable-offer-calculator?lead=${leadId}`;
+  await sendMaxOfferExcelEmail(lead, inputs, calculatorUrl, hasDealUnderContract).catch((err) =>
+    console.error("Failed to send max offer excel email:", err)
+  );
 }
 
 // Public, unauthenticated — lets the emailed "here's your calculator" link

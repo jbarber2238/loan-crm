@@ -17,7 +17,8 @@ export interface MaxOfferCalcInputs {
   months: number;
   rate: number; // 0-1, annual simple interest placeholder
   ltc: number; // 0-1, loan-to-cost
-  taxesInsPerYear: number;
+  annualTaxes: number;
+  annualInsurance: number;
   miscPerMonth: number;
   acqPct: number; // 0-1, buying closing costs
   pointsPct: number; // 0-1, lender points
@@ -50,7 +51,7 @@ export function scenario(i: MaxOfferCalcInputs, price: number): ScenarioResult {
   const loan = Math.min(loanByLtc, loanByArv); // "up to" amount, never a quote
   const limitedBy: LimitedBy = loanByLtc <= loanByArv ? "Loan-to-cost" : "Loan-to-ARV";
   const interest = loan * i.rate * (i.months / 12); // simple interest on the full loan
-  const holding = (i.taxesInsPerYear / 12 + i.miscPerMonth) * i.months;
+  const holding = ((i.annualTaxes + i.annualInsurance) / 12 + i.miscPerMonth) * i.months;
   const acquisition = price * i.acqPct;
   const points = loan * i.pointsPct;
   const selling = arv * i.sellPct;
@@ -82,7 +83,13 @@ export interface CalculateResult extends ScenarioResult {
 export function calculate(i: MaxOfferCalcInputs): CalculateResult {
   const mao = Math.max(0, i.pctOfArv * i.arv - i.rehab); // Max Allowable Offer
   const price = i.offer && i.offer > 0 ? i.offer : mao; // active purchase price
-  return { mao, ...scenario(i, mao), atOffer: scenario(i, price), price };
+  // Deliberately no trailing `price` here: the `...scenario(i, mao)` spread
+  // already sets `.price` to mao (matching every other top-level field,
+  // which is always the "at max" scenario). A `price` property added after
+  // the spread would silently overwrite that with the active/offer price
+  // instead — exactly the kind of same-name shadowing bug this comment is
+  // here to stop someone from reintroducing.
+  return { mao, ...scenario(i, mao), atOffer: scenario(i, price) };
 }
 
 export type MarginStatus = "on_target" | "thin" | "below_target";
@@ -160,7 +167,8 @@ export const DEFAULTS: MaxOfferCalcInputs = {
   months: 6,
   rate: 0.105,
   ltc: 0.90,
-  taxesInsPerYear: 5100,
+  annualTaxes: 3600,
+  annualInsurance: 1500,
   miscPerMonth: 150,
   acqPct: 0.02,
   pointsPct: 0.02,
