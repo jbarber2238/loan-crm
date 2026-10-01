@@ -5,6 +5,7 @@ import { sendGmailAs } from "@/server/gmail/send";
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
 import { htmlButton, emailShell } from "@/lib/email-html";
+import { leadMarketingEmailFooter } from "@/lib/lead-email-footer";
 import { NOTIFY_EMAIL } from "@/lib/lead-constants";
 
 type Lead = typeof leads.$inferSelect;
@@ -29,6 +30,10 @@ async function getSystemSender() {
 // fire" logic above this layer doesn't change.
 
 export async function sendLeadWelcomeEmail(lead: Lead, calculatorUrl: string, excelNote: string): Promise<void> {
+  // Marketing email — honor an opt-out even though, in practice, a fresh
+  // gate-form submission always clears this first (see submitLead).
+  if (lead.unsubscribedAt) return;
+
   const sender = await getSystemSender();
   if (!sender) return;
 
@@ -53,7 +58,7 @@ export async function sendLeadWelcomeEmail(lead: Lead, calculatorUrl: string, ex
     to: lead.email,
     replyTo: NOTIFY_EMAIL,
     subject: "Your Max Allowable Offer Calculator",
-    body: logoHtml + body + signatureHtml,
+    body: logoHtml + body + signatureHtml + leadMarketingEmailFooter(lead.id),
     html: true,
     category: "lead_magnet_welcome",
   });

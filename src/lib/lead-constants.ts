@@ -14,3 +14,10 @@ export const COMPANY_PHONE_TEL = "+12692677506";
 export const COMPANY_EMAIL = "justin@creativecashpartners.com";
 /** Where internal "hot lead" alerts and the daily digest go — overridable without a code change. */
 export const NOTIFY_EMAIL = process.env.LEAD_NOTIFY_EMAIL ?? COMPANY_EMAIL;
+
+/** CAN-SPAM requires a real postal address in every marketing email — see leadMarketingEmailFooter. */
+export const COMPANY_MAILING_ADDRESS = "1813 Hawthorne Ave., Saint Joseph, MI 49085";
+
+/** Public unsubscribe page for a lead's marketing emails — see unsubscribeLeadFromMarketing. */
+export const UNSUBSCRIBE_PATH = (leadId: string) => `/unsubscribe/${leadId}`;
+export const UNSUBSCRIBE_URL = (leadId: string) => `https://mannalendingco.com${UNSUBSCRIBE_PATH(leadId)}`;

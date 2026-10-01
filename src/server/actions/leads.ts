@@ -96,6 +96,9 @@ export async function submitLead(source: string, formData: FormData): Promise<{ 
         consentIp: ip,
         consentAt: now,
         lastActivityAt: now,
+        // Resubmitting the gate form means re-checking the consent box right
+        // now — fresh consent supersedes a prior marketing opt-out.
+        unsubscribedAt: null,
       })
       .where(eq(leads.id, existing.id));
     leadId = existing.id;
@@ -140,6 +143,21 @@ export async function submitLead(source: string, formData: FormData): Promise<{ 
 export async function verifyLeadId(id: string): Promise<boolean> {
   const lead = await db.query.leads.findFirst({ where: eq(leads.id, id), columns: { id: true } });
   return Boolean(lead);
+}
+
+// Public, unauthenticated — the link in a marketing email's unsubscribe
+// footer. Scoped to marketing emails only (see leadMarketingEmailFooter):
+// doesn't touch marketingConsent, the hard gate on the calculator, or
+// manual phone/email outreach, only whether future marketing-footer emails
+// get sent to this lead. Returns the lead's first name for the confirmation
+// page's copy; a bogus/already-deleted id just shows a generic confirmation.
+export async function unsubscribeLeadFromMarketing(id: string): Promise<{ name: string | null }> {
+  const lead = await db.query.leads.findFirst({ where: eq(leads.id, id), columns: { name: true, unsubscribedAt: true } });
+  if (!lead) return { name: null };
+  if (!lead.unsubscribedAt) {
+    await db.update(leads).set({ unsubscribedAt: new Date() }).where(eq(leads.id, id));
+  }
+  return { name: lead.name };
 }
 
 // --- Post-unlock event logging -------------------------------------------

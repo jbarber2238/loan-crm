@@ -1244,6 +1244,12 @@ export const leads = pgTable("leads", {
   lastCalculatorResults: jsonb("last_calculator_results"),
   excelDownloadedAt: timestamp("excel_downloaded_at", { mode: "date", withTimezone: true }),
   contactedAt: timestamp("contacted_at", { mode: "date", withTimezone: true }),
+  // CAN-SPAM opt-out, scoped to marketing emails only — a lead's hard-gated
+  // calculator access and manual phone/email outreach are unaffected; this
+  // only stops future marketing-footer emails (see leadMarketingEmailFooter).
+  // Checked before every such send, and cleared automatically if the lead
+  // ever submits the gate form again (fresh consent supersedes an old opt-out).
+  unsubscribedAt: timestamp("unsubscribed_at", { mode: "date", withTimezone: true }),
   convertedDealId: uuid("converted_deal_id").references(() => deals.id, { onDelete: "set null" }),
   lastActivityAt: timestamp("last_activity_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
