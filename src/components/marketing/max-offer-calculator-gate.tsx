@@ -125,6 +125,22 @@ export function MaxOfferCalculatorGate({ leadIdFromUrl }: { leadIdFromUrl?: stri
       } catch {
         // Private browsing / blocked storage — just show the gate again.
       }
+
+      // Verified server-side too, same as the URL-param path — a stored id
+      // whose lead row was since deleted (e.g. test data cleanup) should
+      // fall back to the gate, not keep trusting a stale local value.
+      if (stored) {
+        const valid = await verifyLeadId(stored).catch(() => false);
+        if (!valid) {
+          stored = null;
+          try {
+            localStorage.removeItem(STORAGE_KEY);
+          } catch {
+            // Non-fatal — worst case it re-checks and clears again next visit.
+          }
+        }
+      }
+
       setLeadId(stored);
       setCheckedStorage(true);
     });
