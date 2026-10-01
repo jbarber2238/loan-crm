@@ -51,7 +51,13 @@ export default async function BorrowerUploadPage({ params }: { params: Promise<{
   const total = deal.needs.length;
   const acceptedNeeds = deal.needs.filter((n) => n.status === "accepted");
   const submittedNeeds = deal.needs.filter((n) => n.status === "review_needed");
-  const neededNeeds = deal.needs.filter((n) => n.status === "not_sent" || n.status === "awaiting_docs");
+  const neededNeeds = deal.needs.filter(
+    (n) =>
+      n.status === "not_sent" ||
+      n.status === "awaiting_docs" ||
+      n.status === "document_rejected_not_sent" ||
+      n.status === "need_rejected_not_sent"
+  );
   // Documents first within "needed" so the most common action type leads.
   const orderedNeeded = [
     ...neededNeeds.filter((n) => n.needType === "document_upload"),

@@ -1,7 +1,7 @@
 "use server";
 
 import { PAUSED_STAGES, TERMINAL_NEGATIVE_STAGES } from "@/lib/deal-pipeline";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { deals, dealClientNeeds, dealClientNeedDocuments, dealClientNeedAnswers } from "@/server/db/schema";
@@ -30,7 +30,13 @@ export interface BorrowerUploadNeed {
   itemName: string;
   description: string | null;
   needType: "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form" | "custom_form";
-  status: "not_sent" | "awaiting_docs" | "review_needed" | "accepted";
+  status:
+    | "not_sent"
+    | "awaiting_docs"
+    | "review_needed"
+    | "accepted"
+    | "document_rejected_not_sent"
+    | "need_rejected_not_sent";
   minFiles: number;
   linkUrl: string | null;
   templateFileName: string | null;
@@ -52,8 +58,12 @@ export async function getDealForBorrowerUpload(token: string) {
   if (!deal) return null;
 
   const needs = await db.query.dealClientNeeds.findMany({
-    // Needs on hold are hidden from the borrower entirely.
-    where: and(eq(dealClientNeeds.dealId, deal.id), isNull(dealClientNeeds.onHoldAt)),
+    // Needs on hold, or marked unused, are hidden from the borrower entirely.
+    where: and(
+      eq(dealClientNeeds.dealId, deal.id),
+      isNull(dealClientNeeds.onHoldAt),
+      ne(dealClientNeeds.status, "unused")
+    ),
     with: {
       documents: { columns: { reviewStatus: true, rejectionNote: true } },
       answers: {
@@ -72,7 +82,9 @@ export async function getDealForBorrowerUpload(token: string) {
     itemName: n.itemName,
     description: n.description,
     needType: n.needType,
-    status: n.status,
+    // The query already excludes status "unused" above — this narrows the
+    // type to match, since Drizzle can't express that from a `where` clause.
+    status: n.status as BorrowerUploadNeed["status"],
     minFiles: n.minFiles,
     linkUrl: n.linkUrl,
     templateFileName: n.templateFileName,

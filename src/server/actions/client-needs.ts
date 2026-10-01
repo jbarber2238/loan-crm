@@ -71,7 +71,11 @@ export async function createAndSendPandaDocForm(dealId: string, dealNeedId: stri
 // deliberate, one-off add — if two operating agreements are genuinely
 // needed, a second one has to actually get added, not silently dropped
 // while the UI still reports success. Those call sites pass `false`.
-async function addCatalogNeedsToDeal(dealId: string, catalogNeeds: CatalogNeedRow[], dedupeByName = true) {
+async function addCatalogNeedsToDeal(
+  dealId: string,
+  catalogNeeds: CatalogNeedRow[],
+  dedupeByName = true
+): Promise<{ id: string; itemName: string }[]> {
   let toAdd = catalogNeeds;
   if (dedupeByName) {
     const existing = await db.query.dealClientNeeds.findMany({
@@ -81,7 +85,7 @@ async function addCatalogNeedsToDeal(dealId: string, catalogNeeds: CatalogNeedRo
     const existingNames = new Set(existing.map((e) => e.itemName.toLowerCase()));
     toAdd = catalogNeeds.filter((n) => !existingNames.has(n.itemName.toLowerCase()));
   }
-  if (!toAdd.length) return 0;
+  if (!toAdd.length) return [];
 
   // sortOrder is what the UI actually displays needs in (see the column's
   // own comment in schema.ts) — assigned explicitly here, continuing from
@@ -111,13 +115,26 @@ async function addCatalogNeedsToDeal(dealId: string, catalogNeeds: CatalogNeedRo
         sortOrder: maxSortOrder + i + 1,
       }))
     )
-    .returning({ id: dealClientNeeds.id });
+    .returning({ id: dealClientNeeds.id, itemName: dealClientNeeds.itemName });
 
   await copyQuestionsToNewNeeds(
     toAdd.map((n, i) => ({ dealNeedId: inserted[i].id, catalogClientNeedId: n.id, needType: n.needType }))
   );
 
-  return toAdd.length;
+  return inserted;
+}
+
+// Thin wrapper for adding exactly one standard catalog need to a deal, used
+// by Change Need's "new need from the standard list" destination — a
+// deliberate, one-off add, same reasoning as addCatalogItemsToDeal above.
+export async function addSingleCatalogNeedToDeal(
+  dealId: string,
+  catalogNeedId: string
+): Promise<{ id: string; itemName: string } | null> {
+  const catalogNeed = await db.query.clientNeeds.findFirst({ where: eq(clientNeeds.id, catalogNeedId) });
+  if (!catalogNeed) return null;
+  const [created] = await addCatalogNeedsToDeal(dealId, [catalogNeed], false);
+  return created ?? null;
 }
 
 // The three-layer resolution, broad to narrow: every loan (isGlobal) → every
@@ -156,7 +173,8 @@ export async function populateClientNeedsFromProduct(dealId: string, productId: 
     ...(await resolveClientNeedsForProduct(productId)),
     ...(await conditionalNeedsForDeal(dealId)),
   ];
-  return addCatalogNeedsToDeal(dealId, catalogNeeds);
+  const added = await addCatalogNeedsToDeal(dealId, catalogNeeds);
+  return added.length;
 }
 
 // Catalog items whose autoRule condition currently holds for this deal
@@ -187,8 +205,8 @@ export async function syncConditionalClientNeeds(dealId: string) {
   });
   if (!existing) return 0;
   const added = await addCatalogNeedsToDeal(dealId, await conditionalNeedsForDeal(dealId));
-  if (added) revalidatePath(`/deals/${dealId}/loan-center`);
-  return added;
+  if (added.length) revalidatePath(`/deals/${dealId}/loan-center`);
+  return added.length;
 }
 
 // The "Auto Generate" button's entry point — same 3-layer resolution, just
@@ -205,7 +223,7 @@ export async function autoGenerateClientNeedsForProduct(dealId: string, productI
   }
   const added = await addCatalogNeedsToDeal(dealId, catalogNeeds);
   revalidatePath(`/deals/${dealId}/loan-center`);
-  return { added, total: catalogNeeds.length };
+  return { added: added.length, total: catalogNeeds.length };
 }
 
 // Maps the standard questionnaire needs' question text onto the discrete,
@@ -279,7 +297,7 @@ export async function addCatalogItemsToDeal(dealId: string, formData: FormData) 
   // one deal) must actually add a second one, not silently no-op.
   const added = await addCatalogNeedsToDeal(dealId, selected, false);
   revalidatePath(`/deals/${dealId}/loan-center`);
-  return added;
+  return added.length;
 }
 
 // The deal's "Custom Need" tab — full parity with the catalog's own create
@@ -288,15 +306,18 @@ export async function addCatalogItemsToDeal(dealId: string, formData: FormData) 
 // (isCustom: true unless "Standard" is checked) that happens to get copied
 // onto this one deal immediately. Reuses createClientNeed so there's exactly
 // one place that knows how to build a catalog row from this form.
-export async function addClientNeedToDeal(dealId: string, formData: FormData) {
+export async function addClientNeedToDeal(dealId: string, formData: FormData): Promise<{ id: string; itemName: string }> {
   const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId), columns: { productId: true } });
   const created = await createClientNeed(formData, { attachToProductId: deal?.productId ?? undefined });
   // Same reasoning as addCatalogItemsToDeal above — a deliberate, one-off add.
-  await addCatalogNeedsToDeal(dealId, [created], false);
+  const [dealNeed] = await addCatalogNeedsToDeal(dealId, [created], false);
 
   revalidatePath(`/deals/${dealId}/loan-center`);
   if (formData.get("isStandard") === "on") revalidatePath("/client-needs");
-  return created;
+  // The actual inserted deal-need row, not the catalog row createClientNeed
+  // returned — callers (e.g. createClientNeedFromCondition) need the id that
+  // dealClientNeeds-referencing foreign keys actually point to.
+  return dealNeed;
 }
 
 // Edits this deal's own copy only — same "plain snapshot" model as
@@ -367,10 +388,35 @@ export async function resumeClientNeedFromHold(dealId: string, needId: string) {
   revalidatePath(`/deals/${dealId}/loan-center`);
 }
 
+// For a need that turned out not to be required after the borrower already
+// uploaded something to it — not a rejection (nothing was wrong with the
+// document) and not a deletion (the document stays on the deal, just moved
+// to the Documents tab's Unused section). The row itself is kept, not
+// deleted, so its documents aren't cascade-deleted along with it; it's just
+// excluded from the active Client Needs list going forward (see the
+// loan-center page's query).
+export async function markClientNeedUnused(dealId: string, needId: string) {
+  await requireUser();
+  const need = await db.query.dealClientNeeds.findFirst({
+    where: and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)),
+    with: { documents: { columns: { id: true } } },
+  });
+  if (!need) throw new Error("Client need not found");
+  if (need.needType !== "document_upload" || need.documents.length === 0) {
+    throw new Error("Only mark a need unused once a document has been uploaded to it");
+  }
+  await db.update(dealClientNeeds).set({ status: "unused" }).where(eq(dealClientNeeds.id, needId));
+  revalidatePath(`/deals/${dealId}/loan-center`);
+}
+
 const NEED_STATUS_LABEL: Record<string, string> = {
   not_sent: "Not Sent",
   awaiting_docs: "Awaiting Docs",
   review_needed: "Review Needed",
+  accepted: "Accepted",
+  document_rejected_not_sent: "Document Rejected - Not Sent",
+  need_rejected_not_sent: "Need Rejected - Not Sent",
+  unused: "Unused",
 };
 
 // A plain, deterministic status pull (no AI) — a processor clicks "Pull

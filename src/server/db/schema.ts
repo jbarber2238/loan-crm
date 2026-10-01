@@ -111,16 +111,25 @@ export const dealStageEnum = pgEnum("deal_stage", [
 
 // A need's status is derived from its documents (see dealClientNeedDocuments) rather than a
 // single manual toggle: not_sent (never sent to the borrower), awaiting_docs
-// (sent, no document pending review — including a need whose last document
-// was rejected), review_needed (a document is attached and pending
-// approve/disapprove), accepted (an approved document is on file). esign/
-// questionnaire needs (no document to approve) still use this same enum,
-// just skipping review_needed.
+// (sent, no document pending review and no unresolved rejection), review_needed
+// (a document is attached and pending approve/disapprove), accepted (enough
+// approved documents are on file). esign/questionnaire needs (no document to
+// approve) still use this same enum, just skipping review_needed.
+// document_rejected_not_sent / need_rejected_not_sent: a document (or, when
+// every document on the need is rejected, the whole need) was rejected and
+// the processor hasn't manually re-sent the need since — see
+// deriveNeedStatus in client-need-status.ts. Excluded from the automatic
+// borrower reminder on purpose; manually sending flips it back to
+// awaiting_docs. unused: the need turned out not to be required after a
+// document was already uploaded to it — see markClientNeedUnused.
 export const dealClientNeedStatusEnum = pgEnum("deal_client_need_status", [
   "not_sent",
   "awaiting_docs",
   "review_needed",
   "accepted",
+  "document_rejected_not_sent",
+  "need_rejected_not_sent",
+  "unused",
 ]);
 
 export const clientNeedDocumentReviewStatusEnum = pgEnum("client_need_document_review_status", [
@@ -1065,6 +1074,11 @@ export const dealClientNeeds = pgTable("deal_client_needs", {
   // person's own Gmail, not always the loan officer's, since it's common
   // for a processor to be the one who originally requested an item.
   sentByUserId: uuid("sent_by_user_id").references(() => users.id),
+  // Updated on EVERY manual "Send to Borrower" (unlike sentAt, which is set
+  // once and kept as the reminder-interval baseline) — compared against a
+  // rejected document's reviewedAt in deriveNeedStatus to know whether the
+  // processor has told the borrower about a rejection yet.
+  lastSentAt: timestamp("last_sent_at", { mode: "date" }),
   // On hold: a flag layered over `status` (which keeps its real value) so
   // resuming restores exactly where the need was. While set, the need is
   // left out of borrower emails and the borrower upload page; the note is

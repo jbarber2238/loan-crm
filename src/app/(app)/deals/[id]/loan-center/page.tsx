@@ -8,6 +8,7 @@ import { TeamChatPanel } from "@/components/team-chat/team-chat-panel";
 import { getDealDocumentsForDocumentsTab } from "@/server/actions/client-need-documents";
 import { getEmailLogForDeal } from "@/server/actions/email-log";
 import { LoanCenterTab } from "@/components/deals/loan-center-tab";
+import type { ClientNeed } from "@/components/deals/client-needs-tab";
 
 export default async function DealLoanCenterPage({
   params,
@@ -34,7 +35,10 @@ export default async function DealLoanCenterPage({
       orderBy: (dc, { asc }) => asc(dc.createdAt),
     }),
     db.query.dealClientNeeds.findMany({
-      where: (dcn, { eq }) => eq(dcn.dealId, id),
+      // Unused needs are kept (their documents stay in the Documents tab)
+      // but deliberately excluded from this active list — see
+      // markClientNeedUnused.
+      where: (dcn, { eq, and, ne }) => and(eq(dcn.dealId, id), ne(dcn.status, "unused")),
       with: {
         documents: {
           columns: {
@@ -98,7 +102,9 @@ export default async function DealLoanCenterPage({
       processors={processors}
       assistants={assistants}
       followers={deal.followers}
-      clientNeeds={clientNeeds}
+      // The query already excludes status "unused" above — this narrows the
+      // type to match, since Drizzle can't express that from a `where` clause.
+      clientNeeds={clientNeeds as ClientNeed[]}
       clientNeedsCatalog={clientNeedsCatalog}
       loanCategoryProducts={categoryProducts.map((p) => ({
         id: p.id,

@@ -176,7 +176,7 @@ export function LoanCenterTab({
   initialTab?: string;
   /** Server-rendered internal team chat for this deal. */
   teamChat: React.ReactNode;
-  documents: { accepted: DealDocumentRow[]; rejected: DealDocumentRow[] };
+  documents: { accepted: DealDocumentRow[]; rejected: DealDocumentRow[]; unused: DealDocumentRow[] };
   propertyLabel: string;
 }) {
   return (
@@ -263,7 +263,15 @@ export function LoanCenterTab({
         </TabsContent>
 
         <TabsContent value="documents">
-          <DocumentsTab dealId={dealId} accepted={documents.accepted} rejected={documents.rejected} propertyLabel={propertyLabel} />
+          <DocumentsTab
+            dealId={dealId}
+            accepted={documents.accepted}
+            rejected={documents.rejected}
+            unused={documents.unused}
+            propertyLabel={propertyLabel}
+            needs={clientNeeds.map((n) => ({ id: n.id, itemName: n.itemName, needType: n.needType, status: n.status }))}
+            catalog={clientNeedsCatalog}
+          />
         </TabsContent>
 
         <TabsContent value="team-chat">{teamChat}</TabsContent>

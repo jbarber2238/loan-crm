@@ -3,12 +3,14 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { FileText, Pencil, Check, X, Sparkles, Send } from "lucide-react";
+import { FileText, Pencil, Check, X, Sparkles, Send, ArrowRightLeft } from "lucide-react";
 import {
   approveClientNeedDocuments,
   rejectClientNeedDocuments,
   renameClientNeedDocument,
 } from "@/server/actions/client-need-documents";
+import { ChangeNeedDialog, type ChangeNeedCandidate } from "@/components/deals/change-need-dialog";
+import type { DealCatalogItem } from "@/components/deals/add-client-need-to-deal-dialog";
 import {
   reviewClientNeedDocuments,
   askAboutClientNeedDocuments,
@@ -68,11 +70,55 @@ const STATUS_BADGE: Record<ReviewableDocument["reviewStatus"], { label: string; 
   pending: { label: "Review needed", variant: "warning" },
 };
 
+function DocumentThumbnail({
+  doc,
+  isCurrent,
+  checked,
+  onToggleChecked,
+  onSelect,
+  muted,
+}: {
+  doc: ReviewableDocument;
+  isCurrent: boolean;
+  checked: boolean;
+  onToggleChecked: (checked: boolean) => void;
+  onSelect: () => void;
+  muted?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "cursor-pointer space-y-0.5 rounded-md border p-1 text-center",
+        isCurrent && "border-primary ring-1 ring-primary",
+        muted && "opacity-60"
+      )}
+    >
+      <div className="flex items-center justify-between">
+        <Checkbox
+          checked={checked}
+          onCheckedChange={(v) => onToggleChecked(v === true)}
+          onClick={(e) => e.stopPropagation()}
+          className="size-3.5"
+        />
+        <Badge variant={STATUS_BADGE[doc.reviewStatus].variant} className="px-1 py-0 text-[8px] leading-tight">
+          {STATUS_BADGE[doc.reviewStatus].label}
+        </Badge>
+      </div>
+      <button type="button" onClick={onSelect} className="flex w-full flex-col items-center gap-0.5">
+        <FileText className="size-5 text-muted-foreground" />
+        <span className="line-clamp-2 text-[9px] leading-tight">{doc.fileName}</span>
+      </button>
+    </div>
+  );
+}
+
 export function ClientNeedDocumentReviewDialog({
   dealId,
   needId,
   needName,
   documents,
+  allNeeds,
+  catalog,
   initialDocumentId,
   open,
   onOpenChange,
@@ -81,6 +127,8 @@ export function ClientNeedDocumentReviewDialog({
   needId: string;
   needName: string;
   documents: ReviewableDocument[];
+  allNeeds: ChangeNeedCandidate[];
+  catalog: DealCatalogItem[];
   initialDocumentId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -231,31 +279,36 @@ export function ClientNeedDocumentReviewDialog({
               readable, this strip is just for quick page/file switching. */}
           {documents.length > 1 && (
             <div className="w-[84px] shrink-0 space-y-1.5 overflow-y-auto border-r pr-1.5">
-              {documents.map((doc) => (
-                <div
-                  key={doc.id}
-                  className={cn(
-                    "cursor-pointer space-y-0.5 rounded-md border p-1 text-center",
-                    doc.id === currentId && "border-primary ring-1 ring-primary"
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <Checkbox
-                      checked={checkedIds.has(doc.id)}
-                      onCheckedChange={(v) => toggleChecked(doc.id, v === true)}
-                      onClick={(e) => e.stopPropagation()}
-                      className="size-3.5"
-                    />
-                    <Badge variant={STATUS_BADGE[doc.reviewStatus].variant} className="px-1 py-0 text-[8px] leading-tight">
-                      {STATUS_BADGE[doc.reviewStatus].label}
-                    </Badge>
-                  </div>
-                  <button type="button" onClick={() => selectDocument(doc.id)} className="flex w-full flex-col items-center gap-0.5">
-                    <FileText className="size-5 text-muted-foreground" />
-                    <span className="line-clamp-2 text-[9px] leading-tight">{doc.fileName}</span>
-                  </button>
-                </div>
-              ))}
+              {documents
+                .filter((doc) => doc.reviewStatus !== "rejected")
+                .map((doc) => (
+                  <DocumentThumbnail
+                    key={doc.id}
+                    doc={doc}
+                    isCurrent={doc.id === currentId}
+                    checked={checkedIds.has(doc.id)}
+                    onToggleChecked={(v) => toggleChecked(doc.id, v)}
+                    onSelect={() => selectDocument(doc.id)}
+                  />
+                ))}
+              {documents.some((doc) => doc.reviewStatus === "rejected") && (
+                <>
+                  <p className="border-t pt-1.5 text-center text-[9px] font-medium text-muted-foreground">Rejected</p>
+                  {documents
+                    .filter((doc) => doc.reviewStatus === "rejected")
+                    .map((doc) => (
+                      <DocumentThumbnail
+                        key={doc.id}
+                        doc={doc}
+                        isCurrent={doc.id === currentId}
+                        checked={checkedIds.has(doc.id)}
+                        onToggleChecked={(v) => toggleChecked(doc.id, v)}
+                        onSelect={() => selectDocument(doc.id)}
+                        muted
+                      />
+                    ))}
+                </>
+              )}
             </div>
           )}
 
@@ -307,14 +360,28 @@ export function ClientNeedDocumentReviewDialog({
                 ) : (
                   <div className="flex items-start justify-between gap-1">
                     <p className="text-sm font-medium break-words">{current.fileName}</p>
-                    <button
-                      type="button"
-                      onClick={() => startRenaming(current)}
-                      className="shrink-0 text-muted-foreground hover:text-foreground"
-                      title="Rename file"
-                    >
-                      <Pencil className="size-3.5" />
-                    </button>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => startRenaming(current)}
+                        className="text-muted-foreground hover:text-foreground"
+                        title="Rename file"
+                      >
+                        <Pencil className="size-3.5" />
+                      </button>
+                      <ChangeNeedDialog
+                        dealId={dealId}
+                        documentId={current.id}
+                        sourceNeedId={needId}
+                        needs={allNeeds}
+                        catalog={catalog}
+                        trigger={
+                          <button type="button" className="text-muted-foreground hover:text-foreground" title="Change need">
+                            <ArrowRightLeft className="size-3.5" />
+                          </button>
+                        }
+                      />
+                    </div>
                   </div>
                 )}
                 <Badge variant={STATUS_BADGE[current.reviewStatus].variant} className="mt-1">

@@ -3,12 +3,15 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Download, FileText, Undo2 } from "lucide-react";
+import { Download, FileText, Undo2, Pencil, Check, X, ArrowRightLeft } from "lucide-react";
 import { CollapsibleSection } from "@/components/email-templates/collapsible-section";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { restoreRejectedDocuments } from "@/server/actions/client-need-documents";
+import { Input } from "@/components/ui/input";
+import { restoreRejectedDocuments, renameClientNeedDocument } from "@/server/actions/client-need-documents";
 import type { DealDocumentRow } from "@/server/actions/client-need-documents";
+import { ChangeNeedDialog, type ChangeNeedCandidate } from "@/components/deals/change-need-dialog";
+import type { DealCatalogItem } from "@/components/deals/add-client-need-to-deal-dialog";
 
 async function downloadZip(ids: string[], zipName: string) {
   const res = await fetch("/api/client-need-documents/download-zip", {
@@ -35,6 +38,8 @@ function DocumentSection({
   propertyLabel,
   showReason,
   showRestore,
+  needs,
+  catalog,
 }: {
   dealId: string;
   title: string;
@@ -42,12 +47,36 @@ function DocumentSection({
   propertyLabel: string;
   showReason: boolean;
   showRestore: boolean;
+  needs: ChangeNeedCandidate[];
+  catalog: DealCatalogItem[];
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [downloading, setDownloading] = useState(false);
   const [restoring, startRestore] = useTransition();
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [nameDraft, setNameDraft] = useState("");
+  const [renamePending, startRenameTransition] = useTransition();
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
+
+  function startRenaming(row: DealDocumentRow) {
+    setRenamingId(row.id);
+    setNameDraft(row.fileName);
+  }
+
+  function saveRename(row: DealDocumentRow) {
+    const trimmed = nameDraft.trim();
+    if (!trimmed) return;
+    startRenameTransition(async () => {
+      try {
+        await renameClientNeedDocument(dealId, row.clientNeedId, row.id, trimmed);
+        setRenamingId(null);
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't rename this document");
+      }
+    });
+  }
 
   function toggleAll(checked: boolean) {
     setSelected(checked ? new Set(rows.map((r) => r.id)) : new Set());
@@ -149,6 +178,7 @@ function DocumentSection({
                   <th className="px-3 py-2">Document Name</th>
                   <th className="px-3 py-2">Client Need Name</th>
                   {showReason && <th className="px-3 py-2">Reason for Rejection</th>}
+                  <th className="w-16 px-3 py-2" />
                 </tr>
               </thead>
               <tbody>
@@ -158,20 +188,71 @@ function DocumentSection({
                       <Checkbox checked={selected.has(r.id)} onCheckedChange={(v) => toggleOne(r.id, v === true)} />
                     </td>
                     <td className="px-3 py-2">
-                      <a
-                        href={`/api/client-need-documents/${r.id}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-1.5 hover:underline"
-                      >
-                        <FileText className="size-3.5 shrink-0 text-muted-foreground" />
-                        <span className="truncate">{r.fileName}</span>
-                      </a>
+                      {renamingId === r.id ? (
+                        <div className="flex items-center gap-1">
+                          <Input
+                            autoFocus
+                            value={nameDraft}
+                            onChange={(e) => setNameDraft(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveRename(r);
+                              if (e.key === "Escape") setRenamingId(null);
+                            }}
+                            className="h-7 text-sm"
+                          />
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="ghost"
+                            disabled={renamePending}
+                            onClick={() => saveRename(r)}
+                          >
+                            <Check className="size-4" />
+                          </Button>
+                          <Button type="button" size="icon-sm" variant="ghost" onClick={() => setRenamingId(null)}>
+                            <X className="size-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <a
+                          href={`/api/client-need-documents/${r.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1.5 hover:underline"
+                        >
+                          <FileText className="size-3.5 shrink-0 text-muted-foreground" />
+                          <span className="truncate">{r.fileName}</span>
+                        </a>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-muted-foreground">{r.itemName}</td>
                     {showReason && (
                       <td className="px-3 py-2 text-muted-foreground">{r.rejectionNote ?? "—"}</td>
                     )}
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => startRenaming(r)}
+                          className="text-muted-foreground hover:text-foreground"
+                          title="Rename file"
+                        >
+                          <Pencil className="size-3.5" />
+                        </button>
+                        <ChangeNeedDialog
+                          dealId={dealId}
+                          documentId={r.id}
+                          sourceNeedId={r.clientNeedId}
+                          needs={needs}
+                          catalog={catalog}
+                          trigger={
+                            <button type="button" className="text-muted-foreground hover:text-foreground" title="Change need">
+                              <ArrowRightLeft className="size-3.5" />
+                            </button>
+                          }
+                        />
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -187,12 +268,18 @@ export function DocumentsTab({
   dealId,
   accepted,
   rejected,
+  unused,
   propertyLabel,
+  needs,
+  catalog,
 }: {
   dealId: string;
   accepted: DealDocumentRow[];
   rejected: DealDocumentRow[];
+  unused: DealDocumentRow[];
   propertyLabel: string;
+  needs: ChangeNeedCandidate[];
+  catalog: DealCatalogItem[];
 }) {
   return (
     <div className="space-y-6">
@@ -203,6 +290,8 @@ export function DocumentsTab({
         propertyLabel={propertyLabel}
         showReason={false}
         showRestore={false}
+        needs={needs}
+        catalog={catalog}
       />
       <DocumentSection
         dealId={dealId}
@@ -211,6 +300,18 @@ export function DocumentsTab({
         propertyLabel={propertyLabel}
         showReason
         showRestore
+        needs={needs}
+        catalog={catalog}
+      />
+      <DocumentSection
+        dealId={dealId}
+        title="Unused"
+        rows={unused}
+        propertyLabel={propertyLabel}
+        showReason={false}
+        showRestore={false}
+        needs={needs}
+        catalog={catalog}
       />
     </div>
   );

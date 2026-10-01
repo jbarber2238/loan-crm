@@ -157,6 +157,13 @@ export async function sendClientNeedsUpdateEmail(
     .update(dealClientNeeds)
     .set({ sentAt: new Date(), sentByUserId: user.id })
     .where(and(inArray(dealClientNeeds.id, ids), isNull(dealClientNeeds.sentAt), isNull(dealClientNeeds.onHoldAt)));
+  // Unlike sentAt (set once), lastSentAt updates on every manual send — it's
+  // how a rejected need knows the borrower has been told again, clearing
+  // the "not sent" tag and making it reminder-eligible again.
+  await db
+    .update(dealClientNeeds)
+    .set({ lastSentAt: new Date() })
+    .where(and(inArray(dealClientNeeds.id, ids), isNull(dealClientNeeds.onHoldAt)));
   for (const id of ids) await recomputeNeedStatus(id);
 
   revalidatePath(`/deals/${dealId}/loan-center`);

@@ -56,6 +56,7 @@ import { CopyClientNeedsButton } from "@/components/deals/copy-client-needs-butt
 import { AddClientNeedToDealDialog, type DealCatalogItem } from "@/components/deals/add-client-need-to-deal-dialog";
 import { BulkDeleteClientNeedsDialog } from "@/components/deals/bulk-delete-client-needs-dialog";
 import { ClientNeedReminderAuditDialog } from "@/components/deals/client-need-reminder-audit-dialog";
+import { MarkUnusedDialog } from "@/components/deals/mark-unused-dialog";
 import {
   ClientNeedDocumentReviewDialog,
   type ReviewableDocument,
@@ -75,7 +76,16 @@ export interface ClientNeed {
   id: string;
   itemName: string;
   description: string | null;
-  status: "not_sent" | "awaiting_docs" | "review_needed" | "accepted";
+  // "unused" is a valid DB value but deliberately excluded from this type —
+  // the query feeding this component filters those needs out entirely (see
+  // loan-center/page.tsx), so a ClientNeed here never actually has it.
+  status:
+    | "not_sent"
+    | "awaiting_docs"
+    | "review_needed"
+    | "accepted"
+    | "document_rejected_not_sent"
+    | "need_rejected_not_sent";
   needType: "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form" | "custom_form";
   minFiles: number;
   sentAt: Date | null;
@@ -98,21 +108,27 @@ export interface ClientNeed {
 const ESIGN_NEED_TYPES = new Set(["esign", "pandadoc_form"]);
 
 const STATUS_LABEL: Record<ClientNeed["status"], string> = {
+  need_rejected_not_sent: "Need Rejected - Not Sent",
+  document_rejected_not_sent: "Document Rejected - Not Sent",
   not_sent: "Not Sent",
   awaiting_docs: "Awaiting Docs",
   review_needed: "Review Needed",
   accepted: "Accepted",
 };
 
-// Not sent yet → sent and waiting → submitted and awaiting review →
-// accepted, last. Array.sort is stable, so needs sharing a status keep
-// whatever order they arrived in (currently creation order) rather than
-// being shuffled.
+// Rejected-and-not-yet-resent sorts above everything, including plain Not
+// Sent — a processor needs to see these first since they require a manual
+// resend before the borrower is ever told. Otherwise: not sent yet → sent
+// and waiting → submitted and awaiting review → accepted, last. Array.sort
+// is stable, so needs sharing a status keep whatever order they arrived in
+// (currently creation order) rather than being shuffled.
 const STATUS_SORT_ORDER: Record<ClientNeed["status"], number> = {
-  not_sent: 0,
-  awaiting_docs: 1,
-  review_needed: 2,
-  accepted: 3,
+  need_rejected_not_sent: 0,
+  document_rejected_not_sent: 0,
+  not_sent: 1,
+  awaiting_docs: 2,
+  review_needed: 3,
+  accepted: 4,
 };
 
 function sortByStatus(list: ClientNeed[]): ClientNeed[] {
@@ -120,11 +136,23 @@ function sortByStatus(list: ClientNeed[]): ClientNeed[] {
 }
 
 const STATUS_VARIANT: Record<ClientNeed["status"], "destructive" | "secondary" | "warning" | "success"> = {
+  need_rejected_not_sent: "destructive",
+  document_rejected_not_sent: "destructive",
   not_sent: "destructive",
   awaiting_docs: "secondary",
   review_needed: "warning",
   accepted: "success",
 };
+
+// Questionnaire/PandaDoc needs have no document to upload — "Awaiting Docs"
+// reads wrong for them, so they get their own label at the same status
+// (same color) rather than a distinct status value.
+function statusLabelFor(need: ClientNeed): string {
+  if (need.status === "awaiting_docs" && (need.needType === "questionnaire" || need.needType === "pandadoc_form")) {
+    return "Awaiting Completion";
+  }
+  return STATUS_LABEL[need.status];
+}
 
 function CopyUploadLinkItem({ dealId }: { dealId: string }) {
   async function handleClick() {
@@ -305,16 +333,18 @@ function AiReviewButton({ dealId, needId }: { dealId: string; needId: string }) 
 function DocumentRow({
   document,
   onClick,
+  muted,
 }: {
   document: ReviewableDocument;
   onClick: () => void;
+  muted?: boolean;
 }) {
   return (
     <>
       <button
         type="button"
         onClick={onClick}
-        className="flex w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-sm hover:bg-muted/50"
+        className={`flex w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-sm hover:bg-muted/50 ${muted ? "opacity-60" : ""}`}
       >
         <span className="truncate">{document.fileName}</span>
         {document.reviewStatus === "approved" && <Badge variant="success">Approved</Badge>}
@@ -599,6 +629,14 @@ function NeedActionsMenu({ dealId, need }: { dealId: string; need: ClientNeed })
             <DropdownMenuItem onClick={() => setHoldOpen(true)}>Put on hold</DropdownMenuItem>
           ) : null}
           <DropdownMenuItem onClick={() => setAuditOpen(true)}>Reminder history</DropdownMenuItem>
+          {need.needType === "document_upload" && need.documents.length > 0 && (
+            <MarkUnusedDialog
+              dealId={dealId}
+              needId={need.id}
+              itemName={need.itemName}
+              trigger={<DropdownMenuItem onSelect={(e) => e.preventDefault()}>Mark Unused</DropdownMenuItem>}
+            />
+          )}
           <DropdownMenuItem variant="destructive" onClick={handleDelete}>
             Delete
           </DropdownMenuItem>
@@ -620,11 +658,15 @@ function NeedActionsMenu({ dealId, need }: { dealId: string; need: ClientNeed })
 function ClientNeedRow({
   dealId,
   need,
+  allNeeds,
+  catalog,
   selected,
   onToggleSelected,
 }: {
   dealId: string;
   need: ClientNeed;
+  allNeeds: ClientNeed[];
+  catalog: DealCatalogItem[];
   selected: boolean;
   onToggleSelected: (checked: boolean) => void;
 }) {
@@ -691,7 +733,7 @@ function ClientNeedRow({
                   className="inline-flex items-center gap-0.5"
                   title={expanded ? "Hide details" : "Show details"}
                 >
-                  <Badge variant={STATUS_VARIANT[need.status]}>{STATUS_LABEL[need.status]}</Badge>
+                  <Badge variant={STATUS_VARIANT[need.status]}>{statusLabelFor(need)}</Badge>
                   {expanded ? (
                     <ChevronDown className="size-3.5 text-muted-foreground" />
                   ) : (
@@ -699,7 +741,7 @@ function ClientNeedRow({
                   )}
                 </button>
               ) : (
-                <Badge variant={STATUS_VARIANT[need.status]}>{STATUS_LABEL[need.status]}</Badge>
+                <Badge variant={STATUS_VARIANT[need.status]}>{statusLabelFor(need)}</Badge>
               )}
               {need.onHoldAt && <Badge variant="outline">On Hold</Badge>}
               {aiFlagCount > 0 && (
@@ -808,10 +850,24 @@ function ClientNeedRow({
         </div>
 
         {hasDocuments && expanded && (
-          <div className="space-y-1">
-            {need.documents.map((doc) => (
-              <DocumentRow key={doc.id} document={doc} onClick={() => openReview(doc.id)} />
-            ))}
+          <div className="space-y-3">
+            <div className="space-y-1">
+              {need.documents
+                .filter((doc) => doc.reviewStatus !== "rejected")
+                .map((doc) => (
+                  <DocumentRow key={doc.id} document={doc} onClick={() => openReview(doc.id)} />
+                ))}
+            </div>
+            {need.documents.some((doc) => doc.reviewStatus === "rejected") && (
+              <div className="space-y-1 border-t pt-2">
+                <p className="text-xs font-medium text-muted-foreground">Rejected</p>
+                {need.documents
+                  .filter((doc) => doc.reviewStatus === "rejected")
+                  .map((doc) => (
+                    <DocumentRow key={doc.id} document={doc} onClick={() => openReview(doc.id)} muted />
+                  ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -839,6 +895,8 @@ function ClientNeedRow({
           needId={need.id}
           needName={need.itemName}
           documents={need.documents}
+          allNeeds={allNeeds.map((n) => ({ id: n.id, itemName: n.itemName, needType: n.needType, status: n.status }))}
+          catalog={catalog}
           initialDocumentId={reviewDocId}
           open={reviewOpen}
           onOpenChange={setReviewOpen}
@@ -1294,6 +1352,8 @@ export function ClientNeedsTab({
               key={need.id}
               dealId={dealId}
               need={need}
+              allNeeds={needs}
+              catalog={catalog}
               selected={selectedIds.has(need.id)}
               onToggleSelected={(checked) => toggleOne(need.id, checked)}
             />
@@ -1307,6 +1367,8 @@ export function ClientNeedsTab({
               key={need.id}
               dealId={dealId}
               need={need}
+              allNeeds={needs}
+              catalog={catalog}
               selected={selectedIds.has(need.id)}
               onToggleSelected={(checked) => toggleOne(need.id, checked)}
             />

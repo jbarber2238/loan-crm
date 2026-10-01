@@ -7,6 +7,7 @@ import { dealClientNeeds, dealClientNeedDocuments } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { recomputeNeedStatus } from "@/server/client-need-status";
 import { convertHeicIfNeeded } from "@/server/heic";
+import { addSingleCatalogNeedToDeal, addClientNeedToDeal } from "@/server/actions/client-needs";
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
 
@@ -151,14 +152,16 @@ export interface DealDocumentRow {
   id: string;
   fileName: string;
   itemName: string;
+  clientNeedId: string;
   rejectionNote: string | null;
   createdAt: Date;
 }
 
-/** Every accepted/rejected document on a deal, for the Documents tab — grouped client-side by status. */
+/** Every accepted/rejected/unused document on a deal, for the Documents tab — grouped client-side by status. */
 export async function getDealDocumentsForDocumentsTab(dealId: string): Promise<{
   accepted: DealDocumentRow[];
   rejected: DealDocumentRow[];
+  unused: DealDocumentRow[];
 }> {
   await requireUser();
   const rows = await db.query.dealClientNeedDocuments.findMany({
@@ -167,22 +170,84 @@ export async function getDealDocumentsForDocumentsTab(dealId: string): Promise<{
         d.clientNeedId,
         db.select({ id: dealClientNeeds.id }).from(dealClientNeeds).where(eqD(dealClientNeeds.dealId, dealId))
       ),
-    with: { clientNeed: { columns: { itemName: true } } },
+    with: { clientNeed: { columns: { itemName: true, status: true } } },
     orderBy: (d, { desc }) => desc(d.createdAt),
   });
 
   const accepted: DealDocumentRow[] = [];
   const rejected: DealDocumentRow[] = [];
+  const unused: DealDocumentRow[] = [];
   for (const r of rows) {
     const row: DealDocumentRow = {
       id: r.id,
       fileName: r.fileName,
       itemName: r.clientNeed.itemName,
+      clientNeedId: r.clientNeedId,
       rejectionNote: r.rejectionNote,
       createdAt: r.createdAt,
     };
-    if (r.reviewStatus === "approved") accepted.push(row);
+    // A need marked Unused claims ALL of its documents for this section,
+    // regardless of their individual review status (one might still be
+    // "pending" — it was never actually reviewed, just no longer needed).
+    if (r.clientNeed.status === "unused") unused.push(row);
+    else if (r.reviewStatus === "approved") accepted.push(row);
     else if (r.reviewStatus === "rejected") rejected.push(row);
   }
-  return { accepted, rejected };
+  return { accepted, rejected, unused };
+}
+
+export type ChangeNeedDestination =
+  | { type: "existing"; needId: string }
+  | { type: "new_standard"; catalogNeedId: string }
+  | { type: "custom"; itemName: string; description?: string };
+
+/**
+ * Moves one document to a different client need on the same deal — a pure
+ * reassignment (UPDATE, never an insert), so the document can never end up
+ * in two needs at once. The document's own review status/rejection note are
+ * left untouched; this just corrects which need it's filed under. Both the
+ * source and destination needs get their status recomputed afterward.
+ */
+export async function changeClientNeedDocument(
+  dealId: string,
+  documentId: string,
+  destination: ChangeNeedDestination
+) {
+  await requireUser();
+  const doc = await db.query.dealClientNeedDocuments.findFirst({
+    where: eq(dealClientNeedDocuments.id, documentId),
+    with: { clientNeed: { columns: { id: true, dealId: true } } },
+  });
+  if (!doc || doc.clientNeed.dealId !== dealId) throw new Error("Document not found on this deal");
+  const sourceNeedId = doc.clientNeedId;
+
+  let destinationNeedId: string;
+  if (destination.type === "existing") {
+    const dest = await db.query.dealClientNeeds.findFirst({
+      where: and(eq(dealClientNeeds.id, destination.needId), eq(dealClientNeeds.dealId, dealId)),
+    });
+    if (!dest || dest.id === sourceNeedId) throw new Error("Pick a different, existing need on this deal");
+    destinationNeedId = dest.id;
+  } else if (destination.type === "new_standard") {
+    const created = await addSingleCatalogNeedToDeal(dealId, destination.catalogNeedId);
+    if (!created) throw new Error("Couldn't create that need");
+    destinationNeedId = created.id;
+  } else {
+    if (!destination.itemName.trim()) throw new Error("Name the new need");
+    const formData = new FormData();
+    formData.set("itemName", destination.itemName.trim());
+    if (destination.description) formData.set("description", destination.description);
+    formData.set("needType", "document_upload");
+    const created = await addClientNeedToDeal(dealId, formData);
+    destinationNeedId = created.id;
+  }
+
+  await db
+    .update(dealClientNeedDocuments)
+    .set({ clientNeedId: destinationNeedId })
+    .where(eq(dealClientNeedDocuments.id, documentId));
+
+  await recomputeNeedStatus(sourceNeedId);
+  await recomputeNeedStatus(destinationNeedId);
+  revalidatePath(`/deals/${dealId}/loan-center`);
 }

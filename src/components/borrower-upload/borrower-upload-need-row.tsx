@@ -29,6 +29,8 @@ export function AcceptedNeedRow({ need }: { need: BorrowerUploadNeed }) {
 const STATUS_LABEL: Record<BorrowerUploadNeed["status"], string> = {
   not_sent: "Needed",
   awaiting_docs: "Needed",
+  document_rejected_not_sent: "Needed",
+  need_rejected_not_sent: "Needed",
   review_needed: "Submitted — under review",
   accepted: "Complete",
 };
