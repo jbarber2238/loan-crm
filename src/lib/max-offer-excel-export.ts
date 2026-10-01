@@ -41,6 +41,24 @@ const PERCENT = "0.0%";
 
 export type MaxOfferExcelInputs = MaxOfferCalcInputs;
 
+// exceljs's `{ formula }` cell value must NOT include the leading "=" — it
+// writes the formula text verbatim into the `<f>` XML tag, and Excel always
+// implies the "=" itself. Every formula string in this file is written with
+// its natural leading "=" for readability, so it's stripped once here
+// centrally rather than by hand at each call site (previously this wasn't
+// stripped at all, which corrupted every formula cell: Excel/Sheets choke on
+// `<f>=A1+B1</f>` and render blank with an error indicator instead of a
+// value — confirmed by inspecting a generated file's raw sheet XML).
+function normalizeFormula(value: unknown): unknown {
+  if (value && typeof value === "object" && "formula" in value) {
+    const v = value as { formula: unknown };
+    if (typeof v.formula === "string" && v.formula.startsWith("=")) {
+      return { ...v, formula: v.formula.slice(1) };
+    }
+  }
+  return value;
+}
+
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   let binary = "";
   const bytes = new Uint8Array(buffer);
@@ -59,6 +77,10 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "Manna Lending";
+  // Forces every formula to recalculate the moment the file opens, rather
+  // than trusting a viewer's own default calculation mode (some open in
+  // manual mode and would otherwise show blank/stale formula cells).
+  wb.calcProperties.fullCalcOnLoad = true;
 
   const ws = wb.addWorksheet("Calculator", { views: [{ showGridLines: false }] });
   const wk = wb.addWorksheet("Workings", { views: [{ showGridLines: false }] });
@@ -87,7 +109,7 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
 
   function put(sheet: typeof ws, addr: string, value: unknown, opts?: { font?: ReturnType<typeof font>; fill?: string; align?: object; numFmt?: string; border?: object }) {
     const cell = sheet.getCell(addr);
-    cell.value = value as never;
+    cell.value = normalizeFormula(value) as never;
     cell.font = opts?.font ?? font();
     if (opts?.fill) cell.fill = fill(opts.fill);
     if (opts?.align) cell.alignment = opts.align as never;
@@ -429,7 +451,7 @@ export async function downloadMaxOfferExcel(inputs: MaxOfferExcelInputs): Promis
   wk.columns = [{ width: 34 }, { width: 18 }, { width: 24 }, { width: 3 }, { width: 34 }, { width: 12 }];
   function wput(addr: string, value: unknown, opts?: { font?: ReturnType<typeof font>; fill?: string; align?: object; numFmt?: string }) {
     const cell = wk.getCell(addr);
-    cell.value = value as never;
+    cell.value = normalizeFormula(value) as never;
     cell.font = opts?.font ?? font();
     if (opts?.fill) cell.fill = fill(opts.fill);
     if (opts?.align) cell.alignment = opts.align as never;
