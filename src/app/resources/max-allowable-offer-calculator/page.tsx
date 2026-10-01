@@ -44,7 +44,10 @@ export default async function MaxOfferCalculatorPage({
       </section>
 
       <section style={{ backgroundColor: OFF_WHITE }}>
-        <div className="mx-auto max-w-6xl px-6 py-10 md:py-12">
+        {/* Wider than the site's standard max-w-6xl content column — the
+            fanned screenshots need real room to be prominent next to a
+            full-size form, more than the nav-width column leaves available. */}
+        <div className="mx-auto max-w-[1600px] px-6 py-10 md:py-12">
           <MaxOfferCalculatorGate leadIdFromUrl={lead} />
         </div>
       </section>

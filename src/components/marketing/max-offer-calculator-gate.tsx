@@ -37,24 +37,25 @@ function BulletRow() {
   );
 }
 
-// Percent-of-frame positions, carried over from a design mockup tuned at a
-// 1199×660 reference frame — kept as a fraction of that frame (via an
-// aspect-ratio container) so the fan scales together at any width instead
-// of the pieces drifting apart.
+// Percent-of-container positions, sized to fill the fan's own dedicated
+// column edge-to-edge (not a tight corner cluster) — kept as percentages so
+// the fan scales together as the column's own width/height change.
 const FANNED_SHOTS = [
-  { src: "/marketing/moac-preview-step1.png", alt: "Step 1: setting your max allowable offer", left: 1.08, top: 2.42, width: 38.95, aspect: "467/277", rotate: -7, shadow: "0 18px 30px rgba(20,20,20,0.16)", z: 1 },
-  { src: "/marketing/moac-preview-step2.png", alt: "Step 2: purchase price and leverage", left: 4.92, top: 11.52, width: 38.45, aspect: "461/276", rotate: -2, shadow: "0 22px 38px rgba(20,20,20,0.18)", z: 2 },
-  { src: "/marketing/moac-preview-step6.png", alt: "Step 6: projected profit and margin", left: 9.26, top: 20.3, width: 38.95, aspect: "467/302", rotate: 2.5, shadow: "0 30px 50px rgba(20,20,20,0.22)", z: 3 },
+  { src: "/marketing/moac-preview-step1.png", alt: "Step 1: setting your max allowable offer", left: 0, top: 0, width: 58, aspect: "467/277", rotate: -7, shadow: "0 18px 30px rgba(20,20,20,0.16)", z: 1 },
+  { src: "/marketing/moac-preview-step2.png", alt: "Step 2: purchase price and leverage", left: 13, top: 14, width: 58, aspect: "461/276", rotate: -2, shadow: "0 22px 38px rgba(20,20,20,0.18)", z: 2 },
+  { src: "/marketing/moac-preview-step6.png", alt: "Step 6: projected profit and margin", left: 26, top: 28, width: 58, aspect: "467/302", rotate: 2.5, shadow: "0 30px 50px rgba(20,20,20,0.22)", z: 3 },
 ];
 
 function FannedPreview({ leadGateForm }: { leadGateForm: React.ReactNode }) {
   return (
     <>
-      {/* Desktop: fanned screenshots on the left, a wide form column on the
-          right — a plain grid rather than absolute overlap math, so the
-          form's width is just "a grid column," not a fiddly percentage. */}
-      <div className="hidden items-center gap-10 md:grid md:grid-cols-[1.4fr_1fr]">
-        <div className="relative" style={{ aspectRatio: "720 / 460" }}>
+      {/* Desktop: fanned screenshots on the left, form on the right at its
+          own fixed-feeling size — the fan column takes the lion's share of
+          a wider row (not the standard content width) and stretches to the
+          form's full height, instead of being capped by a tight aspect-ratio
+          box that left blank space around it. */}
+      <div className="hidden gap-10 md:grid md:grid-cols-[1.6fr_1fr]">
+        <div className="relative h-full min-h-[460px]">
           {FANNED_SHOTS.map((shot) => (
             <div
               key={shot.src}
@@ -69,7 +70,7 @@ function FannedPreview({ leadGateForm }: { leadGateForm: React.ReactNode }) {
                 zIndex: shot.z,
               }}
             >
-              <Image src={shot.src} alt={shot.alt} fill className="object-cover" sizes="40vw" />
+              <Image src={shot.src} alt={shot.alt} fill className="object-cover" sizes="50vw" />
             </div>
           ))}
         </div>
