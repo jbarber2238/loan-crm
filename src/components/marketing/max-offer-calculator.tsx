@@ -3,193 +3,375 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Download, Loader2 } from "lucide-react";
-import { Slider } from "@/components/ui/slider";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Field, ResultRow, money, num } from "@/components/marketing/loan-calculators";
+import { ActionForm, useFormPending } from "@/components/forms/action-form";
+import { money } from "@/components/marketing/loan-calculators";
 import { downloadMaxOfferExcel } from "@/lib/max-offer-excel-export";
-import { computeCashInvested, computeCashOnCashReturnPct } from "@/lib/lead-scoring";
+import { calculate, offerVsMax, status, stressTest, type MaxOfferCalcInputs, type MarginStatus } from "@/lib/max-offer-calc";
 import { APPLY_PATH } from "@/lib/lead-constants";
-import { logCalculatorUsed, logExcelDownloaded, logCtaClicked, submitDealQuestions, type CtaTier } from "@/server/actions/leads";
+import { logCalculatorUsed, logExcelDownloaded, logCtaClicked, submitDealQuestions, submitLead, type CtaTier } from "@/server/actions/leads";
 
 const TEAL = "#143D4A";
 const MOSS = "#68735F";
 const BASALT = "#1E1E1E";
 const SAND = "#CBB8A0";
 const GOLD = "#C99A3D";
-const TERRACOTTA = "#B4623B";
-const SLATE = "#4F6B70";
-const TAUPE = "#9C8564";
-const PLUM = "#7A5548";
 const GREEN = "#3F8F5C";
 const RED = "#C1443A";
 const AMBER = "#D69A3E";
+const OFF_WHITE = "#FAF7F2";
 
-function RangeSlider({
-  label,
-  value,
-  onChange,
-  min,
-  max,
-  step = 1,
-  format,
-  note,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  min: number;
-  max: number;
-  step?: number;
-  format: (v: number) => string;
-  note?: string;
-}) {
-  return (
-    <div>
-      <div className="flex items-baseline justify-between">
-        <span className="text-xs font-medium tracking-wide" style={{ color: BASALT }}>
-          {label}
-        </span>
-        <span className="text-sm font-semibold" style={{ color: TEAL }}>
-          {format(value)}
-        </span>
-      </div>
-      <div className="mt-3">
-        <Slider value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={step} />
-      </div>
-      {note && (
-        <p className="mt-2 text-xs leading-relaxed" style={{ color: MOSS }}>
-          {note}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function SectionCard({
-  step,
-  title,
-  subtitle,
-  children,
-}: {
-  step: number;
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-sm border bg-white p-6 shadow-[0_8px_24px_rgba(20,61,74,0.08)] md:p-8" style={{ borderColor: "rgba(20,61,74,0.15)" }}>
-      <div className="flex items-center gap-3">
-        <span
-          className="flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
-          style={{ backgroundColor: TEAL }}
-        >
-          {step}
-        </span>
-        <h3 className="text-lg font-medium" style={{ color: TEAL }}>
-          {title}
-        </h3>
-      </div>
-      {subtitle && (
-        <p className="mt-2 text-sm leading-relaxed" style={{ color: BASALT }}>
-          {subtitle}
-        </p>
-      )}
-      <div className="mt-6 space-y-6">{children}</div>
-    </div>
-  );
-}
-
-interface CostSegment {
-  label: string;
-  amount: number;
-  color: string;
-}
-
-function CostStackBar({ segments, total }: { segments: CostSegment[]; total: number }) {
-  const safeTotal = total > 0 ? total : 1;
-  return (
-    <div>
-      <div className="flex h-8 w-full overflow-hidden rounded-sm">
-        {segments
-          .filter((s) => s.amount > 0)
-          .map((s) => (
-            <div
-              key={s.label}
-              style={{ width: `${Math.max((s.amount / safeTotal) * 100, 0.5)}%`, backgroundColor: s.color }}
-              title={`${s.label}: ${money(s.amount)}`}
-            />
-          ))}
-      </div>
-      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-        {segments.map((s) => (
-          <div key={s.label} className="flex items-center gap-1.5 text-xs" style={{ color: BASALT }}>
-            <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
-            {s.label}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function marginZone(pct: number): { color: string; label: string } {
-  if (pct < 10) return { color: RED, label: "Below target" };
-  if (pct < 15) return { color: AMBER, label: "Getting close" };
-  return { color: GREEN, label: "On target" };
-}
-
-function MarginGauge({ pct, label }: { pct: number; label: string }) {
-  const clamped = Math.max(Math.min(pct, 25), -5);
-  const positionPct = ((clamped - -5) / (25 - -5)) * 100;
-  const zone = marginZone(pct);
-  return (
-    <div>
-      <div className="flex items-baseline justify-between">
-        <span className="text-xs font-medium tracking-wide" style={{ color: BASALT }}>
-          {label}
-        </span>
-        <span className="text-sm font-semibold" style={{ color: zone.color }}>
-          {pct.toFixed(1)}% — {zone.label}
-        </span>
-      </div>
-      <div className="relative mt-3 h-3 w-full overflow-hidden rounded-full" style={{ backgroundColor: "rgba(20,61,74,0.1)" }}>
-        <div className="absolute inset-y-0 left-0" style={{ width: "40%", backgroundColor: `${RED}55` }} />
-        <div className="absolute inset-y-0" style={{ left: "40%", width: "16.7%", backgroundColor: `${AMBER}55` }} />
-        <div className="absolute inset-y-0" style={{ left: "56.7%", width: "43.3%", backgroundColor: `${GREEN}55` }} />
-        <div
-          className="absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_1px_4px_rgba(0,0,0,0.4)]"
-          style={{ left: `${positionPct}%`, backgroundColor: zone.color }}
-        />
-      </div>
-      <div className="mt-1 flex justify-between text-[10px]" style={{ color: MOSS }}>
-        <span>0%</span>
-        <span>10%</span>
-        <span>15%</span>
-        <span>25%+</span>
-      </div>
-    </div>
-  );
-}
-
-const CTA_COPY: Record<CtaTier, { text: string; bg: string }> = {
-  below_target: { text: "This deal is thin. Let's find the fix.", bg: RED },
-  getting_close: { text: "Close. Let's tighten it up.", bg: AMBER },
-  on_target: { text: "This deal pencils. Get a term sheet.", bg: GREEN },
+const STATUS_STYLE: Record<MarginStatus, { label: string; text: string; fg: string; bg: string }> = {
+  on_target: { label: "On target", text: "This deal pencils.", fg: GREEN, bg: `${GREEN}22` },
+  thin: { label: "Thin", text: "Tight. Try a lower price or a smaller rehab.", fg: AMBER, bg: `${AMBER}22` },
+  below_target: { label: "Below target", text: "This deal does not pencil at this price.", fg: RED, bg: `${RED}22` },
 };
 
-function DynamicCta({ tier, onNavigate }: { tier: CtaTier; onNavigate: () => void }) {
-  const { text, bg } = CTA_COPY[tier];
+// Tolerant numeric parsing — strips everything but digits and a decimal
+// point, so a comma-formatted value, a stray "$", or a half-typed/empty
+// field all resolve to a safe number instead of NaN.
+function toNum(v: string): number {
+  const n = parseFloat(String(v).replace(/[^0-9.]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatThousands(n: number): string {
+  return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+const LOAN_OFFICER_PHONE_COPY = "269-267-7506";
+
+// --- Small building blocks -------------------------------------------------
+
+function InfoButton({ label, open, onToggle }: { label: string; open: boolean; onToggle: () => void }) {
   return (
-    <Link
-      href={APPLY_PATH}
-      onClick={onNavigate}
-      className="block rounded-sm p-5 text-center text-base font-medium text-white transition-opacity hover:opacity-90"
-      style={{ backgroundColor: bg }}
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={label}
+      aria-pressed={open}
+      className="flex size-11 shrink-0 -my-3 -mr-3 items-center justify-center text-[color:var(--moss)]"
+      style={{ color: MOSS }}
     >
-      {text}
-    </Link>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+        <circle cx="8" cy="8" r="6.5" />
+        <path d="M8 7.2v4" />
+        <path d="M8 4.8v.1" />
+      </svg>
+    </button>
   );
 }
+
+function Tip({ text, onClose }: { text: string; onClose: () => void }) {
+  return (
+    <div role="status" className="flex items-center justify-between gap-2 rounded-sm p-3" style={{ backgroundColor: `${SAND}40` }}>
+      <p className="text-xs leading-relaxed" style={{ color: BASALT }}>
+        {text}
+      </p>
+      <button type="button" onClick={onClose} className="shrink-0 min-h-11 px-2 text-xs font-bold underline" style={{ color: TEAL }}>
+        Got it
+      </button>
+    </div>
+  );
+}
+
+interface InputMeta {
+  key: string;
+  label: string;
+  prefix?: string;
+  suffix?: string;
+  tip: string;
+  money?: boolean;
+}
+
+function LabeledInput({
+  meta,
+  value,
+  onChange,
+  onBlur,
+  tipOpen,
+  onToggleTip,
+}: {
+  meta: InputMeta;
+  value: string;
+  onChange: (v: string) => void;
+  onBlur: () => void;
+  tipOpen: boolean;
+  onToggleTip: () => void;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <div className="flex h-5 items-center justify-between">
+        <label htmlFor={`f-${meta.key}`} className="text-xs font-semibold tracking-wide" style={{ color: MOSS }}>
+          {meta.label}
+        </label>
+        <InfoButton label={`About ${meta.label}`} open={tipOpen} onToggle={onToggleTip} />
+      </div>
+      <div className="flex h-12 items-center gap-1 rounded-md border bg-white px-3" style={{ borderColor: "#CFC7B4" }}>
+        {meta.prefix && (
+          <span className="text-base" style={{ color: MOSS }}>
+            {meta.prefix}
+          </span>
+        )}
+        <input
+          id={`f-${meta.key}`}
+          type="text"
+          inputMode="decimal"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onBlur}
+          className="w-full min-w-0 grow bg-transparent text-[17px] font-semibold tabular-nums outline-none"
+          style={{ color: TEAL }}
+        />
+        {meta.suffix && (
+          <span className="text-sm" style={{ color: MOSS }}>
+            {meta.suffix}
+          </span>
+        )}
+      </div>
+      {tipOpen && <Tip text={meta.tip} onClose={onToggleTip} />}
+    </div>
+  );
+}
+
+function MarginMeter({ margin }: { margin: number }) {
+  const pct = margin * 100;
+  const markerLeft = `${Math.max(0, Math.min(1, pct / 25)) * 100}%`;
+  return (
+    <div className="mt-3.5">
+      <div className="relative">
+        <div className="flex h-2.5 overflow-hidden rounded-full">
+          <div style={{ width: "40%", backgroundColor: "#D9776B" }} />
+          <div style={{ width: "20%", backgroundColor: "#E6CF9C" }} />
+          <div style={{ width: "40%", backgroundColor: "#7FC49A" }} />
+        </div>
+        <div
+          className="absolute top-[-3px] size-4 -translate-x-1/2 rounded-full border-2 border-white"
+          style={{ left: markerLeft, backgroundColor: "#FFFFFF", boxShadow: `0 0 0 2px ${TEAL}` }}
+        />
+      </div>
+      <div className="relative mt-1.5 h-4 text-[11px]" style={{ color: "rgba(250,247,242,0.75)" }}>
+        <span className="absolute left-0">0%</span>
+        <span className="absolute left-[40%] -ml-3">10%</span>
+        <span className="absolute left-[60%] -ml-3">15%</span>
+        <span className="absolute right-0">25%+</span>
+      </div>
+    </div>
+  );
+}
+
+// --- Primary + advanced field metadata --------------------------------------
+
+const TIPS = {
+  arv: "After-repair value: what the property should sell for once the rehab is finished. Use recent comps.",
+  rehab: "Your full renovation budget. Add a cushion for surprises.",
+  months: "Months from closing to sale. Interest and holding costs run for this long.",
+  rate: "A planning placeholder. Fix and flip bridge debt often runs 9.5%–12% simple interest, but real rates depend on the lender and the borrower.",
+  pctOfArv: "The 70% rule: most flippers will not pay more than 70% of ARV minus rehab. Move it up in a hot, low-risk market or down for a heavier rehab.",
+  ltc: "Loan-to-cost. Without prior experience, typically 80%–90% depending on the lender. With experience, some options go up to 100%.",
+  taxesIns: "Annual property taxes plus insurance, prorated over your timeline.",
+  misc: "Utilities, HOA dues, lawn care and snow removal in one rough monthly number.",
+  acq: "Closing costs on the way in, excluding lender points. Use 1–2% for off-market deals, 3–7% for MLS deals.",
+  points: "A planning placeholder. Lender points vary a lot by lender and borrower.",
+  sell: "Costs on the way out: realtor commissions and seller fees. As low as 3% with one agent, up to 7% with two.",
+} as const;
+
+type FieldKey = keyof typeof TIPS;
+
+const PRIMARY_META: InputMeta[] = [
+  { key: "arv", label: "After-repair value (ARV)", prefix: "$", tip: TIPS.arv, money: true },
+  { key: "rehab", label: "Rehab budget", prefix: "$", tip: TIPS.rehab, money: true },
+  { key: "pctOfArv", label: "Percent of ARV", suffix: "%", tip: TIPS.pctOfArv },
+  { key: "months", label: "Months to sell", suffix: "mo", tip: TIPS.months },
+];
+
+const ADVANCED_META: InputMeta[] = [
+  { key: "rate", label: "Interest rate (placeholder)", suffix: "%", tip: TIPS.rate },
+  { key: "ltc", label: "Loan-to-cost", suffix: "%", tip: TIPS.ltc },
+  { key: "taxesIns", label: "Taxes + insurance / yr", prefix: "$", tip: TIPS.taxesIns, money: true },
+  { key: "misc", label: "Misc. holding / mo", prefix: "$", tip: TIPS.misc, money: true },
+  { key: "acq", label: "Buying closing costs", suffix: "%", tip: TIPS.acq },
+  { key: "points", label: "Lender points (placeholder)", suffix: "pts", tip: TIPS.points },
+  { key: "sell", label: "Selling costs", suffix: "%", tip: TIPS.sell },
+];
+
+interface RawInputs {
+  arv: string;
+  rehab: string;
+  pctOfArv: string;
+  months: string;
+  rate: string;
+  ltc: string;
+  taxesIns: string;
+  misc: string;
+  acq: string;
+  points: string;
+  sell: string;
+  offer: string;
+}
+
+const DEFAULT_RAW: RawInputs = {
+  arv: "400,000",
+  rehab: "60,000",
+  pctOfArv: "70",
+  months: "6",
+  rate: "10.5",
+  ltc: "90",
+  taxesIns: "5,100",
+  misc: "150",
+  acq: "2",
+  points: "2",
+  sell: "7",
+  offer: "",
+};
+
+function toCalcInputs(raw: RawInputs): MaxOfferCalcInputs {
+  return {
+    arv: toNum(raw.arv),
+    rehab: toNum(raw.rehab),
+    pctOfArv: toNum(raw.pctOfArv) / 100,
+    months: toNum(raw.months),
+    rate: toNum(raw.rate) / 100,
+    ltc: toNum(raw.ltc) / 100,
+    taxesInsPerYear: toNum(raw.taxesIns),
+    miscPerMonth: toNum(raw.misc),
+    acqPct: toNum(raw.acq) / 100,
+    pointsPct: toNum(raw.points) / 100,
+    sellPct: toNum(raw.sell) / 100,
+    offer: raw.offer.trim() === "" ? null : toNum(raw.offer),
+  };
+}
+
+// --- Lender panel, breakdown bars, stress test ------------------------------
+
+function LenderPanel({ loan, limitedBy, cashIn, arv, scenarioLabel, onCtaClick }: {
+  loan: number;
+  limitedBy: string;
+  cashIn: number;
+  arv: number;
+  scenarioLabel: string;
+  onCtaClick: () => void;
+}) {
+  const ltarvOfActual = arv > 0 ? loan / arv : 0;
+  return (
+    <section aria-label="How much could you borrow" className="rounded-md border bg-white p-6 md:p-7" style={{ borderColor: "#E2DCCD" }}>
+      <h2 className="font-serif text-xl font-medium" style={{ color: TEAL, fontFamily: "var(--font-archivo), Archivo, serif" }}>
+        How much could you borrow?
+      </h2>
+      <p className="mt-1 text-sm" style={{ color: MOSS }}>
+        Under qualifying circumstances, you could potentially get up to:
+      </p>
+      <div className="mt-3.5 rounded-sm p-4" style={{ backgroundColor: `${SAND}40` }}>
+        <div className="text-xs font-bold tracking-wide" style={{ color: MOSS }}>
+          UP TO
+        </div>
+        <div className="text-[40px] leading-[1.1] font-semibold tabular-nums" style={{ color: TEAL }}>
+          {money(loan)}
+        </div>
+        <p className="mt-1 text-xs leading-relaxed" style={{ color: MOSS }}>
+          Based on buying at {scenarioLabel}. Limited by {limitedBy}, at {(ltarvOfActual * 100).toFixed(1)}% of ARV. You would
+          put in about {money(cashIn)}.
+        </p>
+      </div>
+      <div className="mt-4 text-xs font-bold tracking-wide" style={{ color: MOSS }}>
+        WHAT DECIDES YOUR ACTUAL TERMS
+      </div>
+      <ul className="mt-1.5 list-disc space-y-1 pl-[18px] text-sm leading-relaxed" style={{ color: BASALT }}>
+        <li>Your credit score (FICO)</li>
+        <li>The flips you have completed</li>
+        <li>The lender and program you choose. Rates and points vary.</li>
+        <li>The property and your plan</li>
+      </ul>
+      <p className="mt-3 rounded-sm p-2.5 text-xs leading-relaxed" style={{ backgroundColor: OFF_WHITE, color: BASALT }}>
+        This is not a quote, pre-qualification or commitment to lend. All loans are subject to underwriting and
+        verification of experience.
+      </p>
+      <Link
+        href={APPLY_PATH}
+        onClick={onCtaClick}
+        className="mt-3 flex h-13 items-center justify-center rounded-sm text-base font-bold transition-opacity hover:opacity-90"
+        style={{ backgroundColor: GOLD, color: BASALT }}
+      >
+        See what you qualify for
+      </Link>
+    </section>
+  );
+}
+
+function BreakdownBars({ rows, arv, scenarioLabel }: { rows: { label: string; amount: number; color: string; bold?: boolean }[]; arv: number; scenarioLabel: string }) {
+  return (
+    <section aria-label="Where every dollar goes" className="rounded-md border bg-white p-6 md:p-7" style={{ borderColor: "#E2DCCD" }}>
+      <h2 className="text-xl font-medium" style={{ color: TEAL }}>
+        Where every dollar goes
+      </h2>
+      <p className="mt-1 mb-3 text-xs" style={{ color: MOSS }}>
+        Bars show each item as a share of ARV, based on buying at {scenarioLabel}.
+      </p>
+      <div className="flex flex-col gap-2.5">
+        {rows.map((r) => {
+          const widthPct = arv > 0 ? Math.max(0, Math.min(100, (r.amount / arv) * 100)) : 0;
+          return (
+            <div key={r.label}>
+              <div className="flex justify-between text-sm" style={{ fontWeight: r.bold ? 700 : 500, color: BASALT }}>
+                <span>{r.label}</span>
+                <span className="tabular-nums">{money(r.amount)}</span>
+              </div>
+              <div className="mt-1 h-2 rounded-full" style={{ backgroundColor: "#EFE9DB" }}>
+                <div className="h-2 rounded-full" style={{ width: `${widthPct}%`, backgroundColor: r.color }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function StressList({ points, scenarioLabel }: { points: ReturnType<typeof stressTest>; scenarioLabel: string }) {
+  return (
+    <section aria-label="If the sale price comes in lower" className="rounded-md border bg-white p-6 md:p-7" style={{ borderColor: "#E2DCCD" }}>
+      <h2 className="text-xl font-medium" style={{ color: TEAL }}>
+        If the sale price comes in lower
+      </h2>
+      <p className="mt-1 mb-1 text-xs" style={{ color: MOSS }}>
+        Based on buying at {scenarioLabel}. Costs stay the same; only the sale price moves.
+      </p>
+      <div className="flex flex-col">
+        {points.map((p) => {
+          const st = STATUS_STYLE[status(p.margin)];
+          return (
+            <div
+              key={p.drop}
+              className="flex items-center justify-between gap-2 border-t py-2.5"
+              style={{ borderColor: "#E2DCCD" }}
+            >
+              <div>
+                <div className="text-sm font-semibold" style={{ color: BASALT }}>
+                  {p.drop === 0 ? "As planned" : `Sale price ${Math.round(p.drop * 100)}% lower`}
+                </div>
+                <div className="text-xs tabular-nums" style={{ color: MOSS }}>
+                  Sells for {money(p.salePrice)}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[15px] font-bold tabular-nums" style={{ color: BASALT }}>
+                  {money(p.profit)}
+                </div>
+                <div
+                  className="mt-0.5 inline-block rounded-full px-2 py-0.5 text-xs font-bold"
+                  style={{ backgroundColor: st.bg, color: st.fg }}
+                >
+                  {(p.margin * 100).toFixed(1)}% {st.label}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+// --- Excel-download gate -----------------------------------------------------
 
 const CLOSING_TIMELINE_OPTIONS: { label: string; days: number }[] = [
   { label: "0–30 days", days: 15 },
@@ -198,519 +380,563 @@ const CLOSING_TIMELINE_OPTIONS: { label: string; days: number }[] = [
   { label: "90+ days", days: 120 },
 ];
 
-function DealQuestionsCard({
-  submitting,
-  onSubmit,
-}: {
-  submitting: boolean;
-  onSubmit: (hasDealUnderContract: boolean, timelineLabel: string, timelineDays: number | null) => void;
-}) {
-  const [hasDeal, setHasDeal] = useState<boolean | null>(null);
-  const [timeline, setTimeline] = useState("");
-
-  function submit() {
-    if (hasDeal === null) return;
-    const match = CLOSING_TIMELINE_OPTIONS.find((o) => o.label === timeline);
-    onSubmit(hasDeal, timeline || "Not sure yet", match?.days ?? null);
-  }
-
+function ChipRow<T extends string>({ options, value, onChange }: { options: T[]; value: T | null; onChange: (v: T) => void }) {
   return (
-    <div className="rounded-sm border bg-white p-6 md:p-8" style={{ borderColor: "rgba(20,61,74,0.15)" }}>
-      <h3 className="text-base font-medium" style={{ color: TEAL }}>
-        Two quick questions
-      </h3>
-      <p className="mt-1.5 text-sm leading-relaxed" style={{ color: BASALT }}>
-        Helps us follow up with the right next step, if you want one.
-      </p>
-
-      <div className="mt-5 space-y-5">
-        <div>
-          <p className="text-xs font-medium tracking-wide" style={{ color: BASALT }}>
-            Do you have a deal under contract?
-          </p>
-          <div className="mt-2 flex gap-2">
-            {([
-              { label: "Yes", value: true },
-              { label: "No", value: false },
-            ] as const).map((opt) => (
-              <button
-                key={opt.label}
-                type="button"
-                onClick={() => setHasDeal(opt.value)}
-                className="rounded-sm border px-4 py-2 text-sm font-medium transition-colors"
-                style={{
-                  borderColor: "rgba(20,61,74,0.2)",
-                  backgroundColor: hasDeal === opt.value ? TEAL : "transparent",
-                  color: hasDeal === opt.value ? "#FAF7F2" : BASALT,
-                }}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <p className="text-xs font-medium tracking-wide" style={{ color: BASALT }}>
-            When do you need to close?
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {CLOSING_TIMELINE_OPTIONS.map((opt) => (
-              <button
-                key={opt.label}
-                type="button"
-                onClick={() => setTimeline(opt.label)}
-                className="rounded-sm border px-3 py-2 text-sm font-medium transition-colors"
-                style={{
-                  borderColor: "rgba(20,61,74,0.2)",
-                  backgroundColor: timeline === opt.label ? TEAL : "transparent",
-                  color: timeline === opt.label ? "#FAF7F2" : BASALT,
-                }}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
+    <div className="flex flex-wrap gap-2">
+      {options.map((opt) => (
         <button
+          key={opt}
           type="button"
-          onClick={submit}
-          disabled={hasDeal === null || submitting}
-          className="rounded-sm px-6 py-2.5 text-sm font-medium tracking-wide transition-opacity hover:opacity-90 disabled:opacity-60"
-          style={{ backgroundColor: GOLD, color: BASALT }}
+          onClick={() => onChange(opt)}
+          aria-pressed={value === opt}
+          className="h-11 rounded-sm border px-4 text-sm font-semibold transition-colors"
+          style={{
+            borderColor: TEAL,
+            backgroundColor: value === opt ? TEAL : "#FFFFFF",
+            color: value === opt ? OFF_WHITE : TEAL,
+          }}
         >
-          {submitting ? "Saving…" : "Save"}
+          {opt}
         </button>
-      </div>
+      ))}
     </div>
   );
 }
 
-export function MaxOfferCalculator({ leadId }: { leadId: string }) {
-  // --- Section 1: Max Allowable Offer ---
-  const [arv, setArv] = useState("400000");
-  const [rehabBudget, setRehabBudget] = useState("60000");
-  const [offerPct, setOfferPct] = useState(70);
+function ExcelGateSubmit() {
+  const pending = useFormPending();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="flex h-13 w-full items-center justify-center gap-2 rounded-sm text-base font-bold transition-opacity hover:opacity-90 disabled:opacity-60"
+      style={{ backgroundColor: GOLD, color: BASALT }}
+    >
+      {pending ? <Loader2 className="size-4 animate-spin" /> : null}
+      {pending ? "Preparing your file…" : "Email me the Excel"}
+    </button>
+  );
+}
 
-  const arvNum = num(arv);
-  const rehabNum = num(rehabBudget);
-  const mao = arvNum * (offerPct / 100) - rehabNum;
+function ExcelGateForm({ onSubmitted }: { onSubmitted: (leadId: string, dealUnderContract: boolean | null, timeline: string | null, timelineDays: number | null) => void }) {
+  const [dealUnderContract, setDealUnderContract] = useState<"Yes" | "No" | null>(null);
+  const [timeline, setTimeline] = useState<string | null>(null);
 
-  // --- Section 2: Purchase Price & Leverage ---
-  const [purchasePrice, setPurchasePrice] = useState("");
-  const [purchaseEdited, setPurchaseEdited] = useState(false);
-  const effectivePurchasePrice = purchaseEdited && purchasePrice !== "" ? num(purchasePrice) : mao;
+  async function action(formData: FormData) {
+    const { leadId } = await submitLead("max_allowable_offer_calculator", formData);
+    const match = CLOSING_TIMELINE_OPTIONS.find((o) => o.label === timeline);
+    onSubmitted(leadId, dealUnderContract === null ? null : dealUnderContract === "Yes", timeline, match?.days ?? null);
+  }
 
-  const [hasExperience, setHasExperience] = useState(false);
-  const [ltcPct, setLtcPct] = useState(90);
-  const [ltarvPct, setLtarvPct] = useState(75);
+  return (
+    <div className="rounded-md p-6 md:p-8" style={{ backgroundColor: "#EDE4D2" }}>
+      <h2 className="text-2xl font-medium" style={{ color: TEAL }}>
+        Where should we send it?
+      </h2>
+      <p className="mt-1 mb-5 text-sm" style={{ color: BASALT }}>
+        The Excel file arrives with this deal already filled in.
+      </p>
+      <ActionForm action={action} className="flex flex-col gap-4">
+        <div className="absolute -left-[9999px]" aria-hidden="true">
+          <label htmlFor="gate-website">Website</label>
+          <input id="gate-website" name="website" type="text" tabIndex={-1} autoComplete="off" />
+        </div>
 
-  const costBasis = Math.max(effectivePurchasePrice, 0) + rehabNum;
-  const maxByLtc = costBasis * (ltcPct / 100);
-  const maxByLtarv = arvNum * (ltarvPct / 100);
-  const loanAmount = Math.max(Math.min(maxByLtc, maxByLtarv), 0);
-  const bindingByLtarv = maxByLtarv <= maxByLtc;
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold" style={{ color: BASALT }}>
+              First name
+            </span>
+            <input
+              name="name"
+              type="text"
+              required
+              autoComplete="given-name"
+              className="h-12 rounded-sm border bg-white px-3 text-base outline-none"
+              style={{ borderColor: "#BDB29A", color: TEAL }}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold" style={{ color: BASALT }}>
+              Mobile number
+            </span>
+            <input
+              name="phone"
+              type="tel"
+              required
+              autoComplete="tel"
+              className="h-12 rounded-sm border bg-white px-3 text-base outline-none"
+              style={{ borderColor: "#BDB29A", color: TEAL }}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold" style={{ color: BASALT }}>
+              Email
+            </span>
+            <input
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              className="h-12 rounded-sm border bg-white px-3 text-base outline-none"
+              style={{ borderColor: "#BDB29A", color: TEAL }}
+            />
+          </label>
+        </div>
 
-  // --- Section 3: Carrying costs ---
-  const [carryRatePct, setCarryRatePct] = useState(10.5);
-  const [timelineMonths, setTimelineMonths] = useState(6);
-  const totalInterest = loanAmount * (carryRatePct / 100) * (timelineMonths / 12);
+        <div className="rounded-sm p-3" style={{ backgroundColor: OFF_WHITE }}>
+          <div className="text-xs font-bold tracking-wide" style={{ color: MOSS }}>
+            OPTIONAL, HELPS US PRIORITIZE
+          </div>
+          <div className="mt-2 text-sm font-semibold" style={{ color: BASALT }}>
+            Deal under contract?
+          </div>
+          <div className="mt-1.5">
+            <ChipRow options={["Yes", "No"] as const} value={dealUnderContract} onChange={setDealUnderContract} />
+          </div>
+          <div className="mt-3 text-sm font-semibold" style={{ color: BASALT }}>
+            Need to close in
+          </div>
+          <div className="mt-1.5">
+            <ChipRow options={CLOSING_TIMELINE_OPTIONS.map((o) => o.label)} value={timeline} onChange={setTimeline} />
+          </div>
+        </div>
 
-  // --- Section 4: Holding costs ---
-  const [annualTaxes, setAnnualTaxes] = useState("3600");
-  const [annualInsurance, setAnnualInsurance] = useState("1500");
-  const [monthlyMisc, setMonthlyMisc] = useState(150);
-  const totalHolding = (num(annualTaxes) / 12 + num(annualInsurance) / 12 + monthlyMisc) * timelineMonths;
+        <label className="flex items-start gap-2 text-xs leading-relaxed" style={{ color: MOSS }}>
+          <input type="checkbox" name="consent" required className="mt-0.5 size-4 shrink-0" />
+          <span>
+            I agree to receive emails and phone calls from Manna Lending about my deals and financing options. We
+            will not text this number. See our{" "}
+            <Link href="/privacy" target="_blank" className="underline" style={{ color: TEAL }}>
+              Privacy Policy
+            </Link>{" "}
+            and{" "}
+            <Link href="/terms" target="_blank" className="underline" style={{ color: TEAL }}>
+              Terms &amp; Conditions
+            </Link>
+            .
+          </span>
+        </label>
 
-  // --- Section 5: Closing costs ---
-  const [acqPct, setAcqPct] = useState(2);
-  const [originationPts, setOriginationPts] = useState(2);
-  const [dispoPct, setDispoPct] = useState(7);
+        <ExcelGateSubmit />
+      </ActionForm>
+    </div>
+  );
+}
 
-  const acqCost = Math.max(effectivePurchasePrice, 0) * (acqPct / 100);
-  const originationCost = loanAmount * (originationPts / 100);
-  const dispoCost = arvNum * (dispoPct / 100);
+// --- Main component ----------------------------------------------------------
 
-  // --- Section 6: Profit ---
-  const totalProjectCost = Math.max(effectivePurchasePrice, 0) + rehabNum + acqCost + originationCost + totalInterest + totalHolding;
-  const saleProceeds = arvNum - dispoCost;
-  const profit = saleProceeds - totalProjectCost;
-  const profitMarginPct = arvNum > 0 ? (profit / arvNum) * 100 : 0;
-  const cashInvested = computeCashInvested(totalProjectCost, loanAmount);
-  const cashOnCashPct = computeCashOnCashReturnPct(profit, cashInvested);
-  const ctaTier: CtaTier = profitMarginPct < 10 ? "below_target" : profitMarginPct < 15 ? "getting_close" : "on_target";
+export function MaxOfferCalculator({ initialLeadId }: { initialLeadId: string | null }) {
+  const [raw, setRaw] = useState<RawInputs>(DEFAULT_RAW);
+  const [hasFlipExperience, setHasFlipExperience] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [activeTip, setActiveTip] = useState<FieldKey | null>(null);
 
-  const [stressPct, setStressPct] = useState(0);
-  const stressedArv = arvNum * (1 - stressPct / 100);
-  const stressedDispoCost = stressedArv * (dispoPct / 100);
-  const stressedProfit = stressedArv - stressedDispoCost - totalProjectCost;
-  const stressedMarginPct = stressedArv > 0 ? (stressedProfit / stressedArv) * 100 : 0;
-  const stressedCashOnCashPct = computeCashOnCashReturnPct(stressedProfit, cashInvested);
-  const isStressed = stressPct > 0;
-  // While the stress slider is touched, the headline numbers below show the
-  // stressed scenario directly instead of a separate echoed-below pair —
-  // cash invested doesn't move (it's sunk cost, independent of resale price).
-  const displayedProfit = isStressed ? stressedProfit : profit;
-  const displayedMarginPct = isStressed ? stressedMarginPct : profitMarginPct;
-  const displayedCashOnCashPct = isStressed ? stressedCashOnCashPct : cashOnCashPct;
+  // "More assumptions" starts open on desktop, collapsed on mobile — decided
+  // client-side from the actual viewport so this one component serves both
+  // breakpoints without duplicating markup. Deferred to a microtask (not a
+  // direct setState in the effect body) to avoid a synchronous cascading
+  // render.
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      if (window.matchMedia("(min-width: 768px)").matches) setAdvancedOpen(true);
+    });
+  }, []);
 
+  function setField(key: keyof RawInputs, value: string) {
+    setRaw((r) => ({ ...r, [key]: value }));
+  }
+  function blurMoneyField(key: keyof RawInputs) {
+    setRaw((r) => {
+      const trimmed = r[key].trim();
+      if (trimmed === "") return r;
+      return { ...r, [key]: formatThousands(toNum(trimmed)) };
+    });
+  }
+
+  const inputs = toCalcInputs(raw);
+  const result = calculate(inputs);
+  const st = status(result.margin);
+  const statusStyle = STATUS_STYLE[st];
+  const hasOffer = inputs.offer !== null && inputs.offer > 0;
+  const scenarioLabel = hasOffer ? `your offer of ${money(inputs.offer!)}` : "the max allowable offer";
+  const active = result.atOffer;
+  const stress = stressTest(inputs, active.price);
+
+  const [leadId, setLeadId] = useState<string | null>(initialLeadId);
+  // `initialLeadId` resolves asynchronously in the parent (localStorage / a
+  // verified `?lead=` URL param) and is still null on first render here —
+  // pick it up once it arrives instead of only reading it at mount.
+  useEffect(() => {
+    if (!initialLeadId) return;
+    Promise.resolve().then(() => setLeadId(initialLeadId));
+  }, [initialLeadId]);
   const [downloading, setDownloading] = useState(false);
-  async function handleDownload() {
+  const [showExcelGate, setShowExcelGate] = useState(false);
+
+  async function runDownload(id: string) {
     setDownloading(true);
     try {
       await downloadMaxOfferExcel({
-        arv: arvNum,
-        rehabBudget: rehabNum,
-        offerPct,
-        purchasePrice: Math.max(effectivePurchasePrice, 0),
-        ltcPct,
-        ltarvPct,
-        carryRatePct,
-        timelineMonths,
-        annualTaxes: num(annualTaxes),
-        annualInsurance: num(annualInsurance),
-        monthlyMisc,
-        acqPct,
-        originationPts,
-        dispoPct,
+        arv: inputs.arv,
+        rehab: inputs.rehab,
+        pctOfArv: inputs.pctOfArv,
+        months: inputs.months,
+        rate: inputs.rate,
+        ltc: inputs.ltc,
+        taxesInsPerYear: inputs.taxesInsPerYear,
+        miscPerMonth: inputs.miscPerMonth,
+        acqPct: inputs.acqPct,
+        pointsPct: inputs.pointsPct,
+        sellPct: inputs.sellPct,
+        offer: inputs.offer,
       });
-      logExcelDownloaded(leadId).catch((err) => console.error("Failed to log excel download:", err));
+      logExcelDownloaded(id).catch((err) => console.error("Failed to log excel download:", err));
     } finally {
       setDownloading(false);
     }
   }
 
-  // Debounced — logs at most once per 30s of activity (server-side debounce
-  // enforces this too; this just avoids firing a request on every slider
-  // tick while dragging). Skipped entirely until there's a real ARV, so it
-  // doesn't log the moment the calculator first renders with its defaults.
+  async function handleDownloadClick() {
+    if (leadId) {
+      await runDownload(leadId);
+    } else {
+      setShowExcelGate(true);
+    }
+  }
+
+  async function handleGateSubmitted(id: string, dealUnderContract: boolean | null, timelineLabel: string | null, timelineDays: number | null) {
+    setLeadId(id);
+    setShowExcelGate(false);
+    if (dealUnderContract !== null) {
+      submitDealQuestions(id, dealUnderContract, timelineLabel ?? "Not sure yet", timelineDays).catch((err) =>
+        console.error("Failed to submit deal questions:", err)
+      );
+    }
+    await runDownload(id);
+  }
+
+  function handleQualifyClick() {
+    const tier: CtaTier = st === "below_target" ? "below_target" : st === "thin" ? "getting_close" : "on_target";
+    if (leadId) logCtaClicked(leadId, tier).catch((err) => console.error("Failed to log CTA click:", err));
+  }
+
+  // Debounced usage logging, same pattern as the old wizard — only fires
+  // once a lead exists (the calculator itself is free, so most visitors
+  // never trigger this until they've downloaded the Excel at least once).
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (arvNum <= 0) return;
+    if (!leadId || inputs.arv <= 0) return;
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
-      logCalculatorUsed(
-        leadId,
-        { arv: arvNum, rehabBudget: rehabNum, offerPct, purchasePrice: effectivePurchasePrice, ltcPct, ltarvPct, carryRatePct, timelineMonths, acqPct, originationPts, dispoPct },
-        { loanAmount, totalInterest, totalHolding, profit, profitMarginPct, cashInvested, cashOnCashPct }
-      ).catch((err) => console.error("Failed to log calculator use:", err));
+      logCalculatorUsed(leadId, { ...inputs }, { mao: result.mao, profit: result.profit, margin: result.margin }).catch((err) =>
+        console.error("Failed to log calculator use:", err)
+      );
     }, 800);
     return () => {
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [arvNum, rehabNum, offerPct, effectivePurchasePrice, ltcPct, ltarvPct, carryRatePct, timelineMonths, acqPct, originationPts, dispoPct]);
+  }, [leadId, raw]);
 
-  function handleCtaClick() {
-    logCtaClicked(leadId, ctaTier).catch((err) => console.error("Failed to log CTA click:", err));
-  }
-
-  const [dealQuestionsAnswered, setDealQuestionsAnswered] = useState(false);
-  const [submittingDealQuestions, setSubmittingDealQuestions] = useState(false);
-  async function handleDealQuestions(hasDealUnderContract: boolean, timelineLabel: string, timelineDays: number | null) {
-    setSubmittingDealQuestions(true);
-    try {
-      await submitDealQuestions(leadId, hasDealUnderContract, timelineLabel, timelineDays);
-      setDealQuestionsAnswered(true);
-    } catch (err) {
-      console.error("Failed to submit deal questions:", err);
-      setDealQuestionsAnswered(true);
-    } finally {
-      setSubmittingDealQuestions(false);
-    }
-  }
-
-  const segments: CostSegment[] = [
-    { label: "Purchase Price", amount: Math.max(effectivePurchasePrice, 0), color: TEAL },
-    { label: "Rehab Budget", amount: rehabNum, color: GOLD },
-    { label: "Acquisition Closing", amount: acqCost, color: TAUPE },
-    { label: "Lender Points", amount: originationCost, color: SLATE },
-    { label: "Carrying Interest", amount: totalInterest, color: TERRACOTTA },
-    { label: "Holding Costs", amount: totalHolding, color: MOSS },
-    { label: "Disposition Closing", amount: dispoCost, color: PLUM },
-    { label: "Profit", amount: Math.max(profit, 0), color: GREEN },
+  const breakdownRows = [
+    { label: "Purchase price", amount: active.price, color: TEAL },
+    { label: "Rehab", amount: inputs.rehab, color: "#3C6A78" },
+    { label: "Buying closing costs", amount: active.acquisition, color: "#7C9EA9" },
+    { label: "Lender points", amount: active.points, color: "#7C9EA9" },
+    { label: "Loan interest", amount: active.interest, color: "#7C9EA9" },
+    { label: "Holding costs", amount: active.holding, color: "#7C9EA9" },
+    { label: "Selling costs", amount: active.selling, color: "#A9BFC6" },
+    { label: "Your profit", amount: active.profit, color: GREEN, bold: true },
   ];
-  const stackTotal = Math.max(arvNum, totalProjectCost + dispoCost);
+
+  const ovm = hasOffer ? offerVsMax(inputs, inputs.offer!) : null;
+  const overBad = ovm && status(ovm.marginAtOffer) === "below_target";
+  const overStyle = overBad ? { bg: `${RED}1A`, fg: RED } : { bg: `${AMBER}1A`, fg: "#6B4500" };
 
   return (
-    <div className="space-y-6">
-      <SectionCard
-        step={1}
-        title="Set Your Max Allowable Offer"
-        subtitle="The 70% rule: most flippers won't pay more than 70% of a property's after-repair value, minus what it'll cost to fix it up. Slide the percentage to match your own risk tolerance."
-      >
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="After-Repair Value (ARV)" value={arv} onChange={setArv} placeholder="400,000" />
-          <Field label="Rehab Budget" value={rehabBudget} onChange={setRehabBudget} placeholder="60,000" />
-        </div>
-        <RangeSlider
-          label="Percent of ARV"
-          value={offerPct}
-          onChange={setOfferPct}
-          min={50}
-          max={85}
-          format={(v) => `${v}%`}
-          note="70% is the classic flipper's rule of thumb — move it up in a hot, low-risk market or down for a heavier rehab."
-        />
-        <div className="rounded-sm p-5" style={{ backgroundColor: `${GOLD}22` }}>
-          <div className="flex items-baseline justify-between">
-            <span className="text-sm font-medium" style={{ color: BASALT }}>
-              Your Max Allowable Offer
-            </span>
-            <span className="text-2xl font-semibold" style={{ color: TEAL }}>
-              {money(Math.max(mao, 0))}
-            </span>
-          </div>
-          <p className="mt-1.5 text-xs leading-relaxed" style={{ color: MOSS }}>
-            ({offerPct}% × {money(arvNum)} ARV) − {money(rehabNum)} rehab budget
-          </p>
-        </div>
-      </SectionCard>
-
-      <SectionCard
-        step={2}
-        title="Purchase Price & Leverage"
-        subtitle="Starts from your Max Allowable Offer above — change it if you're negotiating a different number. Then see how much a lender will actually finance, by both Loan-to-Cost and Loan-to-ARV."
-      >
-        <div className="max-w-xs">
-          <label className="block">
-            <span className="text-xs font-medium tracking-wide" style={{ color: BASALT }}>
-              Purchase Price
-            </span>
-            <div className="mt-1.5 flex items-center rounded-sm border bg-white" style={{ borderColor: "rgba(30,30,30,0.2)" }}>
-              <input
-                type="number"
-                inputMode="decimal"
-                value={purchaseEdited ? purchasePrice : Math.max(mao, 0).toFixed(0)}
-                onChange={(e) => {
-                  setPurchaseEdited(true);
-                  setPurchasePrice(e.target.value);
-                }}
-                className="w-full bg-transparent px-3 py-2.5 text-sm outline-none"
-                style={{ color: BASALT }}
+    <div className="flex flex-col gap-5 md:gap-6">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-[1.05fr_1fr] md:gap-6">
+        {/* Inputs card */}
+        <section aria-label="Deal inputs" className="flex flex-col gap-4 rounded-md border bg-white p-6 md:p-7" style={{ borderColor: "#E2DCCD" }}>
+          <h2 className="text-xl font-medium" style={{ color: TEAL }}>
+            Your deal
+          </h2>
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+            {PRIMARY_META.map((meta) => (
+              <LabeledInput
+                key={meta.key}
+                meta={meta}
+                value={raw[meta.key as FieldKey]}
+                onChange={(v) => setField(meta.key as FieldKey, v)}
+                onBlur={() => meta.money && blurMoneyField(meta.key as FieldKey)}
+                tipOpen={activeTip === meta.key}
+                onToggleTip={() => setActiveTip((t) => (t === meta.key ? null : (meta.key as FieldKey)))}
               />
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold tracking-wide" style={{ color: MOSS }}>
+              Completed a flip before?
+            </span>
+            <div className="grid grid-cols-2 gap-2">
+              {(["Not yet", "Yes"] as const).map((label) => {
+                const isYes = label === "Yes";
+                const on = hasFlipExperience === isYes;
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => {
+                      setHasFlipExperience(isYes);
+                      setField("ltc", isYes ? "100" : "90");
+                    }}
+                    className="h-12 rounded-sm border text-sm font-semibold"
+                    style={{ borderColor: TEAL, backgroundColor: on ? TEAL : "#FFFFFF", color: on ? OFF_WHITE : TEAL }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
-          </label>
-          {purchaseEdited && (
-            <button
-              type="button"
-              onClick={() => {
-                setPurchaseEdited(false);
-                setPurchasePrice("");
-              }}
-              className="mt-1.5 text-xs font-medium underline"
-              style={{ color: MOSS }}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            className="flex h-11 items-center gap-2 self-start border-t pt-3 text-sm font-bold"
+            style={{ borderColor: "#E2DCCD", color: TEAL }}
+          >
+            <span>{advancedOpen ? "Fewer assumptions" : "More assumptions"}</span>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 14 14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ transform: advancedOpen ? "rotate(180deg)" : undefined }}
             >
-              Reset to Max Allowable Offer
-            </button>
+              <path d="M2.5 5l4.5 4.5L11.5 5" />
+            </svg>
+          </button>
+
+          {advancedOpen && (
+            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+              <p className="sm:col-span-2 -mt-1.5 text-xs leading-relaxed" style={{ color: MOSS }}>
+                Rate and points are placeholders for planning. Real terms vary by lender.
+              </p>
+              {ADVANCED_META.map((meta) => (
+                <LabeledInput
+                  key={meta.key}
+                  meta={meta}
+                  value={raw[meta.key as FieldKey]}
+                  onChange={(v) => setField(meta.key as FieldKey, v)}
+                  onBlur={() => meta.money && blurMoneyField(meta.key as FieldKey)}
+                  tipOpen={activeTip === meta.key}
+                  onToggleTip={() => setActiveTip((t) => (t === meta.key ? null : (meta.key as FieldKey)))}
+                />
+              ))}
+            </div>
           )}
+        </section>
+
+        {/* Hero + offer widget */}
+        <div className="flex flex-col gap-5 md:gap-6">
+          <section aria-label="Max allowable offer" className="rounded-md p-6 md:p-7" style={{ backgroundColor: TEAL }}>
+            <div className="text-xs font-bold tracking-wide" style={{ color: "#C9DCE2" }}>
+              YOUR MAX ALLOWABLE OFFER
+            </div>
+            <div className="text-[52px] leading-[1.05] font-semibold tabular-nums md:text-[64px]" style={{ color: OFF_WHITE }}>
+              {money(result.mao)}
+            </div>
+            <div className="mt-0.5 text-sm" style={{ color: "#C9DCE2" }}>
+              {Math.round(inputs.pctOfArv * 100)}% of {money(inputs.arv)} ARV, minus {money(inputs.rehab)} rehab
+            </div>
+            <div className="my-4 border-t" style={{ borderColor: "#3C6A78" }} />
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <div className="text-xs font-bold tracking-wide" style={{ color: "#C9DCE2" }}>
+                  PROFIT IF YOU BUY AT THE MAX
+                </div>
+                <div className="text-3xl font-semibold tabular-nums md:text-4xl" style={{ color: OFF_WHITE }}>
+                  {money(result.profit)}
+                </div>
+              </div>
+              <div
+                className="shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-bold"
+                style={{ backgroundColor: statusStyle.bg, color: OFF_WHITE }}
+              >
+                {(result.margin * 100).toFixed(1)}% of ARV
+              </div>
+            </div>
+            <MarginMeter margin={result.margin} />
+            <div className="mt-1.5 text-sm font-semibold" style={{ color: OFF_WHITE }}>
+              {statusStyle.label}. {statusStyle.text}
+            </div>
+          </section>
+
+          <section aria-label="Your offer compared with the max" className="rounded-md border bg-white p-6 md:p-7" style={{ borderColor: "#E2DCCD" }}>
+            <h2 className="text-xl font-medium" style={{ color: TEAL }}>
+              How does your offer compare?
+            </h2>
+            <p className="mt-1 mb-3 text-xs" style={{ color: MOSS }}>
+              Optional. Enter the price you are thinking of offering.
+            </p>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold tracking-wide" style={{ color: MOSS }}>
+                Your planned offer
+              </span>
+              <div className="flex h-12 items-center gap-1 rounded-md border bg-white px-3" style={{ borderColor: "#CFC7B4" }}>
+                <span className="text-base" style={{ color: MOSS }}>
+                  $
+                </span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="Enter an offer"
+                  value={raw.offer}
+                  onChange={(e) => setField("offer", e.target.value)}
+                  onBlur={() => blurMoneyField("offer")}
+                  className="w-full min-w-0 grow bg-transparent text-[17px] font-semibold tabular-nums outline-none"
+                  style={{ color: TEAL }}
+                />
+              </div>
+            </label>
+
+            {!hasOffer && (
+              <p className="mt-3 text-sm leading-relaxed" style={{ color: MOSS }}>
+                We will show how it stacks up against your max of {money(result.mao)}, and what it does to your profit.
+              </p>
+            )}
+
+            {hasOffer && ovm && ovm.state === "under" && (
+              <div className="mt-3 rounded-sm p-3.5" style={{ backgroundColor: "#DDF0E4" }}>
+                <div className="text-[17px] font-bold" style={{ color: "#1F5C3C" }}>
+                  {ovm.difference < -0.5 ? `${money(-ovm.difference)} under your max. Great job.` : "Right at your max. Nicely disciplined."}
+                </div>
+                <div className="mt-1 text-sm leading-relaxed" style={{ color: TEAL }}>
+                  At {money(inputs.offer!)}, projected profit is {money(ovm.profitAtOffer)} ({(ovm.marginAtOffer * 100).toFixed(1)}% of ARV).
+                  {ovm.profitChange >= 1 ? ` ${money(ovm.profitChange)} more profit than buying at the max.` : ""}
+                </div>
+              </div>
+            )}
+
+            {hasOffer && ovm && ovm.state === "over" && (
+              <div className="mt-3 overflow-hidden rounded-sm border" style={{ borderColor: overStyle.fg }}>
+                <div className="p-3.5" style={{ backgroundColor: overStyle.bg, color: overStyle.fg }}>
+                  <div className="text-[17px] font-bold">{money(ovm.difference)} over your max allowable offer</div>
+                  <div className="mt-0.5 text-sm">
+                    {overBad
+                      ? "At this price the deal no longer pencils."
+                      : status(ovm.marginAtOffer) === "thin"
+                        ? "Your margin gets thin at this price."
+                        : "It still pencils, but your cushion shrinks."}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-px" style={{ backgroundColor: "#E2DCCD" }}>
+                  <div className="bg-white p-3.5">
+                    <div className="text-xs" style={{ color: MOSS }}>
+                      At the max, {money(result.mao)}
+                    </div>
+                    <div className="text-2xl font-medium tabular-nums" style={{ color: TEAL }}>
+                      {money(result.profit)}
+                    </div>
+                    <div className="text-sm font-semibold" style={{ color: "#1F5C3C" }}>
+                      {(result.margin * 100).toFixed(1)}% of ARV
+                    </div>
+                  </div>
+                  <div className="bg-white p-3.5">
+                    <div className="text-xs" style={{ color: MOSS }}>
+                      At your offer, {money(inputs.offer!)}
+                    </div>
+                    <div className="text-2xl font-medium tabular-nums" style={{ color: TEAL }}>
+                      {money(ovm.profitAtOffer)}
+                    </div>
+                    <div className="text-sm font-semibold" style={{ color: overStyle.fg }}>
+                      {(ovm.marginAtOffer * 100).toFixed(1)}% of ARV
+                    </div>
+                  </div>
+                </div>
+                <div className="border-t bg-white p-3.5 text-sm leading-relaxed" style={{ borderColor: "#E2DCCD" }}>
+                  <div className="font-bold" style={{ color: BASALT }}>
+                    Your profit drops by {money(-ovm.profitChange)}.
+                  </div>
+                  <div className="mt-1" style={{ color: MOSS }}>
+                    Every extra dollar you pay comes straight out of your profit, plus more closing costs and usually
+                    more interest on a bigger loan. A thinner margin also leaves less room if the sale price comes in
+                    lower.
+                  </div>
+                  <div className="mt-1.5 font-semibold" style={{ color: BASALT }}>
+                    {ovm.breakEvenOffer > 0
+                      ? `At about ${money(ovm.breakEvenOffer)} you would break even.`
+                      : "You would not break even at any price on these numbers."}
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
         </div>
-
-        <label className="flex items-center gap-2 text-sm" style={{ color: BASALT }}>
-          <Checkbox checked={hasExperience} onCheckedChange={(v) => setHasExperience(v === true)} />
-          I have completed at least one prior fix &amp; flip
-        </label>
-
-        <RangeSlider
-          label="Loan-to-Cost (LTC)"
-          value={ltcPct}
-          onChange={setLtcPct}
-          min={hasExperience ? 70 : 70}
-          max={hasExperience ? 100 : 90}
-          format={(v) => `${v}%`}
-          note="Without prior experience, LTC typically ranges between 80% and 90% depending on the lender. With prior experience, there are options up to 100% LTC."
-        />
-        <RangeSlider
-          label="Loan-to-After-Repair Value (LTARV)"
-          value={ltarvPct}
-          onChange={setLtarvPct}
-          min={50}
-          max={75}
-          format={(v) => `${v}%`}
-          note="75% of ARV is the hard ceiling almost every hard money lender holds to, regardless of experience."
-        />
-
-        <div className="rounded-sm p-5" style={{ backgroundColor: `${SAND}30` }}>
-          <div className="flex items-baseline justify-between">
-            <span className="text-sm font-medium" style={{ color: BASALT }}>
-              Estimated Loan Amount
-            </span>
-            <span className="text-2xl font-semibold" style={{ color: TEAL }}>
-              {money(loanAmount)}
-            </span>
-          </div>
-          <p className="mt-1.5 text-xs leading-relaxed" style={{ color: MOSS }}>
-            Limited by {bindingByLtarv ? "Loan-to-After-Repair Value (LTARV)" : "Loan-to-Cost (LTC)"} — a lender
-            always uses whichever number is lower.
-          </p>
-        </div>
-      </SectionCard>
-
-      <SectionCard step={3} title="Carrying Costs (Debt)" subtitle="Simple interest on your loan amount, for as long as you expect to hold the project.">
-        <RangeSlider
-          label="Annual Interest Rate"
-          value={carryRatePct}
-          onChange={setCarryRatePct}
-          min={9.5}
-          max={12}
-          step={0.25}
-          format={(v) => `${v.toFixed(2)}%`}
-          note="Typical range for fix & flip bridge debt is 9.5%–12% simple interest."
-        />
-        <div className="max-w-xs">
-          <Field
-            label="Estimated Project Timeline (months)"
-            value={String(timelineMonths)}
-            onChange={(v) => setTimelineMonths(num(v))}
-            suffix="mo"
-            placeholder="6"
-          />
-        </div>
-        <ResultRow label={`Total Interest (${carryRatePct.toFixed(2)}% for ${timelineMonths} mo)`} value={money(totalInterest)} />
-      </SectionCard>
-
-      <SectionCard
-        step={4}
-        title="Holding Costs (Property)"
-        subtitle="Taxes and insurance, prorated over your timeline, plus a rough monthly allowance for utilities, HOA, lawn care, and snow removal."
-      >
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Annual Property Taxes" value={annualTaxes} onChange={setAnnualTaxes} placeholder="3,600" />
-          <Field label="Annual Insurance" value={annualInsurance} onChange={setAnnualInsurance} placeholder="1,500" />
-        </div>
-        <RangeSlider
-          label="Monthly Misc. Holding Costs"
-          value={monthlyMisc}
-          onChange={setMonthlyMisc}
-          min={50}
-          max={400}
-          step={10}
-          format={(v) => money(v) + "/mo"}
-          note="Covers utilities, HOA dues, lawn care, and snow removal in one rough monthly estimate."
-        />
-        <ResultRow label={`Total Holding Costs (${timelineMonths} mo)`} value={money(totalHolding)} />
-      </SectionCard>
-
-      <SectionCard step={5} title="Closing Costs" subtitle="One-time costs on the way in and the way out of the deal.">
-        <RangeSlider
-          label="Acquisition Closing Costs"
-          value={acqPct}
-          onChange={setAcqPct}
-          min={1}
-          max={7}
-          step={0.5}
-          format={(v) => `${v}%`}
-          note="Excludes lender points. Use 1–2% for an off-market deal, 3–7% for one bought on the MLS."
-        />
-        <RangeSlider
-          label="Lender Origination Points"
-          value={originationPts}
-          onChange={setOriginationPts}
-          min={2}
-          max={5}
-          step={0.5}
-          format={(v) => `${v} pts`}
-          note="Standard broker points on hard money debt typically start around 2 and run up to 5."
-        />
-        <RangeSlider
-          label="Disposition Closing Costs"
-          value={dispoPct}
-          onChange={setDispoPct}
-          min={3}
-          max={8}
-          step={0.5}
-          format={(v) => `${v}%`}
-          note="Includes realtor commissions & seller fees. Can run as low as 3% with a single agent on both sides, or if you're a licensed agent yourself. But could be up to 7% between buyer and seller agents."
-        />
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <ResultRow label="Acquisition Costs" value={money(acqCost)} />
-          <ResultRow label="Lender Points" value={money(originationCost)} />
-          <ResultRow label="Disposition Costs" value={money(dispoCost)} />
-        </div>
-      </SectionCard>
-
-      <SectionCard step={6} title="Profit & Margin" subtitle="Where every dollar of your after-repair value goes, and what's left over for you.">
-        <CostStackBar segments={segments} total={stackTotal} />
-
-        <RangeSlider
-          label="ARV Stress Test — what if the sale price comes in lower?"
-          value={stressPct}
-          onChange={setStressPct}
-          min={0}
-          max={15}
-          step={5}
-          format={(v) => (v === 0 ? "No change" : `−${v}% ARV`)}
-        />
-
-        <div
-          className="rounded-sm p-5"
-          style={{
-            backgroundColor: displayedProfit >= 0 ? `${isStressed ? AMBER : GREEN}18` : `${RED}18`,
-            boxShadow: isStressed ? `0 0 0 2px ${AMBER}66` : undefined,
-          }}
-        >
-          <div className="flex items-baseline justify-between">
-            <span className="text-sm font-medium" style={{ color: BASALT }}>
-              Projected Profit{isStressed && <span style={{ color: AMBER }}> (at −{stressPct}% ARV)</span>}
-            </span>
-            <span
-              className="text-2xl font-semibold"
-              style={{ color: displayedProfit >= 0 ? (isStressed ? AMBER : GREEN) : RED }}
-            >
-              {money(displayedProfit)}
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <ResultRow label="Total Cash Invested" value={money(cashInvested)} />
-          <ResultRow
-            label={isStressed ? `Cash-on-Cash Return (at −${stressPct}% ARV)` : "Cash-on-Cash Return"}
-            value={`${displayedCashOnCashPct.toFixed(1)}%`}
-          />
-        </div>
-
-        <MarginGauge
-          pct={displayedMarginPct}
-          label={
-            isStressed
-              ? `Profit Margin at −${stressPct}% ARV — target 15–20%`
-              : "Profit Margin (% of ARV) — target 15–20%"
-          }
-        />
-      </SectionCard>
-
-      <DynamicCta tier={ctaTier} onNavigate={handleCtaClick} />
-
-      {!dealQuestionsAnswered && (
-        <DealQuestionsCard submitting={submittingDealQuestions} onSubmit={handleDealQuestions} />
-      )}
-
-      <div
-        className="flex flex-col items-center gap-3 rounded-sm p-6 text-center md:p-8"
-        style={{ backgroundColor: TEAL }}
-      >
-        <p className="text-base font-medium text-white">Keep stress-testing this deal in Excel</p>
-        <p className="max-w-md text-sm leading-relaxed" style={{ color: "rgba(250,247,242,0.75)" }}>
-          Download this exact deal as a spreadsheet — every number above is a live formula, so you can keep
-          changing assumptions after you leave this page.
-        </p>
-        <button
-          type="button"
-          onClick={handleDownload}
-          disabled={downloading}
-          className="mt-1 flex items-center gap-2 rounded-sm px-6 py-3 text-sm font-medium tracking-wide transition-opacity hover:opacity-90 disabled:opacity-60"
-          style={{ backgroundColor: GOLD, color: BASALT }}
-        >
-          {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-          {downloading ? "Preparing your file…" : "Download as Excel"}
-        </button>
       </div>
 
+      <button
+        type="button"
+        onClick={handleDownloadClick}
+        disabled={downloading}
+        className="flex h-12 items-center justify-center gap-2 rounded-sm border-[1.5px] text-sm font-bold disabled:opacity-60 md:hidden"
+        style={{ borderColor: TEAL, color: TEAL }}
+      >
+        {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+        {downloading ? "Preparing your file…" : "Save this deal as Excel"}
+      </button>
+
+      <LenderPanel
+        loan={active.loan}
+        limitedBy={active.limitedBy}
+        cashIn={active.cashIn}
+        arv={inputs.arv}
+        scenarioLabel={scenarioLabel}
+        onCtaClick={handleQualifyClick}
+      />
+
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6">
+        <BreakdownBars rows={breakdownRows} arv={inputs.arv} scenarioLabel={scenarioLabel} />
+        <StressList points={stress} scenarioLabel={scenarioLabel} />
+      </div>
+
+      {showExcelGate ? (
+        <ExcelGateForm onSubmitted={handleGateSubmitted} />
+      ) : (
+        <div className="rounded-md p-6 text-center md:p-8" style={{ backgroundColor: TEAL }}>
+          <h2 className="text-2xl font-medium" style={{ color: OFF_WHITE }}>
+            Take this deal with you
+          </h2>
+          <p className="mx-auto mt-1.5 mb-4 max-w-md text-sm leading-relaxed" style={{ color: "rgba(250,247,242,0.78)" }}>
+            The same calculator in Excel, with live formulas, so you can keep testing deals. Your numbers come
+            pre-filled.
+          </p>
+          <button
+            type="button"
+            onClick={handleDownloadClick}
+            disabled={downloading}
+            className="inline-flex h-13 items-center gap-2 rounded-sm px-8 text-base font-bold transition-opacity hover:opacity-90 disabled:opacity-60"
+            style={{ backgroundColor: GOLD, color: BASALT }}
+          >
+            {downloading ? <Loader2 className="size-4 animate-spin" /> : null}
+            {downloading ? "Preparing your file…" : "Get the Excel version"}
+          </button>
+        </div>
+      )}
+
       <p className="text-xs leading-relaxed" style={{ color: MOSS }}>
-        This tool is for planning purposes only and is not a quote, pre-qualification, or commitment to lend.
-        Actual leverage, rate, and costs depend on underwriting.
+        Estimates for planning purposes only. Not a quote, pre-qualification or commitment to lend. Terms vary by
+        program and are subject to underwriting approval. Manna Lending is a lending brokerage, not a lender. We
+        connect real estate investors with third-party licensed lenders. Investor and business-purpose loans only.
+        Questions about a deal? Text or call {LOAN_OFFICER_PHONE_COPY}.
       </p>
     </div>
   );
