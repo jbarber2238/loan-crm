@@ -77,21 +77,18 @@ function DocumentThumbnail({
   checked,
   onToggleChecked,
   onSelect,
-  muted,
 }: {
   doc: ReviewableDocument;
   isCurrent: boolean;
   checked: boolean;
   onToggleChecked: (checked: boolean) => void;
   onSelect: () => void;
-  muted?: boolean;
 }) {
   return (
     <div
       className={cn(
         "cursor-pointer space-y-0.5 rounded-md border p-1 text-center",
-        isCurrent && "border-primary ring-1 ring-primary",
-        muted && "opacity-60"
+        isCurrent && "border-primary ring-1 ring-primary"
       )}
     >
       <div className="flex items-center justify-between">
@@ -157,14 +154,21 @@ export function ClientNeedDocumentReviewDialog({
   const [chatHistory, setChatHistory] = useState<{ question: string; answer: string | null; error?: string }[]>([]);
   const latestChatEntryRef = useRef<HTMLDivElement>(null);
 
-  const current = documents.find((d) => d.id === currentId) ?? documents[0];
+  // Rejected documents are gone from this preview entirely — they only live
+  // in the deal-wide Documents tab's Rejected bucket, where restoreRejectedDocuments
+  // puts them back to pending under their need. Falling back within this
+  // filtered list (not `documents[0]`) means rejecting the document you're
+  // currently looking at automatically advances to another visible one
+  // instead of continuing to show something that just dropped out of view.
+  const visibleDocuments = documents.filter((d) => d.reviewStatus !== "rejected");
+  const current = visibleDocuments.find((d) => d.id === currentId) ?? visibleDocuments[0];
   const fileUrl = current
     ? `/api/client-need-documents/${current.id}${jumpPage ? `#page=${jumpPage}` : ""}`
     : "";
   const isImage = current ? SUPPORTED_IMAGE_TYPES.has(current.mimeType.toLowerCase()) : false;
   // Whichever document the last AI Review actually pulled facts from — for
   // an Operating Agreement need this is normally the only document anyway.
-  const factsDoc = documents.find((d) => d.aiExtractedFacts);
+  const factsDoc = visibleDocuments.find((d) => d.aiExtractedFacts);
 
   function selectDocument(id: string) {
     setCurrentId(id);
@@ -269,8 +273,12 @@ export function ClientNeedDocumentReviewDialog({
     setRenamingId(null);
   }
 
-  const checkedList = Array.from(checkedIds);
-  const nonRejectedIds = documents.filter((d) => d.reviewStatus !== "rejected").map((d) => d.id);
+  // Rejected ids may still linger in a stale checkedIds selection (e.g. one
+  // doc in a multi-select got rejected via a different flow) — filtered out
+  // here so "Approve selected"/"Reject selected" never silently act on a
+  // document that's no longer visible.
+  const checkedList = Array.from(checkedIds).filter((id) => visibleDocuments.some((d) => d.id === id));
+  const nonRejectedIds = visibleDocuments.map((d) => d.id);
 
   return (
     <>
@@ -278,46 +286,29 @@ export function ClientNeedDocumentReviewDialog({
         <DialogContent className="flex h-[95vh] w-[98vw] max-w-[calc(100%-1rem)] flex-col overflow-hidden p-3 sm:max-w-[2200px]">
           <DialogHeader>
             <DialogTitle>
-              Reviewing: {needName} ({documents.length} doc{documents.length === 1 ? "" : "s"})
+              Reviewing: {needName} ({visibleDocuments.length} doc{visibleDocuments.length === 1 ? "" : "s"})
             </DialogTitle>
           </DialogHeader>
 
           <div className="flex min-h-0 flex-1 gap-2">
             {/* Sidebar — switch which document is shown, check to multi-select.
                 Kept slim on purpose: the document itself is what needs to be
-                readable, this strip is just for quick page/file switching. */}
-            {documents.length > 1 && (
+                readable, this strip is just for quick page/file switching.
+                Rejected documents never appear here — once rejected, a
+                document only lives in the deal-wide Documents tab's Rejected
+                bucket, restorable from there. */}
+            {visibleDocuments.length > 1 && (
               <div className="w-[84px] shrink-0 space-y-1.5 overflow-y-auto border-r pr-1.5">
-                {documents
-                  .filter((doc) => doc.reviewStatus !== "rejected")
-                  .map((doc) => (
-                    <DocumentThumbnail
-                      key={doc.id}
-                      doc={doc}
-                      isCurrent={doc.id === currentId}
-                      checked={checkedIds.has(doc.id)}
-                      onToggleChecked={(v) => toggleChecked(doc.id, v)}
-                      onSelect={() => selectDocument(doc.id)}
-                    />
-                  ))}
-                {documents.some((doc) => doc.reviewStatus === "rejected") && (
-                  <>
-                    <p className="border-t pt-1.5 text-center text-[9px] font-medium text-muted-foreground">Rejected</p>
-                    {documents
-                      .filter((doc) => doc.reviewStatus === "rejected")
-                      .map((doc) => (
-                        <DocumentThumbnail
-                          key={doc.id}
-                          doc={doc}
-                          isCurrent={doc.id === currentId}
-                          checked={checkedIds.has(doc.id)}
-                          onToggleChecked={(v) => toggleChecked(doc.id, v)}
-                          onSelect={() => selectDocument(doc.id)}
-                          muted
-                        />
-                      ))}
-                  </>
-                )}
+                {visibleDocuments.map((doc) => (
+                  <DocumentThumbnail
+                    key={doc.id}
+                    doc={doc}
+                    isCurrent={doc.id === currentId}
+                    checked={checkedIds.has(doc.id)}
+                    onToggleChecked={(v) => toggleChecked(doc.id, v)}
+                    onSelect={() => selectDocument(doc.id)}
+                  />
+                ))}
               </div>
             )}
 
@@ -560,18 +551,18 @@ export function ClientNeedDocumentReviewDialog({
                     <Button type="button" size="sm" variant="outline" disabled={reviewPending} onClick={handleRunReview}>
                       {reviewPending
                         ? "Reviewing…"
-                        : documents.some((d) => d.aiReviewedAt)
+                        : visibleDocuments.some((d) => d.aiReviewedAt)
                           ? "Re-run"
                           : "Run AI Review"}
                     </Button>
                   </div>
-                  {documents.every((d) => !d.aiReviewedAt) ? (
+                  {visibleDocuments.every((d) => !d.aiReviewedAt) ? (
                     <p className="text-xs text-muted-foreground">
-                      Not reviewed yet — runs AI review on all {documents.length} document
-                      {documents.length === 1 ? "" : "s"} in this need.
+                      Not reviewed yet — runs AI review on all {visibleDocuments.length} document
+                      {visibleDocuments.length === 1 ? "" : "s"} in this need.
                     </p>
                   ) : (
-                    documents
+                    visibleDocuments
                       .filter((d) => d.aiReviewedAt)
                       .map((doc) => {
                         const flags = doc.aiReviewFlags?.flags ?? [];

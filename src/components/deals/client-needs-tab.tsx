@@ -333,28 +333,20 @@ function AiReviewButton({ dealId, needId }: { dealId: string; needId: string }) 
 function DocumentRow({
   document,
   onClick,
-  muted,
 }: {
   document: ReviewableDocument;
   onClick: () => void;
-  muted?: boolean;
 }) {
   return (
-    <>
-      <button
-        type="button"
-        onClick={onClick}
-        className={`flex w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-sm hover:bg-muted/50 ${muted ? "opacity-60" : ""}`}
-      >
-        <span className="truncate">{document.fileName}</span>
-        {document.reviewStatus === "approved" && <Badge variant="success">Approved</Badge>}
-        {document.reviewStatus === "rejected" && <Badge variant="destructive">Rejected</Badge>}
-        {document.reviewStatus === "pending" && <Badge variant="warning">Review needed</Badge>}
-      </button>
-      {document.rejectionNote && document.reviewStatus === "rejected" && (
-        <p className="pl-3 text-xs text-muted-foreground italic">Rejected: {document.rejectionNote}</p>
-      )}
-    </>
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-sm hover:bg-muted/50"
+    >
+      <span className="truncate">{document.fileName}</span>
+      {document.reviewStatus === "approved" && <Badge variant="success">Approved</Badge>}
+      {document.reviewStatus === "pending" && <Badge variant="warning">Review needed</Badge>}
+    </button>
   );
 }
 
@@ -851,6 +843,9 @@ function ClientNeedRow({
 
         {hasDocuments && expanded && (
           <div className="space-y-3">
+            {/* Rejected documents are gone from here entirely — they only
+                live in the deal-wide Documents tab's Rejected bucket,
+                restorable from there back under this need. */}
             <div className="space-y-1">
               {need.documents
                 .filter((doc) => doc.reviewStatus !== "rejected")
@@ -858,16 +853,6 @@ function ClientNeedRow({
                   <DocumentRow key={doc.id} document={doc} onClick={() => openReview(doc.id)} />
                 ))}
             </div>
-            {need.documents.some((doc) => doc.reviewStatus === "rejected") && (
-              <div className="space-y-1 border-t pt-2">
-                <p className="text-xs font-medium text-muted-foreground">Rejected</p>
-                {need.documents
-                  .filter((doc) => doc.reviewStatus === "rejected")
-                  .map((doc) => (
-                    <DocumentRow key={doc.id} document={doc} onClick={() => openReview(doc.id)} muted />
-                  ))}
-              </div>
-            )}
           </div>
         )}
 
