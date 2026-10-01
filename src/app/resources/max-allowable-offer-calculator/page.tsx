@@ -25,25 +25,26 @@ export default async function MaxOfferCalculatorPage({
       <SiteHeader />
 
       <section style={{ backgroundColor: SAND }}>
-        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
-          <p className="text-xs font-medium tracking-[0.2em]" style={{ color: TEAL }}>
-            INVESTOR RESOURCES
-          </p>
-          <h1 className="mt-4 max-w-2xl text-3xl leading-[1.15] font-normal md:text-4xl" style={{ color: BASALT }}>
+        <div className="mx-auto max-w-6xl px-6 py-6 md:py-7">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <p className="text-[11px] font-medium tracking-[0.2em]" style={{ color: TEAL }}>
+              INVESTOR RESOURCES
+            </p>
+            <span className="hidden text-xs sm:inline" style={{ color: "rgba(30,30,30,0.4)" }}>
+              ·
+            </span>
+            <p className="text-xs font-medium tracking-wide" style={{ color: TEAL }}>
+              Max Allowable Offer Calculator
+            </p>
+          </div>
+          <h1 className="mt-1.5 max-w-2xl text-xl leading-[1.2] font-normal md:text-2xl" style={{ color: BASALT }}>
             Know Your Numbers Before You Write an Offer
           </h1>
-          <p className="mt-3 text-sm font-medium tracking-wide" style={{ color: TEAL }}>
-            Max Allowable Offer Calculator
-          </p>
-          <p className="mt-4 max-w-xl text-base leading-relaxed" style={{ color: BASALT }}>
-            Run the whole deal — offer price, leverage, carrying costs, holding costs, and closing costs — and see
-            your real profit margin before you ever write an offer.
-          </p>
         </div>
       </section>
 
       <section style={{ backgroundColor: OFF_WHITE }}>
-        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+        <div className="mx-auto max-w-6xl px-6 py-10 md:py-12">
           <MaxOfferCalculatorGate leadIdFromUrl={lead} />
         </div>
       </section>

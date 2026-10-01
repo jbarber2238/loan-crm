@@ -50,28 +50,30 @@ const FANNED_SHOTS = [
 function FannedPreview({ leadGateForm }: { leadGateForm: React.ReactNode }) {
   return (
     <>
-      {/* Desktop: the fanned screenshots with the form floated over the corner. */}
-      <div className="relative hidden md:block" style={{ aspectRatio: "1199 / 660" }}>
-        {FANNED_SHOTS.map((shot) => (
-          <div
-            key={shot.src}
-            className="absolute overflow-hidden rounded-[10px]"
-            style={{
-              left: `${shot.left}%`,
-              top: `${shot.top}%`,
-              width: `${shot.width}%`,
-              aspectRatio: shot.aspect,
-              transform: `rotate(${shot.rotate}deg)`,
-              boxShadow: shot.shadow,
-              zIndex: shot.z,
-            }}
-          >
-            <Image src={shot.src} alt={shot.alt} fill className="object-cover" sizes="40vw" />
-          </div>
-        ))}
-        <div className="absolute z-[4]" style={{ right: "10.43%", bottom: "23.48%", width: "25.02%" }}>
-          {leadGateForm}
+      {/* Desktop: fanned screenshots on the left, a wide form column on the
+          right — a plain grid rather than absolute overlap math, so the
+          form's width is just "a grid column," not a fiddly percentage. */}
+      <div className="hidden items-center gap-10 md:grid md:grid-cols-[1.4fr_1fr]">
+        <div className="relative" style={{ aspectRatio: "720 / 460" }}>
+          {FANNED_SHOTS.map((shot) => (
+            <div
+              key={shot.src}
+              className="absolute overflow-hidden rounded-[10px]"
+              style={{
+                left: `${shot.left}%`,
+                top: `${shot.top}%`,
+                width: `${shot.width}%`,
+                aspectRatio: shot.aspect,
+                transform: `rotate(${shot.rotate}deg)`,
+                boxShadow: shot.shadow,
+                zIndex: shot.z,
+              }}
+            >
+              <Image src={shot.src} alt={shot.alt} fill className="object-cover" sizes="40vw" />
+            </div>
+          ))}
         </div>
+        <div>{leadGateForm}</div>
       </div>
 
       {/* Mobile: a single lead screenshot, then the form in normal flow. */}

@@ -72,7 +72,7 @@ export function LeadGateForm({
 
   return (
     <div
-      className="mx-auto max-w-md rounded-lg p-6 shadow-[0_24px_48px_rgba(20,20,20,0.25)] md:p-8"
+      className="w-full rounded-lg p-6 shadow-[0_24px_48px_rgba(20,20,20,0.25)] md:p-8"
       style={{ backgroundColor: "#143D4A" }}
     >
       <h2 className="text-lg font-semibold text-white">Get instant access</h2>
@@ -88,8 +88,10 @@ export function LeadGateForm({
           <input id="website" name="website" type="text" tabIndex={-1} autoComplete="off" />
         </div>
 
-        <GateField id="name" label="Full Name" placeholder="Jane Investor" />
-        <GateField id="phone" label="Phone Number" type="tel" placeholder="(555) 123-4567" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <GateField id="name" label="Full Name" placeholder="Jane Investor" />
+          <GateField id="phone" label="Phone Number" type="tel" placeholder="(555) 123-4567" />
+        </div>
         <GateField id="email" label="Email Address" type="email" placeholder="jane@example.com" />
         <label className="flex items-start gap-2 text-xs leading-relaxed text-white/68">
           <input type="checkbox" name="consent" required className="mt-0.5 size-3.5 shrink-0" />
