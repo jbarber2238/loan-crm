@@ -1042,8 +1042,9 @@ export const dealClientNeeds = pgTable("deal_client_needs", {
   // below; esign/questionnaire needs have no document to approve, so they
   // stay on manual needed/accepted-style toggles.
   needType: clientNeedTemplateTypeEnum("need_type").notNull().default("document_upload"),
-  // Copied from the catalog item at add-time — how many documents this need
-  // requires before recomputeNeedStatus() will call it accepted.
+  // Copied from the catalog item at add-time — informational only (e.g. "2"
+  // for a driver's license front + back). Does NOT drive acceptance:
+  // approving documents never accepts the need by itself, see acceptedAt.
   minFiles: integer("min_files").notNull().default(1),
   // Copied from the catalog item at add-time (or set directly for a custom
   // need) — same fields/meaning as on clientNeeds above.
@@ -1085,6 +1086,13 @@ export const dealClientNeeds = pgTable("deal_client_needs", {
   // required so the reason is still known later.
   onHoldAt: timestamp("on_hold_at", { mode: "date", withTimezone: true }),
   onHoldNote: text("on_hold_note"),
+  // Set ONLY by the explicit "Accept Need" action — never derived from
+  // documents, so approving one document (or all of them) individually can
+  // never accept the need on its own. Cleared by any rejection (document- or
+  // need-level) so a previously-accepted need doesn't keep reading as
+  // Accepted once something in it has been flagged. See deriveNeedStatus.
+  acceptedAt: timestamp("accepted_at", { mode: "date" }),
+  acceptedByUserId: uuid("accepted_by_user_id").references(() => users.id),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   // The real, stable display order — assigned explicitly at insert time
   // (see addCatalogNeedsToDeal), never touched again. `createdAt` alone

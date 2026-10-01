@@ -15,7 +15,7 @@ import {
 } from "@/server/actions/client-needs";
 import {
   attachDocumentToClientNeed,
-  approveClientNeedDocuments,
+  acceptClientNeed,
   rejectClientNeedDocuments,
 } from "@/server/actions/client-need-documents";
 import {
@@ -773,7 +773,7 @@ function ClientNeedRow({
             )}
             {need.description && <p className="text-sm text-muted-foreground">{need.description}</p>}
             {need.needType === "document_upload" && need.minFiles > 1 && (
-              <p className="text-xs text-amber-600">Requires {need.minFiles} files (e.g. front &amp; back) before it can be accepted</p>
+              <p className="text-xs text-amber-600">Requires {need.minFiles} files (e.g. front &amp; back)</p>
             )}
             {need.needType === "document_upload" && need.templateFileName && (
               <a
@@ -809,13 +809,13 @@ function ClientNeedRow({
               <>
                 {need.needType === "document_upload" && <AttachDocumentButton dealId={dealId} needId={need.id} />}
                 {need.documents.length > 0 && <AiReviewButton dealId={dealId} needId={need.id} />}
-                {pendingIds.length > 0 && (
+                {nonRejectedIds.length > 0 && (
                   <Button
                     type="button"
                     size="sm"
                     variant="success"
                     disabled={pending}
-                    onClick={() => runAction(() => approveClientNeedDocuments(dealId, need.id, pendingIds))}
+                    onClick={() => runAction(() => acceptClientNeed(dealId, need.id))}
                   >
                     Accept Need
                   </Button>

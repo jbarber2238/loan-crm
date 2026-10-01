@@ -8,7 +8,10 @@ export type DealClientNeedStatus =
   | "unused";
 
 export interface NeedForStatus {
-  minFiles: number;
+  // Set only by the explicit "Accept Need" action — approving documents
+  // (one, several, or all of them) never sets this by itself. See the
+  // acceptedAt column comment in schema.ts.
+  acceptedAt: Date | null;
   sentAt: Date | null;
   lastSentAt: Date | null;
   documents: { reviewStatus: "pending" | "approved" | "rejected"; reviewedAt: Date | null }[];
@@ -20,11 +23,6 @@ export interface NeedForStatus {
 // DATABASE_URL) — see src/server/client-need-status.ts for the DB-backed
 // recomputeNeedStatus that wraps this.
 export function deriveNeedStatus(need: NeedForStatus): DealClientNeedStatus {
-  // minFiles > 1 (e.g. a driver's license needing front + back) means the
-  // need can't be "accepted" until that many documents are approved, not
-  // just one.
-  const approvedCount = need.documents.filter((d) => d.reviewStatus === "approved").length;
-  const hasEnoughApproved = approvedCount >= need.minFiles;
   const hasPending = need.documents.some((d) => d.reviewStatus === "pending");
 
   const rejectedDocs = need.documents.filter((d) => d.reviewStatus === "rejected");
@@ -43,7 +41,7 @@ export function deriveNeedStatus(need: NeedForStatus): DealClientNeedStatus {
     need.lastSentAt && latestRejectedAt && need.lastSentAt >= latestRejectedAt
   );
 
-  if (hasEnoughApproved) return "accepted";
+  if (need.acceptedAt) return "accepted";
   if (hasPending) return "review_needed";
   if (hasAnyRejected && !resentSinceRejection) {
     return allRejected ? "need_rejected_not_sent" : "document_rejected_not_sent";

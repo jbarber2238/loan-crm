@@ -50,9 +50,12 @@ export async function attachDocumentToClientNeed(dealId: string, needId: string,
   revalidatePath(`/deals/${dealId}/loan-center`);
 }
 
-// One shared pair of ID-list actions covers every case: reviewing a single
-// document (a list of one), a checked multi-select, or "Accept/Reject Need"
-// acting on every document at once — the caller decides which ids to pass.
+// One shared pair of ID-list actions covers reviewing a single document (a
+// list of one) or a checked multi-select — the caller decides which ids to
+// pass. Deliberately NEVER accepts the need itself, no matter how many (or
+// which) documents get approved this way — only the separate, explicit
+// acceptClientNeed below can do that. See the acceptedAt column comment in
+// schema.ts for why.
 export async function approveClientNeedDocuments(dealId: string, needId: string, documentIds: string[]) {
   const user = await requireUser();
   if (!documentIds.length) return;
@@ -60,6 +63,33 @@ export async function approveClientNeedDocuments(dealId: string, needId: string,
     .update(dealClientNeedDocuments)
     .set({ reviewStatus: "approved", reviewedAt: new Date(), reviewedByUserId: user.id, rejectionNote: null })
     .where(and(eq(dealClientNeedDocuments.clientNeedId, needId), inArray(dealClientNeedDocuments.id, documentIds)));
+  await recomputeNeedStatus(needId);
+  revalidatePath(`/deals/${dealId}/loan-center`);
+}
+
+// The ONLY action that can mark a need Accepted — a deliberate, need-level
+// decision, never a side effect of approving documents. Approves any
+// documents still sitting at "pending" (so nothing is left dangling in an
+// accepted need) before setting acceptedAt.
+export async function acceptClientNeed(dealId: string, needId: string) {
+  const user = await requireUser();
+
+  const pendingDocs = await db.query.dealClientNeedDocuments.findMany({
+    where: and(eq(dealClientNeedDocuments.clientNeedId, needId), eq(dealClientNeedDocuments.reviewStatus, "pending")),
+    columns: { id: true },
+  });
+  if (pendingDocs.length) {
+    await db
+      .update(dealClientNeedDocuments)
+      .set({ reviewStatus: "approved", reviewedAt: new Date(), reviewedByUserId: user.id, rejectionNote: null })
+      .where(inArray(dealClientNeedDocuments.id, pendingDocs.map((d) => d.id)));
+  }
+
+  await db
+    .update(dealClientNeeds)
+    .set({ acceptedAt: new Date(), acceptedByUserId: user.id })
+    .where(and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)));
+
   await recomputeNeedStatus(needId);
   revalidatePath(`/deals/${dealId}/loan-center`);
 }
@@ -110,6 +140,11 @@ export async function rejectClientNeedDocuments(
     .update(dealClientNeedDocuments)
     .set({ reviewStatus: "rejected", reviewedAt: new Date(), reviewedByUserId: user.id, rejectionNote: note.trim() })
     .where(and(eq(dealClientNeedDocuments.clientNeedId, needId), inArray(dealClientNeedDocuments.id, documentIds)));
+
+  // Rejecting a document — whether one of several or every document via
+  // "Reject Need" — undoes a prior "Accept Need" decision, so the need
+  // doesn't keep reading as Accepted once something in it has been flagged.
+  await db.update(dealClientNeeds).set({ acceptedAt: null, acceptedByUserId: null }).where(eq(dealClientNeeds.id, needId));
 
   await recomputeNeedStatus(needId);
   revalidatePath(`/deals/${dealId}/loan-center`);
