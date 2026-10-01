@@ -8,7 +8,7 @@ import { leads, leadActivities, leadActivityTypeEnum } from "@/server/db/schema"
 import { requireAdminOrLoanOfficer } from "@/server/auth/guards";
 import { toE164 } from "@/server/twilio-client";
 import { computeStatusAfterEvent, type LeadStatus } from "@/lib/lead-scoring";
-import { sendMaxOfferExcelEmail, sendHotLeadAlert } from "@/server/lead-notifications";
+import { sendMaxOfferExcelEmail, sendLeadCapturedAlert, sendHotLeadAlert } from "@/server/lead-notifications";
 import type { MaxOfferExcelInputs } from "@/lib/max-offer-excel-export";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -54,12 +54,14 @@ export async function submitLead(source: string, formData: FormData): Promise<{ 
     return { leadId: "00000000-0000-0000-0000-000000000000" };
   }
 
-  const name = String(formData.get("name") ?? "").trim();
+  const firstName = String(formData.get("name") ?? "").trim();
+  const lastName = String(formData.get("lastName") ?? "").trim();
+  const name = lastName ? `${firstName} ${lastName}` : firstName;
   const emailRaw = String(formData.get("email") ?? "").trim();
   const phoneRaw = String(formData.get("phone") ?? "").trim();
   const consent = formData.get("consent") === "on";
 
-  if (!name) throw new Error("Please enter your name.");
+  if (!firstName) throw new Error("Please enter your name.");
   if (!EMAIL_RE.test(emailRaw)) throw new Error("Please enter a valid email address.");
   if (phoneRaw.replace(/\D/g, "").length < 10) throw new Error("Please enter a valid phone number.");
   if (!consent) throw new Error("Please agree to be contacted to continue.");
@@ -129,18 +131,28 @@ export async function submitLead(source: string, formData: FormData): Promise<{ 
 // Max Allowable Offer Calculator's Excel-download gate. Kept separate from
 // submitLead itself (a generic, reusable lead-capture function with no
 // calculator-specific knowledge) since this needs the calculator's current
-// inputs, which the gate form never collects.
+// inputs, which the gate form never collects. Also fires the internal
+// "new lead" alert here, at the same moment, since this is the one place
+// that already has both the lead and its deal-under-contract answer
+// together — see sendLeadCapturedAlert for why that's a separate email
+// from the conditional hot-lead alert.
 export async function sendMaxOfferExcelEmailAction(
   leadId: string,
   inputs: MaxOfferExcelInputs,
-  hasDealUnderContract: boolean | null
+  hasDealUnderContract: boolean | null,
+  closingTimelineLabel: string | null
 ): Promise<void> {
   const lead = await db.query.leads.findFirst({ where: eq(leads.id, leadId) });
   if (!lead) return;
   const calculatorUrl = `https://mannalendingco.com/resources/max-allowable-offer-calculator?lead=${leadId}`;
-  await sendMaxOfferExcelEmail(lead, inputs, calculatorUrl, hasDealUnderContract).catch((err) =>
-    console.error("Failed to send max offer excel email:", err)
-  );
+  await Promise.all([
+    sendMaxOfferExcelEmail(lead, inputs, calculatorUrl, hasDealUnderContract).catch((err) =>
+      console.error("Failed to send max offer excel email:", err)
+    ),
+    sendLeadCapturedAlert(lead, hasDealUnderContract, closingTimelineLabel).catch((err) =>
+      console.error("Failed to send new lead alert:", err)
+    ),
+  ]);
 }
 
 // Public, unauthenticated — lets the emailed "here's your calculator" link

@@ -92,6 +92,53 @@ export async function sendMaxOfferExcelEmail(
   });
 }
 
+// Fires on every Excel-gate submission, regardless of how it's answered —
+// unlike sendHotLeadAlert below, which only fires once a lead's status
+// actually crosses into "hot" (a deal under contract, a fast close, an
+// on-target CTA click). Justin wants to know every time someone fills out
+// the gate, not just the subset that happens to score hot; the two emails
+// can both land for the same lead, and that's fine — this one says "someone
+// just came in," that one says "this one's worth a closer look now."
+export async function sendLeadCapturedAlert(
+  lead: Lead,
+  hasDealUnderContract: boolean | null,
+  closingTimeline: string | null
+): Promise<void> {
+  const sender = await getSystemSender();
+  if (!sender) return;
+
+  const companyName = await getCompanyName();
+  const logoHtml = await getCompanyLogoHtml();
+
+  const dealLine =
+    hasDealUnderContract === true
+      ? `Deal under contract: Yes${closingTimeline ? ` · Needs to close in ${closingTimeline}` : ""}`
+      : hasDealUnderContract === false
+        ? "Deal under contract: No"
+        : null;
+
+  const body = emailShell({
+    companyName,
+    heading: "New calculator lead",
+    bodyHtml: `
+      <p style="margin:0 0 16px;"><strong>${lead.name}</strong> requested the Max Allowable Offer Calculator's Excel version.</p>
+      <p style="margin:0 0 16px;">
+        Phone: <a href="tel:${lead.phone}">${lead.phone}</a><br/>
+        Email: <a href="mailto:${lead.email}">${lead.email}</a>
+      </p>
+      ${dealLine ? `<p style="margin:0 0 16px;">${dealLine}</p>` : ""}
+    `,
+  });
+
+  await sendGmailAs(sender.id, sender.email, {
+    to: NOTIFY_EMAIL,
+    subject: `New calculator lead — ${lead.name}`,
+    body: logoHtml + body,
+    html: true,
+    category: "lead_magnet_new_lead",
+  });
+}
+
 export async function sendHotLeadAlert(lead: Lead): Promise<void> {
   const sender = await getSystemSender();
   if (!sender) return;

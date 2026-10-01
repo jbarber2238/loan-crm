@@ -455,7 +455,7 @@ function ExcelGateForm({ onSubmitted }: { onSubmitted: (leadId: string, dealUnde
           <input id="gate-website" name="website" type="text" tabIndex={-1} autoComplete="off" />
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <label className="flex flex-col gap-1">
             <span className="text-xs font-semibold" style={{ color: BASALT }}>
               First name
@@ -465,6 +465,19 @@ function ExcelGateForm({ onSubmitted }: { onSubmitted: (leadId: string, dealUnde
               type="text"
               required
               autoComplete="given-name"
+              className="h-12 rounded-sm border bg-white px-3 text-base outline-none"
+              style={{ borderColor: "#BDB29A", color: TEAL }}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold" style={{ color: BASALT }}>
+              Last name
+            </span>
+            <input
+              name="lastName"
+              type="text"
+              required
+              autoComplete="family-name"
               className="h-12 rounded-sm border bg-white px-3 text-base outline-none"
               style={{ borderColor: "#BDB29A", color: TEAL }}
             />
@@ -617,7 +630,7 @@ export function MaxOfferCalculator({ initialLeadId }: { initialLeadId: string | 
     // file attached (in case the browser download gets lost, or they want
     // it on a different device) and a link back to the calculator.
     await runDownload(id);
-    sendMaxOfferExcelEmailAction(id, inputs, dealUnderContract).catch((err) =>
+    sendMaxOfferExcelEmailAction(id, inputs, dealUnderContract, timelineLabel).catch((err) =>
       console.error("Failed to send max offer excel email:", err)
     );
   }
