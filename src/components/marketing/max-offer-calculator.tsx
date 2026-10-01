@@ -346,6 +346,14 @@ export function MaxOfferCalculator({ leadId }: { leadId: string }) {
   const stressedDispoCost = stressedArv * (dispoPct / 100);
   const stressedProfit = stressedArv - stressedDispoCost - totalProjectCost;
   const stressedMarginPct = stressedArv > 0 ? (stressedProfit / stressedArv) * 100 : 0;
+  const stressedCashOnCashPct = computeCashOnCashReturnPct(stressedProfit, cashInvested);
+  const isStressed = stressPct > 0;
+  // While the stress slider is touched, the headline numbers below show the
+  // stressed scenario directly instead of a separate echoed-below pair —
+  // cash invested doesn't move (it's sunk cost, independent of resale price).
+  const displayedProfit = isStressed ? stressedProfit : profit;
+  const displayedMarginPct = isStressed ? stressedMarginPct : profitMarginPct;
+  const displayedCashOnCashPct = isStressed ? stressedCashOnCashPct : cashOnCashPct;
 
   const [downloading, setDownloading] = useState(false);
   async function handleDownload() {
@@ -625,44 +633,52 @@ export function MaxOfferCalculator({ leadId }: { leadId: string }) {
       <SectionCard step={6} title="Profit & Margin" subtitle="Where every dollar of your after-repair value goes, and what's left over for you.">
         <CostStackBar segments={segments} total={stackTotal} />
 
+        <RangeSlider
+          label="ARV Stress Test — what if the sale price comes in lower?"
+          value={stressPct}
+          onChange={setStressPct}
+          min={0}
+          max={15}
+          step={5}
+          format={(v) => (v === 0 ? "No change" : `−${v}% ARV`)}
+        />
+
         <div
           className="rounded-sm p-5"
-          style={{ backgroundColor: profit >= 0 ? `${GREEN}18` : `${RED}18` }}
+          style={{
+            backgroundColor: displayedProfit >= 0 ? `${isStressed ? AMBER : GREEN}18` : `${RED}18`,
+            boxShadow: isStressed ? `0 0 0 2px ${AMBER}66` : undefined,
+          }}
         >
           <div className="flex items-baseline justify-between">
             <span className="text-sm font-medium" style={{ color: BASALT }}>
-              Projected Profit
+              Projected Profit{isStressed && <span style={{ color: AMBER }}> (at −{stressPct}% ARV)</span>}
             </span>
-            <span className="text-2xl font-semibold" style={{ color: profit >= 0 ? GREEN : RED }}>
-              {money(profit)}
+            <span
+              className="text-2xl font-semibold"
+              style={{ color: displayedProfit >= 0 ? (isStressed ? AMBER : GREEN) : RED }}
+            >
+              {money(displayedProfit)}
             </span>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <ResultRow label="Total Cash Invested" value={money(cashInvested)} />
-          <ResultRow label="Cash-on-Cash Return" value={`${cashOnCashPct.toFixed(1)}%`} />
-        </div>
-
-        <MarginGauge pct={profitMarginPct} label="Profit Margin (% of ARV) — target 15–20%" />
-
-        <div>
-          <RangeSlider
-            label="ARV Stress Test — what if the sale price comes in lower?"
-            value={stressPct}
-            onChange={setStressPct}
-            min={0}
-            max={15}
-            step={5}
-            format={(v) => (v === 0 ? "No change" : `−${v}% ARV`)}
+          <ResultRow
+            label={isStressed ? `Cash-on-Cash Return (at −${stressPct}% ARV)` : "Cash-on-Cash Return"}
+            value={`${displayedCashOnCashPct.toFixed(1)}%`}
           />
-          {stressPct > 0 && (
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <ResultRow label={`Profit at −${stressPct}% ARV`} value={money(stressedProfit)} />
-              <ResultRow label={`Margin at −${stressPct}% ARV`} value={`${stressedMarginPct.toFixed(1)}%`} />
-            </div>
-          )}
         </div>
+
+        <MarginGauge
+          pct={displayedMarginPct}
+          label={
+            isStressed
+              ? `Profit Margin at −${stressPct}% ARV — target 15–20%`
+              : "Profit Margin (% of ARV) — target 15–20%"
+          }
+        />
       </SectionCard>
 
       <DynamicCta tier={ctaTier} onNavigate={handleCtaClick} />
