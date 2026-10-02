@@ -2,7 +2,9 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { Menu } from "lucide-react";
 import { MannaLogo } from "@/components/marketing/manna-logo";
+import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 const TEAL = "#143D4A";
 const BASALT = "#1E1E1E";
@@ -24,8 +26,15 @@ const APPLY_HREF = `/intake/${LOAN_OFFICER_ID}`;
  * open/close flicker loop) and pinned the menu's width to the trigger's own
  * width, which mangled the longer "Hard Money Leverage Calculator" label.
  */
+const RESOURCE_LINKS = [
+  { href: "/resources/dscr-calculator", label: "DSCR Calculator" },
+  { href: "/resources/hard-money-calculator", label: "Hard Money Leverage Calculator" },
+  { href: "/resources/max-allowable-offer-calculator", label: "Max Allowable Offer Calculator" },
+];
+
 export function SiteHeader() {
   const [resourcesOpen, setResourcesOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function openNow() {
@@ -90,6 +99,68 @@ export function SiteHeader() {
           >
             Apply Now
           </Link>
+
+          {/* Mobile only — Programs and Resources above are hidden below
+              `sm`, with nothing else offering a way to reach them, so this
+              is the only path to either on a phone. */}
+          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+            <SheetTrigger asChild>
+              <button
+                type="button"
+                aria-label="Open menu"
+                className="flex size-10 items-center justify-center rounded-sm sm:hidden"
+                style={{ color: BASALT }}
+              >
+                <Menu className="size-6" />
+              </button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[280px]" style={{ backgroundColor: OFF_WHITE }}>
+              <SheetHeader>
+                <SheetTitle className="font-normal" style={{ color: TEAL }}>
+                  <MannaLogo className="h-7 w-auto" />
+                </SheetTitle>
+              </SheetHeader>
+              <nav className="flex flex-col gap-1 px-4 pb-6">
+                <Link
+                  href="/#programs"
+                  onClick={() => setMobileOpen(false)}
+                  className="rounded-sm px-2 py-3 text-base font-medium"
+                  style={{ color: BASALT }}
+                >
+                  Programs
+                </Link>
+                <Link
+                  href="/resources"
+                  onClick={() => setMobileOpen(false)}
+                  className="rounded-sm px-2 py-3 text-base font-medium"
+                  style={{ color: BASALT }}
+                >
+                  Resources
+                </Link>
+                <div className="flex flex-col gap-1 pl-4">
+                  {RESOURCE_LINKS.map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      onClick={() => setMobileOpen(false)}
+                      className="rounded-sm px-2 py-2.5 text-sm"
+                      style={{ color: "#4A6470" }}
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
+                <Link
+                  href={APPLY_HREF}
+                  onClick={() => setMobileOpen(false)}
+                  className="mt-4 rounded-sm px-5 py-3 text-center text-sm font-medium tracking-wide text-white"
+                  style={{ backgroundColor: TEAL }}
+                >
+                  Apply Now
+                </Link>
+              </nav>
+            </SheetContent>
+          </Sheet>
         </nav>
       </div>
     </header>
