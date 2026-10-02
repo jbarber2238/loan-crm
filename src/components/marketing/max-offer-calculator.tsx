@@ -310,7 +310,7 @@ function LenderPanel({ loan, limitedBy, cashIn, arv, scenarioLabel, onCtaClick }
   );
 }
 
-function CashToClosePanel({
+function CashInvestedPanel({
   costRows,
   totalCost,
   loan,
@@ -326,51 +326,52 @@ function CashToClosePanel({
   scenarioLabel: string;
 }) {
   return (
-    <section aria-label="What you'll need in cash" className="rounded-md border bg-white p-6 md:p-7" style={{ borderColor: "#E2DCCD" }}>
+    <section aria-label="Total cash invested" className="rounded-md border bg-white p-6 md:p-7" style={{ borderColor: "#E2DCCD" }}>
       <h2 className="font-serif text-xl font-medium" style={{ color: TEAL, fontFamily: "var(--font-archivo), Archivo, serif" }}>
-        What you&rsquo;ll need in cash
+        Total cash invested
       </h2>
       <p className="mt-1 text-sm" style={{ color: MOSS }}>
-        Based on buying at {scenarioLabel}, here&rsquo;s the total project cost, what the loan covers, and what&rsquo;s left for
-        you to bring.
+        Based on buying at {scenarioLabel} — everything you&rsquo;d put in across the project, after the loan, is what
+        cash-on-cash return below is measured against.
       </p>
 
-      <div className="mt-3.5 flex flex-col">
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="rounded-sm p-4" style={{ backgroundColor: `${SAND}40` }}>
+          <div className="text-xs font-bold tracking-wide" style={{ color: MOSS }}>
+            TOTAL CASH INVESTED
+          </div>
+          <div className="text-[36px] leading-[1.1] font-semibold tabular-nums" style={{ color: TEAL }}>
+            {money(cashIn)}
+          </div>
+        </div>
+        <div className="rounded-sm p-4" style={{ backgroundColor: `${GREEN}18` }}>
+          <div className="text-xs font-bold tracking-wide" style={{ color: MOSS }}>
+            PROJECTED CASH-ON-CASH RETURN
+          </div>
+          <div className="text-[36px] leading-[1.1] font-semibold tabular-nums" style={{ color: GREEN }}>
+            {(cashOnCash * 100).toFixed(1)}%
+          </div>
+        </div>
+      </div>
+      <p className="mt-2 text-xs leading-relaxed" style={{ color: MOSS }}>
+        Not a quote or commitment — your actual cash needed depends on the lender&rsquo;s draw schedule for rehab.
+      </p>
+
+      <div className="mt-4 flex flex-col text-xs" style={{ color: MOSS }}>
         {costRows.map((r) => (
-          <div key={r.label} className="flex justify-between border-t py-2 text-sm" style={{ borderColor: "#E2DCCD", color: BASALT }}>
+          <div key={r.label} className="flex justify-between border-t py-1.5" style={{ borderColor: "#E2DCCD" }}>
             <span>{r.label}</span>
             <span className="tabular-nums">{money(r.amount)}</span>
           </div>
         ))}
-        <div className="flex justify-between border-t py-2 text-sm font-semibold" style={{ borderColor: "#E2DCCD", color: BASALT }}>
+        <div className="flex justify-between border-t py-1.5 font-semibold" style={{ borderColor: "#E2DCCD", color: BASALT }}>
           <span>Total project cost</span>
           <span className="tabular-nums">{money(totalCost)}</span>
         </div>
-        <div className="flex justify-between border-t py-2 text-sm" style={{ borderColor: "#E2DCCD", color: MOSS }}>
+        <div className="flex justify-between border-t py-1.5" style={{ borderColor: "#E2DCCD" }}>
           <span>Less: loan proceeds (up to)</span>
           <span className="tabular-nums">&minus;{money(loan)}</span>
         </div>
-      </div>
-
-      <div className="mt-2 rounded-sm p-4" style={{ backgroundColor: `${SAND}40` }}>
-        <div className="text-xs font-bold tracking-wide" style={{ color: MOSS }}>
-          CASH TO CLOSE
-        </div>
-        <div className="text-[40px] leading-[1.1] font-semibold tabular-nums" style={{ color: TEAL }}>
-          {money(cashIn)}
-        </div>
-        <p className="mt-1 text-xs leading-relaxed" style={{ color: MOSS }}>
-          What you&rsquo;d bring to closing under qualifying circumstances — not a quote or commitment.
-        </p>
-      </div>
-
-      <div className="mt-3 flex items-baseline justify-between rounded-sm p-3" style={{ backgroundColor: OFF_WHITE }}>
-        <span className="text-sm font-semibold" style={{ color: BASALT }}>
-          Projected cash-on-cash return
-        </span>
-        <span className="text-xl font-semibold tabular-nums" style={{ color: GREEN }}>
-          {(cashOnCash * 100).toFixed(1)}%
-        </span>
       </div>
     </section>
   );
@@ -990,23 +991,25 @@ export function MaxOfferCalculator({ initialLeadId }: { initialLeadId: string | 
         {downloading ? "Preparing your file…" : "Save this deal as Excel"}
       </button>
 
-      <LenderPanel
-        loan={active.loan}
-        limitedBy={active.limitedBy}
-        cashIn={active.cashIn}
-        arv={inputs.arv}
-        scenarioLabel={scenarioLabel}
-        onCtaClick={handleQualifyClick}
-      />
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6">
+        <LenderPanel
+          loan={active.loan}
+          limitedBy={active.limitedBy}
+          cashIn={active.cashIn}
+          arv={inputs.arv}
+          scenarioLabel={scenarioLabel}
+          onCtaClick={handleQualifyClick}
+        />
 
-      <CashToClosePanel
-        costRows={costRows}
-        totalCost={active.totalCost}
-        loan={active.loan}
-        cashIn={active.cashIn}
-        cashOnCash={active.cashOnCash}
-        scenarioLabel={scenarioLabel}
-      />
+        <CashInvestedPanel
+          costRows={costRows}
+          totalCost={active.totalCost}
+          loan={active.loan}
+          cashIn={active.cashIn}
+          cashOnCash={active.cashOnCash}
+          scenarioLabel={scenarioLabel}
+        />
+      </div>
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6">
         <BreakdownBars rows={breakdownRows} arv={inputs.arv} scenarioLabel={scenarioLabel} />
