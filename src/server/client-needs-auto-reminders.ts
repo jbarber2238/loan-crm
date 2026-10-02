@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { deals, dealClientNeeds } from "@/server/db/schema";
 import { sendGmailAs } from "@/server/gmail/send";
@@ -155,6 +155,12 @@ async function evaluateDeal(
   now: Date
 ): Promise<{ due: false; reason: string } | { due: true; dealWithRelations: DealWithRelations; groups: Map<string, CandidateNeed[]> }> {
   if (deal.clientNeedsRemindersPaused) return { due: false, reason: "Reminders are paused on this deal" };
+  // A file that's closed, archived or deleted has nothing left to chase —
+  // checked here as well as in the cron's query so a manual preview of one
+  // of these deals reports the real reason instead of "would send now."
+  if (deal.stage === "closed") return { due: false, reason: "Deal is Closed" };
+  if (deal.archivedAt) return { due: false, reason: "Deal is archived" };
+  if (deal.deletedAt) return { due: false, reason: "Deal is deleted" };
   if (!deal.borrowerEmail) return { due: false, reason: "No borrower email on file" };
 
   const needs = await reminderCandidates(deal.id);
@@ -267,7 +273,12 @@ async function sendReminderForDeal(deal: typeof deals.$inferSelect, now: Date): 
 /** Cron entry point — checked hourly; each deal's own interval/pause setting decides whether it actually sends. */
 export async function sendClientNeedsAutoReminders(now = new Date()): Promise<{ sent: number; checked: number }> {
   const candidates = await db.query.deals.findMany({
-    where: and(eq(deals.clientNeedsRemindersPaused, false)),
+    where: and(
+      eq(deals.clientNeedsRemindersPaused, false),
+      ne(deals.stage, "closed"),
+      isNull(deals.archivedAt),
+      isNull(deals.deletedAt)
+    ),
   });
 
   let sent = 0;
