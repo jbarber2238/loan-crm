@@ -3,6 +3,7 @@ import { Archivo } from "next/font/google";
 import Link from "next/link";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { SiteFooter } from "@/components/marketing/site-footer";
+import { ProgramsSection } from "@/components/marketing/programs-section";
 
 const archivo = Archivo({
   subsets: ["latin"],
@@ -35,44 +36,6 @@ const TRACK_RECORD = [
 
 const HOW_WE_LEND = ["No Tax Returns Required", "No Income Verification", "Asset-Based Underwriting"];
 
-const PROGRAMS = [
-  {
-    name: "DSCR Purchase",
-    bullets: ["$50K–$3.5M loan amounts", "Up to 85% LTV", "600 FICO minimum", "30- and 40-year fixed, interest-only and 5/6 ARM options"],
-  },
-  {
-    name: "DSCR Cash-Out Refi",
-    bullets: ["Up to 80% LTV", "$50K–$3.5M loan amounts", "600 FICO minimum", "30- and 40-year fixed, interest-only and 5/6 ARM options"],
-  },
-  {
-    name: "DSCR Rate & Term Refi",
-    bullets: ["Reprice an existing loan", "$50K–$3.5M loan amounts", "600 FICO minimum", "30- and 40-year fixed, interest-only and 5/6 ARM options"],
-  },
-  {
-    name: "Fix & Flip",
-    bullets: [
-      "$75K–$7M+ loan amounts",
-      "80% to 90% LTC for most borrowers, up to 100% loan-to-cost for qualified borrowers",
-      "75% of After-Repair Value (ARV)",
-      "No experience required",
-      "660 FICO minimum",
-    ],
-  },
-  {
-    name: "Ground-Up Construction",
-    bullets: [
-      "$75K–$7M+ loan amounts",
-      "80% to 90% LTC for most borrowers, up to 100% loan-to-cost for qualified borrowers",
-      "75% of Gross Development Value (GDV)",
-      "660 FICO minimum",
-    ],
-  },
-  {
-    name: "Bridge Financing",
-    bullets: ["$75K–$7M+ loan amounts", "600 FICO minimum"],
-  },
-];
-
 const STEPS = [
   {
     n: "01",
@@ -95,26 +58,6 @@ const STEPS = [
     body: "We review every document before it reaches the lender, catching issues early so your loan closes without hiccups.",
   },
 ];
-
-function ProgramCard({ program }: { program: (typeof PROGRAMS)[number] }) {
-  return (
-    <div className="rounded-sm p-5 shadow-[0_8px_24px_rgba(20,61,74,0.25)]" style={{ backgroundColor: OFF_WHITE }}>
-      <h3 className="text-base font-medium" style={{ color: TEAL }}>
-        {program.name}
-      </h3>
-      <ul className="mt-2.5 space-y-1">
-        {program.bullets.map((b) => (
-          <li key={b} className="flex gap-2 text-xs leading-snug" style={{ color: BASALT }}>
-            <span aria-hidden="true" style={{ color: TEAL }}>
-              —
-            </span>
-            <span>{b}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
 
 export default function MarketingHomePage() {
   return (
@@ -192,42 +135,7 @@ export default function MarketingHomePage() {
         </div>
       </section>
 
-      {/* Programs — one real photo behind the whole section, cards
-          floating on top, instead of a tiny thumbnail stuffed into each
-          card (which read as cluttered and "almost useless" at that size). */}
-      <section
-        id="programs"
-        className="bg-cover bg-center"
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(203,184,160,0.92), rgba(203,184,160,0.9)), url('https://images.unsplash.com/photo-1571979622878-622d38ec238c?auto=format&fit=crop&w=2400&q=80')",
-        }}
-      >
-        <div className="mx-auto max-w-6xl px-6 py-20 md:py-24">
-          <p className="text-xs font-medium tracking-[0.2em]" style={{ color: TEAL }}>
-            LOAN PROGRAMS
-          </p>
-          <h2 className="mt-3 max-w-2xl text-2xl font-normal md:text-3xl" style={{ color: BASALT }}>
-            We fund real estate investors — from your first rental to your next ground-up build.
-          </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed" style={{ color: BASALT }}>
-            Every deal is matched against our lending network to find the best fit for your credit, experience,
-            and exit strategy.
-          </p>
-          <Link
-            href={APPLY_HREF}
-            className="mt-7 inline-block rounded-sm px-7 py-3.5 text-sm font-medium tracking-wide text-white transition-opacity hover:opacity-90"
-            style={{ backgroundColor: TEAL }}
-          >
-            Get Quick Pricing
-          </Link>
-          <div className="mt-12 grid grid-cols-2 gap-5 md:grid-cols-3">
-            {PROGRAMS.map((program) => (
-              <ProgramCard key={program.name} program={program} />
-            ))}
-          </div>
-        </div>
-      </section>
+      <ProgramsSection applyHref={APPLY_HREF} />
 
       <section style={{ backgroundColor: OFF_WHITE }}>
         <div className="mx-auto max-w-6xl px-6 py-14">
