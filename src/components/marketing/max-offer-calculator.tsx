@@ -314,6 +314,7 @@ function CashInvestedPanel({
   costRows,
   totalCost,
   loan,
+  cashToClose,
   cashIn,
   cashOnCash,
   scenarioLabel,
@@ -321,6 +322,7 @@ function CashInvestedPanel({
   costRows: { label: string; amount: number }[];
   totalCost: number;
   loan: number;
+  cashToClose: number;
   cashIn: number;
   cashOnCash: number;
   scenarioLabel: string;
@@ -331,8 +333,8 @@ function CashInvestedPanel({
         Total cash invested
       </h2>
       <p className="mt-1 text-sm" style={{ color: MOSS }}>
-        Based on buying at {scenarioLabel} — everything you&rsquo;d put in across the project, after the loan, is what
-        cash-on-cash return below is measured against.
+        Based on buying at {scenarioLabel} — everything you&rsquo;d put in over the life of this deal, after the loan, is
+        what cash-on-cash return below is measured against.
       </p>
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -354,7 +356,7 @@ function CashInvestedPanel({
         </div>
       </div>
       <p className="mt-2 text-xs leading-relaxed" style={{ color: MOSS }}>
-        Not a quote or commitment — your actual cash needed depends on the lender&rsquo;s draw schedule for rehab.
+        Not a quote or commitment to lend.
       </p>
 
       <div className="mt-4 flex flex-col text-xs" style={{ color: MOSS }}>
@@ -372,7 +374,15 @@ function CashInvestedPanel({
           <span>Less: loan proceeds (up to)</span>
           <span className="tabular-nums">&minus;{money(loan)}</span>
         </div>
+        <div className="flex justify-between border-t py-1.5" style={{ borderColor: "#E2DCCD" }}>
+          <span>Cash to close</span>
+          <span className="tabular-nums">{money(cashToClose)}</span>
+        </div>
       </div>
+      <p className="mt-2 text-xs leading-relaxed" style={{ color: MOSS }}>
+        Cash to close assumes the loan is drawn against the purchase price first, with rehab released in draws
+        later — not due at this closing. Your actual split depends on the lender.
+      </p>
     </section>
   );
 }
@@ -736,6 +746,12 @@ export function MaxOfferCalculator({ initialLeadId }: { initialLeadId: string | 
     { label: "Loan interest", amount: active.interest },
     { label: "Holding costs", amount: active.holding },
   ];
+  // Estimated cash due at THIS closing specifically (not the total cash
+  // invested over the deal's life, above) — assumes the loan is drawn
+  // against the purchase price first, with rehab released in draws later.
+  // A simplifying assumption, not a lender commitment: see the caption next
+  // to where this renders.
+  const cashToClose = Math.max(0, active.price - active.loan) + active.acquisition + active.points;
   const breakdownRows = [
     { label: "Purchase price", amount: active.price, color: TEAL },
     { label: "Rehab", amount: inputs.rehab, color: "#3C6A78" },
@@ -1005,6 +1021,7 @@ export function MaxOfferCalculator({ initialLeadId }: { initialLeadId: string | 
           costRows={costRows}
           totalCost={active.totalCost}
           loan={active.loan}
+          cashToClose={cashToClose}
           cashIn={active.cashIn}
           cashOnCash={active.cashOnCash}
           scenarioLabel={scenarioLabel}
