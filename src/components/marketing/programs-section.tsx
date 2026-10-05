@@ -20,7 +20,7 @@ const DSCR_ROWS: { label: string; values: string[] }[] = [
   { label: "Loan amount", values: ["$100K–$3M", "$100K–$3M", "$100K–$3M"] },
   { label: "Max LTV", values: ["Up to 80%", "Up to 75–80%", "Up to 75%"] },
   { label: "Min FICO", values: ["660–680", "660–680", "660–700"] },
-  { label: "Min DSCR", values: ["1.00, sub-1.00 options", "1.00", "1.00"] },
+  { label: "Min DSCR", values: ["1.00, sub-1.00 options", "1.00, sub-1.00 options", "1.00, sub-1.00 options"] },
   { label: "Cash to borrower", values: ["n/a", "About $5K or less", "$500K–$1M cap"] },
 ];
 
