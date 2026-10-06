@@ -203,6 +203,8 @@ export function AcceptedTermsHeader({
   // sheet" is used in the edit dialog.
   const underwritingDocFeeValue = acceptedTermSheetFields?.underwritingDocFee;
   const underwritingDocFeeNum = typeof underwritingDocFeeValue === "number" ? underwritingDocFeeValue : 0;
+  const netProceedsCapValue = acceptedTermSheetFields?.netProceedsCap;
+  const netProceedsCap = typeof netProceedsCapValue === "number" ? netProceedsCapValue : null;
   const closingDisbursement = isHardMoneyDraw && initialAdvanceNum > 0 ? initialAdvanceNum : loanAmountNum;
   const estimatedCashToClose = calculateEstimatedCashToClose({
     loanCategory,
@@ -213,6 +215,7 @@ export function AcceptedTermsHeader({
     costToBorrowerFee: effectiveCostToBorrowerFee ?? 0,
     underwritingDocFee: underwritingDocFeeNum,
     processingFee,
+    netProceedsCap,
   });
   // A refinance's result can come back negative — that's net cash going TO
   // the borrower (loan proceeds outpacing payoff + fees), not a due amount.

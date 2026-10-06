@@ -45,3 +45,30 @@ describe("maxLoanAmountForNetProceedsCap", () => {
     expect(maxLoanAmountForNetProceedsCap({ cap: NaN, ...base })).toBeNull();
   });
 });
+
+describe("calculateEstimatedCashToClose with a net proceeds cap", () => {
+  const base = {
+    loanCategory: "dscr_rate_term_refinance",
+    purchasePrice: null,
+    mortgagePayoffAmount: 153000,
+    closingDisbursement: 168000,
+    originationFee: 2856,
+    costToBorrowerFee: 1680,
+    underwritingDocFee: 2240,
+  };
+
+  it("holds net proceeds at the cap when the estimate is over (matches the PDF)", async () => {
+    const { calculateEstimatedCashToClose } = await import("@/lib/term-sheet-calculations");
+    // paid prior 2,129 − net 5,000
+    expect(calculateEstimatedCashToClose({ ...base, netProceedsCap: 5000 })).toBe(2129 - 5000);
+    expect(calculateEstimatedCashToClose(base)).toBe(2129 - 8224);
+  });
+
+  it("leaves the net alone when it's under the cap, or on other loan types", async () => {
+    const { calculateEstimatedCashToClose } = await import("@/lib/term-sheet-calculations");
+    expect(calculateEstimatedCashToClose({ ...base, netProceedsCap: 20000 })).toBe(2129 - 8224);
+    expect(
+      calculateEstimatedCashToClose({ ...base, loanCategory: "dscr_cash_out_refinance", netProceedsCap: 5000 })
+    ).toBe(2129 - 8224);
+  });
+});

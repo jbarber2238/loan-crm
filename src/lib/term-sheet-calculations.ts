@@ -274,6 +274,7 @@ export function calculateEstimatedCashToClose({
   appraisalFee = STANDARD_APPRAISAL_ESTIMATE,
   creditPullFee = STANDARD_CREDIT_PULL_ESTIMATE,
   processingFee = STANDARD_PROCESSING_FEE,
+  netProceedsCap = null,
 }: {
   loanCategory: string;
   purchasePrice: number | null;
@@ -285,6 +286,10 @@ export function calculateEstimatedCashToClose({
   appraisalFee?: number;
   creditPullFee?: number;
   processingFee?: number;
+  // A rate & term lender's cap on net proceeds: the term sheet holds the net
+  // at the cap when the estimate runs over (the loan shrinks at closing), so
+  // the cash-to-close here does too.
+  netProceedsCap?: number | null;
 }): number {
   const paidPrior = appraisalFee + creditPullFee + processingFee;
 
@@ -294,8 +299,12 @@ export function calculateEstimatedCashToClose({
     // same trap valueBasisFor above already guards against for LTV. What
     // actually funds the closing is the new loan minus what it has to pay
     // off first and minus its own fees.
-    const netProceeds =
+    const uncappedNetProceeds =
       closingDisbursement - (mortgagePayoffAmount ?? 0) - originationFee - costToBorrowerFee - underwritingDocFee;
+    const netProceeds =
+      loanCategory === "dscr_rate_term_refinance" && netProceedsCap && netProceedsCap > 0
+        ? Math.min(uncappedNetProceeds, netProceedsCap)
+        : uncappedNetProceeds;
     return paidPrior - netProceeds;
   }
 

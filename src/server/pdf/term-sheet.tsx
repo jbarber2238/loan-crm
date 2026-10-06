@@ -378,7 +378,8 @@ export function TermSheetPdf({
         <View style={styles.disclosures}>
           {netProceedsCap > 0 && (
             <Text style={{ marginBottom: 4 }}>
-              Net proceeds cap: the lender limits net proceeds to the borrower to {money(netProceedsCap)}. The
+              Rate and term net proceeds cap: the lender limits net proceeds to the borrower on a rate and term
+              refinance to {money(netProceedsCap)}. The
               figures above are estimated before title and other closing costs, and the loan amount and
               loan-to-value ratio shown are maximums. If final net proceeds would exceed {money(netProceedsCap)}{" "}
               at closing, the loan amount will be reduced to stay within the cap, which lowers the final
