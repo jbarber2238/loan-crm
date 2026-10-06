@@ -22,12 +22,12 @@ const DSCR_CATEGORIES = new Set(["dscr_purchase", "dscr_cash_out_refinance", "ds
 const HARD_MONEY_DRAW_CATEGORIES = new Set(["fix_and_flip", "new_construction"]);
 
 const styles = StyleSheet.create({
-  page: { padding: 36, fontSize: 9, fontFamily: "Helvetica" },
+  page: { paddingTop: 28, paddingBottom: 32, paddingHorizontal: 36, fontSize: 9, fontFamily: "Helvetica" },
   header: { marginBottom: 12, borderBottomWidth: 1.5, borderBottomColor: "#111", paddingBottom: 10 },
   propertyAddress: { fontSize: 15, fontWeight: 700 },
   borrowerName: { fontSize: 10, color: "#555", marginTop: 2 },
   metaRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 6, fontSize: 8, color: "#666" },
-  columns: { flexDirection: "row", gap: 10, marginBottom: 10 },
+  columns: { flexDirection: "row", gap: 10, marginBottom: 6 },
   column: { flex: 1 },
   card: { borderWidth: 0.5, borderColor: "#ddd", borderRadius: 3, marginBottom: 10 },
   cardHeader: { backgroundColor: "#111", color: "#fff", fontSize: 9, fontWeight: 700, padding: 5 },
@@ -57,13 +57,13 @@ const styles = StyleSheet.create({
   totalLabel: { fontWeight: 700, width: 130 },
   totalValue: { fontWeight: 700, flex: 1, textAlign: "right" },
   disclosures: { fontSize: 7, color: "#666", lineHeight: 1.4, marginTop: 6 },
-  footer: { position: "absolute", bottom: 24, left: 36, right: 36, fontSize: 7.5, color: "#888", textAlign: "center" },
-  signatureBlock: { marginTop: 24 },
+  footer: { position: "absolute", bottom: 16, left: 36, right: 36, fontSize: 7.5, color: "#888", textAlign: "center" },
+  signatureBlock: { marginTop: 14 },
   // Needs an explicit height — an empty View with only a border-bottom and
   // no content collapses to zero height under Yoga's layout, which makes
   // the line itself never actually render. The height also doubles as
   // blank space to sign in, matching how the lenders' own PDFs do it.
-  signatureLine: { borderBottomWidth: 0.75, borderBottomColor: "#333", width: 260, height: 24 },
+  signatureLine: { borderBottomWidth: 0.75, borderBottomColor: "#333", width: 260, height: 22 },
   signatureLabel: { fontSize: 8, color: "#555", marginTop: 3 },
   signatureTag: { fontSize: 9, color: "#000" },
 });
@@ -412,7 +412,7 @@ export function TermSheetPdf({
           </Text>
         </View>
 
-        <View style={[styles.disclosures, { marginTop: 10 }]}>
+        <View style={[styles.disclosures, { marginTop: 6 }]}>
           <Text style={{ fontSize: 8, fontWeight: 700, color: "#333" }}>
             Business Purpose Attestation &amp; Fee Agreement
           </Text>
@@ -455,7 +455,9 @@ export function TermSheetPdf({
           <Text style={styles.signatureLabel}>Applicant Signature</Text>
         </View>
 
-        <Text style={styles.footer}>This term sheet is indicative and subject to underwriting approval.</Text>
+        <Text fixed style={styles.footer}>
+          This term sheet is indicative and subject to underwriting approval.
+        </Text>
       </Page>
     </Document>
   );
