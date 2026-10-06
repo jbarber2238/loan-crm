@@ -28,16 +28,18 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { CloneTermSheetDialog } from "@/components/deals/clone-term-sheet-dialog";
 import { NewTermSheetForm } from "@/components/deals/new-term-sheet-form";
 import { TermSheetFieldInputs } from "@/components/deals/term-sheet-field-inputs";
 import { ComposeFields, type EmailComposeState } from "@/components/emails/compose-fields";
 import { ADMIN_ONLY_FIELDS, termSheetFieldsFor } from "@/lib/term-sheet-fields";
 import { valueBasisFor, calculateLtv } from "@/lib/term-sheet-calculations";
 import { isInterestOnlyCategory } from "@/lib/loan-sections";
-import { canChangeLoanType, loanCategoryLabel } from "@/lib/loan-type-changes";
+import { allowedTermSheetCategories, canChangeLoanType, loanCategoryLabel } from "@/lib/loan-type-changes";
 
 interface TermSheet {
   id: string;
+  productId: string;
   status: "draft" | "generated" | "accepted" | "superseded";
   fields: Record<string, unknown>;
   pdfUrl: string | null;
@@ -367,6 +369,7 @@ function BookACallDialog({
 function TermSheetCard({
   dealId,
   dealLoanCategory,
+  products,
   termSheet,
   isAdmin,
   hasBorrowerEmail,
@@ -376,6 +379,7 @@ function TermSheetCard({
 }: {
   dealId: string;
   dealLoanCategory?: string;
+  products?: ProductOption[];
   termSheet: TermSheet;
   isAdmin: boolean;
   hasBorrowerEmail: boolean;
@@ -440,11 +444,24 @@ function TermSheetCard({
           </DialogContent>
         </Dialog>
 
-        <ActionForm action={clone} successMessage="Cloned as a new draft — edit fields and generate its PDF" onSuccess={onChanged}>
-          <SubmitButton variant="outline" size="sm">
-            Clone
-          </SubmitButton>
-        </ActionForm>
+        {dealLoanCategory && products && allowedTermSheetCategories(dealLoanCategory).length > 1 ? (
+          <CloneTermSheetDialog
+            dealId={dealId}
+            termSheetId={termSheet.id}
+            sourceProductId={termSheet.productId}
+            sourceCategory={termSheet.product.category}
+            sourceLenderName={termSheet.lender.name}
+            dealLoanCategory={dealLoanCategory}
+            products={products}
+            onChanged={onChanged}
+          />
+        ) : (
+          <ActionForm action={clone} successMessage="Cloned as a new draft — edit fields and generate its PDF" onSuccess={onChanged}>
+            <SubmitButton variant="outline" size="sm">
+              Clone
+            </SubmitButton>
+          </ActionForm>
+        )}
 
         {termSheet.status === "draft" && (
           <ActionForm action={generate} successMessage="PDF generated">
@@ -627,6 +644,8 @@ export function TermSheetsTab({
           <TermSheetCard
             key={termSheet.id}
             dealId={dealId}
+            dealLoanCategory={loanCategory}
+            products={products}
             termSheet={termSheet}
             isAdmin={isAdmin}
             hasBorrowerEmail={hasBorrowerEmail}
@@ -646,6 +665,7 @@ export function TermSheetsTab({
                 key={termSheet.id}
                 dealId={dealId}
                 dealLoanCategory={loanCategory}
+                products={products}
                 termSheet={termSheet}
                 isAdmin={isAdmin}
                 hasBorrowerEmail={hasBorrowerEmail}

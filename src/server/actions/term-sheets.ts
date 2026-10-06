@@ -8,7 +8,7 @@ import { voidStripeInvoice } from "@/server/stripe";
 import { handleProcessingFeePaid } from "@/server/processing-fee-paid";
 import { requireUser } from "@/server/auth/guards";
 import { sendGmailAs } from "@/server/gmail/send";
-import { extractTermSheetFields } from "@/lib/term-sheet-fields";
+import { ADMIN_ONLY_FIELDS, extractTermSheetFields, termSheetFieldsFor } from "@/lib/term-sheet-fields";
 import { allowedTermSheetCategories, canChangeLoanType, loanCategoryLabel } from "@/lib/loan-type-changes";
 import { createDocumentFromPdfUrl, waitUntilDraft, sendDocumentWithRetry } from "@/server/pandadoc";
 import { syncProcessingFeeInvoice, sendProcessingFeeInvoiceEmail } from "@/server/billing";
@@ -71,19 +71,51 @@ export async function createTermSheet(dealId: string, formData: FormData) {
 // PandaDoc linkage, or review/acceptance timestamps carry over, so it goes
 // through Edit fields → Generate PDF like any new term sheet, and the
 // original (whatever its own status) is untouched.
-export async function cloneTermSheet(dealId: string, termSheetId: string) {
+export async function cloneTermSheet(dealId: string, termSheetId: string, formData?: FormData) {
   const user = await requireUser();
 
-  const source = await db.query.termSheets.findFirst({ where: eq(termSheets.id, termSheetId) });
+  const source = await db.query.termSheets.findFirst({
+    where: eq(termSheets.id, termSheetId),
+    with: { product: true },
+  });
   if (!source) throw new Error("Term sheet not found");
+
+  let lenderId = source.lenderId;
+  let productId = source.productId;
+  let fields = source.fields;
+
+  // "Clone as…": re-quote the same offer as a different loan type (e.g. a
+  // cash-out sheet as a rate & term refi). Only the types the deal can switch
+  // to are allowed; the carried-over values are trimmed to the fields the new
+  // type actually has, and the rest is edited like any draft.
+  const requestedProductId = formData?.get("productId");
+  if (typeof requestedProductId === "string" && requestedProductId && requestedProductId !== source.productId) {
+    const [product, deal] = await Promise.all([
+      db.query.products.findFirst({ where: eq(products.id, requestedProductId) }),
+      db.query.deals.findFirst({ where: eq(deals.id, dealId), columns: { loanCategory: true } }),
+    ]);
+    if (!product) throw new Error("Product not found");
+    if (!deal) throw new Error("Deal not found");
+    if (!allowedTermSheetCategories(deal.loanCategory).includes(product.category)) {
+      throw new Error(
+        `A ${loanCategoryLabel(deal.loanCategory)} deal can't be quoted as ${loanCategoryLabel(product.category)}.`
+      );
+    }
+    lenderId = product.lenderId;
+    productId = product.id;
+    if (product.category !== source.product.category) {
+      const keep = new Set([...termSheetFieldsFor(product.category), ...ADMIN_ONLY_FIELDS].map((f) => f.key));
+      fields = Object.fromEntries(Object.entries(source.fields).filter(([key]) => keep.has(key)));
+    }
+  }
 
   const [clone] = await db
     .insert(termSheets)
     .values({
       dealId,
-      lenderId: source.lenderId,
-      productId: source.productId,
-      fields: source.fields,
+      lenderId,
+      productId,
+      fields,
       status: "draft",
       createdBy: user.id,
     })
