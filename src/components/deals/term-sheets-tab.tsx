@@ -34,6 +34,7 @@ import { ComposeFields, type EmailComposeState } from "@/components/emails/compo
 import { ADMIN_ONLY_FIELDS, termSheetFieldsFor } from "@/lib/term-sheet-fields";
 import { valueBasisFor, calculateLtv } from "@/lib/term-sheet-calculations";
 import { isInterestOnlyCategory } from "@/lib/loan-sections";
+import { canChangeLoanType, loanCategoryLabel } from "@/lib/loan-type-changes";
 
 interface TermSheet {
   id: string;
@@ -365,6 +366,7 @@ function BookACallDialog({
 
 function TermSheetCard({
   dealId,
+  dealLoanCategory,
   termSheet,
   isAdmin,
   hasBorrowerEmail,
@@ -373,6 +375,7 @@ function TermSheetCard({
   onChanged,
 }: {
   dealId: string;
+  dealLoanCategory?: string;
   termSheet: TermSheet;
   isAdmin: boolean;
   hasBorrowerEmail: boolean;
@@ -388,14 +391,29 @@ function TermSheetCard({
   const fieldDefs = [...termSheetFieldsFor(termSheet.product.category), ...(isAdmin ? ADMIN_ONLY_FIELDS : [])];
   const display = termSheetDisplayStatus(termSheet);
   const summary = termSheetSummary(termSheet.product.category, termSheet.fields, purchasePrice, estimatedAsIsValue);
+  // Only meaningful while the sheet is still a live option: once signed (or
+  // replaced) the deal already is whatever type it is.
+  const changesLoanType =
+    dealLoanCategory &&
+    termSheet.status !== "accepted" &&
+    termSheet.status !== "superseded" &&
+    canChangeLoanType(dealLoanCategory, termSheet.product.category);
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-base">
-          {termSheet.lender.name} — {termSheet.product.name}
-          {summary && <span className="text-muted-foreground font-normal"> — {summary}</span>}
-        </CardTitle>
+        <div>
+          <CardTitle className="text-base">
+            {termSheet.lender.name} — {termSheet.product.name}
+            {summary && <span className="text-muted-foreground font-normal"> — {summary}</span>}
+          </CardTitle>
+          {changesLoanType && (
+            <p className="mt-1 text-xs text-amber-700">
+              Signing this changes the loan type from {loanCategoryLabel(dealLoanCategory)} to{" "}
+              {loanCategoryLabel(termSheet.product.category)}.
+            </p>
+          )}
+        </div>
         <Badge variant={display.variant}>{display.label}</Badge>
       </CardHeader>
       <CardContent className="flex flex-wrap items-center gap-2">
@@ -525,6 +543,7 @@ function ArchivedTermSheetsSection({
 
 export function TermSheetsTab({
   dealId,
+  loanCategory,
   termSheets,
   products,
   isAdmin,
@@ -535,6 +554,7 @@ export function TermSheetsTab({
   bookACallSentAt = null,
 }: {
   dealId: string;
+  loanCategory: string;
   termSheets: TermSheet[];
   products: ProductOption[];
   isAdmin: boolean;
@@ -592,6 +612,7 @@ export function TermSheetsTab({
             </DialogHeader>
             <NewTermSheetForm
               dealId={dealId}
+              loanCategory={loanCategory}
               products={products}
               isAdmin={isAdmin}
               purchasePrice={purchasePrice}
@@ -624,6 +645,7 @@ export function TermSheetsTab({
               <TermSheetCard
                 key={termSheet.id}
                 dealId={dealId}
+                dealLoanCategory={loanCategory}
                 termSheet={termSheet}
                 isAdmin={isAdmin}
                 hasBorrowerEmail={hasBorrowerEmail}

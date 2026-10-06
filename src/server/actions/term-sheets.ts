@@ -9,6 +9,7 @@ import { handleProcessingFeePaid } from "@/server/processing-fee-paid";
 import { requireUser } from "@/server/auth/guards";
 import { sendGmailAs } from "@/server/gmail/send";
 import { extractTermSheetFields } from "@/lib/term-sheet-fields";
+import { allowedTermSheetCategories, canChangeLoanType, loanCategoryLabel } from "@/lib/loan-type-changes";
 import { createDocumentFromPdfUrl, waitUntilDraft, sendDocumentWithRetry } from "@/server/pandadoc";
 import { syncProcessingFeeInvoice, sendProcessingFeeInvoiceEmail } from "@/server/billing";
 import { conservativeValueBasis, calculateLtarv, calculateLtc } from "@/lib/term-sheet-calculations";
@@ -32,8 +33,17 @@ export async function createTermSheet(dealId: string, formData: FormData) {
   const productId = formData.get("productId");
   if (typeof productId !== "string" || !productId) throw new Error("A product is required");
 
-  const product = await db.query.products.findFirst({ where: eq(products.id, productId) });
+  const [product, deal] = await Promise.all([
+    db.query.products.findFirst({ where: eq(products.id, productId) }),
+    db.query.deals.findFirst({ where: eq(deals.id, dealId), columns: { loanCategory: true } }),
+  ]);
   if (!product) throw new Error("Product not found");
+  if (!deal) throw new Error("Deal not found");
+  if (!allowedTermSheetCategories(deal.loanCategory).includes(product.category)) {
+    throw new Error(
+      `A ${loanCategoryLabel(deal.loanCategory)} deal can't be quoted as ${loanCategoryLabel(product.category)}.`
+    );
+  }
 
   const fields = extractTermSheetFields(formData, product.category, user.isAdmin);
 
@@ -204,8 +214,17 @@ export async function performTermSheetAcceptance(dealId: string, termSheetId: st
   // Same story for LTARV: it starts from the lender-quoted approvedArv until
   // the appraised ARV comes in and the ltarvBasedOnApprovedArv toggle is
   // switched off.
+  // If this term sheet is for a different loan type than the deal currently
+  // has (e.g. rate & term quoted on a cash-out refinance) and that switch is
+  // one we allow, signing it moves the deal to that loan type too — the
+  // value basis below is then worked out for the new type, not the old one.
+  const acceptedProduct = await db.query.products.findFirst({ where: eq(products.id, termSheet.productId) });
+  const newLoanCategory =
+    acceptedProduct && canChangeLoanType(deal.loanCategory, acceptedProduct.category)
+      ? acceptedProduct.category
+      : deal.loanCategory;
   const valueBasis = conservativeValueBasis(
-    deal.loanCategory,
+    newLoanCategory,
     deal.purchasePrice ? Number(deal.purchasePrice) : null,
     deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null
   );
@@ -229,6 +248,7 @@ export async function performTermSheetAcceptance(dealId: string, termSheetId: st
     .set({
       lenderId: termSheet.lenderId,
       productId: termSheet.productId,
+      loanCategory: newLoanCategory,
       finalRate: typeof rateValue === "number" ? String(rateValue) : null,
       finalTerms: summarizeTerms(termSheet.fields),
       finalAmortizationType: typeof amortizationTypeValue === "string" && amortizationTypeValue ? amortizationTypeValue : null,
@@ -250,6 +270,15 @@ export async function performTermSheetAcceptance(dealId: string, termSheetId: st
       updatedAt: new Date(),
     })
     .where(eq(deals.id, dealId));
+
+  if (newLoanCategory !== deal.loanCategory) {
+    await db.insert(dealNotes).values({
+      dealId,
+      authorUserId: null,
+      source: "system",
+      body: `Loan type changed from ${loanCategoryLabel(deal.loanCategory)} to ${loanCategoryLabel(newLoanCategory)} — the borrower signed a ${loanCategoryLabel(newLoanCategory)} term sheet.`,
+    });
+  }
 
   const existingNeeds = await db.query.dealClientNeeds.findMany({
     where: eq(dealClientNeeds.dealId, dealId),

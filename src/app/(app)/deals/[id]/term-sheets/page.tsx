@@ -23,6 +23,7 @@ export default async function DealTermSheetsPage({
   return (
     <TermSheetsTab
       dealId={deal.id}
+      loanCategory={deal.loanCategory}
       termSheets={deal.termSheets}
       products={allProducts.map((p) => ({
         id: p.id,
