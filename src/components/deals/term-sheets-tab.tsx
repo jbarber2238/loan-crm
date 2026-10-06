@@ -41,6 +41,7 @@ interface TermSheet {
   fields: Record<string, unknown>;
   pdfUrl: string | null;
   createdAt: Date;
+  acceptedAt: Date | null;
   pandadocStatus: string | null;
   sentForReviewAt: Date | null;
   signedDocumentFileName: string | null;
@@ -70,7 +71,14 @@ const PENDING_SIGNATURE_PANDADOC_STATUSES = new Set([
 // things and shouldn't both just read "Sent".
 function termSheetDisplayStatus(termSheet: TermSheet): { label: string; variant: StatusBadgeVariant } {
   if (termSheet.status === "accepted") return { label: "Accepted", variant: "default" };
-  if (termSheet.status === "superseded") return { label: "Opted out", variant: "outline" };
+  // A superseded sheet that has an acceptedAt was itself signed at some
+  // point — a newer one replaced it — so it keeps reading as signed in the
+  // archive rather than "Opted out" (which is for ones never signed).
+  if (termSheet.status === "superseded") {
+    return termSheet.acceptedAt
+      ? { label: "Previously signed", variant: "outline" }
+      : { label: "Opted out", variant: "outline" };
+  }
   if (termSheet.pandadocStatus === "document.declined") return { label: "Declined", variant: "destructive" };
   if (termSheet.pandadocStatus === "document.voided") return { label: "Voided", variant: "outline" };
   if (termSheet.pandadocStatus && PENDING_SIGNATURE_PANDADOC_STATUSES.has(termSheet.pandadocStatus)) {
@@ -450,7 +458,7 @@ function TermSheetCard({
           </ActionForm>
         )}
 
-        {termSheet.status !== "accepted" && (
+        {termSheet.status !== "accepted" && !(termSheet.status === "superseded" && termSheet.acceptedAt) && (
           <ActionForm
             action={deleteThisTermSheet}
             successMessage="Term sheet deleted"
@@ -539,8 +547,25 @@ export function TermSheetsTab({
   const router = useRouter();
   const shareable = termSheets.filter((t) => t.status !== "draft");
   const acceptedTermSheet = termSheets.find((t) => t.status === "accepted");
+  // Anything created after the current signed term sheet was accepted is a
+  // live option again (a clone, or a brand-new one, for when the terms need
+  // to change after signing) and sits right under it so it's obvious a new
+  // one still needs to go out. Everything older — what was compared before
+  // signing, and previously signed sheets — goes to the archive. Once one
+  // of these is signed and becomes the accepted term sheet, the rest are
+  // older than its acceptance and archive themselves automatically.
+  const acceptedAtTime = acceptedTermSheet?.acceptedAt ? new Date(acceptedTermSheet.acceptedAt).getTime() : null;
+  const openAfterAcceptance =
+    acceptedTermSheet && acceptedAtTime !== null
+      ? termSheets.filter(
+          (t) => t.id !== acceptedTermSheet.id && t.status !== "superseded" && new Date(t.createdAt).getTime() > acceptedAtTime
+        )
+      : [];
   const visibleTermSheets = acceptedTermSheet ? [acceptedTermSheet] : termSheets;
-  const archivedTermSheets = acceptedTermSheet ? termSheets.filter((t) => t.id !== acceptedTermSheet.id) : [];
+  const openIds = new Set(openAfterAcceptance.map((t) => t.id));
+  const archivedTermSheets = acceptedTermSheet
+    ? termSheets.filter((t) => t.id !== acceptedTermSheet.id && !openIds.has(t.id))
+    : [];
 
   return (
     <div className="space-y-4">
@@ -589,6 +614,26 @@ export function TermSheetsTab({
             onChanged={() => router.refresh()}
           />
         ))}
+        {openAfterAcceptance.length > 0 && (
+          <div className="space-y-3 pt-1">
+            <p className="text-sm font-semibold">New term sheets — not yet signed</p>
+            <p className="-mt-2 text-xs text-muted-foreground">
+              The one above is still the deal&apos;s terms of record until one of these is signed.
+            </p>
+            {openAfterAcceptance.map((termSheet) => (
+              <TermSheetCard
+                key={termSheet.id}
+                dealId={dealId}
+                termSheet={termSheet}
+                isAdmin={isAdmin}
+                hasBorrowerEmail={hasBorrowerEmail}
+                purchasePrice={purchasePrice}
+                estimatedAsIsValue={estimatedAsIsValue}
+                onChanged={() => router.refresh()}
+              />
+            ))}
+          </div>
+        )}
         {termSheets.length === 0 && (
           <p className="text-sm text-muted-foreground">No term sheets yet.</p>
         )}

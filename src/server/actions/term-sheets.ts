@@ -96,6 +96,11 @@ export async function deleteTermSheet(dealId: string, termSheetId: string) {
   if (termSheet.status === "accepted") {
     throw new Error("Can't delete an accepted term sheet — it's the deal's terms of record.");
   }
+  // A signed term sheet that a newer one has since replaced is still the
+  // record of what the borrower agreed to at the time — kept, not deleted.
+  if (termSheet.status === "superseded" && termSheet.acceptedAt) {
+    throw new Error("Can't delete a previously signed term sheet — it's the record of what the borrower signed.");
+  }
 
   await db.delete(termSheets).where(eq(termSheets.id, termSheetId));
 
