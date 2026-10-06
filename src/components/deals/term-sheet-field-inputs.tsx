@@ -234,6 +234,9 @@ export function TermSheetFieldInputs({
       })
     : [];
 
+  // Rate & term is a refinance, so LTV is measured against the as-is value.
+  const ltvAtCap = maxLoanAtCap !== null && estimatedAsIsValue ? (maxLoanAtCap / estimatedAsIsValue) * 100 : null;
+
   function renderField(field: TermSheetField) {
     const defaultValue = values[field.key] ?? field.defaultValue;
     return (
@@ -370,17 +373,25 @@ export function TermSheetFieldInputs({
                 {overCap && capValue !== null && (
                   <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
                     <p>
-                      Over the {money(capValue)} cap by {money(netProceeds! - capValue)}.
-                      {maxLoanAtCap !== null && ` The most the loan can be at the cap is ${money(maxLoanAtCap)}.`}
+                      Estimated {money(netProceeds! - capValue)} over the {money(capValue)} cap, before title and
+                      closing costs (not estimated here). The lender reduces the loan at closing if the final net is
+                      still over the cap, so you can quote this loan amount as the maximum — the term sheet says so.
                     </p>
                     {maxLoanAtCap !== null && (
-                      <button
-                        type="button"
-                        className="mt-2 rounded-md border border-amber-400 bg-white px-2.5 py-1 font-medium hover:bg-amber-100"
-                        onClick={() => handleLoanAmountChange(String(maxLoanAtCap))}
-                      >
-                        Set loan amount to {money(maxLoanAtCap)}
-                      </button>
+                      <>
+                        <p className="mt-2">
+                          To size the loan to the cap now instead: {money(maxLoanAtCap)}
+                          {ltvAtCap !== null && ` (${ltvAtCap.toFixed(1)}% LTV)`}
+                          .
+                        </p>
+                        <button
+                          type="button"
+                          className="mt-2 rounded-md border border-amber-400 bg-white px-2.5 py-1 font-medium hover:bg-amber-100"
+                          onClick={() => handleLoanAmountChange(String(maxLoanAtCap))}
+                        >
+                          Reduce loan to {money(maxLoanAtCap)}
+                        </button>
+                      </>
                     )}
                   </div>
                 )}

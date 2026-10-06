@@ -220,6 +220,10 @@ export function TermSheetPdf({
   // just the reserves themselves unless the deal actually leaves them owing
   // money at closing.
   const cashToShow = reserves + cashDueAtClosing;
+  // Rate & term lenders often cap the cash back; the quoted LTV is then a
+  // maximum, because the real cap is applied to final figures (including
+  // title/closing costs this sheet doesn't estimate) just before closing.
+  const netProceedsCap = loanCategory === "dscr_rate_term_refinance" ? num(fields, "netProceedsCap") : 0;
 
   return (
     <Document>
@@ -352,6 +356,15 @@ export function TermSheetPdf({
         </View>
 
         <View style={styles.disclosures}>
+          {netProceedsCap > 0 && (
+            <Text style={{ marginBottom: 4 }}>
+              Net proceeds cap: the lender limits net proceeds to the borrower to {money(netProceedsCap)}. The
+              net proceeds shown above are estimated before title and other closing costs, and the loan-to-value
+              ratio shown is a maximum. If final net proceeds exceed {money(netProceedsCap)} at closing, the
+              loan amount will be reduced to stay within the cap, which would lower the final loan-to-value
+              ratio.
+            </Text>
+          )}
           <Text>
             This is an estimate only and is not a commitment to lend. Terms are indicative and subject to
             change based on appraisal, credit report, and full underwriting review. This term sheet does not
