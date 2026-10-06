@@ -8,6 +8,7 @@ import {
   estimatedMonthlyPI,
   estimatedMonthlyPitia,
   estimatedReservesRequired,
+  maxLoanAmountForNetProceedsCap,
   originationFeeSuggestion,
   ratioMetricsFor,
   REFINANCE_CATEGORIES,
@@ -204,9 +205,29 @@ export function TermSheetPdf({
   // table. Refinance: the loan's net proceeds after paying off the existing
   // mortgage and its own fees — positive means the borrower receives this at
   // closing (the normal cash-out case), negative means they still owe it.
-  const netCashAtClosing = isRefi
+  const uncappedNetCash = isRefi
     ? closingDisbursement - existingDebtPayoff - originationFee - costToBorrowerFee - underwritingDocFee
     : downPayment + originationFee + costToBorrowerFee + underwritingDocFee;
+  // Rate & term lenders often cap the cash back, applied to final figures
+  // (including title/closing costs this sheet doesn't estimate) just before
+  // closing. So the quoted loan amount/LTV is a maximum and the net proceeds
+  // shown are held at the cap; the difference is what the loan would shrink by.
+  const netProceedsCap = loanCategory === "dscr_rate_term_refinance" ? num(fields, "netProceedsCap") : 0;
+  const capApplies = netProceedsCap > 0 && uncappedNetCash > netProceedsCap;
+  const capReduction = capApplies ? uncappedNetCash - netProceedsCap : 0;
+  const netCashAtClosing = capApplies ? netProceedsCap : uncappedNetCash;
+  // What the loan would come down to (and the LTV it implies) if the final
+  // net proceeds land at the cap — illustrative, since title costs move it.
+  const loanAtCap = capApplies
+    ? maxLoanAmountForNetProceedsCap({
+        cap: netProceedsCap,
+        mortgagePayoff: existingDebtPayoff,
+        originationPoints: num(fields, "originationPoints") || 2,
+        rateBuydownPoints: num(fields, "rateBuydownPoints"),
+        underwritingDocFee,
+      })
+    : null;
+  const ltvAtCap = loanAtCap !== null && estimatedAsIsValue ? (loanAtCap / estimatedAsIsValue) * 100 : null;
   const paidPriorTotal = appraisalFee + creditPullFee + processingFee;
   // Net position across the whole deal: for a purchase this is always the
   // full amount due (closing costs + pre-paid fees, both cash out of
@@ -220,10 +241,6 @@ export function TermSheetPdf({
   // just the reserves themselves unless the deal actually leaves them owing
   // money at closing.
   const cashToShow = reserves + cashDueAtClosing;
-  // Rate & term lenders often cap the cash back; the quoted LTV is then a
-  // maximum, because the real cap is applied to final figures (including
-  // title/closing costs this sheet doesn't estimate) just before closing.
-  const netProceedsCap = loanCategory === "dscr_rate_term_refinance" ? num(fields, "netProceedsCap") : 0;
 
   return (
     <Document>
@@ -284,6 +301,9 @@ export function TermSheetPdf({
               <Row label="Origination Fee" value={money(originationFee)} />
               {costToBorrowerFee > 0 && <Row label={costToBorrowerLabel} value={money(costToBorrowerFee)} />}
               <Row label="Underwriting and Doc Fee" value={money(underwritingDocFee)} />
+              {capApplies && (
+                <Row label={`Less: Reduction to ${money(netProceedsCap)} Net Proceeds Cap`} value={money(capReduction)} />
+              )}
               <TotalRow
                 label={
                   isRefi
@@ -359,10 +379,14 @@ export function TermSheetPdf({
           {netProceedsCap > 0 && (
             <Text style={{ marginBottom: 4 }}>
               Net proceeds cap: the lender limits net proceeds to the borrower to {money(netProceedsCap)}. The
-              net proceeds shown above are estimated before title and other closing costs, and the loan-to-value
-              ratio shown is a maximum. If final net proceeds exceed {money(netProceedsCap)} at closing, the
-              loan amount will be reduced to stay within the cap, which would lower the final loan-to-value
-              ratio.
+              figures above are estimated before title and other closing costs, and the loan amount and
+              loan-to-value ratio shown are maximums. If final net proceeds would exceed {money(netProceedsCap)}{" "}
+              at closing, the loan amount will be reduced to stay within the cap, which lowers the final
+              loan-to-value ratio
+              {loanAtCap !== null && ltvAtCap !== null
+                ? ` — on these estimates, to about ${money(loanAtCap)} (${ltvAtCap.toFixed(1)}% LTV)`
+                : ""}
+              . Title and closing costs paid from proceeds would reduce the net and may leave less (or no) reduction.
             </Text>
           )}
           <Text>
