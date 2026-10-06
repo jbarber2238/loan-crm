@@ -191,6 +191,15 @@ export function termSheetFieldsFor(category: string): TermSheetField[] {
 
   fields.push(...reservesFields(category));
 
+  if (category === "dscr_rate_term_refinance") {
+    fields.push({
+      key: "netProceedsCap",
+      label: "Net Proceeds Cap",
+      type: "currency",
+      helperText: "Optional. Some lenders cap the cash back on a rate & term refi — leave blank if there's no cap.",
+    });
+  }
+
   return fields;
 }
 

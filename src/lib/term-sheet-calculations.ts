@@ -24,6 +24,66 @@ export function rateBuydownFeeForPoints(loanAmount: number, points: number): num
   return loanAmount * (points / 100);
 }
 
+// A refinance's net proceeds: what's left of the new loan after paying off the
+// existing mortgage and the loan's own fees (negative = the borrower would
+// have to bring cash). Same formula as the term sheet PDF's "Est. Net Cash to
+// Borrower".
+export function calculateRefiNetProceeds({
+  loanAmount,
+  mortgagePayoff,
+  originationFee,
+  rateBuydownFee,
+  underwritingDocFee,
+}: {
+  loanAmount: number;
+  mortgagePayoff: number;
+  originationFee: number;
+  rateBuydownFee: number;
+  underwritingDocFee: number;
+}): number {
+  return loanAmount - mortgagePayoff - originationFee - rateBuydownFee - underwritingDocFee;
+}
+
+// The largest whole-dollar loan amount whose net proceeds stay at or under a
+// lender's cap. Fees move with the loan amount (points × amount, $2,500
+// origination floor, rounded to the dollar like the form does), so rather
+// than algebra across the floor this searches — net proceeds only ever rise
+// as the loan amount rises. Returns null when even a $0 loan is over the cap
+// (can't happen with a non-negative cap) or inputs are unusable.
+export function maxLoanAmountForNetProceedsCap({
+  cap,
+  mortgagePayoff,
+  originationPoints,
+  rateBuydownPoints,
+  underwritingDocFee,
+}: {
+  cap: number;
+  mortgagePayoff: number;
+  originationPoints: number;
+  rateBuydownPoints: number;
+  underwritingDocFee: number;
+}): number | null {
+  if (![cap, mortgagePayoff, originationPoints, rateBuydownPoints, underwritingDocFee].every(Number.isFinite)) return null;
+  const netAt = (loanAmount: number) =>
+    calculateRefiNetProceeds({
+      loanAmount,
+      mortgagePayoff,
+      originationFee: Math.max(Math.round(loanAmount * (originationPoints / 100)), 2500),
+      rateBuydownFee: Math.round(loanAmount * (rateBuydownPoints / 100)),
+      underwritingDocFee,
+    });
+
+  let low = 0;
+  let high = Math.max(mortgagePayoff + cap, 0) * 2 + 1_000_000;
+  if (netAt(low) > cap) return null;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (netAt(mid) <= cap) low = mid;
+    else high = mid - 1;
+  }
+  return low;
+}
+
 // Only DSCR/Portfolio treat the "Cost to Borrower" slot as a points-based
 // rate buydown — Bridge/hard-money's "Lender Fee" is a flat quoted amount
 // with no points concept, so it stays directly editable there.

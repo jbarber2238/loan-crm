@@ -35,6 +35,7 @@ export default async function DealTermSheetsPage({
       hasBorrowerEmail={Boolean(deal.borrowerEmail)}
       purchasePrice={deal.purchasePrice ? Number(deal.purchasePrice) : null}
       estimatedAsIsValue={deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null}
+      mortgagePayoffAmount={deal.mortgagePayoffAmount ? Number(deal.mortgagePayoffAmount) : null}
       termSheetsSentToBorrowerAt={deal.termSheetsSentToBorrowerAt}
       bookACallSentAt={deal.bookACallSentAt}
     />

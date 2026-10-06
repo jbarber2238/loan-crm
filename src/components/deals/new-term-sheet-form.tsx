@@ -31,6 +31,7 @@ export function NewTermSheetForm({
   isAdmin,
   purchasePrice = null,
   estimatedAsIsValue = null,
+  mortgagePayoffAmount = null,
 }: {
   dealId: string;
   loanCategory: string;
@@ -38,6 +39,7 @@ export function NewTermSheetForm({
   isAdmin: boolean;
   purchasePrice?: number | null;
   estimatedAsIsValue?: number | null;
+  mortgagePayoffAmount?: number | null;
 }) {
   const router = useRouter();
   // The deal's own loan type first, then the ones it can be switched to if
@@ -119,6 +121,7 @@ export function NewTermSheetForm({
           category={product.category}
           purchasePrice={purchasePrice}
           estimatedAsIsValue={estimatedAsIsValue}
+          mortgagePayoffAmount={mortgagePayoffAmount}
         />
       ) : (
         productSelector

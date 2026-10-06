@@ -375,6 +375,7 @@ function TermSheetCard({
   hasBorrowerEmail,
   purchasePrice,
   estimatedAsIsValue,
+  mortgagePayoffAmount,
   onChanged,
 }: {
   dealId: string;
@@ -385,6 +386,7 @@ function TermSheetCard({
   hasBorrowerEmail: boolean;
   purchasePrice: number | null;
   estimatedAsIsValue: number | null;
+  mortgagePayoffAmount?: number | null;
   onChanged: () => void;
 }) {
   const generate = generateTermSheet.bind(null, dealId, termSheet.id);
@@ -438,6 +440,7 @@ function TermSheetCard({
                 category={termSheet.product.category}
                 purchasePrice={purchasePrice}
                 estimatedAsIsValue={estimatedAsIsValue}
+                mortgagePayoffAmount={mortgagePayoffAmount}
               />
               <SubmitButton className="w-full">Save</SubmitButton>
             </ActionForm>
@@ -522,6 +525,7 @@ function ArchivedTermSheetsSection({
   hasBorrowerEmail,
   purchasePrice,
   estimatedAsIsValue,
+  mortgagePayoffAmount,
   onChanged,
 }: {
   termSheets: TermSheet[];
@@ -530,6 +534,7 @@ function ArchivedTermSheetsSection({
   hasBorrowerEmail: boolean;
   purchasePrice: number | null;
   estimatedAsIsValue: number | null;
+  mortgagePayoffAmount?: number | null;
   onChanged: () => void;
 }) {
   if (termSheets.length === 0) return null;
@@ -550,6 +555,7 @@ function ArchivedTermSheetsSection({
             hasBorrowerEmail={hasBorrowerEmail}
             purchasePrice={purchasePrice}
             estimatedAsIsValue={estimatedAsIsValue}
+            mortgagePayoffAmount={mortgagePayoffAmount}
             onChanged={onChanged}
           />
         ))}
@@ -567,6 +573,7 @@ export function TermSheetsTab({
   hasBorrowerEmail,
   purchasePrice = null,
   estimatedAsIsValue = null,
+  mortgagePayoffAmount = null,
   termSheetsSentToBorrowerAt = null,
   bookACallSentAt = null,
 }: {
@@ -578,6 +585,7 @@ export function TermSheetsTab({
   hasBorrowerEmail: boolean;
   purchasePrice?: number | null;
   estimatedAsIsValue?: number | null;
+  mortgagePayoffAmount?: number | null;
   termSheetsSentToBorrowerAt?: Date | null;
   bookACallSentAt?: Date | null;
 }) {
@@ -634,6 +642,7 @@ export function TermSheetsTab({
               isAdmin={isAdmin}
               purchasePrice={purchasePrice}
               estimatedAsIsValue={estimatedAsIsValue}
+              mortgagePayoffAmount={mortgagePayoffAmount}
             />
           </DialogContent>
         </Dialog>
@@ -651,6 +660,7 @@ export function TermSheetsTab({
             hasBorrowerEmail={hasBorrowerEmail}
             purchasePrice={purchasePrice}
             estimatedAsIsValue={estimatedAsIsValue}
+            mortgagePayoffAmount={mortgagePayoffAmount}
             onChanged={() => router.refresh()}
           />
         ))}
@@ -671,6 +681,7 @@ export function TermSheetsTab({
                 hasBorrowerEmail={hasBorrowerEmail}
                 purchasePrice={purchasePrice}
                 estimatedAsIsValue={estimatedAsIsValue}
+                mortgagePayoffAmount={mortgagePayoffAmount}
                 onChanged={() => router.refresh()}
               />
             ))}
@@ -686,6 +697,7 @@ export function TermSheetsTab({
           hasBorrowerEmail={hasBorrowerEmail}
           purchasePrice={purchasePrice}
           estimatedAsIsValue={estimatedAsIsValue}
+          mortgagePayoffAmount={mortgagePayoffAmount}
           onChanged={() => router.refresh()}
         />
       </div>

@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import type { ReactNode } from "react";
 import type { TermSheetField } from "@/lib/term-sheet-fields";
-import { ratioMetricsFor } from "@/lib/term-sheet-calculations";
+import { calculateRefiNetProceeds, maxLoanAmountForNetProceedsCap, ratioMetricsFor } from "@/lib/term-sheet-calculations";
 
 const MIN_ORIGINATION_FEE = 2500;
 
@@ -32,7 +32,7 @@ const LENDER_PRODUCT_KEYS = [
 ];
 const ADDITIONAL_TERM_KEYS = ["creditPullType", "prepaymentPenalty"];
 const BROKER_FEE_KEYS = ["originationPoints", "originationFee", "rateBuydownPoints"];
-const LOAN_NUMBER_KEYS = ["loanAmount", "initialAdvance", "approvedRehabCost", "reservesMonths", "reservesRequired", "approvedArv"];
+const LOAN_NUMBER_KEYS = ["loanAmount", "initialAdvance", "approvedRehabCost", "reservesMonths", "reservesRequired", "approvedArv", "netProceedsCap"];
 const LENDER_FEE_KEYS = ["underwritingDocFee"];
 
 function pickInOrder(fields: TermSheetField[], keys: string[]): TermSheetField[] {
@@ -116,6 +116,11 @@ function computeRateBuydownFee(loanAmount: string, points: string): string {
   return String(Math.round(la * (pts / 100)));
 }
 
+function money(n: number): string {
+  const rounded = Math.round(Math.abs(n)).toLocaleString("en-US");
+  return n < 0 ? `-$${rounded}` : `$${rounded}`;
+}
+
 export function TermSheetFieldInputs({
   fields,
   values = {},
@@ -123,6 +128,7 @@ export function TermSheetFieldInputs({
   category,
   purchasePrice = null,
   estimatedAsIsValue = null,
+  mortgagePayoffAmount,
 }: {
   fields: TermSheetField[];
   values?: Record<string, unknown>;
@@ -135,6 +141,10 @@ export function TermSheetFieldInputs({
   category?: string;
   purchasePrice?: number | null;
   estimatedAsIsValue?: number | null;
+  // The deal's existing mortgage payoff. Passing it (null if none is on the
+  // deal yet) switches on the live net-proceeds readout and cap field on a
+  // rate & term refinance; leaving it undefined hides both.
+  mortgagePayoffAmount?: number | null;
 }) {
   // loanAmount, originationPoints, and originationFee are linked — editing
   // loan amount or points recalculates the fee live. Same relationship
@@ -161,6 +171,8 @@ export function TermSheetFieldInputs({
   const [buydownFee, setBuydownFee] = useState(initialBuydownFee);
   const [rehabCost, setRehabCost] = useState(String(values.approvedRehabCost ?? ""));
   const [arv, setArv] = useState(String(values.approvedArv ?? ""));
+  const [underwritingFee, setUnderwritingFee] = useState(String(values.underwritingDocFee ?? ""));
+  const [netProceedsCap, setNetProceedsCap] = useState(String(values.netProceedsCap ?? ""));
 
   function handleLoanAmountChange(v: string) {
     setLoanAmount(v);
@@ -184,7 +196,33 @@ export function TermSheetFieldInputs({
     if (computed) setBuydownFee(computed);
   }
 
-  const { lenderProductInfo, additionalTerms, brokerFees, loanNumbers, lenderFees, internal } = groupFields(fields);
+  const showNetProceeds = category === "dscr_rate_term_refinance" && mortgagePayoffAmount !== undefined;
+  const { lenderProductInfo, additionalTerms, brokerFees, loanNumbers, lenderFees, internal } = groupFields(
+    showNetProceeds ? fields : fields.filter((f) => f.key !== "netProceedsCap")
+  );
+
+  const netProceeds =
+    showNetProceeds && mortgagePayoffAmount !== null && Number(loanAmount) > 0
+      ? calculateRefiNetProceeds({
+          loanAmount: Number(loanAmount),
+          mortgagePayoff: mortgagePayoffAmount,
+          originationFee: Number(fee) || 0,
+          rateBuydownFee: Number(buydownFee) || 0,
+          underwritingDocFee: Number(underwritingFee) || 0,
+        })
+      : null;
+  const capValue = netProceedsCap.trim() !== "" ? Number(netProceedsCap) : null;
+  const overCap = netProceeds !== null && capValue !== null && Number.isFinite(capValue) && netProceeds > capValue;
+  const maxLoanAtCap =
+    overCap && mortgagePayoffAmount !== null && mortgagePayoffAmount !== undefined && capValue !== null
+      ? maxLoanAmountForNetProceedsCap({
+          cap: capValue,
+          mortgagePayoff: mortgagePayoffAmount,
+          originationPoints: Number(points) || 0,
+          rateBuydownPoints: Number(buydownPoints) || 0,
+          underwritingDocFee: Number(underwritingFee) || 0,
+        })
+      : null;
 
   const ratios = category
     ? ratioMetricsFor(category, {
@@ -243,6 +281,22 @@ export function TermSheetFieldInputs({
           />
         ) : field.key === "costToBorrowerFee" && hasRateBuydownPoints ? (
           <Input id={field.key} name={field.key} type="number" value={buydownFee} readOnly className="bg-muted" />
+        ) : field.key === "underwritingDocFee" ? (
+          <Input
+            id={field.key}
+            name={field.key}
+            type="number"
+            value={underwritingFee}
+            onChange={(e) => setUnderwritingFee(e.target.value)}
+          />
+        ) : field.key === "netProceedsCap" ? (
+          <Input
+            id={field.key}
+            name={field.key}
+            type="number"
+            value={netProceedsCap}
+            onChange={(e) => setNetProceedsCap(e.target.value)}
+          />
         ) : field.type === "select" ? (
           <Select name={field.key} defaultValue={typeof defaultValue === "string" ? defaultValue : undefined}>
             <SelectTrigger id={field.key} className="w-full">
@@ -302,6 +356,39 @@ export function TermSheetFieldInputs({
             {ratios.map((r) => (
               <RatioDisplay key={r.label} label={r.label} valuePct={r.valuePct} />
             ))}
+            {showNetProceeds && (
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Est. Net Proceeds to Borrower</Label>
+                <div className="flex h-9 items-center rounded-md border bg-muted px-3 text-sm">
+                  {netProceeds !== null ? money(netProceeds) : "—"}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {mortgagePayoffAmount === null
+                    ? "Add the mortgage payoff on the deal to calculate this."
+                    : "Loan amount less the mortgage payoff, origination, rate buydown and underwriting/doc fees."}
+                </p>
+                {overCap && capValue !== null && (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                    <p>
+                      Over the {money(capValue)} cap by {money(netProceeds! - capValue)}.
+                      {maxLoanAtCap !== null && ` The most the loan can be at the cap is ${money(maxLoanAtCap)}.`}
+                    </p>
+                    {maxLoanAtCap !== null && (
+                      <button
+                        type="button"
+                        className="mt-2 rounded-md border border-amber-400 bg-white px-2.5 py-1 font-medium hover:bg-amber-100"
+                        onClick={() => handleLoanAmountChange(String(maxLoanAtCap))}
+                      >
+                        Set loan amount to {money(maxLoanAtCap)}
+                      </button>
+                    )}
+                  </div>
+                )}
+                {!overCap && capValue !== null && netProceeds !== null && (
+                  <p className="text-xs text-emerald-700">Within the {money(capValue)} cap.</p>
+                )}
+              </div>
+            )}
           </FieldGroup>
           {lenderFees.length > 0 && <FieldGroup title="Lender Fees">{lenderFees.map(renderField)}</FieldGroup>}
         </div>
