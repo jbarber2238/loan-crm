@@ -4,7 +4,9 @@ import { htmlFactList } from "@/lib/email-html";
 import type { deals, termSheets } from "@/server/db/schema";
 
 type Deal = typeof deals.$inferSelect;
-type TermSheet = typeof termSheets.$inferSelect;
+// Each sheet's own loan type comes from its product — it can differ from the
+// deal's current one when the sheet quotes a switch (cash-out → rate & term).
+type TermSheet = typeof termSheets.$inferSelect & { product: { category: string } };
 
 const DSCR_CATEGORIES = new Set(["dscr_purchase", "dscr_cash_out_refinance", "dscr_rate_term_refinance"]);
 
@@ -65,11 +67,8 @@ export function summarizeTermSheetsForBorrowerEmail(
   deal: Deal,
   sheets: TermSheet[]
 ): Record<string, string> {
-  const valueBasis = conservativeValueBasis(
-    deal.loanCategory,
-    deal.purchasePrice ? Number(deal.purchasePrice) : null,
-    deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null
-  );
+  const purchasePrice = deal.purchasePrice ? Number(deal.purchasePrice) : null;
+  const estimatedAsIsValue = deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null;
 
   const loanAmounts: number[] = [];
   const ltvs: number[] = [];
@@ -82,11 +81,16 @@ export function summarizeTermSheetsForBorrowerEmail(
     const loanAmount = numField(fields, "loanAmount");
     if (loanAmount !== null) {
       loanAmounts.push(loanAmount);
-      const ltv = calculateLtv(loanAmount, valueBasis);
+      const ltv = calculateLtv(loanAmount, conservativeValueBasis(sheet.product.category, purchasePrice, estimatedAsIsValue));
       if (ltv !== null) ltvs.push(ltv);
     }
-    const term = numField(fields, isInterestOnlyCategory(deal.loanCategory) ? "loanTermMonths" : "loanTermYears");
-    if (term !== null) terms.push(term);
+    // Terms are only ranged across sheets quoted in the same unit as the deal
+    // (years vs months), so a switched-type sheet never mixes the two.
+    const sheetIsMonths = isInterestOnlyCategory(sheet.product.category);
+    if (sheetIsMonths === isInterestOnlyCategory(deal.loanCategory)) {
+      const term = numField(fields, sheetIsMonths ? "loanTermMonths" : "loanTermYears");
+      if (term !== null) terms.push(term);
+    }
     amortizationTypes.push(textField(fields, "amortizationType"));
     prepaymentPenalties.push(textField(fields, "prepaymentPenalty"));
   }
@@ -111,11 +115,11 @@ function formatRatePercent(n: number): string {
 // mentions ARM, that text *is* the loan-type label. Otherwise, build a
 // plain "{n}-year/month term" from the structured term field, matching how
 // Justin wants a standard fixed loan described on a term-sheet button.
-function loanTypeLabelForButton(deal: Deal, fields: Record<string, unknown>): string | null {
+function loanTypeLabelForButton(category: string, fields: Record<string, unknown>): string | null {
   const amortizationType = textField(fields, "amortizationType");
   if (amortizationType && /arm/i.test(amortizationType)) return amortizationType;
 
-  const isMonths = isInterestOnlyCategory(deal.loanCategory);
+  const isMonths = isInterestOnlyCategory(category);
   const term = numField(fields, isMonths ? "loanTermMonths" : "loanTermYears");
   if (term !== null) return `${Math.round(term)}-${isMonths ? "month" : "year"} term`;
 
@@ -129,19 +133,17 @@ function loanTypeLabelForButton(deal: Deal, fields: Record<string, unknown>): st
  * (that's what summarizeTermSheetsForBorrowerEmail's ranges are for).
  */
 export function buildTermSheetButtonLabels(deal: Deal, sheets: TermSheet[]): Record<string, string> {
-  const valueBasis = conservativeValueBasis(
-    deal.loanCategory,
-    deal.purchasePrice ? Number(deal.purchasePrice) : null,
-    deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null
-  );
+  const purchasePrice = deal.purchasePrice ? Number(deal.purchasePrice) : null;
+  const estimatedAsIsValue = deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null;
 
   const labels: Record<string, string> = {};
   for (const sheet of sheets) {
     const fields = sheet.fields;
     const rate = numField(fields, "interestRate");
     const loanAmount = numField(fields, "loanAmount");
+    const valueBasis = conservativeValueBasis(sheet.product.category, purchasePrice, estimatedAsIsValue);
     const ltvPct = loanAmount !== null ? calculateLtv(loanAmount, valueBasis) : null;
-    const typeLabel = loanTypeLabelForButton(deal, fields);
+    const typeLabel = loanTypeLabelForButton(sheet.product.category, fields);
 
     const parts = [
       rate !== null ? formatRatePercent(rate) : null,

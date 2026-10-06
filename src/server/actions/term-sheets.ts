@@ -419,6 +419,7 @@ export async function previewTermSheetsToBorrowerEmail(dealId: string, termSheet
 
   const selectedTermSheets = await db.query.termSheets.findMany({
     where: inArray(termSheets.id, termSheetIds),
+    with: { product: { columns: { category: true } } },
   });
 
   const baseUrl = process.env.APP_URL ?? "";

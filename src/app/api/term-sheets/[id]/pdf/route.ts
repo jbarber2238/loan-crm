@@ -19,12 +19,15 @@ export async function GET(
   const termSheet = await db.query.termSheets.findFirst({
     where: eq(termSheets.id, id),
     with: {
+      // The sheet's own product decides its loan type — it can differ from the
+      // deal's current one when this is a quote to switch types (e.g. a rate &
+      // term refi on a cash-out deal) that hasn't been signed yet.
+      product: { columns: { category: true } },
       deal: {
         columns: {
           borrowerName: true,
           borrowerEntityName: true,
           propertyAddress: true,
-          loanCategory: true,
           purchasePrice: true,
           mortgagePayoffAmount: true,
           estimatedAsIsValue: true,
@@ -46,7 +49,7 @@ export async function GET(
       borrowerName: termSheet.deal.borrowerName,
       borrowerEntityName: termSheet.deal.borrowerEntityName,
       propertyAddress: termSheet.deal.propertyAddress,
-      loanCategory: termSheet.deal.loanCategory,
+      loanCategory: termSheet.product.category,
       generatedAt: termSheet.createdAt,
       fields: termSheet.fields,
       purchasePrice: termSheet.deal.purchasePrice ? Number(termSheet.deal.purchasePrice) : null,
