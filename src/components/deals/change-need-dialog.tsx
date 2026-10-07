@@ -17,6 +17,21 @@ export interface ChangeNeedCandidate {
   itemName: string;
   needType: string;
   status: string;
+  description?: string | null;
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  not_sent: "Not Sent",
+  awaiting_docs: "Awaiting Docs",
+  review_needed: "Review Needed",
+  accepted: "Accepted",
+  need_rejected_not_sent: "Need Rejected",
+  document_rejected_not_sent: "Document Rejected",
+};
+
+function snippet(text: string, max = 48): string {
+  const clean = text.replace(/\s+/g, " ").trim();
+  return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
 }
 
 type Mode = "existing" | "new_standard" | "custom";
@@ -32,6 +47,7 @@ export function ChangeNeedDialog({
   dealId,
   documentId,
   sourceNeedId,
+  sourceNeedName,
   needs,
   catalog,
   trigger,
@@ -39,6 +55,9 @@ export function ChangeNeedDialog({
   dealId: string;
   documentId: string;
   sourceNeedId: string;
+  // Shown so it's clear why that need isn't in the list (a document can't be
+  // moved to the need it's already in).
+  sourceNeedName?: string;
   needs: ChangeNeedCandidate[];
   catalog: DealCatalogItem[];
   trigger: ReactNode;
@@ -58,6 +77,20 @@ export function ChangeNeedDialog({
     (n) => n.id !== sourceNeedId && n.needType === "document_upload" && n.status !== "unused"
   );
   const existingNeedNames = new Set(needs.map((n) => n.itemName.toLowerCase()));
+  // Needs can share a name (two bank accounts, two entities), so every option
+  // shows its status, plus the start of its description when another option
+  // has the same name — enough to tell "Bank Statements" apart from "Bank
+  // Statements".
+  const nameCounts = new Map<string, number>();
+  for (const n of existingOptions) {
+    const key = n.itemName.toLowerCase();
+    nameCounts.set(key, (nameCounts.get(key) ?? 0) + 1);
+  }
+  function optionLabel(n: ChangeNeedCandidate) {
+    const parts = [n.itemName, STATUS_LABELS[n.status] ?? n.status];
+    if ((nameCounts.get(n.itemName.toLowerCase()) ?? 0) > 1 && n.description) parts.push(snippet(n.description));
+    return parts.join(" · ");
+  }
   // The actual fix for "duplicate entries in the dropdown": only standard
   // catalog items not already on this deal, by name.
   const standardOptions = catalog.filter(
@@ -111,6 +144,7 @@ export function ChangeNeedDialog({
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
             Moves the document to a different client need — it won&apos;t be left behind in this one.
+            {sourceNeedName ? ` It is currently in “${sourceNeedName}”, which is why that one isn’t listed.` : ""}
           </p>
 
           <RadioGroup value={mode} onValueChange={(v) => setMode(v as Mode)} className="space-y-3">
@@ -127,7 +161,7 @@ export function ChangeNeedDialog({
                   <SelectContent>
                     {existingOptions.map((n) => (
                       <SelectItem key={n.id} value={n.id}>
-                        {n.itemName}
+                        {optionLabel(n)}
                       </SelectItem>
                     ))}
                   </SelectContent>

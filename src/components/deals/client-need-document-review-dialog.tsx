@@ -373,6 +373,7 @@ export function ClientNeedDocumentReviewDialog({
                           dealId={dealId}
                           documentId={current.id}
                           sourceNeedId={needId}
+                          sourceNeedName={needName}
                           needs={allNeeds}
                           catalog={catalog}
                           trigger={

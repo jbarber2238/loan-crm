@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { restoreRejectedDocuments, renameClientNeedDocument } from "@/server/actions/client-need-documents";
+import { restoreClientNeeds } from "@/server/actions/client-needs";
 import type { DealDocumentRow } from "@/server/actions/client-need-documents";
 import { ChangeNeedDialog, type ChangeNeedCandidate } from "@/components/deals/change-need-dialog";
 import type { DealCatalogItem } from "@/components/deals/add-client-need-to-deal-dialog";
@@ -37,7 +38,7 @@ function DocumentSection({
   rows,
   propertyLabel,
   showReason,
-  showRestore,
+  restore,
   needs,
   catalog,
 }: {
@@ -46,7 +47,9 @@ function DocumentSection({
   rows: DealDocumentRow[];
   propertyLabel: string;
   showReason: boolean;
-  showRestore: boolean;
+  // "documents": put selected rejected documents back under review.
+  // "needs": put the client needs the selected documents belong to back on the list.
+  restore: "documents" | "needs" | null;
   needs: ChangeNeedCandidate[];
   catalog: DealCatalogItem[];
 }) {
@@ -108,8 +111,14 @@ function DocumentSection({
     if (!ids.length) return;
     startRestore(async () => {
       try {
-        await restoreRejectedDocuments(dealId, ids);
-        toast.success(`Restored ${ids.length} document${ids.length === 1 ? "" : "s"} for review`);
+        if (restore === "needs") {
+          const needIds = [...new Set(rows.filter((r) => selected.has(r.id)).map((r) => r.clientNeedId))];
+          const count = await restoreClientNeeds(dealId, needIds);
+          toast.success(`Restored ${count} client need${count === 1 ? "" : "s"} to the Client Needs list`);
+        } else {
+          await restoreRejectedDocuments(dealId, ids);
+          toast.success(`Restored ${ids.length} document${ids.length === 1 ? "" : "s"} for review`);
+        }
         setSelected(new Set());
         router.refresh();
       } catch (err) {
@@ -134,17 +143,25 @@ function DocumentSection({
               Select all
             </label>
             <div className="flex items-center gap-2">
-              {showRestore && (
+              {restore && (
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
                   disabled={restoring || selected.size === 0}
                   onClick={handleRestore}
-                  title="Puts the selected document(s) back under review on their original client need"
+                  title={
+                    restore === "needs"
+                      ? "Puts the client need(s) these documents belong to back on the Client Needs list"
+                      : "Puts the selected document(s) back under review on their original client need"
+                  }
                 >
                   <Undo2 className="size-3.5" />
-                  {restoring ? "Restoring…" : `Restore selection (${selected.size})`}
+                  {restoring
+                    ? "Restoring…"
+                    : restore === "needs"
+                      ? `Restore need (${selected.size})`
+                      : `Restore selection (${selected.size})`}
                 </Button>
               )}
               <Button
@@ -243,6 +260,7 @@ function DocumentSection({
                           dealId={dealId}
                           documentId={r.id}
                           sourceNeedId={r.clientNeedId}
+                          sourceNeedName={r.itemName}
                           needs={needs}
                           catalog={catalog}
                           trigger={
@@ -289,7 +307,7 @@ export function DocumentsTab({
         rows={accepted}
         propertyLabel={propertyLabel}
         showReason={false}
-        showRestore={false}
+        restore={null}
         needs={needs}
         catalog={catalog}
       />
@@ -299,7 +317,7 @@ export function DocumentsTab({
         rows={rejected}
         propertyLabel={propertyLabel}
         showReason
-        showRestore
+        restore="documents"
         needs={needs}
         catalog={catalog}
       />
@@ -309,7 +327,7 @@ export function DocumentsTab({
         rows={unused}
         propertyLabel={propertyLabel}
         showReason={false}
-        showRestore={false}
+        restore="needs"
         needs={needs}
         catalog={catalog}
       />

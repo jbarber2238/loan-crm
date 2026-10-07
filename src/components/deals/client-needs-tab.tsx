@@ -57,6 +57,7 @@ import { AddClientNeedToDealDialog, type DealCatalogItem } from "@/components/de
 import { BulkDeleteClientNeedsDialog } from "@/components/deals/bulk-delete-client-needs-dialog";
 import { ClientNeedReminderAuditDialog } from "@/components/deals/client-need-reminder-audit-dialog";
 import { MarkUnusedDialog } from "@/components/deals/mark-unused-dialog";
+import { EditRejectionReasonDialog } from "@/components/deals/edit-rejection-reason-dialog";
 import {
   ClientNeedDocumentReviewDialog,
   type ReviewableDocument,
@@ -584,6 +585,8 @@ function NeedActionsMenu({ dealId, need }: { dealId: string; need: ClientNeed })
   const [editOpen, setEditOpen] = useState(false);
   const [holdOpen, setHoldOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
+  const [reasonOpen, setReasonOpen] = useState(false);
+  const rejectedDocuments = need.documents.filter((d) => d.reviewStatus === "rejected");
 
   function handleResume() {
     startTransition(async () => {
@@ -594,10 +597,17 @@ function NeedActionsMenu({ dealId, need }: { dealId: string; need: ClientNeed })
   }
 
   function handleDelete() {
-    const warning =
-      need.documents.length > 0
-        ? `Delete "${need.itemName}"? This also deletes the ${need.documents.length} document(s) uploaded against it. This can't be undone.`
-        : `Delete "${need.itemName}"? This can't be undone.`;
+    const rejectedCount = rejectedDocuments.length;
+    const deletedCount = need.documents.length - rejectedCount;
+    const parts = [`Delete "${need.itemName}"?`];
+    if (deletedCount > 0) parts.push(`This also deletes the ${deletedCount} document(s) uploaded against it.`);
+    if (rejectedCount > 0) {
+      parts.push(
+        `The ${rejectedCount} rejected document(s) stay on the Documents tab under Rejected, still showing this need's name.`
+      );
+    }
+    parts.push("This can't be undone.");
+    const warning = parts.join(" ");
     if (!window.confirm(warning)) return;
     startTransition(async () => {
       await deleteClientNeedFromDeal(dealId, need.id);
@@ -620,6 +630,9 @@ function NeedActionsMenu({ dealId, need }: { dealId: string; need: ClientNeed })
           ) : need.status !== "accepted" ? (
             <DropdownMenuItem onClick={() => setHoldOpen(true)}>Put on hold</DropdownMenuItem>
           ) : null}
+          {rejectedDocuments.length > 0 && (
+            <DropdownMenuItem onClick={() => setReasonOpen(true)}>Edit rejection reason</DropdownMenuItem>
+          )}
           <DropdownMenuItem onClick={() => setAuditOpen(true)}>Reminder history</DropdownMenuItem>
           {need.needType === "document_upload" && need.documents.length > 0 && (
             <MarkUnusedDialog
@@ -636,6 +649,14 @@ function NeedActionsMenu({ dealId, need }: { dealId: string; need: ClientNeed })
       </DropdownMenu>
       <EditNeedDialog dealId={dealId} need={need} open={editOpen} onOpenChange={setEditOpen} />
       <HoldNeedDialog dealId={dealId} need={need} open={holdOpen} onOpenChange={setHoldOpen} />
+      <EditRejectionReasonDialog
+        dealId={dealId}
+        needId={need.id}
+        needName={need.itemName}
+        documents={rejectedDocuments}
+        open={reasonOpen}
+        onOpenChange={setReasonOpen}
+      />
       <ClientNeedReminderAuditDialog
         dealId={dealId}
         needId={need.id}
@@ -880,7 +901,13 @@ function ClientNeedRow({
           needId={need.id}
           needName={need.itemName}
           documents={need.documents}
-          allNeeds={allNeeds.map((n) => ({ id: n.id, itemName: n.itemName, needType: n.needType, status: n.status }))}
+          allNeeds={allNeeds.map((n) => ({
+            id: n.id,
+            itemName: n.itemName,
+            needType: n.needType,
+            status: n.status,
+            description: n.description,
+          }))}
           catalog={catalog}
           initialDocumentId={reviewDocId}
           open={reviewOpen}

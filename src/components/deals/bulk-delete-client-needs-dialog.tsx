@@ -79,7 +79,7 @@ export function BulkDeleteClientNeedsDialog({
           <DialogDescription>
             This can&apos;t be undone.
             {totalDocuments > 0 &&
-              ` It will also permanently delete ${totalDocuments} uploaded document${totalDocuments === 1 ? "" : "s"} attached to ${totalDocuments === 1 ? "it" : "them"}.`}
+              ` It will also permanently delete ${totalDocuments} uploaded document${totalDocuments === 1 ? "" : "s"} attached to ${totalDocuments === 1 ? "it" : "them"}, except rejected documents, which stay on the Documents tab under Rejected.`}
           </DialogDescription>
         </DialogHeader>
 

@@ -1,10 +1,19 @@
 "use server";
 
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
-import { clientNeeds, deals, dealClientNeeds, productClientNeeds, categoryClientNeeds, products } from "@/server/db/schema";
+import {
+  clientNeeds,
+  deals,
+  dealClientNeeds,
+  dealClientNeedDocuments,
+  productClientNeeds,
+  categoryClientNeeds,
+  products,
+} from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
+import { recomputeNeedStatus } from "@/server/client-need-status";
 import { copyQuestionsToNewNeeds } from "@/server/client-need-questions";
 import { createClientNeed } from "@/server/actions/client-need-catalog";
 import { activeRulesFor } from "@/server/client-need-rules";
@@ -341,29 +350,71 @@ export async function updateClientNeed(dealId: string, needId: string, formData:
   revalidatePath(`/deals/${dealId}/loan-center`);
 }
 
-// Deleting a need also deletes any documents already uploaded against it
-// (FK cascade) — the confirm dialog in the UI warns about that.
+// Deleting a need deletes the documents uploaded against it, EXCEPT rejected
+// ones: those stay on the Documents tab (Rejected section) with the name of the
+// need they came in under. A need that has rejected documents therefore isn't
+// removed outright — it's hidden (status "unused") as the record they hang off,
+// after its other documents are deleted. A need with no rejected documents is
+// deleted entirely. Rejected documents never block a delete.
+async function deleteNeedsKeepingRejectedDocs(dealId: string, needIds: string[]): Promise<number> {
+  const needs = await db.query.dealClientNeeds.findMany({
+    where: and(eq(dealClientNeeds.dealId, dealId), inArray(dealClientNeeds.id, needIds)),
+    columns: { id: true },
+    with: { documents: { columns: { id: true, reviewStatus: true } } },
+  });
+
+  const keepIds: string[] = [];
+  const removeIds: string[] = [];
+  for (const need of needs) {
+    (need.documents.some((d) => d.reviewStatus === "rejected") ? keepIds : removeIds).push(need.id);
+  }
+
+  if (keepIds.length) {
+    await db
+      .delete(dealClientNeedDocuments)
+      .where(and(inArray(dealClientNeedDocuments.clientNeedId, keepIds), ne(dealClientNeedDocuments.reviewStatus, "rejected")));
+    await db.update(dealClientNeeds).set({ status: "unused", onHoldAt: null }).where(inArray(dealClientNeeds.id, keepIds));
+  }
+  if (removeIds.length) {
+    await db.delete(dealClientNeeds).where(inArray(dealClientNeeds.id, removeIds));
+  }
+  return needs.length;
+}
+
 export async function deleteClientNeedFromDeal(dealId: string, needId: string) {
   await requireUser();
-  await db.delete(dealClientNeeds).where(and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)));
+  await deleteNeedsKeepingRejectedDocs(dealId, [needId]);
   revalidatePath(`/deals/${dealId}/loan-center`);
 }
 
 /**
- * Bulk version — same cascade behavior (any uploaded documents go with
- * their need), gated on the UI side by a "type DELETE to confirm" dialog
- * rather than anything enforced here, since this is meant for a deliberate
- * multi-select cleanup, not a single accidental click.
+ * Bulk version — same behavior as above, gated on the UI side by a "type
+ * DELETE to confirm" dialog rather than anything enforced here, since this is
+ * meant for a deliberate multi-select cleanup, not a single accidental click.
  */
 export async function deleteClientNeedsFromDeal(dealId: string, needIds: string[]) {
   await requireUser();
   if (!needIds.length) return 0;
-  const deleted = await db
-    .delete(dealClientNeeds)
-    .where(and(eq(dealClientNeeds.dealId, dealId), inArray(dealClientNeeds.id, needIds)))
-    .returning({ id: dealClientNeeds.id });
+  const count = await deleteNeedsKeepingRejectedDocs(dealId, needIds);
   revalidatePath(`/deals/${dealId}/loan-center`);
-  return deleted.length;
+  return count;
+}
+
+/**
+ * Brings Unused needs back onto the Client Needs list with their documents.
+ * Their status is re-derived from the documents (an approved one shows the need
+ * as Accepted again, and so on).
+ */
+export async function restoreClientNeeds(dealId: string, needIds: string[]) {
+  await requireUser();
+  if (!needIds.length) return 0;
+  const needs = await db.query.dealClientNeeds.findMany({
+    where: and(eq(dealClientNeeds.dealId, dealId), inArray(dealClientNeeds.id, needIds), eq(dealClientNeeds.status, "unused")),
+    columns: { id: true },
+  });
+  for (const need of needs) await recomputeNeedStatus(need.id, { reviveUnused: true });
+  revalidatePath(`/deals/${dealId}/loan-center`);
+  return needs.length;
 }
 
 // Holds are a flag over `status`, not a status of their own — see

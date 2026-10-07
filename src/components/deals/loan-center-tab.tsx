@@ -235,7 +235,13 @@ export function LoanCenterTab({
             rejected={documents.rejected}
             unused={documents.unused}
             propertyLabel={propertyLabel}
-            needs={clientNeeds.map((n) => ({ id: n.id, itemName: n.itemName, needType: n.needType, status: n.status }))}
+            needs={clientNeeds.map((n) => ({
+              id: n.id,
+              itemName: n.itemName,
+              needType: n.needType,
+              status: n.status,
+              description: n.description,
+            }))}
             catalog={clientNeedsCatalog}
           />
         </TabsContent>

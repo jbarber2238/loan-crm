@@ -118,8 +118,46 @@ export async function restoreRejectedDocuments(dealId: string, documentIds: stri
     .set({ reviewStatus: "pending", reviewedAt: null, reviewedByUserId: null, rejectionNote: null })
     .where(inArray(dealClientNeedDocuments.id, documentIds));
 
+  // Restoring a rejected document also brings back its need if that need was
+  // deleted/hidden — a document under review needs somewhere visible to live.
   const needIds = [...new Set(docs.map((d) => d.clientNeedId))];
-  for (const needId of needIds) await recomputeNeedStatus(needId);
+  for (const needId of needIds) await recomputeNeedStatus(needId, { reviveUnused: true });
+
+  revalidatePath(`/deals/${dealId}/loan-center`);
+}
+
+/**
+ * Edits the reason shown for rejected documents on a need — the note the
+ * borrower sees in reminders and on their upload page, and the Documents tab's
+ * "Reason for Rejection". Only documents that are actually rejected can be
+ * edited, and a reason can't be blank.
+ */
+export async function updateRejectionNotes(
+  dealId: string,
+  needId: string,
+  notes: { documentId: string; note: string }[]
+) {
+  await requireUser();
+  const need = await db.query.dealClientNeeds.findFirst({
+    where: and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)),
+    columns: { id: true },
+  });
+  if (!need) throw new Error("Client need not found");
+
+  for (const { documentId, note } of notes) {
+    const trimmed = note.trim();
+    if (!trimmed) throw new Error("A rejection reason can't be blank");
+    await db
+      .update(dealClientNeedDocuments)
+      .set({ rejectionNote: trimmed })
+      .where(
+        and(
+          eq(dealClientNeedDocuments.id, documentId),
+          eq(dealClientNeedDocuments.clientNeedId, needId),
+          eq(dealClientNeedDocuments.reviewStatus, "rejected")
+        )
+      );
+  }
 
   revalidatePath(`/deals/${dealId}/loan-center`);
 }
@@ -221,12 +259,14 @@ export async function getDealDocumentsForDocumentsTab(dealId: string): Promise<{
       rejectionNote: r.rejectionNote,
       createdAt: r.createdAt,
     };
-    // A need marked Unused claims ALL of its documents for this section,
-    // regardless of their individual review status (one might still be
-    // "pending" — it was never actually reviewed, just no longer needed).
-    if (r.clientNeed.status === "unused") unused.push(row);
+    // A rejected document is always listed as Rejected, with the need it came
+    // in under — even if that need has since been deleted (kept hidden just as
+    // the record of its rejected documents) or marked Unused. Every other
+    // document on an Unused need goes to Unused, whatever its review status
+    // (one might still be "pending": never reviewed, just no longer needed).
+    if (r.reviewStatus === "rejected") rejected.push(row);
+    else if (r.clientNeed.status === "unused") unused.push(row);
     else if (r.reviewStatus === "approved") accepted.push(row);
-    else if (r.reviewStatus === "rejected") rejected.push(row);
   }
   return { accepted, rejected, unused };
 }
