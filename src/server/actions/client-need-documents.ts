@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { dealClientNeeds, dealClientNeedDocuments } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
-import { recomputeNeedStatus } from "@/server/client-need-status";
+import { recomputeNeedStatus, removeNeedIfHiddenAndEmpty } from "@/server/client-need-status";
 import { shouldRestoreOnMove } from "@/lib/client-need-status";
 import { convertHeicIfNeeded } from "@/server/heic";
 import { addSingleCatalogNeedToDeal, addClientNeedToDeal } from "@/server/actions/client-needs";
@@ -219,6 +219,7 @@ export async function deleteClientNeedDocument(dealId: string, needId: string, d
   await requireUser();
   await db.delete(dealClientNeedDocuments).where(eq(dealClientNeedDocuments.id, documentId));
   await recomputeNeedStatus(needId);
+  await removeNeedIfHiddenAndEmpty(needId);
   revalidatePath(`/deals/${dealId}/loan-center`);
 }
 
@@ -337,6 +338,7 @@ export async function changeClientNeedDocument(
   // The source keeps its Unused state if it has one (a document leaving an
   // Unused need must not quietly bring that need back).
   await recomputeNeedStatus(sourceNeedId);
+  await removeNeedIfHiddenAndEmpty(sourceNeedId);
   await recomputeNeedStatus(destinationNeedId);
   revalidatePath(`/deals/${dealId}/loan-center`);
   return { restored };

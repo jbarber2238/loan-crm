@@ -27,3 +27,20 @@ export async function recomputeNeedStatus(needId: string, options: { reviveUnuse
     .set({ status: deriveNeedStatus(need) })
     .where(eq(dealClientNeeds.id, needId));
 }
+
+/**
+ * A hidden (Unused) need exists only to hold documents — either ones marked
+ * unused, or a deleted need's rejected documents. Once its last document has
+ * moved away or been deleted there is nothing left for it to be, so it is
+ * removed for good rather than left behind invisibly.
+ */
+export async function removeNeedIfHiddenAndEmpty(needId: string) {
+  const need = await db.query.dealClientNeeds.findFirst({
+    where: eq(dealClientNeeds.id, needId),
+    columns: { id: true, status: true },
+    with: { documents: { columns: { id: true }, limit: 1 } },
+  });
+  if (need && need.status === "unused" && need.documents.length === 0) {
+    await db.delete(dealClientNeeds).where(eq(dealClientNeeds.id, needId));
+  }
+}
