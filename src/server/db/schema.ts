@@ -99,7 +99,11 @@ export const dealStageEnum = pgEnum("deal_stage", [
   "term_sheet",
   "negotiation",
   "application",
+  // Replaced "processing" in the pipeline; that value stays in the enum only
+  // because Postgres can't drop enum values, and nothing selects it anymore.
   "processing",
+  "initial_app_review",
+  "underwriting_review",
   "conditional_approval",
   "clear_to_close",
   "closed",

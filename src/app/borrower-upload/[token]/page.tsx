@@ -4,6 +4,7 @@ import { BorrowerUploadNeedRow, AcceptedNeedRow } from "@/components/borrower-up
 import { Card, CardContent } from "@/components/ui/card";
 import { PipelineStepper } from "@/components/deals/pipeline-stepper";
 import { getCompanyName } from "@/server/settings";
+import type { BorrowerKeyDate } from "@/lib/borrower-key-dates";
 
 function ProgressBar({ completed, total }: { completed: number; total: number }) {
   const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
@@ -21,6 +22,38 @@ function ProgressBar({ completed, total }: { completed: number; total: number })
           style={{ width: `${percent}%` }}
         />
       </div>
+    </div>
+  );
+}
+
+// Compact strip, kept to one short row: latest phase and its date per item, or
+// "Not ordered" until something is logged.
+function KeyDatesStrip({ items }: { items: BorrowerKeyDate[] }) {
+  return (
+    <div className="space-y-1.5 rounded-lg border bg-muted/50 px-3 py-2">
+      <div className="flex items-baseline justify-between gap-2 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
+        <span>Key dates</span>
+        <span className="font-normal tracking-normal normal-case">date of latest update</span>
+      </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-4">
+        {items.map((item) => (
+          <div key={item.label} className="min-w-0 leading-tight">
+            <dt className="text-[11px] text-muted-foreground">{item.label}</dt>
+            <dd className={`truncate text-[12.5px] tabular-nums ${item.status ? "font-semibold" : "text-muted-foreground"}`}>
+              {item.status && item.date ? (
+                <>
+                  {item.status}{" "}
+                  <span className="font-normal text-muted-foreground">
+                    · {item.date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                  </span>
+                </>
+              ) : (
+                "Not ordered"
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }
@@ -80,7 +113,7 @@ export default async function BorrowerUploadPage({ params }: { params: Promise<{
         : "Here's what's left to complete before we can move your loan forward.";
 
   return (
-    <div className="mx-auto max-w-2xl p-4 py-8 md:p-8">
+    <div className="mx-auto max-w-3xl p-4 py-8 md:p-8">
       <div className="overflow-hidden rounded-xl border shadow-sm">
         <div className="bg-primary px-6 py-6 text-primary-foreground md:px-8">
           <p className="text-xs font-semibold text-primary-foreground/70 uppercase tracking-wide">{companyName}</p>
@@ -100,6 +133,7 @@ export default async function BorrowerUploadPage({ params }: { params: Promise<{
         </div>
 
         <div className="space-y-6 bg-card p-6 md:p-8">
+          {deal.keyDates && <KeyDatesStrip items={deal.keyDates} />}
           {total > 0 && <ProgressBar completed={acceptedNeeds.length} total={total} />}
 
           {orderedNeeded.length > 0 && (

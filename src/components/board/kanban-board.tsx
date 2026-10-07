@@ -53,9 +53,14 @@ export interface BoardDeal {
   isArchived: boolean;
 }
 
-// Once a deal reaches Processing, hour-level granularity in a stage stops
-// being a useful signal — underwriting naturally takes days, not hours.
-const DAY_GRANULARITY_STAGES = new Set(["processing", "conditional_approval", "clear_to_close"]);
+// Once a deal reaches Initial App Review, hour-level granularity in a stage
+// stops being a useful signal — review and underwriting take days, not hours.
+const DAY_GRANULARITY_STAGES = new Set([
+  "initial_app_review",
+  "underwriting_review",
+  "conditional_approval",
+  "clear_to_close",
+]);
 
 function daysSince(dateStr: string) {
   const diffMs = Date.now() - new Date(dateStr).getTime();
@@ -236,7 +241,7 @@ function DealCard({ deal }: { deal: BoardDeal }) {
                 <>
                   <p>{daysSince(deal.currentStageEnteredAt)}d in stage</p>
                   {deal.processingEnteredAt && (
-                    <p>{daysSince(deal.processingEnteredAt)}d since processing</p>
+                    <p>{daysSince(deal.processingEnteredAt)}d since app review</p>
                   )}
                 </>
               ) : (

@@ -1,4 +1,4 @@
-// The 9 "real" pipeline stages a deal moves through in order — this is what
+// The 10 "real" pipeline stages a deal moves through in order — this is what
 // the progress stepper renders. On Hold / Follow-up / Lost / Disqualified
 // are excursions from this line, not steps on it.
 export const PIPELINE_STAGES = [
@@ -6,8 +6,9 @@ export const PIPELINE_STAGES = [
   { value: "rate_shopping", label: "Rate Shopping" },
   { value: "term_sheet", label: "Term Sheet" },
   { value: "negotiation", label: "Negotiation" },
-  { value: "application", label: "Application" },
-  { value: "processing", label: "Processing" },
+  { value: "application", label: "Application Intake" },
+  { value: "initial_app_review", label: "Initial App Review" },
+  { value: "underwriting_review", label: "Underwriting Review" },
   { value: "conditional_approval", label: "Conditional Approval" },
   { value: "clear_to_close", label: "Clear to Close" },
   { value: "closed", label: "Closed" },
@@ -35,6 +36,13 @@ export const STAGES_REQUIRING_REASON = new Set([...PAUSED_STAGES, ...TERMINAL_NE
 // metrics. Requires an explicit "yes, this is closed with title" click,
 // not just a dropped card, before it's committed.
 export const STAGES_REQUIRING_CONFIRMATION = new Set(["closed"]);
+
+/** True once a deal has reached (or passed) `target` on the pipeline line. */
+export function hasReachedStage(stage: string, target: PipelineStage): boolean {
+  const current = PIPELINE_STAGES.findIndex((s) => s.value === stage);
+  const goal = PIPELINE_STAGES.findIndex((s) => s.value === target);
+  return current !== -1 && current >= goal;
+}
 
 export function isPipelineStage(stage: string): stage is PipelineStage {
   return PIPELINE_STAGES.some((s) => s.value === stage);

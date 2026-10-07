@@ -353,7 +353,7 @@ export async function updateDealRoles(dealId: string, formData: FormData) {
   if (
     updated?.assignedProcessorId &&
     updated.stripeInvoiceStatus === "paid" &&
-    ["application", "processing", "conditional_approval", "clear_to_close"].includes(updated.stage) &&
+    ["application", "initial_app_review", "underwriting_review", "conditional_approval", "clear_to_close"].includes(updated.stage) &&
     updated.processorReadyNotifiedUserId !== updated.assignedProcessorId
   ) {
     await notifyProcessorOfPaidDeal(dealId).catch((err) => {

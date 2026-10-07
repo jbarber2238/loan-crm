@@ -16,7 +16,10 @@ export async function getStageTargetRole(stage: string): Promise<PhoneRoutingRol
   // Safe default if a stage is somehow missing a row (shouldn't happen —
   // every dealStageEnum value is seeded — but this bucket is the more
   // conservative one: it never routes a call to the processor by accident).
-  return row?.targetRole ?? "loan_officer";
+  if (row) return row.targetRole;
+  // The two review stages take over from the old Processing stage, which
+  // routed to the processor, so they do too if no row has been saved yet.
+  return stage === "initial_app_review" || stage === "underwriting_review" ? "processor" : "loan_officer";
 }
 
 export interface DealForRouting {

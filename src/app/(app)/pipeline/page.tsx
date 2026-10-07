@@ -69,7 +69,7 @@ export default async function PipelinePage({
       (a, b) => a.changedAt.getTime() - b.changedAt.getTime()
     );
     const currentStageEnteredAt = sortedHistory.at(-1)?.changedAt ?? deal.createdAt;
-    const processingEnteredAt = sortedHistory.find((h) => h.stage === "processing")?.changedAt ?? null;
+    const processingEnteredAt = sortedHistory.find((h) => h.stage === "initial_app_review")?.changedAt ?? null;
 
     return {
       id: deal.id,

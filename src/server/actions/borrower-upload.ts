@@ -1,10 +1,11 @@
 "use server";
 
-import { PAUSED_STAGES, TERMINAL_NEGATIVE_STAGES } from "@/lib/deal-pipeline";
+import { PAUSED_STAGES, TERMINAL_NEGATIVE_STAGES, hasReachedStage } from "@/lib/deal-pipeline";
+import { buildBorrowerKeyDates } from "@/lib/borrower-key-dates";
 import { and, eq, isNull, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
-import { deals, dealClientNeeds, dealClientNeedDocuments, dealClientNeedAnswers } from "@/server/db/schema";
+import { deals, dealClientNeeds, dealClientNeedDocuments, dealClientNeedAnswers, dealKeyDateEvents } from "@/server/db/schema";
 import { recomputeNeedStatus } from "@/server/client-need-status";
 import { recordBorrowerActivity } from "@/server/borrower-activity";
 import { convertHeicIfNeeded } from "@/server/heic";
@@ -96,6 +97,29 @@ export async function getDealForBorrowerUpload(token: string) {
     answers: n.answers,
   }));
 
+  const pipelineStage = PAUSED_STAGES.has(deal.stage) ? (deal.pausedFromStage ?? "new") : deal.stage;
+
+  // Key dates (appraisal, insurance, title, credit pull) only show once the
+  // file is past application intake — before then there's nothing to track.
+  const showKeyDates = !TERMINAL_NEGATIVE_STAGES.has(deal.stage) && hasReachedStage(pipelineStage, "initial_app_review");
+  const keyDates = showKeyDates
+    ? buildBorrowerKeyDates(
+        (
+          await db.query.dealKeyDateEvents.findMany({
+            where: eq(dealKeyDateEvents.dealId, deal.id),
+          })
+        ).map((e) => ({
+          id: e.id,
+          item: e.item,
+          status: e.status,
+          eventDate: e.eventDate,
+          createdAt: e.createdAt,
+          createdByName: null,
+        })),
+        deal.creditPullDate
+      )
+    : null;
+
   return {
     dealId: deal.id,
     borrowerFirstName: firstName(deal.borrowerName),
@@ -103,8 +127,9 @@ export async function getDealForBorrowerUpload(token: string) {
     loanNumber: deal.loanNumber,
     // Only the pipeline position is exposed — never the pause/lost/
     // disqualified reasons, and paused deals just show where they left off.
-    pipelineStage: PAUSED_STAGES.has(deal.stage) ? (deal.pausedFromStage ?? "new") : deal.stage,
+    pipelineStage,
     showPipeline: !TERMINAL_NEGATIVE_STAGES.has(deal.stage),
+    keyDates,
     needs: allNeeds,
   };
 }
