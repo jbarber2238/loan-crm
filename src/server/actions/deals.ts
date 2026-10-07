@@ -19,6 +19,7 @@ import {
 } from "@/server/db/schema";
 import { requireUser, requireAdmin } from "@/server/auth/guards";
 import { formatAddress } from "@/lib/format";
+import { autoAdvanceDealForwardTo } from "@/server/auto-stage-moves";
 import {
   PAUSED_STAGES,
   TERMINAL_NEGATIVE_STAGES,
@@ -527,21 +528,50 @@ export async function toggleRateLock(dealId: string, locked: boolean) {
 }
 
 export async function updateDealDates(dealId: string, formData: FormData) {
-  await requireUser();
+  const user = await requireUser();
 
   function dateOrNull(key: string) {
     const value = str(formData, key);
     return value ? new Date(value) : null;
+  }
+  const dayOf = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+
+  const prev = await db.query.deals.findFirst({
+    where: eq(deals.id, dealId),
+    columns: { stage: true, clearToCloseDate: true, closedDate: true },
+  });
+  if (!prev) throw new Error("Deal not found");
+
+  const clearToCloseDate = dateOrNull("clearToCloseDate");
+  const closedDate = dateOrNull("closedDate");
+  const clearToCloseChanged = clearToCloseDate !== null && dayOf(clearToCloseDate) !== dayOf(prev.clearToCloseDate);
+  const closedChanged = closedDate !== null && dayOf(closedDate) !== dayOf(prev.closedDate);
+
+  // Entering a Closed date is what closes the deal, and closing feeds the
+  // loans-closed and revenue numbers, so it needs the same explicit yes as
+  // moving the stage by hand — enforced here, not just in the dialog.
+  const wouldClose = closedChanged && isPipelineStage(prev.stage) && prev.stage !== "closed";
+  if (wouldClose && formData.get("confirmClosed") !== "true") {
+    throw new Error("Marking a deal as Closed requires confirmation");
   }
 
   await db
     .update(deals)
     .set({
       creditPullDate: dateOrNull("creditPullDate"),
+      clearToCloseDate,
+      closedDate,
       driveLink: nullableStr(formData, "driveLink"),
       updatedAt: new Date(),
     })
     .where(eq(deals.id, dealId));
+
+  if (clearToCloseDate && clearToCloseChanged) {
+    await autoAdvanceDealForwardTo(dealId, "clear_to_close", user.id, `a Clear to Close date (${dayOf(clearToCloseDate)}) was entered.`);
+  }
+  if (wouldClose && closedDate) {
+    await autoAdvanceDealForwardTo(dealId, "closed", user.id, `a Closed date (${dayOf(closedDate)}) was entered and confirmed.`);
+  }
 
   revalidatePath(`/deals/${dealId}`);
 }
@@ -660,6 +690,17 @@ export async function updateDealStage(dealId: string, stage: string, reason?: st
   }
 
   const updates: Partial<typeof deals.$inferInsert> = { stage: newStage, updatedAt: new Date() };
+
+  // Moving the stage by hand fills in the matching key date if it is still
+  // empty (entering the date first moves the stage; this is the other way).
+  // A deal can't close without having cleared to close, so Closed fills both.
+  const today = new Date(new Date().toISOString().slice(0, 10));
+  if ((newStage === "clear_to_close" || newStage === "closed") && !deal.clearToCloseDate) {
+    updates.clearToCloseDate = today;
+  }
+  if (newStage === "closed" && !deal.closedDate) {
+    updates.closedDate = today;
+  }
 
   if (PAUSED_STAGES.has(newStage)) {
     updates.pauseReason = trimmedReason;

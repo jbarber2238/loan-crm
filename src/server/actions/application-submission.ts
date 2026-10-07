@@ -4,6 +4,7 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { deals, dealClientNeeds, dealClientNeedDocuments } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
+import { autoAdvanceDeal } from "@/server/auto-stage-moves";
 import { sendGmailAs, type GmailAttachment } from "@/server/gmail/send";
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
@@ -166,4 +167,14 @@ export async function sendApplicationSubmissionEmail(
     dealId,
     category: "application_submission",
   });
+}
+
+/**
+ * The "Yes" on the post-submission prompt: the application officially went to
+ * the lender, so the deal moves from Application Intake to Initial App Review.
+ * Returns whether it moved (it won't if the deal is no longer at intake).
+ */
+export async function markApplicationSubmitted(dealId: string): Promise<boolean> {
+  const user = await requireUser();
+  return autoAdvanceDeal(dealId, "application", "initial_app_review", user.id, "the application was submitted to the lender.");
 }

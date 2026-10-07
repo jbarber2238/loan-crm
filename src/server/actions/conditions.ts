@@ -5,13 +5,14 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { dealConditions } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
+import { autoAdvanceDeal } from "@/server/auto-stage-moves";
 import { extractConditions } from "@/server/ai/condition-extraction";
 import { addClientNeedToDeal } from "@/server/actions/client-needs";
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
 
 export async function extractConditionsFromEmail(dealId: string, formData: FormData) {
-  await requireUser();
+  const user = await requireUser();
   const emailText = formData.get("emailText");
   const uploadedFile = formData.get("file");
 
@@ -47,6 +48,9 @@ export async function extractConditionsFromEmail(dealId: string, formData: FormD
       suggestedNeedDescription: c.suggestedNeedDescription,
     }))
   );
+
+  // Conditions coming back means underwriting has issued its decision.
+  await autoAdvanceDeal(dealId, "underwriting_review", "conditional_approval", user.id, "conditions were extracted from the lender's email.");
 
   revalidatePath(`/deals/${dealId}/loan-center`);
 }

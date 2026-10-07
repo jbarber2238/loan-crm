@@ -121,7 +121,10 @@ export default async function DealLoanCenterPage({
         ...n,
         canDelete: n.authorUserId === user.id || user.isAdmin,
       }))}
+      dealStage={deal.stage}
       creditPullDate={deal.creditPullDate}
+      clearToCloseDate={deal.clearToCloseDate}
+      closedDate={deal.closedDate}
       driveLink={deal.driveLink}
       titleCompanyAgentName={deal.titleCompanyAgentName}
       titleCompanyName={deal.titleCompanyName}

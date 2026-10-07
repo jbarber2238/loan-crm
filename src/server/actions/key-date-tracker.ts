@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { deals, dealKeyDateEvents } from "@/server/db/schema";
+import { autoAdvanceDeal } from "@/server/auto-stage-moves";
 import { requireUser } from "@/server/auth/guards";
 import { sendGmailAs } from "@/server/gmail/send";
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
@@ -32,6 +33,11 @@ export async function addKeyDateEvent(dealId: string, item: KeyDateItem, formDat
     eventDate: new Date(eventDateStr),
     createdByUserId: user.id,
   });
+
+  // A completed appraisal is the signal the file is ready for underwriting.
+  if (item === "appraisal" && status.trim() === "Complete") {
+    await autoAdvanceDeal(dealId, "initial_app_review", "underwriting_review", user.id, "the appraisal was marked Complete.");
+  }
 
   revalidatePath(`/deals/${dealId}/loan-center`);
 }

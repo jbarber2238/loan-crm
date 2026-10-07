@@ -823,6 +823,10 @@ export const deals = pgTable("deals", {
   rateLocked: boolean("rate_locked").notNull().default(false),
   rateLockedAt: timestamp("rate_locked_at", { mode: "date" }),
   creditPullDate: timestamp("credit_pull_date", { mode: "date" }),
+  // Entering either one moves the deal to that stage; moving the deal to that
+  // stage by hand fills it in (see deal-stage-automation.ts / updateDealStage).
+  clearToCloseDate: timestamp("clear_to_close_date", { mode: "date" }),
+  closedDate: timestamp("closed_date", { mode: "date" }),
   // A running note per key-date-tracker item — not itself part of the audit
   // trail (see dealKeyDateEvents below), just a plain field a processor can
   // jot anything into ("agent said binder will be backdated to closing").

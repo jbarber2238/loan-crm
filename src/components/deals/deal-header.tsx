@@ -163,6 +163,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
       {deal.lenderId && deal.lender && (
         <AcceptedTermsHeader
           dealId={deal.id}
+          dealStage={deal.stage}
           lenderName={deal.lender.name}
           loanCategory={deal.loanCategory}
           acceptedTermSheetFields={deal.termSheets.find((t) => t.status === "accepted")?.fields ?? null}

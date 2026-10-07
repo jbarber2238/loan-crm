@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  markApplicationSubmitted,
   previewApplicationSubmissionEmail,
   sendApplicationSubmissionEmail,
   type AttachableDocument,
@@ -12,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { RecipientLine } from "@/components/emails/recipient-line";
 import { SignaturePreview } from "@/components/emails/signature-preview";
 import { HtmlBodyEditor } from "@/components/emails/html-body-editor";
@@ -54,7 +55,49 @@ function AttachmentsChecklist({
   );
 }
 
-function SubmitApplicationEmailDialog({ dealId }: { dealId: string }) {
+// Asked after the application has actually gone to the lender (email sent, or
+// portal opened). "No" is for when the team is only looking over the
+// application and hasn't officially submitted it yet, so the deal stays put.
+function ProgressPrompt({ dealId, open, onOpenChange }: { dealId: string; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+
+  function handleYes() {
+    startTransition(async () => {
+      try {
+        const moved = await markApplicationSubmitted(dealId);
+        toast.success(moved ? "Moved to Initial App Review" : "This deal is no longer at Application Intake, so its stage was left alone");
+        onOpenChange(false);
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't move the deal — try again.");
+      }
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Should this deal progress to the Initial App Review stage?</DialogTitle>
+          <DialogDescription>
+            Choose No if you are only reviewing the application information and have not officially submitted it yet.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>
+            No
+          </Button>
+          <Button type="button" disabled={pending} onClick={handleYes}>
+            {pending ? "Moving…" : "Yes"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SubmitApplicationEmailDialog({ dealId, onSubmitted }: { dealId: string; onSubmitted: () => void }) {
   const router = useRouter();
   const bodyRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -114,6 +157,7 @@ function SubmitApplicationEmailDialog({ dealId }: { dealId: string }) {
         setOpen(false);
         toast.success("Application submitted");
         router.refresh();
+        onSubmitted();
       } catch (err) {
         const message = err instanceof Error ? err.message : "Couldn't send this email.";
         setError(message);
@@ -185,22 +229,33 @@ function SubmitApplicationEmailDialog({ dealId }: { dealId: string }) {
 
 export function SubmitApplicationButton({
   dealId,
+  stage,
   method,
   portalUrl,
 }: {
   dealId: string;
+  stage: string;
   method: "portal" | "email" | null;
   portalUrl: string | null;
 }) {
-  if (method === "portal" && portalUrl) {
-    return (
-      <Button asChild size="sm">
-        <a href={portalUrl} target="_blank" rel="noreferrer">
-          Submit Application
-        </a>
-      </Button>
-    );
-  }
+  const [promptOpen, setPromptOpen] = useState(false);
+  // Only a deal still at Application Intake has anywhere to progress to.
+  const askToProgress = () => {
+    if (stage === "application") setPromptOpen(true);
+  };
 
-  return <SubmitApplicationEmailDialog dealId={dealId} />;
+  return (
+    <>
+      {method === "portal" && portalUrl ? (
+        <Button asChild size="sm">
+          <a href={portalUrl} target="_blank" rel="noreferrer" onClick={askToProgress}>
+            Submit Application
+          </a>
+        </Button>
+      ) : (
+        <SubmitApplicationEmailDialog dealId={dealId} onSubmitted={askToProgress} />
+      )}
+      <ProgressPrompt dealId={dealId} open={promptOpen} onOpenChange={setPromptOpen} />
+    </>
+  );
 }

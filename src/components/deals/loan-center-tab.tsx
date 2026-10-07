@@ -1,26 +1,16 @@
 import { DocumentsTab } from "@/components/deals/documents-tab";
 import type { DealDocumentRow } from "@/server/actions/client-need-documents";
-import { updateDealDates } from "@/server/actions/deals";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ActionForm } from "@/components/forms/action-form";
-import { SubmitButton } from "@/components/forms/submit-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RolesTab } from "@/components/deals/roles-tab";
 import { ClientNeedsTab, type ClientNeed } from "@/components/deals/client-needs-tab";
 import { ConditionsTab, type DealCondition } from "@/components/deals/conditions-tab";
 import { NotesTab } from "@/components/deals/notes-tab";
 import { KeyDateTracker } from "@/components/deals/key-date-tracker";
+import { KeyDatesForm } from "@/components/deals/key-dates-form";
 import type { KeyDateEvent } from "@/lib/key-date-tracker";
 import type { DealCatalogItem } from "@/components/deals/add-client-need-to-deal-dialog";
 import { EmailLogTab } from "@/components/deals/email-log-tab";
 import type { EmailLogEntry } from "@/server/actions/email-log";
-
-function toDateInputValue(date: Date | null) {
-  if (!date) return "";
-  return date.toISOString().slice(0, 10);
-}
 
 interface UserOption {
   id: string;
@@ -46,43 +36,6 @@ interface Note {
   canDelete: boolean;
 }
 
-function OtherDatesSection({
-  dealId,
-  creditPullDate,
-  driveLink,
-}: {
-  dealId: string;
-  creditPullDate: Date | null;
-  driveLink: string | null;
-}) {
-  const updateDates = updateDealDates.bind(null, dealId);
-
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <ActionForm action={updateDates} successMessage="Saved" className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="creditPullDate">Credit pulled</Label>
-            <Input
-              id="creditPullDate"
-              name="creditPullDate"
-              type="date"
-              defaultValue={toDateInputValue(creditPullDate)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="driveLink">Google Drive link</Label>
-            <Input id="driveLink" name="driveLink" defaultValue={driveLink ?? ""} />
-          </div>
-          <div className="md:col-span-2">
-            <SubmitButton>Save</SubmitButton>
-          </div>
-        </ActionForm>
-      </CardContent>
-    </Card>
-  );
-}
-
 export function LoanCenterTab({
   dealId,
   loanCategory,
@@ -104,7 +57,10 @@ export function LoanCenterTab({
   hasAcceptedProduct,
   conditions,
   notes,
+  dealStage,
   creditPullDate,
+  clearToCloseDate,
+  closedDate,
   driveLink,
   titleCompanyAgentName,
   titleCompanyName,
@@ -151,7 +107,10 @@ export function LoanCenterTab({
   hasAcceptedProduct: boolean;
   conditions: DealCondition[];
   notes: Note[];
+  dealStage: string;
   creditPullDate: Date | null;
+  clearToCloseDate: Date | null;
+  closedDate: Date | null;
   driveLink: string | null;
   titleCompanyAgentName: string | null;
   titleCompanyName: string | null;
@@ -251,7 +210,14 @@ export function LoanCenterTab({
             titleEmail={titleAgentEmail}
             appraisalDocumentFileName={appraisalDocumentFileName}
           />
-          <OtherDatesSection dealId={dealId} creditPullDate={creditPullDate} driveLink={driveLink} />
+          <KeyDatesForm
+            dealId={dealId}
+            dealStage={dealStage}
+            creditPullDate={creditPullDate}
+            clearToCloseDate={clearToCloseDate}
+            closedDate={closedDate}
+            driveLink={driveLink}
+          />
         </TabsContent>
 
         <TabsContent value="email-log">

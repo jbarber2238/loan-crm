@@ -70,6 +70,7 @@ function GroupLabel({ title, first }: { title: string; first?: boolean }) {
 
 export function AcceptedTermsHeader({
   dealId,
+  dealStage,
   lenderName,
   loanCategory,
   acceptedTermSheetFields,
@@ -106,6 +107,7 @@ export function AcceptedTermsHeader({
   brokerPortalUrl,
 }: {
   dealId: string;
+  dealStage: string;
   lenderName: string;
   loanCategory: string;
   acceptedTermSheetFields: Record<string, unknown> | null;
@@ -305,7 +307,7 @@ export function AcceptedTermsHeader({
           </SubmitButton>
         </ActionForm>
       </div>
-      <SubmitApplicationButton dealId={dealId} method={applicationSubmissionMethod} portalUrl={brokerPortalUrl} />
+      <SubmitApplicationButton dealId={dealId} stage={dealStage} method={applicationSubmissionMethod} portalUrl={brokerPortalUrl} />
     </>
   );
   return (
