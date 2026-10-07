@@ -114,7 +114,7 @@ export function ChangeNeedDialog({
 
     startTransition(async () => {
       try {
-        await changeClientNeedDocument(
+        const { restored } = await changeClientNeedDocument(
           dealId,
           documentId,
           mode === "existing"
@@ -124,7 +124,7 @@ export function ChangeNeedDialog({
               : { type: "custom", itemName: customName.trim() }
         );
         setOpen(false);
-        toast.success("Document moved");
+        toast.success(restored ? "Document moved and restored for review" : "Document moved");
         router.refresh();
       } catch (err) {
         const message = err instanceof Error ? err.message : "Couldn't move this document.";
@@ -143,7 +143,8 @@ export function ChangeNeedDialog({
         </DialogHeader>
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Moves the document to a different client need — it won&apos;t be left behind in this one.
+            Moves the document to a different client need — it won&apos;t be left behind in this one. A rejected
+            document moved into a need that isn&apos;t rejected goes back under review automatically.
             {sourceNeedName ? ` It is currently in “${sourceNeedName}”, which is why that one isn’t listed.` : ""}
           </p>
 

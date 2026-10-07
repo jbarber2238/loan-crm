@@ -48,3 +48,18 @@ export function deriveNeedStatus(need: NeedForStatus): DealClientNeedStatus {
   }
   return need.sentAt ? "awaiting_docs" : "not_sent";
 }
+
+// A need whose rejection hasn't been resolved yet: nothing in it is pending or
+// approved, only rejected documents (and the borrower hasn't been re-asked).
+const UNRESOLVED_REJECTION_STATUSES = new Set(["need_rejected_not_sent", "document_rejected_not_sent"]);
+
+/**
+ * Moving a rejected document into a client need that isn't itself in a rejected
+ * state puts the document back under review automatically — no separate
+ * Restore click. Moving it into a still-rejected need leaves it rejected.
+ * (A document that isn't rejected is never touched by a move.)
+ */
+export function shouldRestoreOnMove(documentReviewStatus: string, destinationNeedStatus: string | null): boolean {
+  if (documentReviewStatus !== "rejected") return false;
+  return destinationNeedStatus === null || !UNRESOLVED_REJECTION_STATUSES.has(destinationNeedStatus);
+}
