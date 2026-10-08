@@ -29,12 +29,19 @@ import type { RecipientCandidate } from "@/lib/email-recipients";
 import { AppraisalDocumentCell } from "@/components/deals/appraisal-document-cell";
 import { cn } from "@/lib/utils";
 
+// The viewer's own calendar day, not the UTC day (which is already
+// "tomorrow" in the evening in US time zones).
 function todayInputValue() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
 }
 
+// Key dates are stored as a calendar day at UTC midnight, so they're shown in
+// UTC too — in a US time zone they would otherwise read a day early.
 function formatDate(date: Date) {
-  return new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 }
 
 // Cycled by position in an item's status list so each stage gets its own
@@ -76,7 +83,15 @@ function StatusRow({
         isCurrent && "ring-2 ring-blue-500"
       )}
     >
-      <button type="button" className="flex-1 text-left" onClick={() => onPick(todayInputValue())}>
+      <button
+        type="button"
+        className="flex-1 text-left"
+        // A status that already has a date keeps it — change it with the date
+        // on the right, so a stray click on the name can't reset it to today.
+        onClick={() => {
+          if (!loggedDate) onPick(todayInputValue());
+        }}
+      >
         {label}
       </button>
       {editingDate ? (
@@ -128,7 +143,7 @@ function StatusSelector({
   // it inline instead of a bare calendar icon — this list doubles as a
   // quick "when did each stage happen" glance, not just a picker.
   const latestDateByStatus = new Map<string, Date>();
-  for (const e of events) {
+  for (const e of [...events].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())) {
     if (!latestDateByStatus.has(e.status)) latestDateByStatus.set(e.status, e.eventDate);
   }
 

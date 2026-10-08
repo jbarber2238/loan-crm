@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { deals, dealKeyDateEvents } from "@/server/db/schema";
@@ -26,13 +26,34 @@ export async function addKeyDateEvent(dealId: string, item: KeyDateItem, formDat
   if (typeof status !== "string" || !status.trim()) throw new Error("Choose a status");
   if (typeof eventDateStr !== "string" || !eventDateStr) throw new Error("Choose a date");
 
-  await db.insert(dealKeyDateEvents).values({
-    dealId,
-    item,
-    status: status.trim(),
-    eventDate: new Date(eventDateStr),
-    createdByUserId: user.id,
+  // Picking a date for a status that is already logged (backdating "Ordered"
+  // to the day it really happened, say) corrects that entry rather than adding
+  // a second one — otherwise the later of the two dates kept winning and the
+  // change appeared to do nothing. Any older duplicates of the same status are
+  // dropped so the audit trail shows one entry per status.
+  const existing = await db.query.dealKeyDateEvents.findMany({
+    where: and(
+      eq(dealKeyDateEvents.dealId, dealId),
+      eq(dealKeyDateEvents.item, item),
+      eq(dealKeyDateEvents.status, status.trim())
+    ),
+    orderBy: (e, { desc }) => desc(e.createdAt),
   });
+  if (existing.length > 0) {
+    const [keep, ...duplicates] = existing;
+    await db.update(dealKeyDateEvents).set({ eventDate: new Date(eventDateStr) }).where(eq(dealKeyDateEvents.id, keep.id));
+    if (duplicates.length) {
+      await db.delete(dealKeyDateEvents).where(inArray(dealKeyDateEvents.id, duplicates.map((d) => d.id)));
+    }
+  } else {
+    await db.insert(dealKeyDateEvents).values({
+      dealId,
+      item,
+      status: status.trim(),
+      eventDate: new Date(eventDateStr),
+      createdByUserId: user.id,
+    });
+  }
 
   // A completed appraisal is the signal the file is ready for underwriting.
   if (item === "appraisal" && status.trim() === "Complete") {

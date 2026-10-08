@@ -62,7 +62,9 @@ export function currentEventFor(item: KeyDateItem, events: KeyDateEvent[]): KeyD
   for (const e of events) {
     const index = statuses.indexOf(e.status);
     if (index === -1) continue;
-    if (index > bestIndex || (index === bestIndex && best !== null && e.eventDate > best.eventDate)) {
+    // Same status logged twice (older data): the most recently logged entry is
+    // the correction, even if it carries an earlier date.
+    if (index > bestIndex || (index === bestIndex && best !== null && e.createdAt > best.createdAt)) {
       best = e;
       bestIndex = index;
     }
