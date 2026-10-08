@@ -1,5 +1,6 @@
 import { Lock, LockOpen } from "lucide-react";
 import { toggleRateLock } from "@/server/actions/deals";
+import { RateLockExpiration } from "@/components/deals/rate-lock-expiration";
 import {
   originationFeeForPoints,
   rateBuydownFeeForPoints,
@@ -37,7 +38,7 @@ function Field({
 }: {
   label: string;
   value: React.ReactNode;
-  hint?: string;
+  hint?: React.ReactNode;
   className?: string;
 }) {
   return (
@@ -91,6 +92,7 @@ export function AcceptedTermsHeader({
   estimatedAsIsValue,
   finalRate,
   rateLocked,
+  rateLockExpiresAt,
   estimatedFico,
   costToBorrowerFee,
   processingFeeOverride,
@@ -128,6 +130,7 @@ export function AcceptedTermsHeader({
   estimatedAsIsValue: string | null;
   finalRate: string | null;
   rateLocked: boolean;
+  rateLockExpiresAt: Date | null;
   estimatedFico: number | null;
   costToBorrowerFee: string | null;
   processingFeeOverride: string | null;
@@ -339,7 +342,11 @@ export function AcceptedTermsHeader({
             <div className="md:col-start-7 md:row-start-2">{cashToCloseField}</div>
 
             <GroupLabel title="Rate & Payment" />
-            <Field label="Interest Rate" value={interestRateValue} />
+            <Field
+              label="Interest Rate"
+              value={interestRateValue}
+              hint={rateLocked ? <RateLockExpiration dealId={dealId} expiresAt={rateLockExpiresAt} /> : undefined}
+            />
             <Field label="Loan Term" value={loanTermValue} />
             <Field label="Amortization" value={finalAmortizationType || "—"} />
             <Field label="Interest Type" value={interestType || "—"} />
@@ -412,7 +419,11 @@ export function AcceptedTermsHeader({
                 value={effectiveCostToBorrowerFee ? money(effectiveCostToBorrowerFee) : "—"}
                 hint={isRateBuydown ? (rateBuydownPointsOverride === null ? "no buydown" : "negotiated") : undefined}
               />
-              <Field label="Interest Rate" value={interestRateValue} />
+              <Field
+              label="Interest Rate"
+              value={interestRateValue}
+              hint={rateLocked ? <RateLockExpiration dealId={dealId} expiresAt={rateLockExpiresAt} /> : undefined}
+            />
               <Field label={monthlyPayment.label} value={monthlyPayment.amount !== null ? money(monthlyPayment.amount) : "—"} />
               <Field label="Appraised Value" value={appraisedValue ? money(appraisedValue) : "—"} />
               <Field label="FICO" value={estimatedFico ?? "—"} />

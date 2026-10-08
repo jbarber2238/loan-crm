@@ -150,6 +150,7 @@ export async function buildAllDealTokens(deal: Deal): Promise<Record<string, str
     originationPointsLabel: `${deal.originationPointsOverride !== null ? Number(deal.originationPointsOverride) : 2}%`,
     rateLocked: yesNo(deal.rateLocked),
     rateLockedAt: dateOrNA(deal.rateLockedAt),
+    rateLockExpiresAt: dateOrNA(deal.rateLockExpiresAt),
     creditPullDate: dateOrNA(deal.creditPullDate),
     closingDate: deal.estimatedClosingDate ? deal.estimatedClosingDate.toLocaleDateString() : "TBD",
     closingDateLine: deal.estimatedClosingDate

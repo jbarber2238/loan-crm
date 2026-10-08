@@ -299,6 +299,7 @@ export async function performTermSheetAcceptance(dealId: string, termSheetId: st
       rateBuydownPointsOverride: typeof rateBuydownPointsValue === "number" ? String(rateBuydownPointsValue) : null,
       rateLocked: false,
       rateLockedAt: null,
+      rateLockExpiresAt: null,
       updatedAt: new Date(),
     })
     .where(eq(deals.id, dealId));

@@ -520,8 +520,24 @@ export async function toggleRateLock(dealId: string, locked: boolean) {
     .set({
       rateLocked: locked,
       rateLockedAt: locked ? new Date() : null,
+      // Unlocking means there's no lock left to expire.
+      ...(locked ? {} : { rateLockExpiresAt: null }),
       updatedAt: new Date(),
     })
+    .where(eq(deals.id, dealId));
+
+  revalidatePath(`/deals/${dealId}`);
+}
+
+// Optional — "2026-10-20" sets it, empty clears it.
+export async function setRateLockExpiration(dealId: string, date: string | null) {
+  await requireUser();
+  const value = date?.trim() ?? "";
+  if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error("Pick a valid date");
+
+  await db
+    .update(deals)
+    .set({ rateLockExpiresAt: value ? new Date(value) : null, updatedAt: new Date() })
     .where(eq(deals.id, dealId));
 
   revalidatePath(`/deals/${dealId}`);

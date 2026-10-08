@@ -822,6 +822,9 @@ export const deals = pgTable("deals", {
   // after appraisal) — this is a plain manual toggle, not tied to a stage.
   rateLocked: boolean("rate_locked").notNull().default(false),
   rateLockedAt: timestamp("rate_locked_at", { mode: "date" }),
+  // Optional — when the locked rate runs out, if it's known. Cleared whenever
+  // the lock is released or the terms are replaced by a newly signed term sheet.
+  rateLockExpiresAt: timestamp("rate_lock_expires_at", { mode: "date" }),
   creditPullDate: timestamp("credit_pull_date", { mode: "date" }),
   // Entering either one moves the deal to that stage; moving the deal to that
   // stage by hand fills it in (see deal-stage-automation.ts / updateDealStage).

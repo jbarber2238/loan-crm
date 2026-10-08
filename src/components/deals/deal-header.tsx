@@ -184,6 +184,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
           estimatedAsIsValue={deal.estimatedAsIsValue}
           finalRate={deal.finalRate}
           rateLocked={deal.rateLocked}
+          rateLockExpiresAt={deal.rateLockExpiresAt}
           estimatedFico={deal.estimatedFico}
           costToBorrowerFee={deal.costToBorrowerFee}
           processingFeeOverride={deal.processingFeeOverride}

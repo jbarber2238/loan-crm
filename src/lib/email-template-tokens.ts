@@ -102,6 +102,7 @@ export const ALL_DEAL_TOKENS: EmailTemplateToken[] = [
   { key: "originationPointsLabel", description: "Origination points as a percentage, e.g. \"2%\"" },
   { key: "rateLocked", description: "Whether the rate is locked (Yes/No)" },
   { key: "rateLockedAt", description: "Date the rate was locked" },
+  { key: "rateLockExpiresAt", description: "Date the rate lock expires (N/A if not entered)" },
   { key: "creditPullDate", description: "Date credit was pulled" },
   { key: "closingDate", description: "Estimated closing date, or \"TBD\" if none on file" },
   { key: "closingDateLine", description: "\"Anticipated Closing: ...\" line, or blank if no date on file" },
