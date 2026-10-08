@@ -52,7 +52,9 @@ export async function buildPricingTemplateTokens(
 
   return {
     ...(await buildAllDealTokens(deal)),
-    repName,
+    // The token is documented (and used by the other vendor emails) as the
+    // rep's first name — "Hi Shilpa," not "Hi Shilpa Patel,".
+    repName: repName.trim().split(/\s+/)[0] || repName,
     senderName,
     companyName,
     notesLine: notes ? `\n\nNotes: ${notes}` : "",
