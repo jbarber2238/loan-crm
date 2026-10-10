@@ -7,6 +7,7 @@ import {
   isRateBuydownCategory,
   STANDARD_PROCESSING_FEE,
   estimatedMonthlyPaymentFor,
+  isOwnedPropertyDrawLoan,
   calculateInitialMonthlyInterest,
   calculateDutchMonthlyInterest,
   calculateEstimatedCashToClose,
@@ -72,6 +73,7 @@ function GroupLabel({ title, first }: { title: string; first?: boolean }) {
 export function AcceptedTermsHeader({
   dealId,
   dealStage,
+  propertyAlreadyOwned,
   lenderName,
   loanCategory,
   acceptedTermSheetFields,
@@ -110,6 +112,7 @@ export function AcceptedTermsHeader({
 }: {
   dealId: string;
   dealStage: string;
+  propertyAlreadyOwned: boolean;
   lenderName: string;
   loanCategory: string;
   acceptedTermSheetFields: Record<string, unknown> | null;
@@ -221,10 +224,11 @@ export function AcceptedTermsHeader({
     underwritingDocFee: underwritingDocFeeNum,
     processingFee,
     netProceedsCap,
+    propertyAlreadyOwned,
   });
   // A refinance's result can come back negative — that's net cash going TO
   // the borrower (loan proceeds outpacing payoff + fees), not a due amount.
-  const isRefi = REFINANCE_CATEGORIES.has(loanCategory);
+  const isRefi = REFINANCE_CATEGORIES.has(loanCategory) || isOwnedPropertyDrawLoan(loanCategory, propertyAlreadyOwned);
   const borrowerReceivesCash = isRefi && estimatedCashToClose < 0;
 
   const loanTermValue = isInterestOnlyCategory(loanCategory)

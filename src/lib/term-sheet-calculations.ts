@@ -223,6 +223,36 @@ export function conservativeValueBasis(
   return purchasePrice ?? estimatedAsIsValue ?? null;
 }
 
+// Draw loans (fix and flip, new construction) on property the borrower already
+// owns: nothing is being purchased, so there's no down payment and the
+// closing math works like a refinance (initial advance in, fees and any
+// payoff out).
+export function isOwnedPropertyDrawLoan(loanCategory: string, propertyAlreadyOwned: boolean | null | undefined): boolean {
+  return Boolean(propertyAlreadyOwned) && HARD_MONEY_DRAW_CATEGORIES.has(loanCategory);
+}
+
+// The land/property cost used in LTC. When the borrower already owns it, their
+// original purchase price is just history — what it's worth now (the
+// estimated lot/as-is value from intake) is what's being lent against — so
+// that is used when it's provided. When they're buying it, the purchase price
+// is the real cost.
+export function landCostBasis({
+  loanCategory,
+  propertyAlreadyOwned,
+  purchasePrice,
+  estimatedAsIsValue,
+}: {
+  loanCategory: string;
+  propertyAlreadyOwned: boolean | null | undefined;
+  purchasePrice: number | null;
+  estimatedAsIsValue: number | null;
+}): { value: number | null; usesStatedValue: boolean } {
+  if (isOwnedPropertyDrawLoan(loanCategory, propertyAlreadyOwned) && estimatedAsIsValue && estimatedAsIsValue > 0) {
+    return { value: estimatedAsIsValue, usesStatedValue: true };
+  }
+  return { value: purchasePrice, usesStatedValue: false };
+}
+
 export function calculateLtv(loanAmount: number, valueBasis: number | null): number | null {
   if (!valueBasis) return null;
   return (loanAmount / valueBasis) * 100;
@@ -275,6 +305,7 @@ export function calculateEstimatedCashToClose({
   creditPullFee = STANDARD_CREDIT_PULL_ESTIMATE,
   processingFee = STANDARD_PROCESSING_FEE,
   netProceedsCap = null,
+  propertyAlreadyOwned = false,
 }: {
   loanCategory: string;
   purchasePrice: number | null;
@@ -290,10 +321,11 @@ export function calculateEstimatedCashToClose({
   // at the cap when the estimate runs over (the loan shrinks at closing), so
   // the cash-to-close here does too.
   netProceedsCap?: number | null;
+  propertyAlreadyOwned?: boolean;
 }): number {
   const paidPrior = appraisalFee + creditPullFee + processingFee;
 
-  if (REFINANCE_CATEGORIES.has(loanCategory)) {
+  if (REFINANCE_CATEGORIES.has(loanCategory) || isOwnedPropertyDrawLoan(loanCategory, propertyAlreadyOwned)) {
     // A refinance has no purchase happening, so purchasePrice (the
     // property's historical purchase price) never belongs in this math —
     // same trap valueBasisFor above already guards against for LTV. What

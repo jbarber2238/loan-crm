@@ -164,6 +164,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
         <AcceptedTermsHeader
           dealId={deal.id}
           dealStage={deal.stage}
+          propertyAlreadyOwned={deal.propertyAlreadyOwned ?? false}
           lenderName={deal.lender.name}
           loanCategory={deal.loanCategory}
           acceptedTermSheetFields={deal.termSheets.find((t) => t.status === "accepted")?.fields ?? null}

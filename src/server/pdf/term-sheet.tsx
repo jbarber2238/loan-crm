@@ -8,6 +8,8 @@ import {
   estimatedMonthlyPI,
   estimatedMonthlyPitia,
   estimatedReservesRequired,
+  isOwnedPropertyDrawLoan,
+  landCostBasis,
   maxLoanAmountForNetProceedsCap,
   originationFeeSuggestion,
   ratioMetricsFor,
@@ -120,6 +122,9 @@ export interface TermSheetPdfProps {
   annualInsurance: number | null;
   annualHoa: number | null;
   currentRent: number | null;
+  // Intake's "I already own the land/property". On a draw loan that means no
+  // purchase is happening, so there's no down payment.
+  propertyAlreadyOwned?: boolean;
   // True only for the copy fetched by PandaDoc when sending for
   // e-signature — swaps the signature line's label for a PandaDoc field
   // tag (plain bracket text PandaDoc's parser converts into a real,
@@ -142,6 +147,7 @@ export function TermSheetPdf({
   annualInsurance,
   annualHoa,
   currentRent,
+  propertyAlreadyOwned = false,
   forSignature = false,
 }: TermSheetPdfProps) {
   const loanAmount = num(fields, "loanAmount");
@@ -156,9 +162,13 @@ export function TermSheetPdf({
   const isInterestOnly = isInterestOnlyCategory(loanCategory);
   const interestType = fields.interestType === "Dutch" ? "Dutch" : "Non-Dutch";
 
+  const ownsProperty = isOwnedPropertyDrawLoan(loanCategory, propertyAlreadyOwned);
+  const landBasis = isHardMoneyDraw
+    ? landCostBasis({ loanCategory, propertyAlreadyOwned, purchasePrice, estimatedAsIsValue })
+    : { value: purchasePrice, usesStatedValue: false };
   const ratios = ratioMetricsFor(loanCategory, {
     loanAmount,
-    purchasePrice,
+    purchasePrice: landBasis.value,
     estimatedAsIsValue,
     approvedArv: num(fields, "approvedArv") || null,
     approvedRehabCost: num(fields, "approvedRehabCost") || null,
@@ -179,7 +189,10 @@ export function TermSheetPdf({
   // negative once the committed amount exceeds the purchase price.
   const initialAdvance = num(fields, "initialAdvance");
   const closingDisbursement = isHardMoneyDraw && initialAdvance > 0 ? initialAdvance : loanAmount;
-  const isRefi = REFINANCE_CATEGORIES.has(loanCategory);
+  // Refinances, and draw loans on property the borrower already owns, net the
+  // money coming in against the money going out; only a real purchase has a
+  // down payment.
+  const isRefi = REFINANCE_CATEGORIES.has(loanCategory) || ownsProperty;
   // A refinance has no purchase happening — purchasePrice on these deals is
   // the property's historical purchase price, not part of financing the new
   // loan, and must never be netted against the loan amount here (same trap
@@ -299,8 +312,10 @@ export function TermSheetPdf({
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.cardHeader}>{isRefi ? "Net Proceeds at Closing" : "Cash at Closing"}</Text>
-              {isRefi && <Row label="Loan Amount" value={money(closingDisbursement)} />}
+              <Text style={styles.cardHeader}>
+                {isRefi && !ownsProperty ? "Net Proceeds at Closing" : "Cash at Closing"}
+              </Text>
+              {isRefi && <Row label={ownsProperty ? "Initial Advance" : "Loan Amount"} value={money(closingDisbursement)} />}
               {isRefi && existingDebtPayoff > 0 && (
                 <Row label="Less: Mortgage Payoff" value={money(existingDebtPayoff)} />
               )}
@@ -341,7 +356,7 @@ export function TermSheetPdf({
               {ratios.map((r) => (
                 <Row
                   key={r.label}
-                  label={r.label}
+                  label={r.label === "LTC" && landBasis.usesStatedValue ? `LTC (land at ${money(landBasis.value)} est. value)` : r.label}
                   value={r.valuePct !== null ? `${r.valuePct.toFixed(1)}%` : "—"}
                   compact
                 />

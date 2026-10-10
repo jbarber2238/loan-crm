@@ -12,7 +12,7 @@ import { ADMIN_ONLY_FIELDS, extractTermSheetFields, termSheetFieldsFor } from "@
 import { allowedTermSheetCategories, canChangeLoanType, loanCategoryLabel } from "@/lib/loan-type-changes";
 import { createDocumentFromPdfUrl, waitUntilDraft, sendDocumentWithRetry } from "@/server/pandadoc";
 import { syncProcessingFeeInvoice, sendProcessingFeeInvoiceEmail } from "@/server/billing";
-import { conservativeValueBasis, calculateLtarv, calculateLtc } from "@/lib/term-sheet-calculations";
+import { conservativeValueBasis, calculateLtarv, calculateLtc, landCostBasis } from "@/lib/term-sheet-calculations";
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
 import { createNotifications, dealTeamUserIds } from "@/server/notifications";
@@ -266,11 +266,19 @@ export async function performTermSheetAcceptance(dealId: string, termSheetId: st
     typeof loanAmountValue === "number" && typeof approvedArvValue === "number"
       ? calculateLtarv(loanAmountValue, approvedArvValue)
       : null;
+  // On a draw loan where the borrower already owns the property, LTC is measured
+  // against what the land is worth now, not the (conservative) purchase basis.
+  const ltcLandBasis = landCostBasis({
+    loanCategory: newLoanCategory,
+    propertyAlreadyOwned: deal.propertyAlreadyOwned,
+    purchasePrice: valueBasis,
+    estimatedAsIsValue: deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null,
+  }).value;
   const approvedLtc =
     typeof loanAmountValue === "number"
       ? calculateLtc(
           loanAmountValue,
-          valueBasis,
+          ltcLandBasis,
           typeof approvedRehabCostValue === "number" ? approvedRehabCostValue : null
         )
       : null;

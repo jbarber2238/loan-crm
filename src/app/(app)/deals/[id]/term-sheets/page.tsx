@@ -1,3 +1,4 @@
+import { landCostBasis } from "@/lib/term-sheet-calculations";
 import { notFound } from "next/navigation";
 import { db } from "@/server/db/client";
 import { requireUser } from "@/server/auth/guards";
@@ -33,7 +34,14 @@ export default async function DealTermSheetsPage({
       }))}
       isAdmin={user.isAdmin}
       hasBorrowerEmail={Boolean(deal.borrowerEmail)}
-      purchasePrice={deal.purchasePrice ? Number(deal.purchasePrice) : null}
+      purchasePrice={
+        landCostBasis({
+          loanCategory: deal.loanCategory,
+          propertyAlreadyOwned: deal.propertyAlreadyOwned,
+          purchasePrice: deal.purchasePrice ? Number(deal.purchasePrice) : null,
+          estimatedAsIsValue: deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null,
+        }).value
+      }
       estimatedAsIsValue={deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null}
       mortgagePayoffAmount={deal.mortgagePayoffAmount ? Number(deal.mortgagePayoffAmount) : null}
       termSheetsSentToBorrowerAt={deal.termSheetsSentToBorrowerAt}

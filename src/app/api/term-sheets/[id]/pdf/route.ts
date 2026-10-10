@@ -28,6 +28,7 @@ export async function GET(
           borrowerName: true,
           borrowerEntityName: true,
           propertyAddress: true,
+          propertyAlreadyOwned: true,
           purchasePrice: true,
           mortgagePayoffAmount: true,
           estimatedAsIsValue: true,
@@ -59,6 +60,7 @@ export async function GET(
       annualInsurance: termSheet.deal.annualInsurance ? Number(termSheet.deal.annualInsurance) : null,
       annualHoa: termSheet.deal.annualHoa ? Number(termSheet.deal.annualHoa) : null,
       currentRent: termSheet.deal.currentRent ? Number(termSheet.deal.currentRent) : null,
+      propertyAlreadyOwned: termSheet.deal.propertyAlreadyOwned ?? false,
       forSignature,
     })
   );
