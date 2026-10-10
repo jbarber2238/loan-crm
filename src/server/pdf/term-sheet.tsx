@@ -66,6 +66,7 @@ const styles = StyleSheet.create({
   signatureLine: { borderBottomWidth: 0.75, borderBottomColor: "#333", width: 260, height: 22 },
   signatureLabel: { fontSize: 8, color: "#555", marginTop: 3 },
   signatureTag: { fontSize: 9, color: "#000" },
+  cardNote: { fontSize: 7, color: "#666", lineHeight: 1.35, paddingVertical: 4, paddingHorizontal: 6 },
 });
 
 function money(value: unknown): string {
@@ -198,6 +199,12 @@ export function TermSheetPdf({
     ? `Reserves Required (${reservesMonths} mo. PITIA, not held in escrow)`
     : "Reserves Required (not held in escrow)";
 
+  // A draw loan's per-draw fee comes out of the wire each time the borrower
+  // requests a draw from the budget — never part of closing, so it sits in its
+  // own box and is left out of every cash-at-closing / cash-to-show figure.
+  const drawFee = isHardMoneyDraw ? num(fields, "drawFee") : 0;
+  const drawBudgetName = loanCategory === "new_construction" ? "construction" : "rehab";
+
   const costToBorrowerLabel =
     loanCategory.startsWith("dscr") || loanCategory === "portfolio" ? "Rate Buydown Fee" : "Lender Fee";
 
@@ -315,6 +322,17 @@ export function TermSheetPdf({
                 value={money(Math.abs(netCashAtClosing))}
               />
             </View>
+
+            {drawFee > 0 && (
+              <View style={styles.card}>
+                <Text style={styles.cardHeader}>Draw Fee</Text>
+                <Row label="Fee per draw" value={money(drawFee)} />
+                <Text style={styles.cardNote}>
+                  Deducted from the wire each time a draw is requested from the {drawBudgetName} budget. Not due at
+                  closing.
+                </Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.column}>

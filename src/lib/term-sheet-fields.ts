@@ -138,6 +138,13 @@ function hardMoneyDrawFields(category: string): TermSheetField[] {
       helperText:
         "Dutch: interest on the full loan amount from day one. Non-Dutch (default): interest on the initial advance only, until draws increase it.",
     },
+    {
+      key: "drawFee",
+      label: "Draw Fee (per draw)",
+      type: "currency",
+      helperText:
+        "Flat fee deducted from the wire each time the borrower requests a draw from the budget. Not part of closing — leave blank if the lender doesn't charge one.",
+    },
   ];
 }
 
