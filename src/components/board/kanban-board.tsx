@@ -27,6 +27,7 @@ import {
 import { LOAN_CATEGORIES, STAGES, labelFor } from "@/lib/labels";
 import { STAGES_REQUIRING_REASON, STAGES_REQUIRING_CONFIRMATION, ARCHIVABLE_STAGES } from "@/lib/deal-pipeline";
 import { leadValueFor } from "@/lib/term-sheet-calculations";
+import { summarizeOpenPipeline } from "@/lib/open-pipeline";
 import { updateDealStage, restoreArchivedDeal } from "@/server/actions/deals";
 import { toast } from "sonner";
 import { StageReasonDialog } from "@/components/deals/stage-reason-dialog";
@@ -292,6 +293,34 @@ function Column({
   );
 }
 
+// The scoreboard at the top of the pipeline: everything still moving toward a
+// close, New through Clear to Close. Reads the board's own (live) deal list, so
+// it moves the moment a card is dragged between stages.
+function OpenPipelineBanner({ deals }: { deals: BoardDeal[] }) {
+  const { value, loanVolume, dealCount } = summarizeOpenPipeline(deals);
+  return (
+    <div className="mb-4 flex flex-wrap items-end justify-between gap-x-8 gap-y-3 rounded-xl bg-primary px-6 py-5 text-primary-foreground shadow-sm">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-widest text-primary-foreground/70">
+          Open Pipeline Value
+        </p>
+        <p className="mt-1 text-4xl font-bold tabular-nums tracking-tight md:text-5xl">{formatAmount(value)}</p>
+      </div>
+      <div className="flex gap-8 text-sm">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-primary-foreground/70">Open deals</p>
+          <p className="text-xl font-semibold tabular-nums">{dealCount}</p>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wide text-primary-foreground/70">Loan volume</p>
+          <p className="text-xl font-semibold tabular-nums">{formatAmount(loanVolume)}</p>
+        </div>
+      </div>
+      <p className="w-full text-xs text-primary-foreground/60">New through Clear to Close</p>
+    </div>
+  );
+}
+
 export function KanbanBoard({ deals }: { deals: BoardDeal[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -364,6 +393,7 @@ export function KanbanBoard({ deals }: { deals: BoardDeal[] }) {
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <OpenPipelineBanner deals={localDeals} />
       <div className={`flex gap-3 overflow-x-auto pb-4 ${isPending ? "opacity-70" : ""}`}>
         {STAGES.map((stage) => (
           <Column
