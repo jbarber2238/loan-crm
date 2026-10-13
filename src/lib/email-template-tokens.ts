@@ -141,6 +141,7 @@ export const BORROWER_LIFECYCLE_TOKENS: EmailTemplateToken[] = [
   { key: "companyName", description: "Company name from Settings" },
   { key: "termSheetLinks", description: "Link(s) to the term sheet PDF(s) being sent, one per line" },
   { key: "schedulingLink", description: "The assigned loan officer's scheduling link" },
+  { key: "termSheetReadyLine", description: "Book-a-call email only: \"Your term sheets are ready. I have two options for you.\" — counts the deal's generated term sheets, singular for one" },
   { key: "loanAmountRange", description: "Loan amount across the term sheets being sent — a range if they differ (HML/Construction)" },
   { key: "ltvRange", description: "LTV% across the term sheets being sent — a range if they differ (DSCR)" },
   { key: "loanTermRange", description: "Loan term (years) across the term sheets being sent — a range if they differ" },

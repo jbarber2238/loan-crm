@@ -8,6 +8,7 @@ import { voidStripeInvoice } from "@/server/stripe";
 import { handleProcessingFeePaid } from "@/server/processing-fee-paid";
 import { requireUser } from "@/server/auth/guards";
 import { sendGmailAs } from "@/server/gmail/send";
+import { termSheetReadyLine } from "@/lib/number-words";
 import { ADMIN_ONLY_FIELDS, extractTermSheetFields, termSheetFieldsFor } from "@/lib/term-sheet-fields";
 import { allowedTermSheetCategories, canChangeLoanType, loanCategoryLabel } from "@/lib/loan-type-changes";
 import { createDocumentFromPdfUrl, waitUntilDraft, sendDocumentWithRetry } from "@/server/pandadoc";
@@ -528,11 +529,19 @@ export async function previewBookACallEmail(dealId: string) {
   }
 
   const companyName = await getCompanyName();
+  // How many options the borrower actually has: term sheets that have been
+  // generated (or signed), not drafts still being worked on or ones already
+  // replaced by a newer signed sheet.
+  const offered = await db.query.termSheets.findMany({
+    where: and(eq(termSheets.dealId, dealId), inArray(termSheets.status, ["generated", "accepted"])),
+    columns: { id: true },
+  });
   const [{ subject, body }, signatureHtml, candidates] = await Promise.all([
     buildBorrowerEmail("borrower_book_a_call", deal, {
       assignedLoanOfficerName: deal.assignedLoanOfficer?.name ?? "",
       companyName,
       senderName: user.name ?? "",
+      extra: { termSheetReadyLine: termSheetReadyLine(offered.length) },
     }),
     getUserEmailSignatureHtml(user.id),
     getEmailRecipientCandidates(dealId, { includeAllStaff: true }),
