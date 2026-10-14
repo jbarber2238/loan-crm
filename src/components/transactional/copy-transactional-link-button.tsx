@@ -11,7 +11,7 @@ export function CopyTransactionalLinkButton() {
       variant="outline"
       size="sm"
       onClick={async () => {
-        await navigator.clipboard.writeText(`${window.location.origin}/intake/transactional`);
+        await navigator.clipboard.writeText(`${window.location.origin}/transactional/request`);
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       }}

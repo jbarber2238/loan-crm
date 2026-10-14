@@ -50,7 +50,14 @@ export async function notifyAdminsOfNewTransactionalLoan(loan: Loan): Promise<vo
         { label: "Title agent", value: loan.titleAgentName ?? "Not provided" },
         { label: "Title phone", value: loan.titlePhone ?? "Not provided" },
         { label: "Title email", value: loan.titleEmail ?? "Not provided" },
-        { label: "Total fee to borrower", value: `${formatMoney(fees.totalFee)} (${formatPoints(fees.totalPoints)})` },
+        {
+          label: "Total fee to borrower",
+          value: fees.outsideStandardRange
+            ? Number(loan.fundingAmount) > 1_000_000
+              ? "Over $1,000,000 — CUSTOM PRICING: the borrower was told you'll contact them to run through it"
+              : `${formatMoney(fees.totalFee)} (${formatPoints(fees.totalPoints)})`
+            : `${formatMoney(fees.totalFee)} (${formatPoints(fees.totalPoints)})`,
+        },
         { label: "Lender's portion", value: `${formatMoney(fees.lenderFee)} (${formatPoints(fees.lenderPoints)})` },
         { label: "Your portion", value: `${formatMoney(fees.brokerFee)} (${formatPoints(fees.brokerTotalPoints)})` },
       ])}

@@ -282,6 +282,84 @@ export function ProgramsSection({ applyHref }: { applyHref: string }) {
         </div>
       </div>
 
+      {/* 03 — Transactional funding */}
+      <div style={{ backgroundColor: SAND }}>
+        <div className="mx-auto grid max-w-6xl gap-10 px-6 py-16 md:py-20 lg:grid-cols-2 lg:items-center lg:gap-16">
+          <div>
+            <Eyebrow color={BASALT}>03 — Transactional funding</Eyebrow>
+            <h3 className="mt-4 text-4xl leading-[1.1] font-normal text-balance md:text-5xl" style={{ color: BASALT }}>
+              We fund your double close.
+            </h3>
+            <p className="mt-5 max-w-md text-sm leading-relaxed" style={{ color: BASALT }}>
+              Short-term funding for wholesale A-B / B-C deals. Submit a direct request, and we coordinate with your title
+              company to get the A-B closing funded. Pricing is public, and your fee calculates on the form.
+            </p>
+            <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-3">
+              <Link
+                href="/transactional/request"
+                className="inline-block rounded-sm px-6 py-3.5 text-xs font-medium tracking-[0.18em] text-white uppercase transition-opacity hover:opacity-90"
+                style={{ backgroundColor: TEAL }}
+              >
+                Request funding
+              </Link>
+              <Link href="/transactional" className="text-sm font-medium underline underline-offset-4" style={{ color: TEAL }}>
+                See pricing and how it works
+              </Link>
+            </div>
+          </div>
+
+          <div className="min-w-0">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[360px] border-collapse text-sm" style={{ color: BASALT }}>
+                <thead>
+                  <tr style={{ backgroundColor: TEAL, color: OFF_WHITE }}>
+                    {["Funding amount", "Total cost", "Same day"].map((h) => (
+                      <th key={h} scope="col" className="p-3 text-left text-[10px] font-medium tracking-[0.14em] uppercase">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    ["$100,000 – $499,999", "1.25%", "1.50%"],
+                    ["$500,000 – $1,000,000", "1.00%", "1.25%"],
+                  ].map(([range, total, sameDay]) => (
+                    <tr key={range} className="border-b" style={{ backgroundColor: "#FFFFFF", borderColor: LINE }}>
+                      <th scope="row" className="p-3 text-left text-xs font-normal">
+                        {range}
+                      </th>
+                      <td className="border-l p-3 text-xl tabular-nums" style={{ borderColor: LINE, color: TEAL }}>
+                        {total}
+                      </td>
+                      <td className="border-l p-3 text-xl tabular-nums" style={{ borderColor: LINE, color: TEAL }}>
+                        {sameDay}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-4 grid grid-cols-1 border bg-white sm:grid-cols-3" style={{ borderColor: TEAL }}>
+              {[
+                ["$100,000", "Minimum funding"],
+                ["+0.25%", "Same-day funding"],
+                ["Direct", "Request, not an inquiry"],
+              ].map(([value, label], i) => (
+                <div key={label} className={`p-5 ${i > 0 ? "border-t sm:border-t-0 sm:border-l" : ""}`} style={{ borderColor: LINE }}>
+                  <p className="text-2xl" style={{ color: TEAL }}>
+                    {value}
+                  </p>
+                  <p className="mt-2 text-[10px] font-medium tracking-[0.14em] uppercase" style={{ color: MOSS }}>
+                    {label}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div style={{ backgroundColor: OFF_WHITE }}>
         <p className="mx-auto max-w-6xl px-6 py-6 text-xs leading-relaxed" style={{ color: MOSS }}>
           Ranges shown are typical and vary by borrower, property, loan size and state. Not a commitment to lend.

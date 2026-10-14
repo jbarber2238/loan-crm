@@ -68,3 +68,22 @@ export function transactionalFees({
 export function formatPoints(points: number): string {
   return `${Number(points.toFixed(3))}%`;
 }
+
+export type PublicCost =
+  | { kind: "empty" }
+  | { kind: "below_minimum" }
+  | { kind: "custom" }
+  | { kind: "standard"; totalPoints: number; totalFee: number };
+
+/**
+ * What the borrower is told it costs — the total (lender + broker, plus the
+ * same-day premium), never the split. Above $1,000,000 there is no published
+ * price: it is quoted individually.
+ */
+export function publicCost(fundingAmount: number | null, sameDayFunding: boolean): PublicCost {
+  if (fundingAmount === null || !Number.isFinite(fundingAmount) || fundingAmount <= 0) return { kind: "empty" };
+  if (fundingAmount < MINIMUM_FUNDING_AMOUNT) return { kind: "below_minimum" };
+  if (fundingAmount > STANDARD_RANGE_MAX) return { kind: "custom" };
+  const fees = transactionalFees({ fundingAmount, brokerPoints: null, sameDayFunding });
+  return { kind: "standard", totalPoints: fees.totalPoints, totalFee: fees.totalFee };
+}

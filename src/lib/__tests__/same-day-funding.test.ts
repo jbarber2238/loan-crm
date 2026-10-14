@@ -22,6 +22,18 @@ describe("isSameDayFundingByTiming", () => {
     expect(isSameDayFundingByTiming("2026-10-18", at("2026-10-16T23:30:00Z"))).toBe(false);
   });
 
+  it("counts Friday at/after 4 PM Eastern for a Monday closing", () => {
+    // 2026-10-16 is a Friday; 2026-10-19 is the Monday.
+    expect(isSameDayFundingByTiming("2026-10-19", at("2026-10-16T20:00:00Z"))).toBe(true); // 4:00 PM ET Friday
+    expect(isSameDayFundingByTiming("2026-10-19", at("2026-10-16T19:59:00Z"))).toBe(false); // 3:59 PM ET Friday
+    expect(isSameDayFundingByTiming("2026-10-20", at("2026-10-16T23:00:00Z"))).toBe(false); // Tuesday closing
+  });
+
+  it("does not apply the Monday rule on other days", () => {
+    // Thursday 2026-10-15 at 5 PM ET, closing the following Sunday (3 days out) is not flagged.
+    expect(isSameDayFundingByTiming("2026-10-18", at("2026-10-15T21:00:00Z"))).toBe(false);
+  });
+
   it("uses Eastern time for 'today', not UTC", () => {
     // 11:30 PM ET on the 16th is already the 17th in UTC.
     const lateEvening = at("2026-10-17T03:30:00Z");

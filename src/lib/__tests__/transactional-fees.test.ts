@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultBrokerPoints, formatPoints, transactionalFees } from "@/lib/transactional-fees";
+import { defaultBrokerPoints, formatPoints, publicCost, transactionalFees } from "@/lib/transactional-fees";
 
 describe("defaultBrokerPoints", () => {
   it("is 0.50% from $100,000 and 0.25% from $500,000", () => {
@@ -53,5 +53,22 @@ describe("formatPoints", () => {
     expect(formatPoints(1.25)).toBe("1.25%");
     expect(formatPoints(0.5)).toBe("0.5%");
     expect(formatPoints(1)).toBe("1%");
+  });
+});
+
+describe("publicCost", () => {
+  it("shows the total cost the website advertises", () => {
+    expect(publicCost(300_000, false)).toEqual({ kind: "standard", totalPoints: 1.25, totalFee: 3750 });
+    expect(publicCost(300_000, true)).toEqual({ kind: "standard", totalPoints: 1.5, totalFee: 4500 });
+    expect(publicCost(600_000, false)).toEqual({ kind: "standard", totalPoints: 1, totalFee: 6000 });
+    expect(publicCost(600_000, true)).toEqual({ kind: "standard", totalPoints: 1.25, totalFee: 7500 });
+    expect(publicCost(1_000_000, false)).toEqual({ kind: "standard", totalPoints: 1, totalFee: 10000 });
+  });
+
+  it("needs custom pricing above $1,000,000 and refuses below $100,000", () => {
+    expect(publicCost(1_000_001, false).kind).toBe("custom");
+    expect(publicCost(99_999, false).kind).toBe("below_minimum");
+    expect(publicCost(null, false).kind).toBe("empty");
+    expect(publicCost(0, false).kind).toBe("empty");
   });
 });

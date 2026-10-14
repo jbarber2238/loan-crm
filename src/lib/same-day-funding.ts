@@ -30,9 +30,19 @@ export function easternToday(now: Date = new Date()): string {
   return easternParts(now).day;
 }
 
-/** closingDay is yyyy-mm-dd. */
+function weekday(day: string): number {
+  return new Date(`${day}T00:00:00Z`).getUTCDay(); // 0 = Sunday ... 5 = Friday
+}
+
+/**
+ * closingDay is yyyy-mm-dd. Same-day when the closing is today; or at/after the
+ * 4 PM Eastern cutoff the day before; or at/after 4 PM Eastern on Friday for a
+ * Monday closing (there is no business day in between to turn it around).
+ */
 export function isSameDayFundingByTiming(closingDay: string, now: Date = new Date()): boolean {
   const { day, hour } = easternParts(now);
   if (closingDay === day) return true;
-  return closingDay === addDays(day, 1) && hour >= SAME_DAY_CUTOFF_HOUR_ET;
+  if (hour < SAME_DAY_CUTOFF_HOUR_ET) return false;
+  if (closingDay === addDays(day, 1)) return true;
+  return weekday(day) === 5 && closingDay === addDays(day, 3);
 }

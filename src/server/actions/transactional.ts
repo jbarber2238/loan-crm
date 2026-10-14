@@ -85,7 +85,7 @@ export async function submitTransactionalIntake(formData: FormData) {
     console.error("Failed to send transactional receipt:", err);
   });
 
-  redirect("/intake/transactional?submitted=1");
+  redirect("/transactional/request?submitted=1");
 }
 
 // ---- Staff actions ---------------------------------------------------------
