@@ -96,12 +96,12 @@ function AdjustFee({ loan }: { loan: TransactionalLoanView }) {
     >
       <PopoverTrigger asChild>
         <Button type="button" variant="outline" size="sm">
-          Adjust my fee
+          Adjust broker fee
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-72 space-y-3">
         <div className="space-y-1.5">
-          <Label htmlFor="broker-points">My points (%)</Label>
+          <Label htmlFor="broker-points">Broker points (%)</Label>
           <Input
             id="broker-points"
             type="number"
@@ -255,7 +255,7 @@ function EditDetailsDialog({ loan, lenders }: { loan: TransactionalLoanView; len
             {field("titleAgentName", "Title agent", loan.titleAgentName)}
             {field("titlePhone", "Title phone", loan.titlePhone)}
             {field("titleEmail", "Title email", loan.titleEmail, "email")}
-            {field("brokerPoints", "My points (%) — blank for standard", loan.brokerPoints === null ? "" : String(loan.brokerPoints), "number")}
+            {field("brokerPoints", "Broker points (%) — blank for standard", loan.brokerPoints === null ? "" : String(loan.brokerPoints), "number")}
             <div className="space-y-1.5">
               <Label htmlFor="edit-lender">Transactional lender</Label>
               <input type="hidden" name="transactionalLenderId" value={lenderId === "none" ? "" : lenderId} />
@@ -374,7 +374,7 @@ export function TransactionalDetail({
             hint={`${formatPoints(fees.totalPoints)} incl. ${formatPoints(fees.lenderPoints)} (${formatMoney(fees.lenderFee)}) to the lender`}
           />
           <Tile
-            label="My fee"
+            label="Broker fee"
             value={formatMoney(fees.brokerFee)}
             hint={
               <>
@@ -390,7 +390,7 @@ export function TransactionalDetail({
         {fees.outsideStandardRange && (
           <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-800">
             This amount is outside the standard $100,000–$1,000,000 pricing, so the points shown are the nearest standard
-            tier. Use Adjust my fee to set your own.
+            tier. Use Adjust broker fee to set your own.
           </p>
         )}
 
