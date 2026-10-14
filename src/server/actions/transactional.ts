@@ -54,10 +54,6 @@ export async function submitTransactionalIntake(formData: FormData) {
     throw new Error(`We fund double closes starting at $${MINIMUM_FUNDING_AMOUNT.toLocaleString("en-US")}.`);
   }
 
-  const firstLender = await db.query.transactionalLenders.findFirst({
-    orderBy: (l, { asc }) => asc(l.createdAt),
-  });
-
   const [loan] = await db
     .insert(transactionalLoans)
     .values({
@@ -74,7 +70,6 @@ export async function submitTransactionalIntake(formData: FormData) {
       // Ticked by the borrower, or implied by the timing: closing today, or
       // after the 4 PM Eastern cutoff the day before.
       sameDayFunding: formData.get("sameDayFunding") === "on" || isSameDayFundingByTiming(closingDay),
-      transactionalLenderId: firstLender?.id ?? null,
     })
     .returning();
 
@@ -119,7 +114,6 @@ export async function updateTransactionalLoan(id: string, formData: FormData) {
       titleEmail: nullableStr(formData, "titleEmail"),
       sameDayFunding: formData.get("sameDayFunding") === "on",
       brokerPoints,
-      transactionalLenderId: nullableStr(formData, "transactionalLenderId"),
       updatedAt: new Date(),
     })
     .where(eq(transactionalLoans.id, id));
@@ -168,20 +162,20 @@ export async function deleteTransactionalLoan(id: string) {
 
 // ---- Email to the transactional lender ------------------------------------
 
-export async function previewTransactionalLenderEmail(id: string) {
+export async function previewTransactionalLenderEmail(id: string, lenderId: string) {
   await requireAdminOrLoanOfficer();
-  const loan = await db.query.transactionalLoans.findFirst({
-    where: eq(transactionalLoans.id, id),
-    with: { lender: true },
-  });
+  const [loan, lender] = await Promise.all([
+    db.query.transactionalLoans.findFirst({ where: eq(transactionalLoans.id, id) }),
+    db.query.transactionalLenders.findFirst({ where: eq(transactionalLenders.id, lenderId) }),
+  ]);
   if (!loan) throw new Error("Request not found");
-  if (!loan.lender) throw new Error("Pick a transactional lender for this request first");
+  if (!lender) throw new Error("Pick a transactional lender");
 
   return {
-    to: loan.lender.email ?? "",
+    to: lender.email ?? "",
     subject: `Double close funding request — ${loan.propertyAddress}`,
     body: buildLenderEmailBody({
-      lenderName: loan.lender.name,
+      lenderName: lender.name,
       closingDate: loan.closingDate,
       borrowerName: loan.borrowerName,
       borrowerPhone: loan.borrowerPhone,
@@ -195,8 +189,16 @@ export async function previewTransactionalLenderEmail(id: string) {
   };
 }
 
-export async function sendTransactionalLenderEmail(id: string, to: string, subject: string, body: string) {
+export async function sendTransactionalLenderEmail(
+  id: string,
+  lenderId: string,
+  to: string,
+  subject: string,
+  body: string
+) {
   const user = await requireAdminOrLoanOfficer();
+  const lender = await db.query.transactionalLenders.findFirst({ where: eq(transactionalLenders.id, lenderId) });
+  if (!lender) throw new Error("Pick a transactional lender");
   if (!user.email) throw new Error("Your account has no email on file");
   if (!to.trim()) throw new Error("This lender has no email on file — add it under Lenders first, or type one here");
   if (!subject.trim() || !body.trim()) throw new Error("Subject and body can't be empty");
@@ -212,7 +214,8 @@ export async function sendTransactionalLenderEmail(id: string, to: string, subje
 
   await db
     .update(transactionalLoans)
-    .set({ sentToLenderAt: new Date(), updatedAt: new Date() })
+    // The lender it was emailed to becomes the request's lender.
+    .set({ transactionalLenderId: lender.id, sentToLenderAt: new Date(), updatedAt: new Date() })
     .where(eq(transactionalLoans.id, id));
   // New -> Sent to Lender; a re-send at any later stage doesn't move it.
   const loan = await db.query.transactionalLoans.findFirst({ where: eq(transactionalLoans.id, id), columns: { stage: true } });

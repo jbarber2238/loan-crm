@@ -126,23 +126,31 @@ function AdjustFee({ loan }: { loan: TransactionalLoanView }) {
   );
 }
 
-function SendToLenderDialog({ loan }: { loan: TransactionalLoanView }) {
+function SendToLenderDialog({ loan, lenders }: { loan: TransactionalLoanView; lenders: LenderOption[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sending, startSend] = useTransition();
+  // Pick who to send it to: the one already on this request, or the only
+  // lender there is; otherwise it starts empty.
+  const initialLenderId = loan.transactionalLenderId ?? (lenders.length === 1 ? lenders[0].id : "");
+  const [lenderId, setLenderId] = useState(initialLenderId);
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  async function handleOpenChange(next: boolean) {
-    setOpen(next);
-    if (!next) return;
-    setLoading(true);
+  async function loadPreview(forLenderId: string) {
     setError(null);
+    if (!forLenderId) {
+      setTo("");
+      setSubject("");
+      setBody("");
+      return;
+    }
+    setLoading(true);
     try {
-      const preview = await previewTransactionalLenderEmail(loan.id);
+      const preview = await previewTransactionalLenderEmail(loan.id, forLenderId);
       setTo(preview.to);
       setSubject(preview.subject);
       setBody(preview.body);
@@ -153,11 +161,23 @@ function SendToLenderDialog({ loan }: { loan: TransactionalLoanView }) {
     }
   }
 
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (!next) return;
+    setLenderId(initialLenderId);
+    void loadPreview(initialLenderId);
+  }
+
+  function handleLenderChange(next: string) {
+    setLenderId(next);
+    void loadPreview(next);
+  }
+
   function handleSend() {
     setError(null);
     startSend(async () => {
       try {
-        await sendTransactionalLenderEmail(loan.id, to, subject, body);
+        await sendTransactionalLenderEmail(loan.id, lenderId, to, subject, body);
         toast.success("Sent to the lender");
         setOpen(false);
         router.refresh();
@@ -181,40 +201,62 @@ function SendToLenderDialog({ loan }: { loan: TransactionalLoanView }) {
         <DialogHeader>
           <DialogTitle>Email the transactional lender</DialogTitle>
         </DialogHeader>
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : error && !subject ? (
-          <p className="text-sm text-destructive">{error}</p>
-        ) : (
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="lender-to">To</Label>
-              <Input id="lender-to" value={to} onChange={(e) => setTo(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="lender-subject">Subject</Label>
-              <Input id="lender-subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="lender-body">Message — edit anything before sending</Label>
-              <Textarea id="lender-body" rows={16} value={body} onChange={(e) => setBody(e.target.value)} />
-            </div>
-            <p className="text-xs text-muted-foreground">Your signature is added when it sends. A new request moves to Sent to Lender.</p>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="button" className="w-full" disabled={sending} onClick={handleSend}>
-              {sending ? "Sending…" : "Send"}
-            </Button>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="lender-pick">Lender</Label>
+            <Select value={lenderId} onValueChange={handleLenderChange}>
+              <SelectTrigger id="lender-pick" className="w-full">
+                <SelectValue placeholder={lenders.length ? "Choose a lender" : "No transactional lenders yet"} />
+              </SelectTrigger>
+              <SelectContent>
+                {lenders.map((l) => (
+                  <SelectItem key={l.id} value={l.id}>
+                    {l.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {lenders.length === 0 && (
+              <p className="text-xs text-muted-foreground">Add one under Lenders → Transactional first.</p>
+            )}
           </div>
-        )}
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : error && !subject ? (
+            <p className="text-sm text-destructive">{error}</p>
+          ) : lenderId ? (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="lender-to">To</Label>
+                <Input id="lender-to" value={to} onChange={(e) => setTo(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="lender-subject">Subject</Label>
+                <Input id="lender-subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="lender-body">Message — edit anything before sending</Label>
+                <Textarea id="lender-body" rows={16} value={body} onChange={(e) => setBody(e.target.value)} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Your signature is added when it sends. Sending makes this the request&apos;s lender, and a new request
+                moves to Sent to Lender.
+              </p>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button type="button" className="w-full" disabled={sending} onClick={handleSend}>
+                {sending ? "Sending…" : "Send"}
+              </Button>
+            </>
+          ) : null}
+        </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-function EditDetailsDialog({ loan, lenders }: { loan: TransactionalLoanView; lenders: LenderOption[] }) {
+function EditDetailsDialog({ loan }: { loan: TransactionalLoanView }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [lenderId, setLenderId] = useState(loan.transactionalLenderId ?? "none");
   const save = updateTransactionalLoan.bind(null, loan.id);
 
   const field = (id: string, label: string, value: string | null, type = "text") => (
@@ -256,23 +298,6 @@ function EditDetailsDialog({ loan, lenders }: { loan: TransactionalLoanView; len
             {field("titlePhone", "Title phone", loan.titlePhone)}
             {field("titleEmail", "Title email", loan.titleEmail, "email")}
             {field("brokerPoints", "Broker points (%) — blank for standard", loan.brokerPoints === null ? "" : String(loan.brokerPoints), "number")}
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-lender">Transactional lender</Label>
-              <input type="hidden" name="transactionalLenderId" value={lenderId === "none" ? "" : lenderId} />
-              <Select value={lenderId} onValueChange={setLenderId}>
-                <SelectTrigger id="edit-lender" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {lenders.map((l) => (
-                    <SelectItem key={l.id} value={l.id}>
-                      {l.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
           <label className="flex items-center gap-2 text-sm">
             <Checkbox name="sameDayFunding" defaultChecked={loan.sameDayFunding} />
@@ -331,8 +356,10 @@ export function TransactionalDetail({
           <div>
             <h1 className="text-lg font-semibold">{loan.propertyAddress}</h1>
             <p className="text-xs text-muted-foreground">
-              Double close{lenderName ? ` · Lender: ${lenderName}` : ""}
-              {loan.sentToLenderAt ? ` · Sent to lender ${formatDay(loan.sentToLenderAt.slice(0, 10))}` : ""}
+              Double close
+              {loan.sentToLenderAt
+                ? ` · Sent to ${lenderName ?? "the lender"} on ${formatDay(loan.sentToLenderAt.slice(0, 10))}`
+                : ""}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -352,7 +379,7 @@ export function TransactionalDetail({
                 ))}
               </SelectContent>
             </Select>
-            <SendToLenderDialog loan={loan} />
+            <SendToLenderDialog loan={loan} lenders={lenders} />
           </div>
         </div>
 
@@ -385,6 +412,14 @@ export function TransactionalDetail({
             }
           />
           <Tile label="Borrower" value={loan.borrowerName ?? "—"} hint={[loan.borrowerPhone, loan.borrowerEmail].filter(Boolean).join(" · ")} className="col-span-2" />
+          {loan.sentToLenderAt && (
+            <Tile
+              label="Lender"
+              value={lenderName ?? "—"}
+              hint={`Emailed ${formatDay(loan.sentToLenderAt.slice(0, 10))}`}
+              className="col-span-2 md:col-span-1"
+            />
+          )}
         </div>
 
         {fees.outsideStandardRange && (
@@ -404,7 +439,7 @@ export function TransactionalDetail({
           </div>
           <div className="flex flex-wrap items-center gap-2 rounded-md border p-3">
             <AdjustFee loan={loan} />
-            <EditDetailsDialog loan={loan} lenders={lenders} />
+            <EditDetailsDialog loan={loan} />
             {isAdmin && (
               <Button type="button" variant="ghost" size="sm" className="text-destructive" disabled={pending} onClick={handleDelete}>
                 Delete
