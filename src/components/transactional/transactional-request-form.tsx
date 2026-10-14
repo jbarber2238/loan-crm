@@ -87,117 +87,118 @@ export function TransactionalRequestForm() {
   const sameDay = sameDayByTiming || sameDayChecked;
 
   return (
-    <ActionForm action={submitTransactionalIntake} className="space-y-8">
-      <p className="text-xs text-muted-foreground">
-        <span className="text-destructive">*</span> Required — every field is required unless marked{" "}
-        <em>(optional)</em>.
-      </p>
+    <ActionForm action={submitTransactionalIntake}>
+      <div className="space-y-8">
+        <p className="text-xs text-muted-foreground">
+          <span className="text-destructive">*</span> Required — every field is required.
+        </p>
 
-      <section className="space-y-4">
-        <SectionHeading number={1} title="The Deal" />
-        <Field id="propertyAddress" label="Property address" required />
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Field
-            id="fundingAmount"
-            label="Funding amount"
-            required
-            placeholder="$300,000"
-            inputMode="decimal"
-            onChange={setRawAmount}
-          />
-          <Field
-            id="closingDate"
-            label="Closing date"
-            type="date"
-            required
-            min={easternToday()}
-            onChange={setClosingDay}
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox
-              name="sameDayFunding"
-              checked={sameDay}
-              disabled={sameDayByTiming}
-              onCheckedChange={(v) => setSameDayChecked(v === true)}
+        <section className="space-y-4">
+          <SectionHeading number={1} title="The Deal" />
+          <Field id="propertyAddress" label="Property address" required />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Field
+              id="fundingAmount"
+              label="Funding amount"
+              required
+              placeholder="$300,000"
+              inputMode="decimal"
+              onChange={setRawAmount}
             />
-            I need the funds the same day (adds 0.25%)
+            <Field
+              id="closingDate"
+              label="Closing date"
+              type="date"
+              required
+              min={easternToday()}
+              onChange={setClosingDay}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox
+                name="sameDayFunding"
+                checked={sameDay}
+                disabled={sameDayByTiming}
+                onCheckedChange={(v) => setSameDayChecked(v === true)}
+              />
+              I need the funds the same day (adds 0.25%)
+            </label>
+          </div>
+          <CostSummary
+            amount={rawAmount.trim() === "" || !Number.isFinite(amount) ? null : amount}
+            sameDay={sameDay}
+            tone="dark"
+            sameDayNote={
+              sameDayByTiming
+                ? "Same-day funding applies with this closing date and the time of your request (4:00 PM Eastern cutoff)."
+                : undefined
+            }
+          />
+        </section>
+
+        <section className="space-y-4">
+          <SectionHeading number={2} title="Your Information" />
+          <Field id="borrowerName" label="Your name" required />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Field id="borrowerPhone" label="Phone" type="tel" required />
+            <Field id="borrowerEmail" label="Email" type="email" required />
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <SectionHeading number={3} title="Title Company" />
+          <Field id="titleCompanyName" label="Title company name" required />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <Field id="titleAgentName" label="Agent name" required />
+            <Field id="titlePhone" label="Phone" type="tel" required />
+            <Field id="titleEmail" label="Email" type="email" required />
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <SectionHeading number={4} title="Confirm" />
+          <p className="text-sm leading-relaxed">
+            We fund one kind of transaction: a <strong>traditional double close</strong> — the seller (A) sells to you (B),
+            and you sell to your end buyer (C). We don&apos;t fund any other structure.
+          </p>
+          <label className="flex items-start gap-2 text-sm font-medium">
+            <input type="checkbox" name="confirmDoubleClose" required className="mt-0.5 size-4 shrink-0" />
+            <span>
+              I confirm this is a traditional A-to-B, B-to-C double close.
+              <Req />
+            </span>
           </label>
-        </div>
-        <CostSummary
-          amount={rawAmount.trim() === "" || !Number.isFinite(amount) ? null : amount}
-          sameDay={sameDay}
-          tone="dark"
-          sameDayNote={
-            sameDayByTiming
-              ? "Same-day funding applies with this closing date and the time of your request (4:00 PM Eastern cutoff)."
-              : undefined
-          }
-        />
-      </section>
+          <p className="text-sm leading-relaxed">
+            By submitting, you&apos;re formally requesting funding in the amount above. You acknowledge that we will
+            contact the title company to coordinate funding the A-to-B portion of your transaction. This is not a request
+            for a quote — our pricing is published on our website.
+          </p>
+          <label className="flex items-start gap-2 text-xs">
+            <Checkbox name="marketingConsent" className="mt-0.5" />
+            <span>
+              By checking this box, I consent to receive emails and text messages from Manna Lending regarding my service
+              request — including updates on my funding request, requests for information, and answers to questions
+              I&apos;ve asked. Message and data rates may apply. Reply STOP to opt out at any time. See our{" "}
+              <Link href="/privacy" target="_blank" className="underline">
+                Privacy Policy
+              </Link>{" "}
+              and{" "}
+              <Link href="/terms" target="_blank" className="underline">
+                Terms &amp; Conditions
+              </Link>
+              .
+            </span>
+          </label>
+        </section>
 
-      <section className="space-y-4">
-        <SectionHeading number={2} title="Your Information" />
-        <Field id="borrowerName" label="Your name" required />
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Field id="borrowerPhone" label="Phone" type="tel" required />
-          <Field id="borrowerEmail" label="Email" type="email" required />
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <SectionHeading number={3} title="Title Company" />
-        <Field id="titleCompanyName" label="Title company name" required />
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <Field id="titleAgentName" label="Agent name" optional />
-          <Field id="titlePhone" label="Phone" type="tel" optional />
-          <Field id="titleEmail" label="Email" type="email" optional />
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <SectionHeading number={4} title="Confirm" />
-        <p className="text-sm leading-relaxed">
-          We fund one kind of transaction: a <strong>traditional double close</strong> — the seller (A) sells to you (B),
-          and you sell to your end buyer (C). We don&apos;t fund any other structure.
-        </p>
-        <label className="flex items-start gap-2 text-sm font-medium">
-          <input type="checkbox" name="confirmDoubleClose" required className="mt-0.5 size-4 shrink-0" />
-          <span>
-            I confirm this is a traditional A-to-B, B-to-C double close.
-            <Req />
-          </span>
-        </label>
-        <p className="text-sm leading-relaxed">
-          By submitting, you&apos;re formally requesting funding in the amount above. You acknowledge that we will
-          contact the title company to coordinate funding the A-to-B portion of your transaction. This is not a request
-          for a quote — our pricing is published on our website.
-        </p>
-        <label className="flex items-start gap-2 text-xs">
-          <Checkbox name="marketingConsent" className="mt-0.5" />
-          <span>
-            By checking this box, I consent to receive emails and text messages from Manna Lending regarding my service
-            request — including updates on my funding request, requests for information, and answers to questions
-            I&apos;ve asked. Message and data rates may apply. Reply STOP to opt out at any time. See our{" "}
-            <Link href="/privacy" target="_blank" className="underline">
-              Privacy Policy
-            </Link>{" "}
-            and{" "}
-            <Link href="/terms" target="_blank" className="underline">
-              Terms &amp; Conditions
-            </Link>
-            .
-          </span>
-        </label>
-      </section>
-
-      <SubmitButton
-        className="w-full rounded-sm py-3 text-sm font-medium tracking-wide text-white hover:opacity-90"
-        style={{ backgroundColor: "#143D4A" }}
-      >
-        Submit funding request
-      </SubmitButton>
+        <SubmitButton
+          className="w-full rounded-sm py-3 text-sm font-medium tracking-wide text-white hover:opacity-90"
+          style={{ backgroundColor: "#143D4A" }}
+        >
+          Submit funding request
+        </SubmitButton>
+      </div>
     </ActionForm>
   );
 }

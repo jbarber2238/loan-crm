@@ -52,6 +52,9 @@ export async function submitTransactionalIntake(formData: FormData) {
   if (!propertyAddress) throw new Error("The property address is required");
   if (!borrowerName || !borrowerPhone || !borrowerEmail) throw new Error("Your name, phone and email are required");
   if (!titleCompanyName) throw new Error("The title company is required");
+  if (!str(formData, "titleAgentName") || !str(formData, "titlePhone") || !str(formData, "titleEmail")) {
+    throw new Error("The title agent's name, phone and email are required.");
+  }
   const closingDate = parseDay(str(formData, "closingDate") || null);
   if (!closingDate) throw new Error("The closing date is required");
   const closingDay = str(formData, "closingDate");
