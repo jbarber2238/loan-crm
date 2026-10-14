@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { MannaLogo } from "@/components/marketing/manna-logo";
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -35,6 +36,8 @@ const RESOURCE_LINKS = [
 export function SiteHeader() {
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
+  const onTransactional = pathname.startsWith("/transactional");
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function openNow() {
@@ -56,6 +59,13 @@ export function SiteHeader() {
         <nav className="flex items-center gap-6">
           <Link href="/#programs" className="hidden text-sm font-medium tracking-wide sm:inline" style={{ color: BASALT }}>
             Programs
+          </Link>
+          <Link
+            href="/transactional"
+            className="hidden border-b-2 py-0.5 text-sm font-medium tracking-wide sm:inline"
+            style={{ color: onTransactional ? TEAL : BASALT, borderColor: onTransactional ? TEAL : "transparent" }}
+          >
+            Transactional
           </Link>
           <div className="relative hidden sm:block" onMouseEnter={openNow} onMouseLeave={closeSoon}>
             <Link href="/resources" className="text-sm font-medium tracking-wide" style={{ color: BASALT }}>
@@ -128,6 +138,14 @@ export function SiteHeader() {
                   style={{ color: BASALT }}
                 >
                   Programs
+                </Link>
+                <Link
+                  href="/transactional"
+                  onClick={() => setMobileOpen(false)}
+                  className="rounded-sm px-2 py-3 text-base font-medium"
+                  style={{ color: BASALT }}
+                >
+                  Transactional
                 </Link>
                 <Link
                   href="/resources"
