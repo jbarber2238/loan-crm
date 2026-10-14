@@ -88,13 +88,15 @@ export async function sendTransactionalReceipt(loan: Loan): Promise<void> {
     heading: "We've received your funding request",
     bodyHtml: `
       <p style="margin:0 0 16px;">Hi ${escapeHtml(firstName)},</p>
-      <p style="margin:0 0 16px;">Thanks for sending over your double close — we've got it. We'll be in touch shortly to get the deal rolling.</p>
+      <p style="margin:0 0 16px;">We've received your formal request for funding. Here's what you submitted:</p>
       ${htmlFactList([
         { label: "Property", value: loan.propertyAddress },
         { label: "Funding amount", value: formatMoney(Number(loan.fundingAmount)) },
         { label: "Closing date", value: formatDay(loan.closingDate) },
       ])}
-      <p style="margin:16px 0 0;">If anything on this changes, just reply to this email.</p>
+      <p style="margin:16px 0 0;"><strong>What happens next:</strong> we'll contact ${escapeHtml(loan.titleCompanyName ?? "your title company")} to coordinate funding the A-to-B portion of your transaction. If we need anything else from you, we'll reach out.</p>
+      <p style="margin:16px 0 0;">This email doesn't confirm pricing — our fees are published on our website.</p>
+      <p style="margin:16px 0 0;">If anything on your request changes, just reply to this email.</p>
     `,
   });
 

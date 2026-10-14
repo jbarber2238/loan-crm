@@ -117,8 +117,14 @@ export function TransactionalIntakeForm() {
         </div>
       </Section>
 
+      <p className="rounded-lg border bg-white p-4 text-sm leading-relaxed">
+        By submitting, you&apos;re formally requesting funding in the amount above. You acknowledge that we will
+        contact the title company to coordinate funding the A-to-B portion of your transaction. This is not a request for
+        a quote — our pricing is published on our website.
+      </p>
+
       <SubmitButton className="w-full" style={{ backgroundColor: "#143D4A" }}>
-        Submit request
+        Submit funding request
       </SubmitButton>
     </ActionForm>
   );

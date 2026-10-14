@@ -32,7 +32,8 @@ export default async function TransactionalIntakePage({
                 Thanks — we&apos;ve got it.
               </h1>
               <p className="text-base leading-relaxed" style={{ color: BASALT }}>
-                We&apos;ll review your funding request and be in touch shortly.
+                Your funding request is in. Next, we&apos;ll contact your title company to coordinate funding the A-to-B
+                portion of your transaction. If we need anything else from you, we&apos;ll reach out.
               </p>
             </div>
           ) : (
@@ -44,7 +45,8 @@ export default async function TransactionalIntakePage({
                 Double close funding request
               </h1>
               <p className="mt-3 text-sm leading-relaxed" style={{ color: BASALT }}>
-                Tell us about the transaction. We&apos;ll come back to you with the cost and next steps.
+                This is a formal request for funding, not a request for pricing. Our pricing is published on our
+                website, so you&apos;ll know the cost before you submit.
               </p>
               <div className="mt-8">
                 <TransactionalIntakeForm />
