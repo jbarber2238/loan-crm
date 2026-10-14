@@ -14,6 +14,7 @@ import { notifyAdminsOfNewTransactionalLoan, sendTransactionalReceipt } from "@/
 import { TRANSACTIONAL_STAGES, buildLenderEmailBody } from "@/lib/transactional-shared";
 import { MINIMUM_FUNDING_AMOUNT } from "@/lib/transactional-fees";
 import { ARCHIVABLE_STAGES } from "@/lib/deal-pipeline";
+import { lenderEmailRecipients, parseAdditionalContacts } from "@/lib/transactional-lender-contacts";
 import { easternToday, isSameDayFundingByTiming } from "@/lib/same-day-funding";
 
 function str(formData: FormData, key: string): string {
@@ -226,7 +227,9 @@ export async function previewTransactionalLenderEmail(id: string, lenderId: stri
   if (!lender) throw new Error("Pick a transactional lender");
 
   return {
-    to: lender.email ?? "",
+    // Everyone at the lender who needs to hear about a deal: the main contact
+    // plus every additional contact, always.
+    to: lenderEmailRecipients(lender.email, lender.additionalContacts).join(", "),
     subject: `Double close funding request — ${loan.propertyAddress}`,
     body: buildLenderEmailBody({
       lenderName: lender.name,
@@ -292,6 +295,7 @@ export async function createTransactionalLender(formData: FormData) {
     name,
     phone: nullableStr(formData, "phone"),
     email: nullableStr(formData, "email"),
+    additionalContacts: parseAdditionalContacts(str(formData, "additionalContacts")),
     notes: nullableStr(formData, "notes"),
   });
   revalidatePath("/lenders");
@@ -307,6 +311,7 @@ export async function updateTransactionalLender(id: string, formData: FormData) 
       name,
       phone: nullableStr(formData, "phone"),
       email: nullableStr(formData, "email"),
+      additionalContacts: parseAdditionalContacts(str(formData, "additionalContacts")),
       notes: nullableStr(formData, "notes"),
     })
     .where(eq(transactionalLenders.id, id));

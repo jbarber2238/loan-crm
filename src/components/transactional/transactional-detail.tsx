@@ -237,6 +237,9 @@ function SendToLenderDialog({ loan, lenders }: { loan: TransactionalLoanView; le
               <div className="space-y-1.5">
                 <Label htmlFor="lender-to">To</Label>
                 <Input id="lender-to" value={to} onChange={(e) => setTo(e.target.value)} />
+                {to.includes(",") && (
+                  <p className="text-xs text-muted-foreground">Goes to every contact at this lender.</p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="lender-subject">Subject</Label>

@@ -2039,11 +2039,23 @@ export const transactionalStageEnum = pgEnum("transactional_stage", [
 // Just a name, phone, email and a free-text note (what they charge, for now).
 // More than one can exist later; pricing lives in the note until it needs to
 // be structured.
+export interface TransactionalLenderContact {
+  name: string;
+  phone: string | null;
+  email: string;
+}
+
 export const transactionalLenders = pgTable("transactional_lenders", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   phone: text("phone"),
   email: text("email"),
+  // Small private lenders have several people who need to hear about a deal at
+  // once: every email to this lender goes to the main contact plus all of these.
+  additionalContacts: jsonb("additional_contacts")
+    .$type<TransactionalLenderContact[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
   notes: text("notes"),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });

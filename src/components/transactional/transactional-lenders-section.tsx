@@ -11,12 +11,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AdditionalContactsEditor } from "@/components/transactional/additional-contacts-editor";
+import type { LenderContact } from "@/lib/transactional-lender-contacts";
 
 interface TransactionalLender {
   id: string;
   name: string;
   phone: string | null;
   email: string | null;
+  additionalContacts: LenderContact[];
   notes: string | null;
 }
 
@@ -38,6 +41,7 @@ function LenderFields({ lender }: { lender?: TransactionalLender }) {
           <Input id={`tl-email-${id}`} name="email" type="email" defaultValue={lender?.email ?? ""} />
         </div>
       </div>
+      <AdditionalContactsEditor idPrefix={`tl-${id}`} initial={lender?.additionalContacts ?? []} />
       <div className="space-y-1.5">
         <Label htmlFor={`tl-notes-${id}`}>Notes — what they charge, etc.</Label>
         <Textarea id={`tl-notes-${id}`} name="notes" rows={3} defaultValue={lender?.notes ?? ""} />
@@ -106,6 +110,11 @@ export function TransactionalLendersSection({ isAdmin, lenders }: { isAdmin: boo
             ) : (
               <div className="space-y-1 text-sm">
                 <p>{[lender.phone, lender.email].filter(Boolean).join(" · ") || "No contact details"}</p>
+                {lender.additionalContacts.map((c, i) => (
+                  <p key={i} className="text-muted-foreground">
+                    {[c.name, c.phone, c.email].filter(Boolean).join(" · ")}
+                  </p>
+                ))}
                 {lender.notes && <p className="whitespace-pre-wrap text-muted-foreground">{lender.notes}</p>}
               </div>
             )}
