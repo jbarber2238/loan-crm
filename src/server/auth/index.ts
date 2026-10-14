@@ -1,9 +1,10 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { accounts, sessions, users, verificationTokens } from "@/server/db/schema";
+import { decideSignInAccess } from "@/lib/sign-in-access";
 
 const adminEmails = (process.env.ADMIN_EMAILS ?? "")
   .split(",")
@@ -62,7 +63,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // Google (with prompt: "consent") hands back a fresh token each time.
     // Re-persist it here so a scope change actually takes effect after the
     // user re-consents, instead of silently keeping the old, narrower token.
-    async signIn({ account }) {
+    async signIn({ account, user, profile }) {
+      // Invite-only: this runs before Auth.js would create an account for a
+      // first-time Google sign-in, so an uninvited Google account never gets
+      // one. Anyone an admin has added (even before they've ever signed in)
+      // still gets through and links to their invite as before.
+      if (account?.provider === "google") {
+        const email = (user?.email ?? profile?.email ?? "").trim().toLowerCase();
+        const existingUser = email
+          ? await db.query.users.findFirst({
+              where: sql`lower(${users.email}) = ${email}`,
+              columns: { active: true },
+            })
+          : undefined;
+        const decision = decideSignInAccess({ email, existingUser: existingUser ?? null, adminEmails });
+        if (decision !== "allowed") return `/sign-in?error=${decision === "inactive" ? "inactive" : "not-invited"}`;
+      }
       if (account?.provider === "google" && account.providerAccountId) {
         await db
           .update(accounts)

@@ -4,7 +4,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCompanyName } from "@/server/settings";
 
-export default async function SignInPage() {
+const ERROR_MESSAGES: Record<string, string> = {
+  "not-invited":
+    "That Google account hasn't been invited. Ask your admin to invite you, then sign in with the exact email they invited.",
+  inactive: "That account has been deactivated. Ask your admin if you need access back.",
+};
+
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const { error } = await searchParams;
+  const errorMessage = typeof error === "string" ? ERROR_MESSAGES[error] : undefined;
   const session = await auth();
   if (session?.user) {
     redirect("/pipeline");
@@ -18,7 +30,12 @@ export default async function SignInPage() {
           <CardTitle className="text-xl">{companyName} CRM</CardTitle>
           <CardDescription>Sign in with your work Google account.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          {errorMessage && (
+            <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+              {errorMessage}
+            </p>
+          )}
           <form
             action={async () => {
               "use server";
