@@ -26,6 +26,7 @@ export const EMAIL_LOG_CATEGORY_LABELS: Record<string, string> = {
   lead_magnet_hot_alert: "Hot lead alert",
   lead_magnet_daily_digest: "Lead daily digest",
   transactional_new_loan: "New transactional request",
+  transactional_receipt: "Transactional request received",
   transactional_lender: "Transactional lender request",
   other: "Other",
 };

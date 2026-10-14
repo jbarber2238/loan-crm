@@ -59,6 +59,21 @@ export function TransactionalIntakeForm() {
 
   return (
     <ActionForm action={submitTransactionalIntake} className="space-y-5">
+      <fieldset className="space-y-3 rounded-lg border bg-white p-5">
+        <legend className="px-1 text-xs font-semibold tracking-wide uppercase text-muted-foreground">Deal structure</legend>
+        <p className="text-sm leading-relaxed">
+          We fund one kind of transaction: a <strong>traditional double close</strong> — the seller (A) sells to you (B),
+          and you sell to your end buyer (C). We don&apos;t fund any other structure.
+        </p>
+        <label className="flex items-start gap-2 text-sm font-medium">
+          <input type="checkbox" name="confirmDoubleClose" required className="mt-0.5 size-4 shrink-0" />
+          <span>I confirm this is a traditional A-to-B, B-to-C double close.</span>
+        </label>
+        <p className="text-xs text-muted-foreground">
+          If your deal is any other structure, we aren&apos;t the right fit and can&apos;t fund it.
+        </p>
+      </fieldset>
+
       <Section title="The transaction">
         <div className="sm:col-span-2">
           <Field id="propertyAddress" label="Property address" required />

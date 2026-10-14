@@ -10,7 +10,7 @@ import { sendGmailAs } from "@/server/gmail/send";
 import { getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
 import { plainTextToHtml } from "@/lib/email-html";
-import { notifyAdminsOfNewTransactionalLoan } from "@/server/transactional-notifications";
+import { notifyAdminsOfNewTransactionalLoan, sendTransactionalReceipt } from "@/server/transactional-notifications";
 import { TRANSACTIONAL_STAGES, buildLenderEmailBody } from "@/lib/transactional-shared";
 import { MINIMUM_FUNDING_AMOUNT } from "@/lib/transactional-fees";
 import { easternToday, isSameDayFundingByTiming } from "@/lib/same-day-funding";
@@ -37,6 +37,11 @@ function parseDay(raw: string | null): Date | null {
 // ---- Public intake (no sign-in) -------------------------------------------
 
 export async function submitTransactionalIntake(formData: FormData) {
+  // We fund one structure only. Anyone who won't confirm it is turned away
+  // here, before anything is saved or anyone is notified.
+  if (formData.get("confirmDoubleClose") !== "on") {
+    throw new Error("We only fund traditional A-to-B, B-to-C double closes. Please confirm that's your transaction to submit a request.");
+  }
   const propertyAddress = str(formData, "propertyAddress");
   const borrowerName = str(formData, "borrowerName");
   const borrowerPhone = str(formData, "borrowerPhone");
@@ -75,6 +80,9 @@ export async function submitTransactionalIntake(formData: FormData) {
 
   await notifyAdminsOfNewTransactionalLoan(loan).catch((err) => {
     console.error("Failed to send transactional request alert:", err);
+  });
+  await sendTransactionalReceipt(loan).catch((err) => {
+    console.error("Failed to send transactional receipt:", err);
   });
 
   redirect("/intake/transactional?submitted=1");

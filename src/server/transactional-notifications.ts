@@ -4,7 +4,7 @@ import { transactionalLoans, users } from "@/server/db/schema";
 import { sendGmailAs } from "@/server/gmail/send";
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
-import { emailShell, htmlButton, htmlFactList } from "@/lib/email-html";
+import { emailShell, escapeHtml, htmlButton, htmlFactList } from "@/lib/email-html";
 import { transactionalFees, formatPoints } from "@/lib/transactional-fees";
 import { formatDay, formatMoney } from "@/lib/transactional-shared";
 
@@ -42,6 +42,7 @@ export async function notifyAdminsOfNewTransactionalLoan(loan: Loan): Promise<vo
         { label: "Funding amount", value: formatMoney(funding) },
         { label: "Closing date", value: formatDay(loan.closingDate) },
         { label: "Same-day funding", value: loan.sameDayFunding ? "Yes" : "No" },
+        { label: "Confirmed traditional A-to-B, B-to-C double close", value: "Yes" },
         { label: "Borrower name", value: loan.borrowerName ?? "Not provided" },
         { label: "Borrower phone", value: loan.borrowerPhone ?? "Not provided" },
         { label: "Borrower email", value: loan.borrowerEmail ?? "Not provided" },
@@ -63,5 +64,45 @@ export async function notifyAdminsOfNewTransactionalLoan(loan: Loan): Promise<vo
     body: logoHtml + body + signatureHtml,
     html: true,
     category: "transactional_new_loan",
+  });
+}
+
+/** Tells the borrower we have their request and will be in touch shortly. Best-effort: callers swallow errors. */
+export async function sendTransactionalReceipt(loan: Loan): Promise<void> {
+  if (!loan.borrowerEmail) return;
+  const sender = await db.query.users.findFirst({
+    where: and(eq(users.isAdmin, true), eq(users.active, true)),
+    orderBy: asc(users.createdAt),
+  });
+  if (!sender?.email) return;
+
+  const [companyName, logoHtml, signatureHtml] = await Promise.all([
+    getCompanyName(),
+    getCompanyLogoHtml(),
+    getUserEmailSignatureHtml(sender.id),
+  ]);
+  const firstName = (loan.borrowerName ?? "").trim().split(/\s+/)[0] || "there";
+
+  const body = emailShell({
+    companyName,
+    heading: "We've received your funding request",
+    bodyHtml: `
+      <p style="margin:0 0 16px;">Hi ${escapeHtml(firstName)},</p>
+      <p style="margin:0 0 16px;">Thanks for sending over your double close — we've got it. We'll be in touch shortly to get the deal rolling.</p>
+      ${htmlFactList([
+        { label: "Property", value: loan.propertyAddress },
+        { label: "Funding amount", value: formatMoney(Number(loan.fundingAmount)) },
+        { label: "Closing date", value: formatDay(loan.closingDate) },
+      ])}
+      <p style="margin:16px 0 0;">If anything on this changes, just reply to this email.</p>
+    `,
+  });
+
+  await sendGmailAs(sender.id, sender.email, {
+    to: loan.borrowerEmail,
+    subject: `We've received your funding request — ${loan.propertyAddress}`,
+    body: logoHtml + body + signatureHtml,
+    html: true,
+    category: "transactional_receipt",
   });
 }
