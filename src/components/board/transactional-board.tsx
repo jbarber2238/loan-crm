@@ -15,7 +15,13 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { toast } from "sonner";
+import { MoreVertical } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ArchiveTransactionalDialog } from "@/components/transactional/archive-transactional-dialog";
+import { DeleteTransactionalDialog } from "@/components/transactional/delete-transactional-dialog";
+import { ARCHIVABLE_STAGES } from "@/lib/deal-pipeline";
 import { Badge } from "@/components/ui/badge";
 import { StageReasonDialog } from "@/components/deals/stage-reason-dialog";
 import { setTransactionalStage } from "@/server/actions/transactional";
@@ -40,6 +46,40 @@ export interface BoardLoan {
   totalPoints: number;
 }
 
+// Same card menu as the deals board: Archive (Closed/Lost only) and Delete.
+// stopPropagation: the menu sits inside a draggable + a full-card link.
+function LoanCardMenu({ loan }: { loan: BoardLoan }) {
+  return (
+    <div onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="size-6 shrink-0 text-muted-foreground" onClick={(e) => e.preventDefault()}>
+            <MoreVertical className="size-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+          {ARCHIVABLE_STAGES.has(loan.stage) && (
+            <ArchiveTransactionalDialog
+              loanId={loan.id}
+              propertyAddress={loan.propertyAddress}
+              trigger={<DropdownMenuItem onSelect={(e) => e.preventDefault()}>Archive</DropdownMenuItem>}
+            />
+          )}
+          <DeleteTransactionalDialog
+            loanId={loan.id}
+            propertyAddress={loan.propertyAddress}
+            trigger={
+              <DropdownMenuItem variant="destructive" onSelect={(e) => e.preventDefault()}>
+                Delete
+              </DropdownMenuItem>
+            }
+          />
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
 function LoanCard({ loan }: { loan: BoardLoan }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: loan.id });
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
@@ -49,7 +89,10 @@ function LoanCard({ loan }: { loan: BoardLoan }) {
       <Link href={`/pipeline/transactional/${loan.id}`}>
         <Card className="cursor-grab transition-shadow hover:shadow-md active:cursor-grabbing">
           <CardContent className="space-y-1.5 p-3">
-            <p className="text-sm font-medium leading-tight">{loan.propertyAddress}</p>
+            <div className="flex items-start justify-between gap-1">
+              <p className="text-sm font-medium leading-tight">{loan.propertyAddress}</p>
+              <LoanCardMenu loan={loan} />
+            </div>
             <p className="text-xs">
               <span className="text-muted-foreground">Funding: </span>
               <span className="font-semibold">{formatMoney(loan.fundingAmount)}</span>

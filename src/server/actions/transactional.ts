@@ -13,6 +13,7 @@ import { plainTextToHtml } from "@/lib/email-html";
 import { notifyAdminsOfNewTransactionalLoan, sendTransactionalReceipt } from "@/server/transactional-notifications";
 import { TRANSACTIONAL_STAGES, buildLenderEmailBody } from "@/lib/transactional-shared";
 import { MINIMUM_FUNDING_AMOUNT } from "@/lib/transactional-fees";
+import { ARCHIVABLE_STAGES } from "@/lib/deal-pipeline";
 import { easternToday, isSameDayFundingByTiming } from "@/lib/same-day-funding";
 
 function str(formData: FormData, key: string): string {
@@ -164,10 +165,53 @@ export async function setTransactionalStage(id: string, stage: string, reason?: 
   revalidate(id);
 }
 
-export async function deleteTransactionalLoan(id: string) {
+// Soft delete, like deals: typed DELETE confirms (re-checked here), anyone who
+// works this pipeline can do it, only an admin can undo it, and it is purged
+// for good after 30 days.
+export async function deleteTransactionalLoan(id: string, confirmText: string) {
+  const user = await requireAdminOrLoanOfficer();
+  if (confirmText.trim() !== "DELETE") throw new Error('Type "DELETE" exactly to confirm.');
+  await db
+    .update(transactionalLoans)
+    .set({ deletedAt: new Date(), deletedByUserId: user.id })
+    .where(eq(transactionalLoans.id, id));
+  revalidate(id);
+  revalidatePath("/settings/deleted-deals");
+}
+
+export async function restoreDeletedTransactionalLoan(id: string) {
   await requireAdmin();
-  await db.delete(transactionalLoans).where(eq(transactionalLoans.id, id));
-  revalidate();
+  await db
+    .update(transactionalLoans)
+    .set({ deletedAt: null, deletedByUserId: null })
+    .where(eq(transactionalLoans.id, id));
+  revalidate(id);
+  revalidatePath("/settings/deleted-deals");
+}
+
+// Only a Closed or Lost request can be archived — it has to actually be done,
+// one way or the other. Fully reversible.
+export async function archiveTransactionalLoan(id: string) {
+  const user = await requireAdminOrLoanOfficer();
+  const loan = await db.query.transactionalLoans.findFirst({ where: eq(transactionalLoans.id, id), columns: { stage: true } });
+  if (!loan) throw new Error("Request not found");
+  if (!ARCHIVABLE_STAGES.has(loan.stage)) throw new Error("Only a Closed or Lost request can be archived.");
+  await db
+    .update(transactionalLoans)
+    .set({ archivedAt: new Date(), archivedByUserId: user.id })
+    .where(eq(transactionalLoans.id, id));
+  revalidate(id);
+  revalidatePath("/pipeline/transactional/archived");
+}
+
+export async function restoreArchivedTransactionalLoan(id: string) {
+  await requireAdminOrLoanOfficer();
+  await db
+    .update(transactionalLoans)
+    .set({ archivedAt: null, archivedByUserId: null })
+    .where(eq(transactionalLoans.id, id));
+  revalidate(id);
+  revalidatePath("/pipeline/transactional/archived");
 }
 
 // ---- Email to the transactional lender ------------------------------------

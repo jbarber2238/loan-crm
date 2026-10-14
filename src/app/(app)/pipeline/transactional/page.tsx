@@ -5,10 +5,19 @@ import { PipelineTabs } from "@/components/board/pipeline-tabs";
 import { TransactionalBoard, type BoardLoan } from "@/components/board/transactional-board";
 import { CopyTransactionalLinkButton } from "@/components/transactional/copy-transactional-link-button";
 import { transactionalFees } from "@/lib/transactional-fees";
+import { autoArchiveStaleTransactionalLoans, purgeExpiredDeletedTransactionalLoans } from "@/server/transactional-automation";
+import { and, isNull } from "drizzle-orm";
+import { transactionalLoans } from "@/server/db/schema";
 
 export default async function TransactionalPipelinePage() {
   await requireAdminOrLoanOfficer();
-  const rows = await db.query.transactionalLoans.findMany({ orderBy: (l, { desc }) => desc(l.createdAt) });
+  await autoArchiveStaleTransactionalLoans();
+  await purgeExpiredDeletedTransactionalLoans();
+  // Archived and deleted requests are off the board (and out of its totals).
+  const rows = await db.query.transactionalLoans.findMany({
+    where: and(isNull(transactionalLoans.archivedAt), isNull(transactionalLoans.deletedAt)),
+    orderBy: (l, { desc }) => desc(l.createdAt),
+  });
 
   const loans: BoardLoan[] = rows.map((row) => {
     const fees = transactionalFees({
@@ -34,6 +43,9 @@ export default async function TransactionalPipelinePage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold">Pipeline</h1>
+          <Link href="/pipeline/transactional/archived" className="text-sm text-muted-foreground underline hover:text-foreground">
+            View Archived Requests
+          </Link>
           <Link href="/lenders" className="text-sm text-muted-foreground underline hover:text-foreground">
             Transactional lenders
           </Link>

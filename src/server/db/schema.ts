@@ -2076,6 +2076,13 @@ export const transactionalLoans = pgTable("transactional_loans", {
     onDelete: "set null",
   }),
   sentToLenderAt: timestamp("sent_to_lender_at", { mode: "date" }),
+  // Same lifecycle as deals: Closed/Lost requests can be archived (off the
+  // board, still on file, reversible); delete is a soft delete only an admin
+  // can undo, purged for good after DELETED_DEAL_PURGE_AFTER_DAYS.
+  archivedAt: timestamp("archived_at", { mode: "date" }),
+  archivedByUserId: uuid("archived_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  deletedAt: timestamp("deleted_at", { mode: "date" }),
+  deletedByUserId: uuid("deleted_by_user_id").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });
@@ -2085,4 +2092,6 @@ export const transactionalLoansRelations = relations(transactionalLoans, ({ one 
     fields: [transactionalLoans.transactionalLenderId],
     references: [transactionalLenders.id],
   }),
+  archivedByUser: one(users, { fields: [transactionalLoans.archivedByUserId], references: [users.id], relationName: "transactionalArchivedBy" }),
+  deletedByUser: one(users, { fields: [transactionalLoans.deletedByUserId], references: [users.id], relationName: "transactionalDeletedBy" }),
 }));

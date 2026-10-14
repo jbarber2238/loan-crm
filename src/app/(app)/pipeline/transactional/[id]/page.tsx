@@ -11,10 +11,11 @@ export default async function TransactionalLoanPage({ params }: { params: Promis
   const { id } = await params;
 
   const [loan, lenders] = await Promise.all([
-    db.query.transactionalLoans.findFirst({ where: eq(transactionalLoans.id, id), with: { lender: true } }),
+    db.query.transactionalLoans.findFirst({ where: eq(transactionalLoans.id, id), with: { lender: true, archivedByUser: true, deletedByUser: true } }),
     db.query.transactionalLenders.findMany({ orderBy: (l, { asc }) => asc(l.name) }),
   ]);
-  if (!loan) notFound();
+  // A deleted request is only ever visible to an admin (who can restore it).
+  if (!loan || (loan.deletedAt && !user.isAdmin)) notFound();
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
@@ -44,6 +45,10 @@ export default async function TransactionalLoanPage({ params }: { params: Promis
           lostReason: loan.lostReason,
           transactionalLenderId: loan.transactionalLenderId,
           sentToLenderAt: loan.sentToLenderAt ? loan.sentToLenderAt.toISOString() : null,
+          archivedAt: loan.archivedAt ? loan.archivedAt.toISOString() : null,
+          archivedByName: loan.archivedByUser?.name ?? null,
+          deletedAt: loan.deletedAt ? loan.deletedAt.toISOString() : null,
+          deletedByName: loan.deletedByUser?.name ?? null,
         }}
       />
     </div>

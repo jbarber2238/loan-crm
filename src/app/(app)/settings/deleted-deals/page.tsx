@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { isNotNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { deals } from "@/server/db/schema";
+import { deals, transactionalLoans } from "@/server/db/schema";
+import { RestoreTransactionalButton } from "@/components/transactional/restore-transactional-button";
+import { formatMoney } from "@/lib/transactional-shared";
 import { requireAdmin } from "@/server/auth/guards";
 import { Card, CardContent } from "@/components/ui/card";
 import { RestoreDeletedDealButton } from "@/components/deals/restore-deleted-deal-button";
@@ -20,11 +22,18 @@ function daysLeft(deletedAt: Date): number {
 export default async function DeletedDealsPage() {
   await requireAdmin();
 
-  const deleted = await db.query.deals.findMany({
-    where: isNotNull(deals.deletedAt),
-    with: { deletedByUser: true },
-    orderBy: (deals, { desc }) => desc(deals.deletedAt),
-  });
+  const [deleted, deletedTransactional] = await Promise.all([
+    db.query.deals.findMany({
+      where: isNotNull(deals.deletedAt),
+      with: { deletedByUser: true },
+      orderBy: (deals, { desc }) => desc(deals.deletedAt),
+    }),
+    db.query.transactionalLoans.findMany({
+      where: isNotNull(transactionalLoans.deletedAt),
+      with: { deletedByUser: true },
+      orderBy: (l, { desc }) => desc(l.deletedAt),
+    }),
+  ]);
 
   return (
     <Card>
@@ -62,6 +71,33 @@ export default async function DeletedDealsPage() {
             </div>
           ))}
           {deleted.length === 0 && <p className="text-sm text-muted-foreground">Nothing here right now.</p>}
+        </div>
+
+        <div className="space-y-2 pt-2">
+          <h3 className="text-sm font-semibold">Deleted transactional requests</h3>
+          {deletedTransactional.map((loan) => (
+            <div key={loan.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+              <div>
+                <Link href={`/pipeline/transactional/${loan.id}`} className="font-medium hover:underline">
+                  {loan.propertyAddress}
+                </Link>
+                <p className="text-xs text-muted-foreground">
+                  {loan.borrowerName ?? "—"} · {formatMoney(Number(loan.fundingAmount))}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Deleted {loan.deletedAt?.toLocaleDateString()}
+                  {loan.deletedByUser?.name ? ` by ${loan.deletedByUser.name}` : ""} —{" "}
+                  {loan.deletedAt && (
+                    <span className="font-medium text-destructive">
+                      {daysLeft(loan.deletedAt)} day{daysLeft(loan.deletedAt) === 1 ? "" : "s"} left to restore
+                    </span>
+                  )}
+                </p>
+              </div>
+              <RestoreTransactionalButton loanId={loan.id} kind="deleted" />
+            </div>
+          ))}
+          {deletedTransactional.length === 0 && <p className="text-sm text-muted-foreground">Nothing here right now.</p>}
         </div>
       </CardContent>
     </Card>

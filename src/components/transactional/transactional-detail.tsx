@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Mail } from "lucide-react";
 import {
-  deleteTransactionalLoan,
   previewTransactionalLenderEmail,
   sendTransactionalLenderEmail,
   setTransactionalStage,
@@ -15,6 +14,10 @@ import {
 import { ActionForm } from "@/components/forms/action-form";
 import { SubmitButton } from "@/components/forms/submit-button";
 import { StageReasonDialog } from "@/components/deals/stage-reason-dialog";
+import { ArchiveTransactionalDialog } from "@/components/transactional/archive-transactional-dialog";
+import { DeleteTransactionalDialog } from "@/components/transactional/delete-transactional-dialog";
+import { RestoreTransactionalButton } from "@/components/transactional/restore-transactional-button";
+import { ARCHIVABLE_STAGES } from "@/lib/deal-pipeline";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -46,6 +49,10 @@ export interface TransactionalLoanView {
   lostReason: string | null;
   transactionalLenderId: string | null;
   sentToLenderAt: string | null;
+  archivedAt: string | null;
+  archivedByName: string | null;
+  deletedAt: string | null;
+  deletedByName: string | null;
 }
 
 export interface LenderOption {
@@ -342,16 +349,28 @@ export function TransactionalDetail({
     });
   }
 
-  function handleDelete() {
-    if (!window.confirm(`Delete the request for ${loan.propertyAddress}? This can't be undone.`)) return;
-    startTransition(async () => {
-      await deleteTransactionalLoan(loan.id);
-      router.push("/pipeline/transactional");
-    });
-  }
-
   return (
     <div className="space-y-4">
+      {loan.deletedAt && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">
+          <p className="text-destructive">
+            This request was deleted on {formatDay(loan.deletedAt.slice(0, 10))}
+            {loan.deletedByName ? ` by ${loan.deletedByName}` : ""}. Only admins can see it. It will be permanently removed
+            30 days after deletion.
+          </p>
+          {isAdmin && <RestoreTransactionalButton loanId={loan.id} kind="deleted" variant="destructive" />}
+        </div>
+      )}
+      {!loan.deletedAt && loan.archivedAt && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 p-3 text-sm">
+          <p>
+            Archived on {formatDay(loan.archivedAt.slice(0, 10))}
+            {loan.archivedByName ? ` by ${loan.archivedByName}` : " automatically"}. It is off the board but fully on
+            file.
+          </p>
+          <RestoreTransactionalButton loanId={loan.id} kind="archived" />
+        </div>
+      )}
       <div className="space-y-3 rounded-lg border p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -441,11 +460,27 @@ export function TransactionalDetail({
           <div className="flex flex-wrap items-center gap-2 rounded-md border p-3">
             <AdjustFee loan={loan} />
             <EditDetailsDialog loan={loan} />
-            {isAdmin && (
-              <Button type="button" variant="ghost" size="sm" className="text-destructive" disabled={pending} onClick={handleDelete}>
-                Delete
-              </Button>
+            {ARCHIVABLE_STAGES.has(loan.stage) && !loan.archivedAt && (
+              <ArchiveTransactionalDialog
+                loanId={loan.id}
+                propertyAddress={loan.propertyAddress}
+                trigger={
+                  <Button type="button" variant="outline" size="sm">
+                    Archive
+                  </Button>
+                }
+              />
             )}
+            <DeleteTransactionalDialog
+              loanId={loan.id}
+              propertyAddress={loan.propertyAddress}
+              onDeleted={() => router.push("/pipeline/transactional")}
+              trigger={
+                <Button type="button" variant="ghost" size="sm" className="text-destructive">
+                  Delete
+                </Button>
+              }
+            />
           </div>
         </div>
       </div>
