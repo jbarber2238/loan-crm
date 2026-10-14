@@ -5,6 +5,9 @@
 export const LENDER_POINTS = 0.75;
 export const SAME_DAY_PREMIUM_POINTS = 0.25;
 export const STANDARD_RANGE_MIN = 100_000;
+// The smallest request the public intake form accepts. Raise or remove this
+// (and the fee tiers above) if smaller deals are ever taken on.
+export const MINIMUM_FUNDING_AMOUNT = 100_000;
 export const STANDARD_RANGE_MAX = 1_000_000;
 
 /** The broker's standard points: 0.50% from $100,000, 0.25% from $500,000. Below/above the standard range uses the nearest tier (editable per loan). */

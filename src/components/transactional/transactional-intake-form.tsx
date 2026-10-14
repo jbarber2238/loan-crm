@@ -6,15 +6,17 @@ import { SubmitButton } from "@/components/forms/submit-button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MINIMUM_FUNDING_AMOUNT } from "@/lib/transactional-fees";
 
-function Field({ id, label, type = "text", required, placeholder }: { id: string; label: string; type?: string; required?: boolean; placeholder?: string }) {
+function Field({ id, label, type = "text", required, placeholder, min, hint }: { id: string; label: string; type?: string; required?: boolean; placeholder?: string; min?: number; hint?: string }) {
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id}>
         {label}
         {required && <span className="text-destructive"> *</span>}
       </Label>
-      <Input id={id} name={id} type={type} required={required} placeholder={placeholder} step={type === "number" ? "0.01" : undefined} />
+      <Input id={id} name={id} type={type} required={required} placeholder={placeholder} min={min} step={type === "number" ? "0.01" : undefined} />
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -35,7 +37,7 @@ export function TransactionalIntakeForm() {
         <div className="sm:col-span-2">
           <Field id="propertyAddress" label="Property address" required />
         </div>
-        <Field id="fundingAmount" label="Funding amount ($)" type="number" required placeholder="300000" />
+        <Field id="fundingAmount" label="Funding amount ($)" type="number" required placeholder="300000" min={MINIMUM_FUNDING_AMOUNT} hint="Double closes from $100,000." />
         <Field id="closingDate" label="Closing date" type="date" required />
         <label className="flex items-center gap-2 text-sm sm:col-span-2">
           <Checkbox name="sameDayFunding" />I need the funds the same day

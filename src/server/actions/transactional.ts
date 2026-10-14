@@ -12,6 +12,7 @@ import { getUserEmailSignatureHtml } from "@/server/users";
 import { plainTextToHtml } from "@/lib/email-html";
 import { notifyAdminsOfNewTransactionalLoan } from "@/server/transactional-notifications";
 import { TRANSACTIONAL_STAGES, buildLenderEmailBody } from "@/lib/transactional-shared";
+import { MINIMUM_FUNDING_AMOUNT } from "@/lib/transactional-fees";
 
 function str(formData: FormData, key: string): string {
   const value = formData.get(key);
@@ -45,6 +46,10 @@ export async function submitTransactionalIntake(formData: FormData) {
   if (!titleCompanyName) throw new Error("The title company is required");
   const closingDate = parseDay(str(formData, "closingDate") || null);
   if (!closingDate) throw new Error("The closing date is required");
+  const fundingAmount = parseAmount(str(formData, "fundingAmount"));
+  if (Number(fundingAmount) < MINIMUM_FUNDING_AMOUNT) {
+    throw new Error(`We fund double closes starting at $${MINIMUM_FUNDING_AMOUNT.toLocaleString("en-US")}.`);
+  }
 
   const firstLender = await db.query.transactionalLenders.findFirst({
     orderBy: (l, { asc }) => asc(l.createdAt),
@@ -54,7 +59,7 @@ export async function submitTransactionalIntake(formData: FormData) {
     .insert(transactionalLoans)
     .values({
       propertyAddress,
-      fundingAmount: parseAmount(str(formData, "fundingAmount")),
+      fundingAmount,
       closingDate,
       borrowerName,
       borrowerPhone,
