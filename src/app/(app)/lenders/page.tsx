@@ -33,11 +33,12 @@ import {
 } from "@/components/ui/dialog";
 import { formatFileSize } from "@/lib/format";
 import { ActionForm } from "@/components/forms/action-form";
+import { TransactionalLendersSection } from "@/components/transactional/transactional-lenders-section";
 import { SubmitButton } from "@/components/forms/submit-button";
 
 export default async function LendersPage() {
   const user = await requireUser();
-  const [allLenders, masterDocs] = await Promise.all([
+  const [allLenders, transactionalLenders, masterDocs] = await Promise.all([
     db.query.lenders.findMany({
       with: {
         products: true,
@@ -53,6 +54,7 @@ export default async function LendersPage() {
       },
       orderBy: (lenders, { asc }) => asc(lenders.name),
     }),
+    db.query.transactionalLenders.findMany({ orderBy: (l, { asc }) => asc(l.name) }),
     db.query.lenderDocuments.findMany({
       where: isNull(lenderDocuments.lenderId),
       columns: { id: true, lenderId: true, productId: true, fileName: true, mimeType: true, fileSize: true, createdAt: true },
@@ -67,6 +69,7 @@ export default async function LendersPage() {
       <Tabs defaultValue="lenders">
         <TabsList>
           <TabsTrigger value="lenders">Lenders</TabsTrigger>
+          <TabsTrigger value="transactional">Transactional</TabsTrigger>
           <TabsTrigger value="matrices">Lender Matrices</TabsTrigger>
         </TabsList>
 
@@ -122,6 +125,10 @@ export default async function LendersPage() {
               </Card>
             )}
           </div>
+        </TabsContent>
+
+        <TabsContent value="transactional" className="space-y-4">
+          <TransactionalLendersSection isAdmin={user.isAdmin} lenders={transactionalLenders} />
         </TabsContent>
 
         <TabsContent value="matrices" className="space-y-6">

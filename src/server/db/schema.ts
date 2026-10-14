@@ -2021,3 +2021,65 @@ export const teamChatAttachments = pgTable("team_chat_attachments", {
   transcript: text("transcript"),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
 });
+
+// ---------------------------------------------------------------------------
+// Transactional lending (double closes) — a separate, simpler pipeline from
+// the regular deals: its own table and stages, so none of it touches client
+// needs, term sheets or the deals dashboard.
+// ---------------------------------------------------------------------------
+
+export const transactionalStageEnum = pgEnum("transactional_stage", [
+  "new",
+  "sent_to_lender",
+  "funded",
+  "closed",
+  "lost",
+]);
+
+// Just a name, phone, email and a free-text note (what they charge, for now).
+// More than one can exist later; pricing lives in the note until it needs to
+// be structured.
+export const transactionalLenders = pgTable("transactional_lenders", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const transactionalLoans = pgTable("transactional_loans", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  propertyAddress: text("property_address").notNull(),
+  fundingAmount: numeric("funding_amount", { precision: 14, scale: 2 }).notNull(),
+  closingDate: timestamp("closing_date", { mode: "date" }),
+  // Whoever submitted the request (usually the wholesaler/investor).
+  borrowerName: text("borrower_name"),
+  borrowerPhone: text("borrower_phone"),
+  borrowerEmail: text("borrower_email"),
+  titleCompanyName: text("title_company_name"),
+  titleAgentName: text("title_agent_name"),
+  titlePhone: text("title_phone"),
+  titleEmail: text("title_email"),
+  // Same-day funding adds a premium on top of the broker's own points.
+  sameDayFunding: boolean("same_day_funding").notNull().default(false),
+  // The broker's own points (not including the lender's). Null = the
+  // standard amount for the funding size (see src/lib/transactional-fees.ts).
+  brokerPoints: numeric("broker_points", { precision: 6, scale: 3 }),
+  stage: transactionalStageEnum("stage").notNull().default("new"),
+  stageChangedAt: timestamp("stage_changed_at", { mode: "date" }).notNull().defaultNow(),
+  lostReason: text("lost_reason"),
+  transactionalLenderId: uuid("transactional_lender_id").references(() => transactionalLenders.id, {
+    onDelete: "set null",
+  }),
+  sentToLenderAt: timestamp("sent_to_lender_at", { mode: "date" }),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const transactionalLoansRelations = relations(transactionalLoans, ({ one }) => ({
+  lender: one(transactionalLenders, {
+    fields: [transactionalLoans.transactionalLenderId],
+    references: [transactionalLenders.id],
+  }),
+}));

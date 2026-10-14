@@ -5,9 +5,9 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 /**
- * Deals is what every signed-in user sees by default; Leads (marketing-site
- * lead magnets) is a narrower, separate list only loan officers and admins
- * work — assistants and processors don't get the tab at all, not even
+ * Deals is what every signed-in user sees by default; Transactional (double
+ * closes) and Leads (marketing-site lead magnets) are narrower, separate lists
+ * only loan officers and admins work — assistants and processors don't get the tab at all, not even
  * disabled, since it isn't part of their job here.
  */
 export function PipelineTabs({ showLeads }: { showLeads: boolean }) {
@@ -16,6 +16,7 @@ export function PipelineTabs({ showLeads }: { showLeads: boolean }) {
 
   const tabs = [
     { href: "/pipeline", label: "Deals", exact: true },
+    { href: "/pipeline/transactional", label: "Transactional", exact: false },
     { href: "/pipeline/leads", label: "Leads", exact: false },
   ];
 
