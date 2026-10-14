@@ -38,6 +38,7 @@ export default async function TransactionalLoanPage({ params }: { params: Promis
           titlePhone: loan.titlePhone,
           titleEmail: loan.titleEmail,
           sameDayFunding: loan.sameDayFunding,
+          marketingConsent: loan.marketingConsent,
           brokerPoints: loan.brokerPoints === null ? null : Number(loan.brokerPoints),
           stage: loan.stage,
           lostReason: loan.lostReason,

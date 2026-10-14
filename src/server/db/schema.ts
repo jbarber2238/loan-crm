@@ -2063,6 +2063,9 @@ export const transactionalLoans = pgTable("transactional_loans", {
   titleEmail: text("title_email"),
   // Same-day funding adds a premium on top of the broker's own points.
   sameDayFunding: boolean("same_day_funding").notNull().default(false),
+  // Ticked on the public form: consent to emails/texts about their request.
+  marketingConsent: boolean("marketing_consent").notNull().default(false),
+  marketingConsentAt: timestamp("marketing_consent_at", { mode: "date" }),
   // The broker's own points (not including the lender's). Null = the
   // standard amount for the funding size (see src/lib/transactional-fees.ts).
   brokerPoints: numeric("broker_points", { precision: 6, scale: 3 }),

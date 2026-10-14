@@ -40,6 +40,7 @@ export interface TransactionalLoanView {
   titlePhone: string | null;
   titleEmail: string | null;
   sameDayFunding: boolean;
+  marketingConsent: boolean;
   brokerPoints: number | null;
   stage: string;
   lostReason: string | null;
@@ -411,7 +412,7 @@ export function TransactionalDetail({
               </>
             }
           />
-          <Tile label="Borrower" value={loan.borrowerName ?? "—"} hint={[loan.borrowerPhone, loan.borrowerEmail].filter(Boolean).join(" · ")} className="col-span-2" />
+          <Tile label="Borrower" value={loan.borrowerName ?? "—"} hint={[loan.borrowerPhone, loan.borrowerEmail, loan.marketingConsent ? "Consented to emails/texts" : "No marketing consent"].filter(Boolean).join(" · ")} className="col-span-2" />
           {loan.sentToLenderAt && (
             <Tile
               label="Lender"

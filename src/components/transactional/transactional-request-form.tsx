@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { submitTransactionalIntake } from "@/server/actions/transactional";
 import { ActionForm } from "@/components/forms/action-form";
+import Link from "next/link";
 import { SubmitButton } from "@/components/forms/submit-button";
 import { CostSummary } from "@/components/transactional/cost-summary";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -173,6 +174,22 @@ export function TransactionalRequestForm() {
           contact the title company to coordinate funding the A-to-B portion of your transaction. This is not a request
           for a quote — our pricing is published on our website.
         </p>
+        <label className="flex items-start gap-2 text-xs">
+          <Checkbox name="marketingConsent" className="mt-0.5" />
+          <span>
+            By checking this box, I consent to receive emails and text messages from Manna Lending regarding my service
+            request — including updates on my funding request, requests for information, and answers to questions
+            I&apos;ve asked. Message and data rates may apply. Reply STOP to opt out at any time. See our{" "}
+            <Link href="/privacy" target="_blank" className="underline">
+              Privacy Policy
+            </Link>{" "}
+            and{" "}
+            <Link href="/terms" target="_blank" className="underline">
+              Terms &amp; Conditions
+            </Link>
+            .
+          </span>
+        </label>
       </section>
 
       <SubmitButton

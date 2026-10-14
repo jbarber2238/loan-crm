@@ -75,6 +75,8 @@ export async function submitTransactionalIntake(formData: FormData) {
       // Ticked by the borrower, or implied by the timing: closing today, or
       // after the 4 PM Eastern cutoff the day before.
       sameDayFunding: formData.get("sameDayFunding") === "on" || isSameDayFundingByTiming(closingDay),
+      marketingConsent: formData.get("marketingConsent") === "on",
+      marketingConsentAt: formData.get("marketingConsent") === "on" ? new Date() : null,
     })
     .returning();
 

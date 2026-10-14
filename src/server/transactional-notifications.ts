@@ -43,6 +43,7 @@ export async function notifyAdminsOfNewTransactionalLoan(loan: Loan): Promise<vo
         { label: "Closing date", value: formatDay(loan.closingDate) },
         { label: "Same-day funding", value: loan.sameDayFunding ? "Yes" : "No" },
         { label: "Confirmed traditional A-to-B, B-to-C double close", value: "Yes" },
+        { label: "Consented to emails and texts", value: loan.marketingConsent ? "Yes" : "No" },
         { label: "Borrower name", value: loan.borrowerName ?? "Not provided" },
         { label: "Borrower phone", value: loan.borrowerPhone ?? "Not provided" },
         { label: "Borrower email", value: loan.borrowerEmail ?? "Not provided" },
