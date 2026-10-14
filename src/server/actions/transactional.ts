@@ -13,6 +13,7 @@ import { plainTextToHtml } from "@/lib/email-html";
 import { notifyAdminsOfNewTransactionalLoan } from "@/server/transactional-notifications";
 import { TRANSACTIONAL_STAGES, buildLenderEmailBody } from "@/lib/transactional-shared";
 import { MINIMUM_FUNDING_AMOUNT } from "@/lib/transactional-fees";
+import { easternToday, isSameDayFundingByTiming } from "@/lib/same-day-funding";
 
 function str(formData: FormData, key: string): string {
   const value = formData.get(key);
@@ -46,6 +47,8 @@ export async function submitTransactionalIntake(formData: FormData) {
   if (!titleCompanyName) throw new Error("The title company is required");
   const closingDate = parseDay(str(formData, "closingDate") || null);
   if (!closingDate) throw new Error("The closing date is required");
+  const closingDay = str(formData, "closingDate");
+  if (closingDay < easternToday()) throw new Error("The closing date can't be in the past.");
   const fundingAmount = parseAmount(str(formData, "fundingAmount"));
   if (Number(fundingAmount) < MINIMUM_FUNDING_AMOUNT) {
     throw new Error(`We fund double closes starting at $${MINIMUM_FUNDING_AMOUNT.toLocaleString("en-US")}.`);
@@ -68,7 +71,9 @@ export async function submitTransactionalIntake(formData: FormData) {
       titleAgentName: nullableStr(formData, "titleAgentName"),
       titlePhone: nullableStr(formData, "titlePhone"),
       titleEmail: nullableStr(formData, "titleEmail"),
-      sameDayFunding: formData.get("sameDayFunding") === "on",
+      // Ticked by the borrower, or implied by the timing: closing today, or
+      // after the 4 PM Eastern cutoff the day before.
+      sameDayFunding: formData.get("sameDayFunding") === "on" || isSameDayFundingByTiming(closingDay),
       transactionalLenderId: firstLender?.id ?? null,
     })
     .returning();
