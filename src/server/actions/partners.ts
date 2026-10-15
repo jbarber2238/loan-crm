@@ -197,7 +197,7 @@ export async function markBrokerFeeReceivedAction(dealId: string, formData: Form
 
 export async function markPayoutPaidAction(payoutId: string, formData: FormData) {
   const admin = await requireAdmin();
-  const payout = await db.query.partnerPayouts.findFirst({ where: eq(partnerPayouts.id, payoutId), with: { deal: true, partner: true } });
+  const payout = await db.query.partnerPayouts.findFirst({ where: eq(partnerPayouts.id, payoutId), with: { deal: { columns: { id: true, propertyAddress: true } }, partner: true } });
   if (!payout) throw new Error("Payout not found");
   if (payout.status === "paid") throw new Error("Already marked paid.");
   if (payout.status !== "ready") {
