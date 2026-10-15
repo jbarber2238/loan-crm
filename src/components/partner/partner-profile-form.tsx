@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MIN_PASSWORD_LENGTH, PARTNER_TYPES } from "@/lib/partner-constants";
 
-function Field({ id, label, type = "text", defaultValue, hint }: { id: string; label: string; type?: string; defaultValue?: string; hint?: string }) {
+function Field({ id, label, type = "text", defaultValue, hint, minLength }: { id: string; label: string; type?: string; defaultValue?: string; hint?: string; minLength?: number }) {
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id}>
@@ -18,7 +18,7 @@ function Field({ id, label, type = "text", defaultValue, hint }: { id: string; l
           *
         </span>
       </Label>
-      <Input id={id} name={id} type={type} required defaultValue={defaultValue} />
+      <Input id={id} name={id} type={type} required minLength={minLength} defaultValue={defaultValue} />
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
@@ -58,7 +58,7 @@ export function PartnerProfileForm({ token, name, email }: { token: string; name
       </div>
       <Field id="mailingAddress" label="Mailing address" />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field id="password" label="Password" type="password" hint={`At least ${MIN_PASSWORD_LENGTH} characters.`} />
+        <Field id="password" label="Password" type="password" minLength={MIN_PASSWORD_LENGTH} hint={`At least ${MIN_PASSWORD_LENGTH} characters.`} />
         <Field id="confirmPassword" label="Confirm password" type="password" />
       </div>
       <SubmitButton className="w-full" style={{ backgroundColor: "#143D4A" }}>

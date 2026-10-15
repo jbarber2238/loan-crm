@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { assignDealPartner, markBrokerFeeReceivedAction, markPayoutPaidAction } from "@/server/actions/partners";
+import { isActionError } from "@/lib/action-result";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +31,11 @@ export function FeeReceivedButton({ dealId, suggestedAmount }: { dealId: string;
         const formData = new FormData();
         formData.set("date", date);
         formData.set("amount", amount);
-        await markBrokerFeeReceivedAction(dealId, formData);
+        const result = await markBrokerFeeReceivedAction(dealId, formData);
+        if (isActionError(result)) {
+          toast.error(result.error);
+          return;
+        }
         toast.success("Broker fee marked received");
         setOpen(false);
         router.refresh();
@@ -85,7 +90,11 @@ export function MarkPaidControl({ payoutId, amount, compact }: { payoutId: strin
         const formData = new FormData();
         formData.set("date", date);
         formData.set("amount", paid);
-        await markPayoutPaidAction(payoutId, formData);
+        const result = await markPayoutPaidAction(payoutId, formData);
+        if (isActionError(result)) {
+          toast.error(result.error);
+          return;
+        }
         toast.success("Marked paid — the partner was emailed");
         router.refresh();
       } catch (err) {
@@ -123,7 +132,11 @@ export function AssignPartnerMenuItem({
   function save() {
     startTransition(async () => {
       try {
-        await assignDealPartner(dealId, value === "none" ? null : value);
+        const result = await assignDealPartner(dealId, value === "none" ? null : value);
+        if (isActionError(result)) {
+          toast.error(result.error);
+          return;
+        }
         toast.success("Referring partner updated");
         setOpen(false);
         router.refresh();

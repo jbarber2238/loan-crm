@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { startPartnerW9, submitPartnerBanking, uploadPartnerBankingDocument } from "@/server/actions/partner-portal";
 import { ActionForm } from "@/components/forms/action-form";
 import { SubmitButton } from "@/components/forms/submit-button";
+import { isActionError } from "@/lib/action-result";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -99,7 +100,12 @@ export function W9Button() {
       onClick={() =>
         startTransition(async () => {
           try {
-            const { url } = await startPartnerW9();
+            const result = await startPartnerW9();
+            if (isActionError(result)) {
+              toast.error(result.error);
+              return;
+            }
+            const { url } = result;
             window.open(url, "_blank", "noopener");
             toast.success("Your W-9 opened in a new tab. Come back here once you've finished it.");
           } catch (err) {

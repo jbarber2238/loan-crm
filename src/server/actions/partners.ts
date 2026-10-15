@@ -3,6 +3,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
+import { fail } from "@/lib/action-result";
 import { companySettings, deals, partnerPayouts, referralAffiliates } from "@/server/db/schema";
 import { requireAdmin } from "@/server/auth/guards";
 import { appUrl, button, greeting, isProgramLive, sendPartnerEmail } from "@/server/partner/email";
@@ -48,9 +49,9 @@ export async function invitePartner(formData: FormData) {
   const admin = await requireAdmin();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const name = String(formData.get("name") ?? "").trim() || null;
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Enter a valid email address.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail("Enter a valid email address.");
   if (await db.query.referralAffiliates.findFirst({ where: eq(referralAffiliates.email, email), columns: { id: true } })) {
-    throw new Error("A partner with that email already exists.");
+    return fail("A partner with that email already exists.");
   }
 
   const [partner] = await db
@@ -74,9 +75,9 @@ export async function invitePartner(formData: FormData) {
 export async function resendPartnerInvite(partnerId: string) {
   const admin = await requireAdmin();
   const partner = await db.query.referralAffiliates.findFirst({ where: eq(referralAffiliates.id, partnerId) });
-  if (!partner) throw new Error("Partner not found");
+  if (!partner) return fail("Partner not found");
   if (partner.status !== "invited" && partner.status !== "profile_complete") {
-    throw new Error("This partner has already finished setting up.");
+    return fail("This partner has already finished setting up.");
   }
   const sent = await sendInviteEmail(partner, admin.name ?? null, await createInviteToken(partner.id));
   await db.update(referralAffiliates).set({ portalInvitedAt: new Date() }).where(eq(referralAffiliates.id, partnerId));
@@ -93,7 +94,7 @@ export async function resendPartnerInvite(partnerId: string) {
 export async function migrateLegacyPartners() {
   const admin = await requireAdmin();
   if (!(await isProgramLive())) {
-    throw new Error('Turn on "Partner program live" first — this sends each existing affiliate an email.');
+    return fail('Turn on "Partner program live" first — this sends each existing affiliate an email.');
   }
   const legacy = await db.query.referralAffiliates.findMany({ where: eq(referralAffiliates.status, "legacy") });
   let migrated = 0;
@@ -126,8 +127,8 @@ export async function setProgramLive(live: boolean) {
 export async function setPartnerStatus(partnerId: string, status: "active" | "paused") {
   await requireAdmin();
   const partner = await db.query.referralAffiliates.findFirst({ where: eq(referralAffiliates.id, partnerId) });
-  if (!partner) throw new Error("Partner not found");
-  if (partner.status !== "active" && partner.status !== "paused") throw new Error("Only an active partner can be paused or resumed.");
+  if (!partner) return fail("Partner not found");
+  if (partner.status !== "active" && partner.status !== "paused") return fail("Only an active partner can be paused or resumed.");
   await db.update(referralAffiliates).set({ status }).where(eq(referralAffiliates.id, partnerId));
   await logPartnerEvent(partnerId, status === "paused" ? "paused" : "resumed");
   revalidatePartnerViews();
@@ -154,7 +155,7 @@ export async function deletePartner(partnerId: string) {
   try {
     await db.delete(referralAffiliates).where(eq(referralAffiliates.id, partnerId));
   } catch (err) {
-    if (isPgErrorCode(err, "23503")) throw new Error("Can't remove — this partner has referred deals or payouts on file. Pause them instead.");
+    if (isPgErrorCode(err, "23503")) return fail("Can't remove — this partner has referred deals or payouts on file. Pause them instead.");
     throw err;
   }
   revalidatePartnerViews();
@@ -164,11 +165,11 @@ export async function deletePartner(partnerId: string) {
 export async function assignDealPartner(dealId: string, partnerId: string | null) {
   const admin = await requireAdmin();
   const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId), columns: { id: true, referredByAffiliateId: true } });
-  if (!deal) throw new Error("Deal not found");
+  if (!deal) return fail("Deal not found");
   if (deal.referredByAffiliateId === partnerId) return;
 
   const payout = await db.query.partnerPayouts.findFirst({ where: eq(partnerPayouts.dealId, dealId) });
-  if (payout && payout.status === "paid") throw new Error("This referral's payout has already been paid, so its partner can't be changed.");
+  if (payout && payout.status === "paid") return fail("This referral's payout has already been paid, so its partner can't be changed.");
   if (payout) await db.delete(partnerPayouts).where(eq(partnerPayouts.id, payout.id));
 
   await db
@@ -186,10 +187,10 @@ export async function assignDealPartner(dealId: string, partnerId: string | null
 export async function markBrokerFeeReceivedAction(dealId: string, formData: FormData) {
   await requireAdmin();
   const dateRaw = String(formData.get("date") ?? "");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateRaw)) throw new Error("Pick the date the fee arrived.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateRaw)) return fail("Pick the date the fee arrived.");
   const amountRaw = String(formData.get("amount") ?? "").replace(/[$,\s]/g, "");
   const collected = amountRaw ? Number(amountRaw) : null;
-  if (collected !== null && (!Number.isFinite(collected) || collected <= 0)) throw new Error("Enter the fee amount as a number.");
+  if (collected !== null && (!Number.isFinite(collected) || collected <= 0)) return fail("Enter the fee amount as a number.");
   await markBrokerFeeReceived(dealId, { collected, date: new Date(dateRaw) });
   revalidatePath(`/deals/${dealId}`);
   revalidatePartnerViews();
@@ -198,17 +199,17 @@ export async function markBrokerFeeReceivedAction(dealId: string, formData: Form
 export async function markPayoutPaidAction(payoutId: string, formData: FormData) {
   const admin = await requireAdmin();
   const payout = await db.query.partnerPayouts.findFirst({ where: eq(partnerPayouts.id, payoutId), with: { deal: { columns: { id: true, propertyAddress: true } }, partner: true } });
-  if (!payout) throw new Error("Payout not found");
-  if (payout.status === "paid") throw new Error("Already marked paid.");
+  if (!payout) return fail("Payout not found");
+  if (payout.status === "paid") return fail("Already marked paid.");
   if (payout.status !== "ready") {
-    throw new Error(
+    return fail(
       "This payout isn't ready yet — it needs the partner's payment details and the broker fee marked received first."
     );
   }
   const dateRaw = String(formData.get("date") ?? "");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateRaw)) throw new Error("Pick the date you paid.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateRaw)) return fail("Pick the date you paid.");
   const amount = Number(String(formData.get("amount") ?? "").replace(/[$,\s]/g, ""));
-  if (!Number.isFinite(amount) || amount <= 0) throw new Error("Enter the amount you paid.");
+  if (!Number.isFinite(amount) || amount <= 0) return fail("Enter the amount you paid.");
 
   await db
     .update(partnerPayouts)
@@ -239,7 +240,7 @@ export async function markPayoutPaidAction(payoutId: string, formData: FormData)
 export async function revealPartnerBanking(partnerId: string) {
   const admin = await requireAdmin();
   const partner = await db.query.referralAffiliates.findFirst({ where: eq(referralAffiliates.id, partnerId) });
-  if (!partner?.bankingEncrypted) throw new Error("No typed banking details on file (check for an uploaded document instead).");
+  if (!partner?.bankingEncrypted) return fail("No typed banking details on file (check for an uploaded document instead).");
   await logPartnerEvent(partnerId, "banking_viewed", { by: admin.id });
   const details = JSON.parse(decryptSecret(partner.bankingEncrypted)) as {
     accountHolder: string;

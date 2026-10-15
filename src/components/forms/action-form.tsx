@@ -4,6 +4,7 @@ import { createContext, useContext, useRef, useState, useTransition, type FormEv
 import { unstable_rethrow as rethrowFrameworkSignals } from "next/navigation";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { isActionError } from "@/lib/action-result";
 
 const PendingContext = createContext(false);
 
@@ -39,7 +40,11 @@ export function ActionForm({
   function runAction(formData: FormData) {
     startTransition(async () => {
       try {
-        await action(formData);
+        const result = await action(formData);
+        if (isActionError(result)) {
+          toast.error(result.error);
+          return;
+        }
         if (successMessage) toast.success(successMessage);
         onSuccess?.();
       } catch (err) {

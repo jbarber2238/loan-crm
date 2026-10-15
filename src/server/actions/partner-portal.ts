@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
+import { fail } from "@/lib/action-result";
 import { affiliatePaymentDocuments, partnerTokens, referralAffiliates } from "@/server/db/schema";
 import { appUrl, button, greeting, notifyAdmins, sendPartnerEmail } from "@/server/partner/email";
 import { logPartnerEvent } from "@/server/partner/events";
@@ -59,9 +60,9 @@ export async function getInvitePartner(token: string) {
 
 export async function completePartnerProfile(token: string, formData: FormData) {
   const row = await findValidToken(token, "invite");
-  if (!row) throw new Error("This sign-up link has expired. Ask us to send you a new one.");
+  if (!row) return fail("This sign-up link has expired. Ask us to send you a new one.");
   const partner = await db.query.referralAffiliates.findFirst({ where: eq(referralAffiliates.id, row.partnerId) });
-  if (!partner) throw new Error("This sign-up link isn't valid.");
+  if (!partner) return fail("This sign-up link isn't valid.");
 
   const name = str(formData, "name");
   const phone = str(formData, "phone");
@@ -70,10 +71,10 @@ export async function completePartnerProfile(token: string, formData: FormData) 
   const mailingAddress = str(formData, "mailingAddress");
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("confirmPassword") ?? "");
-  if (!name || !phone || !entity || !mailingAddress) throw new Error("Please fill in every field.");
-  if (!PARTNER_TYPES.some((t) => t.value === partnerType)) throw new Error("Choose what type of partner you are.");
-  if (password.length < MIN_PASSWORD_LENGTH) throw new Error(`Your password needs at least ${MIN_PASSWORD_LENGTH} characters.`);
-  if (password !== confirm) throw new Error("Those passwords don't match.");
+  if (!name || !phone || !entity || !mailingAddress) return fail("Please fill in every field.");
+  if (!PARTNER_TYPES.some((t) => t.value === partnerType)) return fail("Choose what type of partner you are.");
+  if (password.length < MIN_PASSWORD_LENGTH) return fail(`Your password needs at least ${MIN_PASSWORD_LENGTH} characters.`);
+  if (password !== confirm) return fail("Those passwords don't match.");
 
   await db
     .update(referralAffiliates)
@@ -99,7 +100,7 @@ export async function completePartnerProfile(token: string, formData: FormData) 
 
 export async function acceptPartnerTerms(formData: FormData) {
   const partner = await requirePartner({ allowTermsPending: true });
-  if (formData.get("accept") !== "on") throw new Error("Check the box to accept the terms.");
+  if (formData.get("accept") !== "on") return fail("Check the box to accept the terms.");
   const firstTime = partner.status !== "active";
 
   await db
@@ -128,10 +129,10 @@ export async function partnerSignIn(formData: FormData) {
   const partner = email ? await db.query.referralAffiliates.findFirst({ where: eq(referralAffiliates.email, email) }) : undefined;
   if (!partner || !partner.passwordHash) {
     await verifyPassword(password, "scrypt$00$00"); // keep timing similar
-    throw new Error(generic);
+    return fail(generic);
   }
   if (partner.lockedUntil && partner.lockedUntil > new Date()) {
-    throw new Error("Too many attempts. Try again in a few minutes, or email yourself a sign-in link.");
+    return fail("Too many attempts. Try again in a few minutes, or email yourself a sign-in link.");
   }
   if (!(await verifyPassword(password, partner.passwordHash))) {
     const failed = partner.failedLogins + 1;
@@ -143,7 +144,7 @@ export async function partnerSignIn(formData: FormData) {
           : { failedLogins: failed }
       )
       .where(eq(referralAffiliates.id, partner.id));
-    throw new Error(generic);
+    return fail(generic);
   }
   await db.update(referralAffiliates).set({ failedLogins: 0, lockedUntil: null }).where(eq(referralAffiliates.id, partner.id));
   await createPartnerSession(partner.id);
@@ -210,10 +211,10 @@ export async function submitPartnerBanking(formData: FormData) {
   const routing = str(formData, "routing").replace(/\s/g, "");
   const account = str(formData, "account").replace(/\s/g, "");
   const accountType = str(formData, "accountType");
-  if (!accountHolder) throw new Error("Enter the name on the account.");
-  if (!isValidRoutingNumber(routing)) throw new Error("That routing number doesn't look right — it should be 9 digits.");
-  if (!/^\d{4,17}$/.test(account)) throw new Error("The account number should be 4 to 17 digits.");
-  if (accountType !== "checking" && accountType !== "savings") throw new Error("Choose checking or savings.");
+  if (!accountHolder) return fail("Enter the name on the account.");
+  if (!isValidRoutingNumber(routing)) return fail("That routing number doesn't look right — it should be 9 digits.");
+  if (!/^\d{4,17}$/.test(account)) return fail("The account number should be 4 to 17 digits.");
+  if (accountType !== "checking" && accountType !== "savings") return fail("Choose checking or savings.");
 
   await db
     .update(referralAffiliates)
@@ -231,8 +232,8 @@ export async function uploadPartnerBankingDocument(formData: FormData) {
   const partner = await requirePartner();
   const file = formData.get("file");
   const kind = str(formData, "kind") === "voided_check" ? "Voided check" : "ACH instructions";
-  if (!(file instanceof File) || file.size === 0) throw new Error("Choose a file to upload.");
-  if (file.size > MAX_FILE_SIZE) throw new Error("That file is over 15MB — please upload a smaller one.");
+  if (!(file instanceof File) || file.size === 0) return fail("Choose a file to upload.");
+  if (file.size > MAX_FILE_SIZE) return fail("That file is over 15MB — please upload a smaller one.");
 
   await db.insert(affiliatePaymentDocuments).values({
     affiliateId: partner.id,
@@ -246,9 +247,9 @@ export async function uploadPartnerBankingDocument(formData: FormData) {
 }
 
 /** Starts the W-9 click-to-fill in PandaDoc and returns the page to open. */
-export async function startPartnerW9(): Promise<{ url: string }> {
+export async function startPartnerW9(): Promise<{ url: string } | { error: string }> {
   const partner = await requirePartner();
-  if (partner.w9ReceivedAt) throw new Error("Your W-9 is already on file.");
+  if (partner.w9ReceivedAt) return fail("Your W-9 is already on file.");
   const [first, ...rest] = (partner.name ?? "Partner").split(/\s+/);
 
   let documentId = partner.w9DocumentId;

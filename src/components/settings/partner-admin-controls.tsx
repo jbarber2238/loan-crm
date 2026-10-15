@@ -13,6 +13,7 @@ import {
   setPartnerTier,
   setProgramLive,
 } from "@/server/actions/partners";
+import { isActionError } from "@/lib/action-result";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +25,11 @@ function useRun() {
   function run(fn: () => Promise<unknown>, success: string) {
     startTransition(async () => {
       try {
-        await fn();
+        const result = await fn();
+        if (isActionError(result)) {
+          toast.error(result.error);
+          return;
+        }
         toast.success(success);
         router.refresh();
       } catch (err) {
@@ -80,6 +85,7 @@ export function InvitePartnerForm() {
       action={(formData) => {
         run(async () => {
           const res = await invitePartner(formData);
+          if (isActionError(res)) return res;
           formRef.current?.reset();
           if (!res.sent) toast.message("Invite created, but the email wasn't sent (program is off and that isn't a staff address).");
         }, "Invite created");
@@ -219,7 +225,9 @@ export function RevealBanking({ partnerId, last4 }: { partnerId: string; last4: 
       onClick={() =>
         startTransition(async () => {
           try {
-            setDetails(await revealPartnerBanking(partnerId));
+            const res = await revealPartnerBanking(partnerId);
+            if (isActionError(res)) toast.error(res.error);
+            else setDetails(res);
           } catch (err) {
             toast.error(err instanceof Error ? err.message : "Couldn't reveal.");
           }
