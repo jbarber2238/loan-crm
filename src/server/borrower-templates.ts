@@ -3,6 +3,7 @@ import { db } from "@/server/db/client";
 import { emailTemplates } from "@/server/db/schema";
 import { renderTemplate } from "@/server/pricing-templates";
 import { buildAllDealTokens } from "@/server/deal-tokens";
+import { loanOfficerCalendarPhrase, senderIntroLine, type SenderRole } from "@/lib/borrower-sender-lines";
 import type { deals } from "@/server/db/schema";
 
 type Deal = typeof deals.$inferSelect;
@@ -13,11 +14,13 @@ export async function buildBorrowerTemplateTokens(
     assignedLoanOfficerName,
     companyName,
     senderName,
+    senderRole,
     extra,
   }: {
     assignedLoanOfficerName: string;
     companyName: string;
     senderName: string;
+    senderRole?: SenderRole | null;
     extra?: Record<string, string>;
   }
 ): Promise<Record<string, string>> {
@@ -26,6 +29,8 @@ export async function buildBorrowerTemplateTokens(
     assignedLoanOfficerName,
     companyName,
     senderName,
+    senderIntro: senderIntroLine({ senderName, loanOfficerName: assignedLoanOfficerName, companyName, senderRole }),
+    loanOfficerCalendar: loanOfficerCalendarPhrase({ loanOfficerName: assignedLoanOfficerName, senderRole }),
     ...extra,
   };
 }
@@ -38,6 +43,7 @@ export async function buildBorrowerEmail(
     assignedLoanOfficerName: string;
     companyName: string;
     senderName: string;
+    senderRole?: SenderRole | null;
     extra?: Record<string, string>;
   }
 ): Promise<{ subject: string; body: string }> {

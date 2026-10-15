@@ -48,7 +48,15 @@ export function plainTextToHtmlWithBlocks(text: string, blocks: Record<string, s
     (url) => `<a href="${url}" target="_blank" rel="noreferrer">${url}</a>`
   );
   for (const [key, value] of Object.entries(blocks)) {
-    html = html.split(`{{${key}}}`).join(value);
+    if (value.startsWith("<ul")) {
+      // A list is a block: the blank lines the template puts around it would
+      // stack on top of the list's own margins and leave an uneven gap. Take
+      // them out and let the margins (4px + the last bullet's 12px = one blank
+      // line below) space it like every other paragraph.
+      html = html.replace(new RegExp(`\\n*\\{\\{${key}\\}\\}\\n*`, "g"), () => `<div style="margin:4px 0;">${value}</div>`);
+    } else {
+      html = html.split(`{{${key}}}`).join(value);
+    }
   }
   return `<div style="white-space:pre-wrap; font-family:Arial,Helvetica,sans-serif; font-size:14px; color:#1f2937;">${html}</div>`;
 }

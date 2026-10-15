@@ -139,6 +139,8 @@ export const BORROWER_LIFECYCLE_TOKENS: EmailTemplateToken[] = [
   ...ALL_DEAL_TOKENS,
   { key: "senderName", description: "Your (the sending user's) name" },
   { key: "companyName", description: "Company name from Settings" },
+  { key: "senderIntro", description: "Your intro line: \"My name is You, your loan officer here at Company.\" when you are the loan officer; \"My name is You, and I'm working alongside Name, your loan officer here at Company.\" for an assistant or processor" },
+  { key: "loanOfficerCalendar", description: "\"my calendar\" when you are the loan officer, otherwise \"Name's calendar\"" },
   { key: "termSheetLinks", description: "Link(s) to the term sheet PDF(s) being sent, one per line" },
   { key: "schedulingLink", description: "The assigned loan officer's scheduling link" },
   { key: "termSheetReadyLine", description: "Book-a-call email only: \"Your term sheets are ready. I have two options for you.\" — counts the deal's generated term sheets, singular for one" },
