@@ -3,7 +3,7 @@
 // bumping TERMS_VERSION, which prompts every partner to accept again at their
 // next sign-in. Earned payouts are never affected by a terms change.
 
-export const TERMS_VERSION = "2026-10-v1";
+export const TERMS_VERSION = "2026-10-v2";
 
 export interface TermsSection {
   heading: string;
@@ -37,7 +37,7 @@ export const PARTNER_TERMS: TermsSection[] = [
     heading: "Your role",
     paragraphs: [
       "You are an independent contractor, not an employee, agent or representative of Manna. You can't speak for Manna, quote rates, make commitments, or bind Manna to anything. Whether to make any loan, and on what terms, is Manna's and its lenders' decision alone, and nothing here obligates Manna to fund a particular referral.",
-      "You're responsible for your own taxes and for following the laws that apply to you. Keep borrower information you receive confidential and use it only to help the borrower get a loan through Manna.",
+      "You're responsible for your own taxes and for following the laws that apply to you, including any brokerage or real estate board rules on receiving referral compensation. If you're licensed or belong to a brokerage or board, it's on you to follow their rules on referral fees, including any disclosure or approval they require. Keep borrower information you receive confidential and use it only to help the borrower get a loan through Manna.",
     ],
   },
   {
