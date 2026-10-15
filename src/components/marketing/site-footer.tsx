@@ -41,6 +41,10 @@ export function SiteFooter() {
             <Link href="/sign-in" style={{ color: "rgba(250,247,242,0.5)" }} className="hover:underline">
               Team Login
             </Link>
+            <br />
+            <Link href="/partner/sign-in" style={{ color: "rgba(250,247,242,0.5)" }} className="hover:underline">
+              Referral Partner Login
+            </Link>
           </div>
         </div>
 
