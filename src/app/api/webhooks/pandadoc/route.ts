@@ -1,10 +1,11 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { dealClientNeeds, dealClientNeedDocuments, termSheets } from "@/server/db/schema";
+import { dealClientNeeds, dealClientNeedDocuments, referralAffiliates, termSheets } from "@/server/db/schema";
 import { verifyWebhookSignature, downloadCompletedDocumentWithRetry } from "@/server/pandadoc";
 import { recomputeNeedStatus } from "@/server/client-need-status";
 import { recordBorrowerActivity } from "@/server/borrower-activity";
 import { performTermSheetAcceptance } from "@/server/actions/term-sheets";
+import { handlePartnerW9Completed } from "@/server/partner/w9";
 
 interface PandaDocEvent {
   event: string;
@@ -68,6 +69,22 @@ export async function POST(request: Request) {
           // an already-completed document stuck like this needs a one-off
           // manual re-pull once the key issue is resolved.
           console.error(`Failed to download completed PandaDoc document ${data.id} for need ${need.id}:`, err);
+        }
+      }
+      continue;
+    }
+
+    // A partner's W-9 (sent from the partner portal).
+    const w9Partner = await db.query.referralAffiliates.findFirst({
+      where: eq(referralAffiliates.w9DocumentId, data.id),
+      columns: { id: true },
+    });
+    if (w9Partner) {
+      if (data.status === "document.completed") {
+        try {
+          await handlePartnerW9Completed(w9Partner.id, data.id);
+        } catch (err) {
+          console.error(`Failed to process W-9 ${data.id} for partner ${w9Partner.id}:`, err);
         }
       }
       continue;

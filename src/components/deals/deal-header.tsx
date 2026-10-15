@@ -1,4 +1,7 @@
 import { Mail } from "lucide-react";
+import { inArray } from "drizzle-orm";
+import { db } from "@/server/db/client";
+import { referralAffiliates } from "@/server/db/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CopyBorrowerContactButton } from "@/components/deals/copy-borrower-contact-button";
@@ -11,7 +14,7 @@ import { DscrConversionLinkDialog } from "@/components/deals/dscr-conversion-lin
 import { PipelineStepper } from "@/components/deals/pipeline-stepper";
 import { AcceptedTermsHeader } from "@/components/deals/accepted-terms-header";
 import { ProcessingFeeInvoiceStatus } from "@/components/deals/processing-fee-invoice-status";
-import { ReferralFeeBanner } from "@/components/deals/referral-fee-banner";
+import { PartnerPayoutBanner } from "@/components/deals/partner-payout-banner";
 import { labelFor, LOAN_CATEGORIES, STAGES } from "@/lib/labels";
 import { conservativeValueBasis } from "@/lib/term-sheet-calculations";
 import { PAUSED_STAGES } from "@/lib/deal-pipeline";
@@ -42,6 +45,18 @@ function StageReasonBanner({ deal }: { deal: DealDetail }) {
 export async function DealHeader({ deal }: { deal: DealDetail }) {
   const s = sectionsFor(deal.loanCategory);
   const currentUser = await requireUser();
+  const partnerAssignment = currentUser.isAdmin
+    ? {
+        currentPartnerId: deal.referredByAffiliateId ?? null,
+        partners: (
+          await db.query.referralAffiliates.findMany({
+            where: inArray(referralAffiliates.status, ["active", "paused", "legacy"]),
+            orderBy: (a, { asc }) => asc(a.name),
+            columns: { id: true, name: true, email: true },
+          })
+        ).map((a) => ({ id: a.id, label: a.name ? `${a.name} (${a.email})` : a.email })),
+      }
+    : undefined;
   return (
     <div className="space-y-3 rounded-lg border p-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -136,6 +151,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
             stage={deal.stage}
             propertyAddress={deal.propertyAddress}
             isArchived={Boolean(deal.archivedAt)}
+            partnerAssignment={partnerAssignment}
           />
         </div>
       </div>
@@ -143,13 +159,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
       <PipelineStepper stage={deal.stage} pausedFromStage={deal.pausedFromStage} />
       <StageReasonBanner deal={deal} />
 
-      {deal.stage === "closed" && deal.referredByAffiliate && (
-        <ReferralFeeBanner
-          dealId={deal.id}
-          affiliateName={deal.referredByAffiliate.name ?? deal.referredByAffiliate.email}
-          paid={Boolean(deal.referralFeePaidAt)}
-        />
-      )}
+      <PartnerPayoutBanner deal={deal} isAdmin={currentUser.isAdmin} />
 
       {deal.stripeInvoiceStatus && deal.stripeInvoiceAmount && (
         <ProcessingFeeInvoiceStatus

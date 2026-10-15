@@ -68,8 +68,11 @@ export async function createDocumentFromTemplate({
   recipientFirstName,
   recipientLastName,
   tokens,
+  role = "Client",
 }: {
   templateUuid: string;
+  /** The template's recipient role name; "Client" for the borrower-form templates, whatever the template defines otherwise. */
+  role?: string;
   name: string;
   recipientEmail: string;
   recipientFirstName: string;
@@ -86,13 +89,20 @@ export async function createDocumentFromTemplate({
           email: recipientEmail,
           first_name: recipientFirstName,
           last_name: recipientLastName,
-          role: "Client",
+          role,
         },
       ],
       tokens: tokens ? Object.entries(tokens).map(([tokenName, value]) => ({ name: tokenName, value })) : undefined,
     }),
   });
   return res.json();
+}
+
+/** The first recipient role defined on a template (e.g. "Client", "Signer") — so a template we don't control still works. */
+export async function getTemplateFirstRole(templateUuid: string): Promise<string | null> {
+  const res = await pandaDocFetch(`/templates/${templateUuid}/details`);
+  const body = (await res.json()) as { roles?: { name?: string }[] };
+  return body.roles?.[0]?.name ?? null;
 }
 
 /**

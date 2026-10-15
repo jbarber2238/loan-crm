@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ArchiveDealDialog } from "@/components/deals/archive-deal-dialog";
 import { DeleteDealDialog } from "@/components/deals/delete-deal-dialog";
+import { AssignPartnerMenuItem } from "@/components/deals/partner-payout-controls";
 import { ARCHIVABLE_STAGES } from "@/lib/deal-pipeline";
 
 // The deal-detail equivalent of the Pipeline card's kebab menu — same
@@ -22,11 +23,14 @@ export function DealActionsMenu({
   stage,
   propertyAddress,
   isArchived,
+  partnerAssignment,
 }: {
   dealId: string;
   stage: string;
   propertyAddress: string;
   isArchived: boolean;
+  /** Admin-only: present when the viewer may change which partner gets credit for this deal. */
+  partnerAssignment?: { currentPartnerId: string | null; partners: { id: string; label: string }[] };
 }) {
   const router = useRouter();
 
@@ -52,6 +56,9 @@ export function DealActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        {partnerAssignment && (
+          <AssignPartnerMenuItem dealId={dealId} currentPartnerId={partnerAssignment.currentPartnerId} partners={partnerAssignment.partners} />
+        )}
         {isArchived ? (
           <DropdownMenuItem onSelect={handleUnarchive}>Restore to pipeline</DropdownMenuItem>
         ) : (

@@ -37,7 +37,7 @@ import { extractTermSheetFields } from "@/lib/term-sheet-fields";
 import { conservativeValueBasis, calculateLtarv, calculateLtc } from "@/lib/term-sheet-calculations";
 import { syncProcessingFeeInvoice } from "@/server/billing";
 import { toE164 } from "@/server/twilio-client";
-import { notifyAffiliateOfNewDeal, notifyAffiliateOfStageChange } from "@/server/actions/referral-affiliates";
+import { onDealStageChanged, onReferralCreated } from "@/server/partner/stage-events";
 import { syncConditionalClientNeeds } from "@/server/actions/client-needs";
 import { notifyAdminOfNewDeal, notifyBorrowerOfSubmission, notifyProcessorOfPaidDeal } from "@/server/deal-notifications";
 
@@ -229,11 +229,9 @@ export async function createDealFromIntake(
     });
   }
 
-  if (options.referredByAffiliateId) {
-    await notifyAffiliateOfNewDeal(deal.id).catch((err) => {
-      console.error("Failed to send affiliate deal-submitted email:", err);
-    });
-  }
+  // Attribution check (a returning borrower of a partner's referral), then the
+  // partner's "your referral landed" email and the admin alert. Never throws.
+  await onReferralCreated(deal.id);
 
   await notifyAdminOfNewDeal(deal.id).catch((err) => {
     console.error("Failed to send admin new-deal notification:", err);
@@ -670,6 +668,7 @@ export async function advanceDealStage(
   if (!updated) return false;
 
   await db.insert(dealStageHistory).values({ dealId, stage: toStage, changedByUserId });
+  await onDealStageChanged(dealId, toStage);
   revalidatePath("/");
   revalidatePath("/dashboard");
   revalidatePath(`/deals/${dealId}`);
@@ -760,11 +759,7 @@ export async function updateDealStage(dealId: string, stage: string, reason?: st
     changedByUserId: user.id,
   });
 
-  if (deal.referredByAffiliateId) {
-    await notifyAffiliateOfStageChange(dealId, newStage).catch((err) => {
-      console.error("Failed to send affiliate stage-change email:", err);
-    });
-  }
+  await onDealStageChanged(dealId, newStage);
 
   revalidatePath("/");
   revalidatePath("/dashboard");

@@ -268,6 +268,121 @@ export const referralAffiliates = pgTable("referral_affiliate", {
   // That page is upload-only: no listing, no download, nothing readable
   // through it at all, only through the authenticated admin Settings page.
   wireInstructionsUploadToken: text("wire_instructions_upload_token").unique(),
+
+  // ---- Partner portal (this table is the "partners" record) ----
+  entity: text("entity"),
+  partnerType: text("partner_type"), // agent | property_manager | cpa | lender | investor | other
+  mailingAddress: text("mailing_address"),
+  passwordHash: text("password_hash"), // scrypt; see src/server/partner/password.ts
+  // legacy (an affiliate from before the portal, not migrated yet) | invited |
+  // profile_complete | active | paused
+  status: text("status").notNull().default("invited"),
+  tier: integer("tier").notNull().default(20), // 20 or 25 (percent of the broker fee on a first deal)
+  referralSlug: text("referral_slug").unique(), // drives mannalendingco.com/r/<slug>
+  termsVersion: text("terms_version"),
+  termsAcceptedAt: timestamp("terms_accepted_at", { mode: "date" }),
+  tierEarnedAt: timestamp("tier_earned_at", { mode: "date" }),
+  tierStickyUntil: timestamp("tier_sticky_until", { mode: "date" }),
+  tierAtRiskNotifiedAt: timestamp("tier_at_risk_notified_at", { mode: "date" }),
+  // Banking: written once by the partner, AES-256-GCM encrypted, never shown
+  // back to them; admins can only reveal it through a logged action.
+  bankingEncrypted: text("banking_encrypted"),
+  bankingLast4: text("banking_last4"),
+  bankingAccountType: text("banking_account_type"),
+  bankingReceivedAt: timestamp("banking_received_at", { mode: "date" }),
+  bankingRequestedAt: timestamp("banking_requested_at", { mode: "date" }),
+  bankingNudge3At: timestamp("banking_nudge_3_at", { mode: "date" }),
+  bankingNudge7At: timestamp("banking_nudge_7_at", { mode: "date" }),
+  w9DocumentId: text("w9_document_id"),
+  w9ReceivedAt: timestamp("w9_received_at", { mode: "date" }),
+  w9FileName: text("w9_file_name"),
+  w9PdfData: text("w9_pdf_data"), // base64, same storage pattern as every other file here
+  notificationChannel: text("notification_channel").notNull().default("email"),
+  failedLogins: integer("failed_logins").notNull().default(0),
+  lockedUntil: timestamp("locked_until", { mode: "date" }),
+  lastLoginAt: timestamp("last_login_at", { mode: "date" }),
+  inviteNudge1At: timestamp("invite_nudge_1_at", { mode: "date" }),
+  inviteNudge2At: timestamp("invite_nudge_2_at", { mode: "date" }),
+  portalInvitedAt: timestamp("portal_invited_at", { mode: "date" }),
+  quietNotifiedAt: timestamp("quiet_notified_at", { mode: "date" }),
+});
+
+// Password sessions for the partner portal (90 days). Only a hash of the cookie
+// token is stored.
+export const partnerSessions = pgTable("partner_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  partnerId: uuid("partner_id")
+    .notNull()
+    .references(() => referralAffiliates.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at", { mode: "date" }).notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+// Single-use links: the signup invite and the "email me a sign-in link"
+// recovery path (15 minutes).
+export const partnerTokens = pgTable("partner_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  partnerId: uuid("partner_id")
+    .notNull()
+    .references(() => referralAffiliates.id, { onDelete: "cascade" }),
+  purpose: text("purpose").notNull(), // invite | login
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at", { mode: "date" }).notNull(),
+  usedAt: timestamp("used_at", { mode: "date" }),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+// One row per partner + referred borrower: when that borrower first funded
+// starts the 24-month trailing window for repeat deals.
+export const partnerBorrowers = pgTable("partner_borrowers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  partnerId: uuid("partner_id")
+    .notNull()
+    .references(() => referralAffiliates.id, { onDelete: "cascade" }),
+  borrowerNameNorm: text("borrower_name_norm"),
+  borrowerEmailNorm: text("borrower_email_norm"),
+  entityNorm: text("entity_norm"),
+  firstDealId: uuid("first_deal_id"),
+  firstFundedAt: timestamp("first_funded_at", { mode: "date" }).notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+// The partner payout ledger: created when a referred deal closes, "ready" once
+// banking is on file AND the broker fee has been received, then "paid".
+export const partnerPayouts = pgTable("partner_payouts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  dealId: uuid("deal_id")
+    .notNull()
+    .unique()
+    .references(() => deals.id, { onDelete: "cascade" }),
+  partnerId: uuid("partner_id")
+    .notNull()
+    .references(() => referralAffiliates.id),
+  kind: text("kind").notNull(), // first | trailing
+  rate: numeric("rate", { precision: 5, scale: 2 }).notNull(), // percent, e.g. 20.00
+  feeBasis: numeric("fee_basis", { precision: 14, scale: 2 }), // broker fee the % applies to
+  amount: numeric("amount", { precision: 14, scale: 2 }),
+  status: text("status").notNull().default("pending"), // pending | ready | paid
+  closedDate: timestamp("closed_date", { mode: "date" }),
+  feeReceivedDate: timestamp("fee_received_date", { mode: "date" }),
+  paidDate: timestamp("paid_date", { mode: "date" }),
+  paidAmount: numeric("paid_amount", { precision: 14, scale: 2 }),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+// The audit log: invited, nudged, signed, referral_submitted, stage_change,
+// banking_viewed, payout_paid, attribution changes, ...
+export const partnerEvents = pgTable("partner_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  partnerId: uuid("partner_id")
+    .notNull()
+    .references(() => referralAffiliates.id, { onDelete: "cascade" }),
+  dealId: uuid("deal_id"),
+  type: text("type").notNull(),
+  payload: jsonb("payload").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 
 export const referralAffiliatesRelations = relations(referralAffiliates, ({ one, many }) => ({
@@ -304,6 +419,9 @@ export const affiliatePaymentDocumentsRelations = relations(affiliatePaymentDocu
 export const companySettings = pgTable("company_settings", {
   id: text("id").primaryKey().default("default"),
   name: text("name").notNull(),
+  // Master switch for the partner program. While off, partner emails and the
+  // portal only work for staff-owned test addresses.
+  partnerProgramLive: boolean("partner_program_live").notNull().default(false),
   // Shown on every outgoing email template (pricing requests, borrower
   // lifecycle emails) — base64, same storage pattern as every other file
   // in this app. Null until Justin uploads one.
@@ -726,6 +844,16 @@ export const deals = pgTable("deals", {
   // Null = no fee owed yet, or owed but not yet paid; set once Justin has
   // actually issued payment to the affiliate for this specific deal.
   referralFeePaidAt: timestamp("referral_fee_paid_at", { mode: "date" }),
+  // When our broker fee actually arrived (wire or mailed check) and how much;
+  // a partner payout is only ever "ready" after this.
+  brokerFeeReceivedDate: timestamp("broker_fee_received_date", { mode: "date" }),
+  brokerFeeCollected: numeric("broker_fee_collected", { precision: 14, scale: 2 }),
+  // first | trailing — whether this referred deal pays the partner's first-deal
+  // rate or the 10% repeat-borrower rate.
+  partnerPayoutKind: text("partner_payout_kind"),
+  // The partner-facing stage last emailed about, so only partner-visible
+  // changes ever notify (Rate Shopping <-> Negotiation never ping anyone).
+  partnerVisibleStage: text("partner_visible_stage"),
   // Each set the first time (and only the first time) the deal reaches that
   // stage, so a deal bouncing back and forth between stages never sends the
   // affiliate a duplicate notification.
@@ -2106,4 +2234,9 @@ export const transactionalLoansRelations = relations(transactionalLoans, ({ one 
   }),
   archivedByUser: one(users, { fields: [transactionalLoans.archivedByUserId], references: [users.id], relationName: "transactionalArchivedBy" }),
   deletedByUser: one(users, { fields: [transactionalLoans.deletedByUserId], references: [users.id], relationName: "transactionalDeletedBy" }),
+}));
+
+export const partnerPayoutsRelations = relations(partnerPayouts, ({ one }) => ({
+  deal: one(deals, { fields: [partnerPayouts.dealId], references: [deals.id] }),
+  partner: one(referralAffiliates, { fields: [partnerPayouts.partnerId], references: [referralAffiliates.id] }),
 }));

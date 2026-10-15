@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { dealNotes, dealStageHistory, deals } from "@/server/db/schema";
-import { notifyAffiliateOfStageChange } from "@/server/actions/referral-affiliates";
+import { onDealStageChanged } from "@/server/partner/stage-events";
 import { PIPELINE_STAGES, isPipelineStage, type PipelineStage } from "@/lib/deal-pipeline";
 import { STAGES } from "@/lib/labels";
 
@@ -41,6 +41,7 @@ export async function autoAdvanceDeal(
 
   await db.insert(dealStageHistory).values({ dealId, stage: to, changedByUserId: userId });
   await logAutoMove(dealId, to, why);
+  await onDealStageChanged(dealId, to);
 
   revalidatePath("/");
   revalidatePath("/dashboard");
@@ -79,11 +80,7 @@ export async function autoAdvanceDealForwardTo(
 
   await db.insert(dealStageHistory).values({ dealId, stage: to, changedByUserId: userId });
   await logAutoMove(dealId, to, why);
-  if (deal.referredByAffiliateId) {
-    await notifyAffiliateOfStageChange(dealId, to).catch((err) => {
-      console.error("Failed to send affiliate stage-change email:", err);
-    });
-  }
+  await onDealStageChanged(dealId, to);
 
   revalidatePath("/");
   revalidatePath("/dashboard");

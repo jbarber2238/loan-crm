@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNull, lt } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { deals, dealNotes, dealStageHistory } from "@/server/db/schema";
+import { onDealStageChanged } from "@/server/partner/stage-events";
 import {
   ARCHIVABLE_STAGES,
   ARCHIVE_AFTER_DAYS_IN_STAGE,
@@ -38,6 +39,7 @@ export async function expireStaleFollowUps() {
       .where(eq(deals.id, deal.id));
 
     await db.insert(dealStageHistory).values({ dealId: deal.id, stage: "lost", changedByUserId: null });
+    await onDealStageChanged(deal.id, "lost");
     await db.insert(dealNotes).values({
       dealId: deal.id,
       authorUserId: null,

@@ -15,7 +15,10 @@ export async function submitPublicIntake(
   // Present when this link/embed came from a referral affiliate's own copy
   // of the intake link (Settings > Referrals) rather than a plain
   // loan-officer link — tags the resulting deal as their referral.
-  referredByAffiliateId?: string
+  referredByAffiliateId?: string,
+  // A complete post-submit path (e.g. a partner's own /r/<slug> page); when
+  // set it replaces `${redirectBasePath}/${loanOfficerId}`.
+  redirectTo?: string
 ) {
   const loanOfficer = await db.query.users.findFirst({
     where: eq(users.id, loanOfficerId),
@@ -34,5 +37,5 @@ export async function submitPublicIntake(
     referredByAffiliateId: referredByAffiliateId ?? null,
   });
 
-  redirect(`${redirectBasePath}/${loanOfficerId}?submitted=1`);
+  redirect(`${redirectTo ?? `${redirectBasePath}/${loanOfficerId}`}?submitted=1`);
 }
