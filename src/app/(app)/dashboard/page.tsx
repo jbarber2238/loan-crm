@@ -8,6 +8,7 @@ import { InlineBar } from "@/components/dashboard/inline-bar";
 import { StageBarChart } from "@/components/dashboard/stage-bar-chart";
 import { MetricsLibrarySheet } from "@/components/dashboard/metrics-library-sheet";
 import { DrillDownStatCard } from "@/components/dashboard/drill-down-stat-card";
+import { PartnerPayoutWidget } from "@/components/dashboard/partner-payout-widget";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -144,68 +145,85 @@ export default async function DashboardPage({
           subtitle="Today is midnight-to-midnight. Total Pipeline Value and Total Lost Value are real-time snapshots — a restored deal drops out immediately, not just on its next stage change."
         />
 
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <DrillDownStatCard
-            label="New Leads"
-            value={String(data.pipelineConversion.newLeads)}
-            sub="original submissions only, not restores"
-            deals={data.pipelineConversion.newLeadsDeals}
-          />
-          <DrillDownStatCard
-            label="Restored Leads"
-            value={String(data.pipelineConversion.restoredLeads)}
-            sub="old deals back in New/Rate Shopping"
-            deals={data.pipelineConversion.restoredLeadsDeals}
-          />
-          <DrillDownStatCard
-            label="Applications Submitted"
-            value={String(data.pipelineConversion.applicationsSubmitted)}
-            sub={`${data.pipelineConversion.applicationsSubmittedDirect} direct · ${data.pipelineConversion.applicationsSubmittedRestored} restored`}
-            deals={data.pipelineConversion.applicationsSubmittedDeals}
-          />
-          <DrillDownStatCard
-            label="Leads → Applications"
-            value={pct(data.pipelineConversion.leadToApplicationPct)}
-            sub="of this period's New Leads"
-            deals={data.pipelineConversion.leadToApplicationConvertedDeals}
-            emptyMessage="None of this period's New Leads have reached Application yet."
-          />
-          <DrillDownStatCard
-            label="Leads Lost"
-            value={pct(data.pipelineConversion.leadLostPct)}
-            sub="of this period's New Leads"
-            deals={data.pipelineConversion.leadLostDeals}
-            emptyMessage="None of this period's New Leads are currently Lost/Disqualified."
-          />
-          <DrillDownStatCard
-            label="Total Pipeline Value"
-            value={money(data.pipelineConversion.totalPipelineValue)}
-            sub="live, as of now"
-            deals={data.pipelineConversion.totalPipelineValueDeals}
-          />
-          <DrillDownStatCard
-            label="Total Lost Value"
-            value={money(data.pipelineConversion.totalLostValue)}
-            sub="currently sitting in Lost"
-            deals={data.pipelineConversion.totalLostValueDeals}
-          />
-          <DrillDownStatCard
-            label="Loans Closed"
-            value={String(data.pipelineConversion.loansClosed)}
-            sub={money(data.pipelineConversion.totalVolumeClosed) + " total volume"}
-            deals={data.pipelineConversion.closedDeals}
-          />
-          <DrillDownStatCard
-            label="Average Loan Size (Requested)"
-            value={money(data.pipelineConversion.averageLoanSizeRequested)}
-            sub="this period's New Leads"
-            deals={data.pipelineConversion.leadCohortDeals}
-          />
-          <DrillDownStatCard
-            label="Average Closed Loan Size"
-            value={money(data.pipelineConversion.averageLoanSizeClosed)}
-            deals={data.pipelineConversion.closedDeals}
-          />
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+          <div className="order-last xl:order-none">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">
+            <DrillDownStatCard
+              compact
+              label="New Leads"
+              value={String(data.pipelineConversion.newLeads)}
+              sub="original submissions only, not restores"
+              deals={data.pipelineConversion.newLeadsDeals}
+            />
+            <DrillDownStatCard
+              compact
+              label="Restored Leads"
+              value={String(data.pipelineConversion.restoredLeads)}
+              sub="old deals back in New/Rate Shopping"
+              deals={data.pipelineConversion.restoredLeadsDeals}
+            />
+            <DrillDownStatCard
+              compact
+              label="Applications Submitted"
+              value={String(data.pipelineConversion.applicationsSubmitted)}
+              sub={`${data.pipelineConversion.applicationsSubmittedDirect} direct · ${data.pipelineConversion.applicationsSubmittedRestored} restored`}
+              deals={data.pipelineConversion.applicationsSubmittedDeals}
+            />
+            <DrillDownStatCard
+              compact
+              label="Leads → Applications"
+              value={pct(data.pipelineConversion.leadToApplicationPct)}
+              sub="of this period's New Leads"
+              deals={data.pipelineConversion.leadToApplicationConvertedDeals}
+              emptyMessage="None of this period's New Leads have reached Application yet."
+            />
+            <DrillDownStatCard
+              compact
+              label="Leads Lost"
+              value={pct(data.pipelineConversion.leadLostPct)}
+              sub="of this period's New Leads"
+              deals={data.pipelineConversion.leadLostDeals}
+              emptyMessage="None of this period's New Leads are currently Lost/Disqualified."
+            />
+            <DrillDownStatCard
+              compact
+              label="Total Pipeline Value"
+              value={money(data.pipelineConversion.totalPipelineValue)}
+              sub="live, as of now"
+              deals={data.pipelineConversion.totalPipelineValueDeals}
+            />
+            <DrillDownStatCard
+              compact
+              label="Total Lost Value"
+              value={money(data.pipelineConversion.totalLostValue)}
+              sub="currently sitting in Lost"
+              deals={data.pipelineConversion.totalLostValueDeals}
+            />
+            <DrillDownStatCard
+              compact
+              label="Loans Closed"
+              value={String(data.pipelineConversion.loansClosed)}
+              sub={money(data.pipelineConversion.totalVolumeClosed) + " total volume"}
+              deals={data.pipelineConversion.closedDeals}
+            />
+            <DrillDownStatCard
+              compact
+              label="Average Loan Size (Requested)"
+              value={money(data.pipelineConversion.averageLoanSizeRequested)}
+              sub="this period's New Leads"
+              deals={data.pipelineConversion.leadCohortDeals}
+            />
+            <DrillDownStatCard
+              compact
+              label="Average Closed Loan Size"
+              value={money(data.pipelineConversion.averageLoanSizeClosed)}
+              deals={data.pipelineConversion.closedDeals}
+            />
+          </div>
+          </div>
+          <div className="xl:order-last">
+            <PartnerPayoutWidget />
+          </div>
         </div>
 
         <Card>

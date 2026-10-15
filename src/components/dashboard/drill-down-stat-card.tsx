@@ -20,12 +20,15 @@ export function DrillDownStatCard<T extends DrillDownDeal & { viaRestore?: boole
   sub,
   deals,
   emptyMessage = "No deals behind this number in this range.",
+  compact = false,
 }: {
   label: string;
   value: string;
   sub?: string;
   deals: T[];
   emptyMessage?: string;
+  /** Smaller card for tight layouts (e.g. beside the payout widget). */
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const clickable = deals.length > 0;
@@ -33,6 +36,7 @@ export function DrillDownStatCard<T extends DrillDownDeal & { viaRestore?: boole
   return (
     <>
       <Card
+        size={compact ? "sm" : "default"}
         role={clickable ? "button" : undefined}
         tabIndex={clickable ? 0 : undefined}
         onClick={clickable ? () => setOpen(true) : undefined}
@@ -49,10 +53,10 @@ export function DrillDownStatCard<T extends DrillDownDeal & { viaRestore?: boole
         className={clickable ? "cursor-pointer transition-colors hover:bg-muted/50" : undefined}
       >
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+          <CardTitle className={compact ? "text-xs font-medium text-muted-foreground" : "text-sm font-medium text-muted-foreground"}>{label}</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-2xl font-bold">{value}</p>
+          <p className={compact ? "text-xl font-bold" : "text-2xl font-bold"}>{value}</p>
           {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
         </CardContent>
       </Card>
