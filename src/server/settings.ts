@@ -34,7 +34,10 @@ export async function getCompanyLogoHtml(): Promise<string> {
     where: eq(companySettings.id, "default"),
   });
   if (!row?.logoData) return "";
-  const baseUrl = process.env.APP_URL ?? "http://localhost:3000";
+  // An email client can only load a public address — never localhost, which is
+  // what an unset APP_URL (e.g. a test email sent from a dev machine) would give.
+  const configured = process.env.APP_URL;
+  const baseUrl = configured && !/localhost|127\.0\.0\.1/.test(configured) ? configured : "https://mannalendingco.com";
   const src = `${baseUrl}/api/company-logo?v=${row.updatedAt.getTime()}`;
   const img = `<img src="${src}" alt="" style="max-height:56px; display:block;" />`;
   if (!row.logoIsLight) return `<div style="margin-bottom:16px;">${img}</div>`;
