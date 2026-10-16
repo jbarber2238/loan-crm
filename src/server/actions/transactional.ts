@@ -9,9 +9,8 @@ import { requireAdmin, requireAdminOrLoanOfficer } from "@/server/auth/guards";
 import { sendGmailAs } from "@/server/gmail/send";
 import { getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
-import { plainTextToHtml } from "@/lib/email-html";
 import { notifyAdminsOfNewTransactionalLoan, sendTransactionalReceipt } from "@/server/transactional-notifications";
-import { TRANSACTIONAL_STAGES, buildLenderEmailBody } from "@/lib/transactional-shared";
+import { TRANSACTIONAL_STAGES, buildLenderEmailHtml } from "@/lib/transactional-shared";
 import { MINIMUM_FUNDING_AMOUNT } from "@/lib/transactional-fees";
 import { ARCHIVABLE_STAGES } from "@/lib/deal-pipeline";
 import { lenderEmailRecipients, parseAdditionalContacts } from "@/lib/transactional-lender-contacts";
@@ -240,7 +239,7 @@ export async function previewTransactionalLenderEmail(id: string, lenderId: stri
     // plus every additional contact, always.
     to: lenderEmailRecipients(lender.email, lender.additionalContacts).join(", "),
     subject: `Double close funding request — ${loan.propertyAddress}`,
-    body: buildLenderEmailBody({
+    body: buildLenderEmailHtml({
       lenderName: lender.name,
       closingDate: loan.closingDate,
       borrowerName: loan.borrowerName,
@@ -259,21 +258,23 @@ export async function sendTransactionalLenderEmail(
   id: string,
   lenderId: string,
   to: string,
+  cc: string,
   subject: string,
   body: string
 ) {
   const user = await requireAdminOrLoanOfficer();
   const lender = await db.query.transactionalLenders.findFirst({ where: eq(transactionalLenders.id, lenderId) });
-  if (!lender) throw new Error("Pick a transactional lender");
-  if (!user.email) throw new Error("Your account has no email on file");
-  if (!to.trim()) throw new Error("This lender has no email on file — add it under Lenders first, or type one here");
-  if (!subject.trim() || !body.trim()) throw new Error("Subject and body can't be empty");
+  if (!lender) return fail("Pick a transactional lender");
+  if (!user.email) return fail("Your account has no email on file");
+  if (!to.trim()) return fail("This lender has no email on file — add it under Lenders first, or type one here");
+  if (!subject.trim() || !body.trim()) return fail("Subject and body can't be empty");
 
   const [logoHtml, signatureHtml] = await Promise.all([getCompanyLogoHtml(), getUserEmailSignatureHtml(user.id)]);
   await sendGmailAs(user.id, user.email, {
     to: to.trim(),
+    cc: cc.trim() || null,
     subject: subject.trim(),
-    body: logoHtml + plainTextToHtml(body) + signatureHtml,
+    body: logoHtml + body + signatureHtml,
     html: true,
     category: "transactional_lender",
   });

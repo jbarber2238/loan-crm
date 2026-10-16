@@ -1,3 +1,5 @@
+import { escapeHtml } from "@/lib/email-html";
+
 export const TRANSACTIONAL_STAGES = [
   { value: "new", label: "New" },
   { value: "sent_to_lender", label: "Sent to Lender" },
@@ -40,24 +42,35 @@ export interface LenderEmailInput {
 
 const orBlank = (v: string | null) => v?.trim() || "";
 
-/** The email to the transactional lender, built from the intake information. */
-export function buildLenderEmailBody(i: LenderEmailInput): string {
-  return [
-    `Hello ${i.lenderName},`,
-    "",
-    `I have a double close that needs funding by ${formatDay(i.closingDate)}.`,
-    "",
-    `Borrower Name: ${orBlank(i.borrowerName)}`,
-    `Borrower Phone: ${orBlank(i.borrowerPhone)}`,
-    `Borrower Email: ${orBlank(i.borrowerEmail)}`,
-    "",
-    `Funding Amount: ${formatMoney(i.fundingAmount)}`,
-    "",
-    `Title Company Name: ${orBlank(i.titleCompanyName)}`,
-    `Title Agent Name: ${orBlank(i.titleAgentName)}`,
-    `Title Phone: ${orBlank(i.titlePhone)}`,
-    `Title Email: ${orBlank(i.titleEmail)}`,
-    "",
-    "Best Regards,",
-  ].join("\n");
+/**
+ * The email to the transactional lender, built from the intake information, as
+ * HTML: each detail is a bullet with its name in bold and its value in regular
+ * weight. Grouped (borrower / funding / title company) with a gap between groups.
+ */
+export function buildLenderEmailHtml(i: LenderEmailInput): string {
+  const bullets = (items: [string, string][]) =>
+    `<ul style="margin:0 0 14px; padding-left:24px;">${items
+      .map(([label, value]) => `<li style="margin:0 0 4px;"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</li>`)
+      .join("")}</ul>`;
+  const p = (text: string) => `<p style="margin:0 0 12px;">${escapeHtml(text)}</p>`;
+
+  return (
+    `<div style="font-family:Arial,Helvetica,sans-serif; font-size:14px; color:#1f2937; line-height:1.5;">` +
+    p(`Hello ${i.lenderName},`) +
+    p(`I have a double close that needs funding by ${formatDay(i.closingDate)}.`) +
+    bullets([
+      ["Borrower Name", orBlank(i.borrowerName)],
+      ["Borrower Phone", orBlank(i.borrowerPhone)],
+      ["Borrower Email", orBlank(i.borrowerEmail)],
+    ]) +
+    bullets([["Funding Amount", formatMoney(i.fundingAmount)]]) +
+    bullets([
+      ["Title Company Name", orBlank(i.titleCompanyName)],
+      ["Title Agent Name", orBlank(i.titleAgentName)],
+      ["Title Phone", orBlank(i.titlePhone)],
+      ["Title Email", orBlank(i.titleEmail)],
+    ]) +
+    p("Best Regards,") +
+    `</div>`
+  );
 }

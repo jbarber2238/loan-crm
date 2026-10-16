@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Mail } from "lucide-react";
@@ -26,7 +26,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { HtmlBodyEditor } from "@/components/emails/html-body-editor";
+import { isActionError } from "@/lib/action-result";
 import { TRANSACTIONAL_STAGES, formatDay, formatMoney } from "@/lib/transactional-shared";
 import { defaultBrokerPoints, formatPoints, transactionalFees } from "@/lib/transactional-fees";
 
@@ -144,6 +145,8 @@ function SendToLenderDialog({ loan, lenders }: { loan: TransactionalLoanView; le
   const initialLenderId = loan.transactionalLenderId ?? (lenders.length === 1 ? lenders[0].id : "");
   const [lenderId, setLenderId] = useState(initialLenderId);
   const [to, setTo] = useState("");
+  const [cc, setCc] = useState("");
+  const bodyRef = useRef<HTMLDivElement>(null);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -152,6 +155,7 @@ function SendToLenderDialog({ loan, lenders }: { loan: TransactionalLoanView; le
     setError(null);
     if (!forLenderId) {
       setTo("");
+      setCc("");
       setSubject("");
       setBody("");
       return;
@@ -185,7 +189,12 @@ function SendToLenderDialog({ loan, lenders }: { loan: TransactionalLoanView; le
     setError(null);
     startSend(async () => {
       try {
-        await sendTransactionalLenderEmail(loan.id, lenderId, to, subject, body);
+        const result = await sendTransactionalLenderEmail(loan.id, lenderId, to, cc, subject, bodyRef.current?.innerHTML ?? body);
+        if (isActionError(result)) {
+          setError(result.error);
+          toast.error(result.error);
+          return;
+        }
         toast.success("Sent to the lender");
         setOpen(false);
         router.refresh();
@@ -242,12 +251,18 @@ function SendToLenderDialog({ loan, lenders }: { loan: TransactionalLoanView; le
                 )}
               </div>
               <div className="space-y-1.5">
+                <Label htmlFor="lender-cc">
+                  Cc <span className="font-normal text-muted-foreground">(optional)</span>
+                </Label>
+                <Input id="lender-cc" value={cc} onChange={(e) => setCc(e.target.value)} placeholder="name@example.com, another@example.com" />
+              </div>
+              <div className="space-y-1.5">
                 <Label htmlFor="lender-subject">Subject</Label>
                 <Input id="lender-subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="lender-body">Message — edit anything before sending</Label>
-                <Textarea id="lender-body" rows={16} value={body} onChange={(e) => setBody(e.target.value)} />
+                <Label>Message — click any text to edit it before sending</Label>
+                <HtmlBodyEditor html={body} bodyRef={bodyRef} />
               </div>
               <p className="text-xs text-muted-foreground">
                 Your signature is added when it sends. Sending makes this the request&apos;s lender, and a new request
