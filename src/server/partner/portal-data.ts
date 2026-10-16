@@ -1,27 +1,33 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { deals, partnerPayouts } from "@/server/db/schema";
+import { deals, partnerEvents, partnerPayouts } from "@/server/db/schema";
 import { LOAN_CATEGORIES, labelFor } from "@/lib/labels";
-import { borrowerLabel, cityFrom } from "@/lib/partner-display";
+import { borrowerDisplay } from "@/lib/partner-display";
 import {
   type PartnerStage,
   estimatePayout,
-  formatPayoutEstimate,
   partnerStageFor,
   payoutRate,
 } from "@/lib/partner-comp";
+import { type StageBucket, activityLine, bucketFor, shortDate } from "@/lib/partner-dashboard";
 
 export interface PortalReferral {
   id: string;
-  borrower: string; // first name + last initial only
-  city: string;
-  dealType: string;
+  borrower: string; // the borrower's company when there is one, otherwise first name + last initial
+  referredOn: string;
+  loanType: string;
+  loanAmount: number;
   stage: PartnerStage;
-  estimatedPayout: string;
+  bucket: StageBucket;
+  payoutText: string;
+  payoutNote: string;
   payoutStatus: "none" | "pending" | "ready" | "paid";
-  paidAmount: number | null;
-  paidDate: Date | null;
-  submittedAt: Date;
+}
+
+export interface PortalActivity {
+  date: string;
+  text: string;
+  paid: boolean;
 }
 
 export interface PortalDashboard {
@@ -29,10 +35,16 @@ export interface PortalDashboard {
   pipelineLow: number;
   pipelineHigh: number;
   paidToDate: number;
+  paidCount: number;
   inFlight: number;
   awaitingPayout: number;
   hasClosed: boolean;
+  bucketCounts: Record<"submitted" | "review" | "closing" | "funded", number>;
+  fundedCount: number;
+  activity: PortalActivity[];
 }
+
+const money = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 
 /**
  * Everything a partner may see, and nothing else: no contact details, lender,
@@ -46,7 +58,7 @@ export async function getPartnerDashboard(partner: { id: string; tier: number })
     columns: {
       id: true,
       borrowerName: true,
-      propertyAddress: true,
+      borrowerEntityName: true,
       loanCategory: true,
       stage: true,
       loanAmountRequested: true,
@@ -65,9 +77,13 @@ export async function getPartnerDashboard(partner: { id: string; tier: number })
   let inFlight = 0;
   let awaitingPayout = 0;
   let hasClosed = false;
+  const bucketCounts = { submitted: 0, review: 0, closing: 0, funded: 0 };
 
   const referrals = rows.map((deal): PortalReferral => {
     const stage = partnerStageFor(deal.stage);
+    const bucket = bucketFor(stage);
+    if (bucket === "submitted" || bucket === "review" || bucket === "closing" || bucket === "funded") bucketCounts[bucket]++;
+
     const payout = payoutByDeal.get(deal.id);
     const kind = deal.partnerPayoutKind === "trailing" ? "trailing" : "first";
     const estimate = estimatePayout({
@@ -92,20 +108,67 @@ export async function getPartnerDashboard(partner: { id: string; tier: number })
       }
     }
 
+    let payoutText: string;
+    let payoutNote: string;
+    if (payout?.status === "paid" && payout.paidAmount) {
+      payoutText = money(Number(payout.paidAmount));
+      payoutNote = `Paid ${payout.paidDate ? shortDate(payout.paidDate, "UTC") : ""} by ACH`.replace("  ", " ");
+    } else if (stage === "didnt_proceed") {
+      payoutText = "—";
+      payoutNote = "Didn't proceed";
+    } else {
+      payoutText = estimate.kind === "range" ? (estimate.low === estimate.high ? money(estimate.low) : `${money(estimate.low)}–${money(estimate.high)}`) : money(estimate.amount);
+      payoutNote =
+        stage === "closed"
+          ? payout?.status === "ready"
+            ? "Paying within 5 business days"
+            : "Paid after our fee arrives"
+          : estimate.kind === "range"
+            ? "Estimated range · paid after funding"
+            : "Estimated · paid after funding";
+    }
+
     return {
       id: deal.id,
-      borrower: borrowerLabel(deal.borrowerName),
-      city: cityFrom(deal.propertyAddress),
-      dealType: labelFor(LOAN_CATEGORIES, deal.loanCategory),
+      borrower: borrowerDisplay(deal.borrowerEntityName, deal.borrowerName),
+      referredOn: shortDate(deal.createdAt),
+      loanType: labelFor(LOAN_CATEGORIES, deal.loanCategory),
+      loanAmount: Number(deal.approvedLoanAmount) || Number(deal.loanAmountRequested) || 0,
       stage,
-      estimatedPayout: payout?.status === "paid" && payout.paidAmount ? `$${Number(payout.paidAmount).toLocaleString("en-US")}` : formatPayoutEstimate(estimate),
+      bucket,
+      payoutText,
+      payoutNote,
       payoutStatus: payout ? (payout.status as "pending" | "ready" | "paid") : "none",
-      paidAmount: payout?.paidAmount ? Number(payout.paidAmount) : null,
-      paidDate: payout?.paidDate ?? null,
-      submittedAt: deal.createdAt,
     };
   });
 
-  const paidToDate = payouts.reduce((sum, p) => sum + (p.status === "paid" ? Number(p.paidAmount ?? 0) : 0), 0);
-  return { referrals, pipelineLow, pipelineHigh, paidToDate, inFlight, awaitingPayout, hasClosed };
+  const paid = payouts.filter((p) => p.status === "paid");
+  const paidToDate = paid.reduce((sum, p) => sum + Number(p.paidAmount ?? 0), 0);
+
+  const labelByDeal = new Map(rows.map((r) => [r.id, borrowerDisplay(r.borrowerEntityName, r.borrowerName)]));
+  const events = await db.query.partnerEvents.findMany({
+    where: and(eq(partnerEvents.partnerId, partner.id), inArray(partnerEvents.type, ["referral_submitted", "stage_change", "payout_paid"])),
+    orderBy: desc(partnerEvents.createdAt),
+    limit: 60,
+  });
+  const activity: PortalActivity[] = [];
+  for (const e of events) {
+    const line = activityLine({ type: e.type, payload: e.payload, dealLabel: e.dealId ? (labelByDeal.get(e.dealId) ?? null) : null });
+    if (line) activity.push({ date: shortDate(e.createdAt), text: line.text, paid: line.paid });
+    if (activity.length === 8) break;
+  }
+
+  return {
+    referrals,
+    pipelineLow,
+    pipelineHigh,
+    paidToDate,
+    paidCount: paid.length,
+    inFlight,
+    awaitingPayout,
+    hasClosed,
+    bucketCounts,
+    fundedCount: bucketCounts.funded,
+    activity,
+  };
 }

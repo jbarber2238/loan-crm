@@ -13,3 +13,9 @@ export function cityFrom(address: string): string {
   if (parts.length === 2) return parts[1].replace(/\s*\d{5}(-\d{4})?\s*$/, "").trim() || parts[1];
   return "—";
 }
+
+/** The borrower as the partner knows them: their company when there is one, otherwise first name + last initial. */
+export function borrowerDisplay(entityName: string | null | undefined, fullName: string): string {
+  const entity = (entityName ?? "").trim();
+  return entity && entity.toLowerCase() !== "tbd" ? entity : borrowerLabel(fullName);
+}

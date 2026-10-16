@@ -37,7 +37,7 @@ export default async function PartnerLayout({ children }: { children: ReactNode 
   return (
     <div className={`${archivo.variable} min-h-screen`} style={THEME}>
       <header className="border-b" style={{ borderColor: "rgba(20,61,74,0.12)" }}>
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           <Link href={partner ? "/partner" : "/partner/sign-in"}>
             <MannaLogo className="h-8 w-auto" />
           </Link>
@@ -46,16 +46,25 @@ export default async function PartnerLayout({ children }: { children: ReactNode 
               Partner portal
             </span>
             {partner && partner.passwordHash && (
-              <form action={partnerSignOut}>
-                <button type="submit" className="underline underline-offset-4" style={{ color: TEAL }}>
-                  Sign out
-                </button>
-              </form>
+              <>
+                <Link href="/partner?how=1" className="underline underline-offset-4" style={{ color: TEAL }}>
+                  How you get paid
+                </Link>
+                <span className="hidden sm:inline">Hi {(partner.name ?? "").split(/\s+/)[0] || "there"}</span>
+                <form action={partnerSignOut}>
+                  <button type="submit" className="underline underline-offset-4" style={{ color: TEAL }}>
+                    Sign out
+                  </button>
+                </form>
+              </>
             )}
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-4xl px-4 py-8">{children}</main>
+      <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+      <footer className="mx-auto max-w-6xl px-4 pb-8 text-[11px]" style={{ color: "#68735F" }}>
+        Manna Lending is a DBA of VESBA Creative Capital LLC. Business-purpose loans only. Examples are illustrations; all terms are subject to underwriting.
+      </footer>
     </div>
   );
 }
