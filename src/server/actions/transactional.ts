@@ -16,6 +16,7 @@ import { MINIMUM_FUNDING_AMOUNT } from "@/lib/transactional-fees";
 import { ARCHIVABLE_STAGES } from "@/lib/deal-pipeline";
 import { lenderEmailRecipients, parseAdditionalContacts } from "@/lib/transactional-lender-contacts";
 import { easternToday, isSameDayFundingByTiming } from "@/lib/same-day-funding";
+import { fail } from "@/lib/action-result";
 
 function str(formData: FormData, key: string): string {
   const value = formData.get(key);
@@ -39,29 +40,34 @@ function parseDay(raw: string | null): Date | null {
 // ---- Public intake (no sign-in) -------------------------------------------
 
 export async function submitTransactionalIntake(formData: FormData) {
+  // We act the moment a request lands, so there's nothing to do for a property
+  // that isn't under contract yet.
+  if (formData.get("underContract") !== "yes") {
+    return fail("The property must be under contract to request transactional funds.");
+  }
   // We fund one structure only. Anyone who won't confirm it is turned away
   // here, before anything is saved or anyone is notified.
   if (formData.get("confirmDoubleClose") !== "on") {
-    throw new Error("We only fund traditional A-to-B, B-to-C double closes. Please confirm that's your transaction to submit a request.");
+    return fail("We only fund traditional A-to-B, B-to-C double closes. Please confirm that's your transaction to submit a request.");
   }
   const propertyAddress = str(formData, "propertyAddress");
   const borrowerName = str(formData, "borrowerName");
   const borrowerPhone = str(formData, "borrowerPhone");
   const borrowerEmail = str(formData, "borrowerEmail");
   const titleCompanyName = str(formData, "titleCompanyName");
-  if (!propertyAddress) throw new Error("The property address is required");
-  if (!borrowerName || !borrowerPhone || !borrowerEmail) throw new Error("Your name, phone and email are required");
-  if (!titleCompanyName) throw new Error("The title company is required");
+  if (!propertyAddress) return fail("The property address is required");
+  if (!borrowerName || !borrowerPhone || !borrowerEmail) return fail("Your name, phone and email are required");
+  if (!titleCompanyName) return fail("The title company is required");
   if (!str(formData, "titleAgentName") || !str(formData, "titlePhone") || !str(formData, "titleEmail")) {
-    throw new Error("The title agent's name, phone and email are required.");
+    return fail("The title agent's name, phone and email are required.");
   }
   const closingDate = parseDay(str(formData, "closingDate") || null);
-  if (!closingDate) throw new Error("The closing date is required");
+  if (!closingDate) return fail("The closing date is required");
   const closingDay = str(formData, "closingDate");
-  if (closingDay < easternToday()) throw new Error("The closing date can't be in the past.");
+  if (closingDay < easternToday()) return fail("The closing date can't be in the past.");
   const fundingAmount = parseAmount(str(formData, "fundingAmount"));
   if (Number(fundingAmount) < MINIMUM_FUNDING_AMOUNT) {
-    throw new Error(`We fund double closes starting at $${MINIMUM_FUNDING_AMOUNT.toLocaleString("en-US")}.`);
+    return fail(`We fund double closes starting at $${MINIMUM_FUNDING_AMOUNT.toLocaleString("en-US")}.`);
   }
 
   const [loan] = await db

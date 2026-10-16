@@ -79,6 +79,10 @@ export function TransactionalRequestForm() {
   const [rawAmount, setRawAmount] = useState("");
   const [closingDay, setClosingDay] = useState("");
   const [sameDayChecked, setSameDayChecked] = useState(false);
+  // null until they answer. "no" greys out the rest of the form: we act the
+  // moment a request comes in, so there's nothing to do without a contract.
+  const [underContract, setUnderContract] = useState<"yes" | "no" | null>(null);
+  const notUnderContract = underContract === "no";
 
   const amount = Number(rawAmount.replace(/[$,\s]/g, ""));
   // Closing today, or just after the 4 PM Eastern cutoff, is same-day funding
@@ -93,6 +97,39 @@ export function TransactionalRequestForm() {
           <span className="text-destructive">*</span> Required — every field is required.
         </p>
 
+        <fieldset className="space-y-3">
+          <legend className="text-sm font-medium">
+            Is this property under contract?
+            <Req />
+          </legend>
+          <div className="flex gap-6 text-sm">
+            {(["yes", "no"] as const).map((value) => (
+              <label key={value} className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="underContract"
+                  value={value}
+                  required
+                  checked={underContract === value}
+                  onChange={() => setUnderContract(value)}
+                  className="size-4"
+                />
+                {value === "yes" ? "Yes" : "No"}
+              </label>
+            ))}
+          </div>
+          {notUnderContract && (
+            <p role="alert" className="rounded-sm border border-destructive/40 bg-destructive/5 p-3 text-sm font-medium text-destructive">
+              The property must be under contract to request transactional funds.
+            </p>
+          )}
+        </fieldset>
+
+        <fieldset
+          disabled={notUnderContract}
+          aria-disabled={notUnderContract}
+          className={`min-w-0 space-y-8 border-0 p-0 transition-opacity ${notUnderContract ? "pointer-events-none opacity-40 grayscale select-none" : ""}`}
+        >
         <section className="space-y-4">
           <SectionHeading number={1} title="The Deal" />
           <Field id="propertyAddress" label="Property address" required />
@@ -198,6 +235,7 @@ export function TransactionalRequestForm() {
         >
           Submit funding request
         </SubmitButton>
+        </fieldset>
       </div>
     </ActionForm>
   );
