@@ -2,6 +2,17 @@
 
 import { useRouter } from "next/navigation";
 
+function Fig({ big, children }: { big: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-xl tabular-nums whitespace-nowrap">{big}</span>
+      <span className="max-w-[8.5rem] text-[10.5px] leading-snug" style={{ color: "rgba(250,247,242,0.85)" }}>
+        {children}
+      </span>
+    </div>
+  );
+}
+
 /** The dismissible "How you get paid" strip. Dismissal is remembered in a cookie; the header link brings it back. */
 export function HowPaidBand({
   rate,
@@ -16,15 +27,6 @@ export function HowPaidBand({
 }) {
   const router = useRouter();
   const money = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
-  const Fig = ({ big, children }: { big: string; children: React.ReactNode }) => (
-    <div className="flex items-center gap-3">
-      <span className="text-xl tabular-nums whitespace-nowrap">{big}</span>
-      <span className="max-w-[8.5rem] text-[10.5px] leading-snug" style={{ color: "rgba(250,247,242,0.85)" }}>
-        {children}
-      </span>
-    </div>
-  );
-
   return (
     <div
       id="how-paid"
