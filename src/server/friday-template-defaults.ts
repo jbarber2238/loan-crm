@@ -44,7 +44,7 @@ Justin`,
     subject: "You're rebooked for this Friday",
     body: `Hey {{firstName}},
 
-Life happens. I've already moved you to this Friday, {{sessionDate}}.
+Life happens. I've already moved you to {{sessionDate}}.
 
 {{joinButton}}
 {{calendarButton}}
