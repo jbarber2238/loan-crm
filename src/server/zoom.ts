@@ -95,3 +95,71 @@ export async function attendedEmails(sessionDay: string): Promise<Set<string> | 
   return new Set([...seconds].filter(([, s]) => s >= ATTENDED_MIN_SECONDS).map(([email]) => email));
 }
 
+
+export interface ZoomCheck {
+  label: string;
+  ok: boolean;
+  detail: string;
+}
+
+/** A read-only health check: can we sign in, see the meeting, is registration on, and can we read attendance reports. Creates nothing. */
+export async function checkZoomConnection(): Promise<ZoomCheck[]> {
+  const checks: ZoomCheck[] = [];
+  const missing = ["ZOOM_ACCOUNT_ID", "ZOOM_CLIENT_ID", "ZOOM_CLIENT_SECRET", "ZOOM_MEETING_ID"].filter((k) => !process.env[k]);
+  if (missing.length) {
+    return [{ label: "Credentials in Vercel", ok: false, detail: `Missing: ${missing.join(", ")}. Add them, then redeploy.` }];
+  }
+  checks.push({ label: "Credentials in Vercel", ok: true, detail: "All four are set." });
+
+  try {
+    await accessToken();
+    checks.push({ label: "Sign in to Zoom", ok: true, detail: "The app credentials work." });
+  } catch (err) {
+    checks.push({ label: "Sign in to Zoom", ok: false, detail: err instanceof Error ? err.message : "Zoom rejected the credentials." });
+    return checks;
+  }
+
+  const meetingId = process.env.ZOOM_MEETING_ID;
+  try {
+    const meeting = await zoom<{ topic?: string; type?: number; settings?: { approval_type?: number; registration_type?: number } }>(`/meetings/${meetingId}`);
+    checks.push({ label: "Find the Friday meeting", ok: true, detail: `Found "${meeting.topic ?? "meeting"}".` });
+    const approval = meeting.settings?.approval_type;
+    // 0 = auto-approve, 1 = manual, 2 = no registration required.
+    checks.push({
+      label: "Registration is on and automatic",
+      ok: approval === 0,
+      detail:
+        approval === 0
+          ? "Registration is required and approves automatically."
+          : approval === 2
+            ? "Registration is off. In the meeting's settings, turn on Registration (Required) and set approval to Automatic."
+            : "Approval is manual. Set it to Automatic so people get their link instantly.",
+    });
+    checks.push({
+      label: "One registration covers every Friday",
+      ok: meeting.settings?.registration_type === 1,
+      detail:
+        meeting.settings?.registration_type === 1
+          ? "Attendees register once and can attend any occurrence."
+          : "Set it to \"Attendees register once and can attend any occurrence\", so one personal link works every week.",
+    });
+  } catch (err) {
+    checks.push({ label: "Find the Friday meeting", ok: false, detail: err instanceof Error ? err.message : "Couldn't read the meeting." });
+    return checks;
+  }
+
+  try {
+    await zoom(`/past_meetings/${meetingId}/instances`);
+    checks.push({ label: "Read attendance", ok: true, detail: "Zoom lets us read past sessions." });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "";
+    // A meeting with no past sessions yet answers 404 (code 3001); that still proves the scope is there.
+    const noHistory = /\(404\)/.test(message);
+    checks.push({
+      label: "Read attendance",
+      ok: noHistory,
+      detail: noHistory ? "No past sessions yet, which is expected. Permission looks fine." : message || "Couldn't read past sessions. Check the app's report and past-meeting scopes.",
+    });
+  }
+  return checks;
+}

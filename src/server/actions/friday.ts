@@ -10,7 +10,7 @@ import { requireAdminOrLoanOfficer } from "@/server/auth/guards";
 import { fail } from "@/lib/action-result";
 import { FRIDAY_ROLES } from "@/lib/friday-constants";
 import { applyAttendance, monthlyListEmails, registerFridayLead, runFridayJobs, setAttendance } from "@/server/friday";
-import { attendedEmails, isZoomConfigured } from "@/server/zoom";
+import { attendedEmails, checkZoomConnection, isZoomConfigured } from "@/server/zoom";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -84,4 +84,10 @@ export async function runFridayJobsNow() {
   const result = await runFridayJobs();
   revalidatePath("/pipeline/leads/friday");
   return result;
+}
+
+/** Read-only check that the Zoom connection is set up properly. */
+export async function checkZoom() {
+  await requireAdminOrLoanOfficer();
+  return checkZoomConnection();
 }

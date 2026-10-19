@@ -1,9 +1,9 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { copyMonthlyList, markFridayAttendance, runFridayJobsNow, syncFridayAttendanceNow } from "@/server/actions/friday";
+import { checkZoom, copyMonthlyList, markFridayAttendance, runFridayJobsNow, syncFridayAttendanceNow } from "@/server/actions/friday";
 import { isActionError } from "@/lib/action-result";
 import { Button } from "@/components/ui/button";
 
@@ -86,5 +86,43 @@ export function CopyMonthlyListButton({ count }: { count: number }) {
     >
       Copy monthly list ({count})
     </Button>
+  );
+}
+
+export function CheckZoomButton() {
+  const [pending, start] = useTransition();
+  const [checks, setChecks] = useState<{ label: string; ok: boolean; detail: string }[] | null>(null);
+  return (
+    <div className="space-y-2">
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={pending}
+        onClick={() =>
+          start(async () => {
+            try {
+              setChecks(await checkZoom());
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : "Couldn't run the check.");
+            }
+          })
+        }
+      >
+        {pending ? "Checking…" : "Check Zoom connection"}
+      </Button>
+      {checks && (
+        <ul className="space-y-1 rounded-md border p-3 text-sm">
+          {checks.map((c) => (
+            <li key={c.label} className="flex gap-2">
+              <span aria-hidden="true">{c.ok ? "✓" : "✗"}</span>
+              <span>
+                <span className="font-medium">{c.label}.</span> <span className={c.ok ? "text-muted-foreground" : "text-destructive"}>{c.detail}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
