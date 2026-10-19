@@ -5,7 +5,7 @@ import { getFridayAdminData } from "@/server/friday";
 import { formatSession } from "@/lib/friday-schedule";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AttendanceButtons, CheckZoomButton, CopyMonthlyListButton, RunJobsButton, SyncButton } from "@/components/leads/friday-controls";
+import { AttendanceButtons, CheckZoomButton, CopyMonthlyListButton, RunJobsButton, SyncButton, TestRegistrationBox } from "@/components/leads/friday-controls";
 
 type Person = Awaited<ReturnType<typeof getFridayAdminData>>["upcoming"][number];
 
@@ -80,6 +80,7 @@ export default async function FridayZoomPage() {
       </div>
 
       <CheckZoomButton />
+      <TestRegistrationBox />
 
       {!data.zoomConnected && (
         <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">

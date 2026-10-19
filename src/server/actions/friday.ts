@@ -9,7 +9,7 @@ import { leads } from "@/server/db/schema";
 import { requireAdminOrLoanOfficer } from "@/server/auth/guards";
 import { fail } from "@/lib/action-result";
 import { FRIDAY_ROLES } from "@/lib/friday-constants";
-import { applyAttendance, monthlyListEmails, registerFridayLead, runFridayJobs, setAttendance } from "@/server/friday";
+import { applyAttendance, monthlyListEmails, registerFridayLead, runFridayJobs, setAttendance, testZoomRegistration } from "@/server/friday";
 import { attendedEmails, checkZoomConnection, isZoomConfigured } from "@/server/zoom";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -90,4 +90,10 @@ export async function runFridayJobsNow() {
 export async function checkZoom() {
   await requireAdminOrLoanOfficer();
   return checkZoomConnection();
+}
+
+export async function testZoomRegistrationAction(email: string) {
+  await requireAdminOrLoanOfficer();
+  if (!EMAIL_RE.test(email.trim())) return fail("Enter a valid email address.");
+  return testZoomRegistration(email.trim().toLowerCase());
 }

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { checkZoom, copyMonthlyList, markFridayAttendance, runFridayJobsNow, syncFridayAttendanceNow } from "@/server/actions/friday";
+import { checkZoom, copyMonthlyList, testZoomRegistrationAction, markFridayAttendance, runFridayJobsNow, syncFridayAttendanceNow } from "@/server/actions/friday";
 import { isActionError } from "@/lib/action-result";
 import { Button } from "@/components/ui/button";
 
@@ -123,6 +123,44 @@ export function CheckZoomButton() {
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+export function TestRegistrationBox() {
+  const [pending, start] = useTransition();
+  const [email, setEmail] = useState("");
+  const [result, setResult] = useState<string | null>(null);
+  return (
+    <div className="space-y-2 rounded-md border p-3">
+      <p className="text-sm font-medium">Test a Zoom registration</p>
+      <p className="text-xs text-muted-foreground">Registers this email for the Friday meeting and shows Zoom&apos;s exact answer. If it works it creates a real registrant in Zoom, so delete it there afterward.</p>
+      <div className="flex flex-wrap gap-2">
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you+test@example.com"
+          className="h-8 w-64 rounded-md border bg-background px-2 text-sm"
+        />
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={pending || !email}
+          onClick={() =>
+            start(async () => {
+              const r = await testZoomRegistrationAction(email);
+              if ("error" in r) setResult(r.error);
+              else if (r.ok) setResult(`Worked. Zoom gave this join link: ${r.joinUrl}`);
+              else setResult(`Zoom said: ${r.error}`);
+            })
+          }
+        >
+          {pending ? "Testing…" : "Test registration"}
+        </Button>
+      </div>
+      {result && <p className="break-words text-sm">{result}</p>}
     </div>
   );
 }

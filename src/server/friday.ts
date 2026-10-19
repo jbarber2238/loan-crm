@@ -175,8 +175,18 @@ export async function registerFridayLead(input: FridayRegistration): Promise<{ l
   const [firstName, ...rest] = input.name.trim().split(/\s+/);
 
   // Zoom first: if it can't register them there's no seat to confirm.
+  // A Zoom hiccup never loses a signup: the seat is saved, you get an alert with
+  // Zoom's actual message, and the scheduled job keeps retrying the registration.
   let zoom: { registrantId: string; joinUrl: string } | null = null;
-  if (isZoomConfigured()) zoom = await registerForMeeting({ email, firstName, lastName: rest.join(" "), phone });
+  let zoomError: string | null = null;
+  if (isZoomConfigured()) {
+    try {
+      zoom = await registerForMeeting({ email, firstName, lastName: rest.join(" "), phone });
+    } catch (err) {
+      zoomError = err instanceof Error ? err.message : "Unknown Zoom error";
+      console.error("Zoom registration failed:", err);
+    }
+  }
 
   const existing = await db.query.leads.findFirst({ where: or(eq(leads.email, email), eq(leads.phone, phone)) });
   const booking = {
@@ -212,7 +222,16 @@ export async function registerFridayLead(input: FridayRegistration): Promise<{ l
     body: `${input.role} · ${formatSession(sessionDay)}`,
     href: "/pipeline/leads/friday",
   });
-  await sendFridayEmail(lead, "confirmation", sessionDay, { sessionDay });
+  if (zoomError) {
+    await createNotifications(await activeAdminIds(), {
+      type: "friday_zoom_error",
+      title: `Zoom couldn't register ${lead.name}`,
+      body: `Their seat is saved and I'll keep retrying. Zoom said: ${zoomError.slice(0, 300)}`,
+      href: "/pipeline/leads/friday",
+    });
+  } else {
+    await sendFridayEmail(lead, "confirmation", sessionDay, { sessionDay });
+  }
   return { leadId: lead.id, sessionDay };
 }
 
@@ -298,6 +317,23 @@ export async function runFridayJobs(now: Date = new Date()): Promise<FridayJobRe
   const result: FridayJobResult = { headcount: false, reminders: 0, attendanceSynced: false, followups: 0, nudges: 0, rollForwards: 0 };
   const today = etDay(now);
   const isFridayToday = etParts(now).weekday === 5;
+
+  // Retry anyone Zoom couldn't register at signup, then send their confirmation.
+  if (isZoomConfigured()) {
+    const waiting = await db.query.leads.findMany({
+      where: and(isNotNull(leads.fridayBookedSessionDate), gte(leads.fridayBookedSessionDate, today), eq(leads.fridayStatus, "registered"), sql`${leads.zoomJoinUrl} is null`),
+    });
+    for (const lead of waiting) {
+      try {
+        const [firstName, ...rest] = lead.name.trim().split(/\s+/);
+        const zoom = await registerForMeeting({ email: lead.email, firstName, lastName: rest.join(" "), phone: lead.phone });
+        const [updated] = await db.update(leads).set({ zoomRegistrantId: zoom.registrantId, zoomJoinUrl: zoom.joinUrl }).where(eq(leads.id, lead.id)).returning();
+        await sendFridayEmail(updated, "confirmation", updated.fridayBookedSessionDate ?? today, { sessionDay: updated.fridayBookedSessionDate ?? today });
+      } catch (err) {
+        console.error("Zoom retry failed:", err);
+      }
+    }
+  }
 
   // 8 AM Friday: who to expect.
   if (isFridayToday && isAtOrAfterEt(now, today, HEADCOUNT_HOUR_ET) && !isAtOrAfterEt(now, today, 12)) {
@@ -411,6 +447,16 @@ export async function getFridayAdminData(now: Date = new Date()) {
     db.query.fridaySessions.findFirst({ where: eq(fridaySessions.sessionDate, last) }),
   ]);
   return { next, last, upcoming, previous, monthlyCount: monthly[0]?.n ?? 0, lastSynced: Boolean(lastSession?.syncedAt), zoomConnected: isZoomConfigured() };
+}
+
+/** Admin test: registers an email for the meeting and reports Zoom's exact answer. Creates a real Zoom registrant if it works. */
+export async function testZoomRegistration(email: string): Promise<{ ok: true; joinUrl: string } | { ok: false; error: string }> {
+  try {
+    const { joinUrl } = await registerForMeeting({ email, firstName: "Test", lastName: "Registration", phone: "" });
+    return { ok: true, joinUrl };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Unknown Zoom error" };
+  }
 }
 
 export async function monthlyListEmails(): Promise<string[]> {
