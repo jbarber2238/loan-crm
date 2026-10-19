@@ -54,7 +54,7 @@ export function SiteHeader() {
     <header className="border-b" style={{ backgroundColor: OFF_WHITE, borderColor: "rgba(20,61,74,0.12)" }}>
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
         <Link href="/">
-          <MannaLogo className="h-9 w-auto" />
+          <MannaLogo className="h-12 w-auto" />
         </Link>
         <nav className="flex items-center gap-6">
           <Link href="/#programs" className="hidden text-sm font-medium tracking-wide sm:inline" style={{ color: BASALT }}>
@@ -127,7 +127,7 @@ export function SiteHeader() {
             <SheetContent side="right" className="w-[280px]" style={{ backgroundColor: OFF_WHITE }}>
               <SheetHeader>
                 <SheetTitle className="font-normal" style={{ color: TEAL }}>
-                  <MannaLogo className="h-7 w-auto" />
+                  <MannaLogo className="h-9 w-auto" />
                 </SheetTitle>
               </SheetHeader>
               <nav className="flex flex-col gap-1 px-4 pb-6">

@@ -58,7 +58,7 @@ export function DscrRefiConversionForm({
     return (
       <div className={`${fontVariable} ${PAGE_CLASS} flex items-center justify-center`} style={PAGE_STYLE}>
         <div className="max-w-md rounded-sm p-8 text-center" style={CARD_STYLE}>
-          <MannaLogo className="mx-auto h-8 w-auto" />
+          <MannaLogo className="mx-auto h-10 w-auto" />
           <h1 className="mt-6 text-xl font-medium" style={{ color: TEAL }}>
             Thanks — we&apos;ve got it
           </h1>
@@ -80,7 +80,7 @@ export function DscrRefiConversionForm({
   return (
     <div className={`${fontVariable} ${PAGE_CLASS}`} style={PAGE_STYLE}>
       <div className="mx-auto max-w-2xl rounded-sm p-6 md:p-10" style={CARD_STYLE}>
-        <MannaLogo className="h-8 w-auto" />
+        <MannaLogo className="h-10 w-auto" />
         <h1 className="mt-4 text-lg font-medium" style={{ color: TEAL }}>
           DSCR Refinance Request
         </h1>

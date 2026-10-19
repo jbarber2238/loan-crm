@@ -45,7 +45,7 @@ export default async function TransactionalRequestPage({
       <div className="min-h-screen p-4 py-10 md:p-10" style={{ backgroundColor: TEAL }}>
         {submitted === "1" ? (
           <div className="mx-auto max-w-md rounded-sm p-8 text-center" style={CARD_STYLE}>
-            <MannaLogo className="mx-auto h-8 w-auto" />
+            <MannaLogo className="mx-auto h-10 w-auto" />
             <h1 className="mt-6 text-xl font-medium" style={{ color: TEAL }}>
               Your funding request is in
             </h1>

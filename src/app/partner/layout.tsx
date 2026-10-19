@@ -39,7 +39,7 @@ export default async function PartnerLayout({ children }: { children: ReactNode 
       <header className="border-b" style={{ borderColor: "rgba(20,61,74,0.12)" }}>
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           <Link href={partner ? "/partner" : "/partner/sign-in"}>
-            <MannaLogo className="h-8 w-auto" />
+            <MannaLogo className="h-10 w-auto" />
           </Link>
           <div className="flex items-center gap-4 text-sm">
             <span className="hidden text-xs font-medium tracking-[0.18em] uppercase sm:inline" style={{ color: "#68735F" }}>
