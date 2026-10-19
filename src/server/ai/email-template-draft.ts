@@ -22,6 +22,7 @@ const AUDIENCE_BY_CATEGORY: Record<EmailTemplateCategory, string> = {
   insurance_request: "an insurance agent, requesting a binder for a property",
   title_request: "a title agent, requesting title work be opened on a property",
   application_submission: "a lender's rep, submitting a loan application for processing",
+  friday_zoom: "someone who signed up for (or attended) the Friday lunch Zoom and may become a referral partner",
 };
 
 function systemPromptFor(category: EmailTemplateCategory): string {

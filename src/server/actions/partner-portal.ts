@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, gte, isNull, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { fail } from "@/lib/action-result";
 import { affiliatePaymentDocuments, partnerTokens, referralAffiliates } from "@/server/db/schema";
@@ -11,6 +11,8 @@ import { logPartnerEvent } from "@/server/partner/events";
 import { encryptSecret, hashToken, newToken } from "@/server/partner/crypto";
 import { hashPassword, verifyPassword } from "@/server/partner/password";
 import { createPartnerSession, destroyPartnerSession, requirePartner } from "@/server/partner/session";
+import { issuePartnerSetupLink, sendInviteEmail } from "@/server/partner/invite";
+import { sendFridayWelcomeIfRegistered } from "@/server/friday";
 import { recomputePayoutStatuses } from "@/server/partner/payouts";
 import {
   LOCKOUT_MINUTES,
@@ -110,6 +112,8 @@ export async function acceptPartnerTerms(formData: FormData) {
   await logPartnerEvent(partner.id, "signed", { version: TERMS_VERSION });
 
   if (firstTime) {
+    // Came through the Friday Zoom? Congratulate them the moment they're in.
+    await sendFridayWelcomeIfRegistered(partner.email);
     await notifyAdmins({
       type: "partner_terms_accepted",
       title: `${partner.name ?? partner.email} accepted terms — partner active`,
@@ -269,4 +273,35 @@ export async function startPartnerW9(): Promise<{ url: string } | { error: strin
     await db.update(referralAffiliates).set({ w9DocumentId: documentId }).where(eq(referralAffiliates.id, partner.id));
   }
   return { url: await createSigningSessionUrl(documentId, partner.email) };
+}
+
+/**
+ * Public: someone types their email on the "Become a partner" page and gets
+ * the setup link by email. The email round trip is what proves the address is
+ * theirs before they can set a password. Always answers the same way, so it
+ * can't be used to find out who is already a partner.
+ */
+export async function requestPartnerSetupLink(formData: FormData) {
+  if (String(formData.get("website") ?? "").trim()) return { ok: true };
+  const email = str(formData, "email").toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail("Please enter a valid email address.");
+
+  // A cap on how many new setup links the whole site will send per hour.
+  const [{ n }] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(partnerTokens)
+    .where(and(eq(partnerTokens.purpose, "invite"), gte(partnerTokens.createdAt, new Date(Date.now() - 60 * 60 * 1000))));
+  if (n >= 60) return fail("We're getting a lot of requests right now. Please try again in a little while.");
+
+  const existing = await db.query.referralAffiliates.findFirst({ where: eq(referralAffiliates.email, email) });
+  // Don't re-send inside a minute.
+  if (existing?.portalInvitedAt && Date.now() - existing.portalInvitedAt.getTime() < 60_000) return { ok: true };
+
+  const setup = await issuePartnerSetupLink(email);
+  if (setup?.url) {
+    await db.update(referralAffiliates).set({ portalInvitedAt: new Date() }).where(eq(referralAffiliates.id, setup.partner.id));
+    if (setup.created) await logPartnerEvent(setup.partner.id, "invited", { via: "become_a_partner_page" });
+    await sendInviteEmail(setup.partner, null, setup.url.split("/").pop() ?? "");
+  }
+  return { ok: true };
 }

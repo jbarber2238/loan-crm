@@ -28,9 +28,14 @@ export default async function LeadsPipelinePage() {
         <p className="text-sm text-muted-foreground">
           {leads.length} lead{leads.length === 1 ? "" : "s"} from the marketing site&apos;s gated tools.
         </p>
-        <Link href="/pipeline/leads/call-list" className="text-sm font-medium text-primary underline">
-          Call List →
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link href="/pipeline/leads/friday" className="text-sm font-medium text-primary underline">
+            Friday Zoom →
+          </Link>
+          <Link href="/pipeline/leads/call-list" className="text-sm font-medium text-primary underline">
+            Call List →
+          </Link>
+        </div>
       </div>
 
       {leads.length === 0 ? (

@@ -13,6 +13,7 @@ export default async function EmailTemplatesPage() {
 
   const pricingTemplates = templates.filter((t) => t.category === "pricing_request");
   const borrowerTemplates = templates.filter((t) => t.category === "borrower_lifecycle");
+  const fridayTemplates = templates.filter((t) => t.category === "friday_zoom");
   const vendorTemplates = templates.filter((t) =>
     ["insurance_request", "title_request", "application_submission"].includes(t.category)
   );
@@ -47,6 +48,22 @@ export default async function EmailTemplatesPage() {
                 {vendorTemplates.map((t) => (
                   <EmailTemplateCard key={t.id} template={t} />
                 ))}
+              </div>
+            ),
+          },
+          {
+            key: "friday",
+            title: "Friday Zoom & Partner Recruiting",
+            description:
+              "The emails around the Friday \"See It, Send It, Get Paid\" Zoom: confirmation, reminders, follow-ups and the partner welcome. Buttons like {{joinButton}} turn into real buttons when sent.",
+            children: (
+              <div className="space-y-2" key="friday-list">
+                {fridayTemplates.map((t) => (
+                  <EmailTemplateCard key={t.id} template={t} />
+                ))}
+                {fridayTemplates.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No Friday Zoom templates yet.</p>
+                )}
               </div>
             ),
           },

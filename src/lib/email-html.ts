@@ -48,7 +48,10 @@ export function plainTextToHtmlWithBlocks(text: string, blocks: Record<string, s
     (url) => `<a href="${url}" target="_blank" rel="noreferrer">${url}</a>`
   );
   for (const [key, value] of Object.entries(blocks)) {
-    if (value.startsWith("<ul")) {
+    if (value.startsWith("<div")) {
+      // Already a block (a row of buttons): swallow the template's own blank lines around it too.
+      html = html.replace(new RegExp(`\\n*\\{\\{${key}\\}\\}\\n*`, "g"), () => value);
+    } else if (value.startsWith("<ul")) {
       // A list is a block: the blank lines the template puts around it would
       // stack on top of the list's own margins and leave an uneven gap. Take
       // them out and let the margins (4px + the last bullet's 12px = one blank

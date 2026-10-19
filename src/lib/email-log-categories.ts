@@ -28,6 +28,7 @@ export const EMAIL_LOG_CATEGORY_LABELS: Record<string, string> = {
   transactional_new_loan: "New transactional request",
   transactional_receipt: "Transactional request received",
   transactional_lender: "Transactional lender request",
+  friday_zoom: "Friday Zoom sequence",
   other: "Other",
 };
 
@@ -50,4 +51,5 @@ export const AUTOMATIC_EMAIL_CATEGORIES = new Set([
   "lead_magnet_new_lead",
   "lead_magnet_hot_alert",
   "lead_magnet_daily_digest",
+  "friday_zoom",
 ]);

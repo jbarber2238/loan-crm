@@ -1,6 +1,6 @@
 import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { partnerBorrowers, referralAffiliates } from "@/server/db/schema";
+import { leads, partnerBorrowers, referralAffiliates } from "@/server/db/schema";
 import { evaluateTier, TIER_AT_RISK_DAYS } from "@/lib/partner-comp";
 import { appUrl, button, greeting, notifyAdmins, sendPartnerEmail } from "@/server/partner/email";
 import { createInviteToken } from "@/server/partner/invite";
@@ -16,6 +16,12 @@ async function nudgeStalledSignups(now: Date) {
   });
   let sent = 0;
   for (const p of rows) {
+    // People who came through the Friday Zoom get their own follow-up and nudge from that sequence.
+    const fridayLead = await db.query.leads.findFirst({
+      where: and(eq(leads.email, p.email), sql`${leads.fridayBookedSessionDate} is not null`),
+      columns: { id: true },
+    });
+    if (fridayLead) continue;
     const age = ageDays(p.portalInvitedAt, now);
     const which = age >= 5 && !p.inviteNudge2At ? 2 : age >= 2 && !p.inviteNudge1At ? 1 : 0;
     if (!which) continue;

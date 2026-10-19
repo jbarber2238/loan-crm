@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/partners",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/friday",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
   boolean,
+  date,
   integer,
   jsonb,
   numeric,
@@ -91,6 +92,7 @@ export const emailTemplateCategoryEnum = pgEnum("email_template_category", [
   "insurance_request",
   "title_request",
   "application_submission",
+  "friday_zoom",
 ]);
 
 export const dealStageEnum = pgEnum("deal_stage", [
@@ -1404,6 +1406,17 @@ export const leads = pgTable("leads", {
   // ever submits the gate form again (fresh consent supersedes an old opt-out).
   unsubscribedAt: timestamp("unsubscribed_at", { mode: "date", withTimezone: true }),
   convertedDealId: uuid("converted_deal_id").references(() => deals.id, { onDelete: "set null" }),
+  // ---- Friday "See It, Send It, Get Paid" Zoom ----
+  role: text("role"), // agent / private lender / property manager / CPA / investor / builder / other
+  monthlyList: boolean("monthly_list").notNull().default(false), // the monthly deal-story email segment
+  fridayEmailOnly: boolean("friday_email_only").notNull().default(false), // two no-shows: no more rebooking, monthly list only
+  fridayNoShowCount: integer("friday_no_show_count").notNull().default(0),
+  fridayBookedSessionDate: date("friday_booked_session_date"),
+  fridayStatus: text("friday_status"), // registered | attended | no_show
+  fridayAttendedDate: date("friday_attended_date"), // the session they last attended
+  fridayAttendedAt: timestamp("friday_attended_at", { mode: "date", withTimezone: true }),
+  zoomRegistrantId: text("zoom_registrant_id"),
+  zoomJoinUrl: text("zoom_join_url"),
   lastActivityAt: timestamp("last_activity_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
 });
@@ -2246,3 +2259,29 @@ export const partnerPayoutsRelations = relations(partnerPayouts, ({ one }) => ({
   deal: one(deals, { fields: [partnerPayouts.dealId], references: [deals.id] }),
   partner: one(referralAffiliates, { fields: [partnerPayouts.partnerId], references: [referralAffiliates.id] }),
 }));
+
+// One row per Friday session that attendance has been pulled from Zoom for.
+export const fridaySessions = pgTable("friday_sessions", {
+  sessionDate: date("session_date").primaryKey(),
+  syncedAt: timestamp("synced_at", { mode: "date", withTimezone: true }),
+  registeredCount: integer("registered_count"),
+  attendedCount: integer("attended_count"),
+  headcountSentAt: timestamp("headcount_sent_at", { mode: "date", withTimezone: true }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
+// Every sequence email sent to a registrant. The unique key is what makes each
+// send happen exactly once, however often the scheduled job runs.
+export const fridaySends = pgTable(
+  "friday_sends",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leadId: uuid("lead_id")
+      .notNull()
+      .references(() => leads.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(), // confirmation | reminder | rollforward | followup | nudge | welcome
+    sessionKey: text("session_key").notNull(), // the session date, or "once"
+    sentAt: timestamp("sent_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("friday_sends_unique").on(t.leadId, t.kind, t.sessionKey)]
+);

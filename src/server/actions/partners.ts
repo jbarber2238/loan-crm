@@ -10,37 +10,12 @@ import { appUrl, button, greeting, isProgramLive, sendPartnerEmail } from "@/ser
 import { logPartnerEvent } from "@/server/partner/events";
 import { decryptSecret } from "@/server/partner/crypto";
 import { markBrokerFeeReceived } from "@/server/partner/payouts";
-import { createInviteToken } from "@/server/partner/invite";
-import { referralSlugFrom } from "@/lib/partner-comp";
+import { createInviteToken, sendInviteEmail, uniqueSlug } from "@/server/partner/invite";
 import { isPgErrorCode } from "@/lib/pg-error";
 import { escapeHtml } from "@/lib/email-html";
 
-type Partner = typeof referralAffiliates.$inferSelect;
-
 function revalidatePartnerViews() {
   revalidatePath("/settings/referrals");
-}
-
-async function uniqueSlug(name: string | null, email: string): Promise<string> {
-  const base = referralSlugFrom(name, email);
-  for (let i = 0; i < 50; i++) {
-    const candidate = i === 0 ? base : `${base}-${i + 1}`;
-    const taken = await db.query.referralAffiliates.findFirst({ where: eq(referralAffiliates.referralSlug, candidate), columns: { id: true } });
-    if (!taken) return candidate;
-  }
-  return `${base}-${Date.now().toString(36)}`;
-}
-
-async function sendInviteEmail(partner: Partner, inviterName: string | null, token: string): Promise<boolean> {
-  return sendPartnerEmail(partner, {
-    subject: `${inviterName ?? "Justin"} invited you to the Manna Lending partner program`,
-    heading: "You're invited to the Manna Lending partner program",
-    bodyHtml:
-      greeting(partner) +
-      `<p style="margin:0 0 16px;">${escapeHtml(inviterName ?? "Our team")} invited you to join the Manna Lending partner program. Refer a borrower, watch every step of their loan in your own portal, and get paid when it closes.</p>` +
-      `<p style="margin:0 0 16px;">Setting up takes about two minutes.</p>` +
-      button("Set up your partner account", `${appUrl()}/partner/join/${token}`),
-  });
 }
 
 // ---- Invite -----------------------------------------------------------------

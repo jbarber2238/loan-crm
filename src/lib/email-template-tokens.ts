@@ -199,7 +199,18 @@ export type EmailTemplateCategory =
   | "borrower_lifecycle"
   | "insurance_request"
   | "title_request"
-  | "application_submission";
+  | "application_submission"
+  | "friday_zoom";
+
+export const FRIDAY_ZOOM_TOKENS: EmailTemplateToken[] = [
+  { key: "firstName", description: "The person's first name" },
+  { key: "sessionDate", description: "The Friday session, e.g. \"Friday, October 23 at 12:00 PM ET\"" },
+  { key: "joinButton", description: "A \"Join the Zoom\" button with their personal link" },
+  { key: "calendarButton", description: "An \"Add to Google Calendar\" button for the session" },
+  { key: "partnerSignupButton", description: "A \"Set up your partner account\" button (their setup link)" },
+  { key: "partnerPortalButton", description: "An \"Open your partner portal\" button" },
+  { key: "cheatSheetButton", description: "A \"Get the Send-It Cheat Sheet\" button" },
+];
 
 export function tokensForCategory(category: EmailTemplateCategory): EmailTemplateToken[] {
   switch (category) {
@@ -211,6 +222,8 @@ export function tokensForCategory(category: EmailTemplateCategory): EmailTemplat
       return TITLE_REQUEST_TOKENS;
     case "application_submission":
       return APPLICATION_SUBMISSION_TOKENS;
+    case "friday_zoom":
+      return FRIDAY_ZOOM_TOKENS;
     case "borrower_lifecycle":
     default:
       return BORROWER_LIFECYCLE_TOKENS;
