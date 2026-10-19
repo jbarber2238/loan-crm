@@ -535,8 +535,8 @@ export async function buildClientNeedsContextNote(dealId: string): Promise<strin
 
 /**
  * Saves (or, when empty, removes) the note to the processor at the top of the
- * Client Needs tab. When a note is added or changed, the file's processor and
- * assistant are notified unless they're the one who wrote it.
+ * Client Needs tab. When a note is added or changed on a file whose invoice is
+ * paid, the processor and assistant are notified unless they wrote it.
  */
 export async function saveClientNeedsNote(dealId: string, raw: string) {
   const user = await requireUser();
@@ -545,7 +545,7 @@ export async function saveClientNeedsNote(dealId: string, raw: string) {
 
   const deal = await db.query.deals.findFirst({
     where: eq(deals.id, dealId),
-    columns: { id: true, propertyAddress: true, assignedProcessorId: true, assignedAssistantId: true, clientNeedsNote: true },
+    columns: { id: true, propertyAddress: true, assignedProcessorId: true, assignedAssistantId: true, clientNeedsNote: true, stripeInvoiceStatus: true },
   });
   if (!deal) return fail("Deal not found");
   if ((deal.clientNeedsNote ?? null) === result.note) return;
@@ -559,7 +559,10 @@ export async function saveClientNeedsNote(dealId: string, raw: string) {
     })
     .where(eq(deals.id, dealId));
 
-  if (result.note) {
+  // Same rule as every other processor notification: the file isn't theirs to
+  // worry about until the processing-fee invoice is paid. (They get the note in
+  // their "ready to process" email at that point — see notifyProcessorOfPaidDeal.)
+  if (result.note && deal.stripeInvoiceStatus === "paid") {
     await createNotifications(
       [deal.assignedProcessorId, deal.assignedAssistantId].filter((id) => id !== user.id),
       {

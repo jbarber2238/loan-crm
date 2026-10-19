@@ -175,6 +175,11 @@ export async function notifyProcessorOfPaidDeal(dealId: string, overrideTo?: str
     bodyHtml: `
       <p>Hi ${escapeHtml(firstName(deal.assignedProcessor?.name ?? "there"))},</p>
       <p>The borrower has paid the processing fee and this deal has moved into Application — it's ready for you to start processing.</p>
+      ${
+        deal.clientNeedsNote
+          ? `<p style="margin:0 0 4px;"><strong>Note on this file:</strong></p><p style="margin:0 0 16px; padding:10px 12px; background:#fffbeb; border:1px solid #fcd34d; border-radius:6px; white-space:pre-wrap;">${escapeHtml(deal.clientNeedsNote)}</p>`
+          : ""
+      }
       ${htmlFactList(facts)}
       <p>${htmlButton("View Deal", `${appUrl}/deals/${deal.id}`)}</p>
     `,
