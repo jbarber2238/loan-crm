@@ -151,9 +151,7 @@ export function TestRegistrationBox() {
           onClick={() =>
             start(async () => {
               const r = await testZoomRegistrationAction(email);
-              if ("error" in r) setResult(r.error);
-              else if (r.ok) setResult(`Worked. Zoom gave this join link: ${r.joinUrl}`);
-              else setResult(`Zoom said: ${r.error}`);
+              setResult("joinUrl" in r ? `Worked. Zoom gave this join link: ${r.joinUrl}` : `Zoom said: ${r.error}`);
             })
           }
         >
