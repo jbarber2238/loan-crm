@@ -13,6 +13,9 @@ import {
   products,
 } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
+import { fail } from "@/lib/action-result";
+import { createNotifications } from "@/server/notifications";
+import { normalizeClientNeedsNote } from "@/lib/client-needs-note";
 import { recomputeNeedStatus } from "@/server/client-need-status";
 import { copyQuestionsToNewNeeds } from "@/server/client-need-questions";
 import { createClientNeed } from "@/server/actions/client-need-catalog";
@@ -528,4 +531,45 @@ export async function buildClientNeedsContextNote(dealId: string): Promise<strin
   );
 
   return lines.join("\n");
+}
+
+/**
+ * Saves (or, when empty, removes) the note to the processor at the top of the
+ * Client Needs tab. When a note is added or changed, the file's processor and
+ * assistant are notified unless they're the one who wrote it.
+ */
+export async function saveClientNeedsNote(dealId: string, raw: string) {
+  const user = await requireUser();
+  const result = normalizeClientNeedsNote(raw);
+  if ("error" in result) return fail(result.error);
+
+  const deal = await db.query.deals.findFirst({
+    where: eq(deals.id, dealId),
+    columns: { id: true, propertyAddress: true, assignedProcessorId: true, assignedAssistantId: true, clientNeedsNote: true },
+  });
+  if (!deal) return fail("Deal not found");
+  if ((deal.clientNeedsNote ?? null) === result.note) return;
+
+  await db
+    .update(deals)
+    .set({
+      clientNeedsNote: result.note,
+      clientNeedsNoteUpdatedAt: result.note ? new Date() : null,
+      clientNeedsNoteUpdatedByUserId: result.note ? user.id : null,
+    })
+    .where(eq(deals.id, dealId));
+
+  if (result.note) {
+    await createNotifications(
+      [deal.assignedProcessorId, deal.assignedAssistantId].filter((id) => id !== user.id),
+      {
+        type: "client_needs_note",
+        title: `Note for client needs — ${deal.propertyAddress.split(",")[0]}`,
+        body: result.note.length > 140 ? `${result.note.slice(0, 137)}…` : result.note,
+        href: `/deals/${dealId}/loan-center`,
+        dealId,
+      }
+    );
+  }
+  revalidatePath(`/deals/${dealId}/loan-center`);
 }

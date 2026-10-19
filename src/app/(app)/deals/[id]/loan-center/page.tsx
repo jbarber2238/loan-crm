@@ -70,6 +70,7 @@ export default async function DealLoanCenterPage({
     getEmailLogForDeal(id),
   ]);
 
+  const noteAuthor = deal.clientNeedsNoteUpdatedByUserId ? allUsers.find((u) => u.id === deal.clientNeedsNoteUpdatedByUserId) : null;
   const loanOfficers = allUsers.filter((u) => u.baseRole === "loan_officer");
   const processors = allUsers.filter((u) => u.baseRole === "processor");
   const assistants = allUsers.filter((u) => u.baseRole === "loan_officer_assistant");
@@ -116,6 +117,11 @@ export default async function DealLoanCenterPage({
       remindersPaused={deal.clientNeedsRemindersPaused}
       reminderIntervalHours={deal.clientNeedsReminderIntervalHours}
       hasAcceptedProduct={Boolean(deal.productId)}
+      clientNeedsNote={{
+        text: deal.clientNeedsNote,
+        updatedAt: deal.clientNeedsNoteUpdatedAt?.toISOString() ?? null,
+        updatedByName: noteAuthor?.name ?? null,
+      }}
       conditions={conditions}
       notes={deal.notes.map((n) => ({
         ...n,

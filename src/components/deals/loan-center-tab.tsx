@@ -3,6 +3,7 @@ import type { DealDocumentRow } from "@/server/actions/client-need-documents";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RolesTab } from "@/components/deals/roles-tab";
 import { ClientNeedsTab, type ClientNeed } from "@/components/deals/client-needs-tab";
+import { ClientNeedsNote, type ClientNeedsNoteData } from "@/components/deals/client-needs-note";
 import { ConditionsTab, type DealCondition } from "@/components/deals/conditions-tab";
 import { NotesTab } from "@/components/deals/notes-tab";
 import { KeyDateTracker } from "@/components/deals/key-date-tracker";
@@ -55,6 +56,7 @@ export function LoanCenterTab({
   remindersPaused,
   reminderIntervalHours,
   hasAcceptedProduct,
+  clientNeedsNote,
   conditions,
   notes,
   dealStage,
@@ -105,6 +107,7 @@ export function LoanCenterTab({
   remindersPaused: boolean;
   reminderIntervalHours: number;
   hasAcceptedProduct: boolean;
+  clientNeedsNote: ClientNeedsNoteData;
   conditions: DealCondition[];
   notes: Note[];
   dealStage: string;
@@ -152,7 +155,8 @@ export function LoanCenterTab({
           <TabsTrigger value="team-chat">Team Chat</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="client-needs">
+        <TabsContent value="client-needs" className="space-y-4">
+          <ClientNeedsNote dealId={dealId} note={clientNeedsNote} />
           <ClientNeedsTab
             dealId={dealId}
             needs={clientNeeds}

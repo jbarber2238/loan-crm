@@ -972,6 +972,12 @@ export const deals = pgTable("deals", {
   appraisalDocumentFileName: text("appraisal_document_file_name"),
   appraisalDocumentMimeType: text("appraisal_document_mime_type"),
   appraisalDocumentData: text("appraisal_document_data"),
+  // A note from the loan officer to the processor about anything unusual on
+  // this file that changes how client needs should be requested. Shown at the
+  // top of the Client Needs tab.
+  clientNeedsNote: text("client_needs_note"),
+  clientNeedsNoteUpdatedAt: timestamp("client_needs_note_updated_at", { mode: "date" }),
+  clientNeedsNoteUpdatedByUserId: uuid("client_needs_note_updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
   clientNeedsRemindersPaused: boolean("client_needs_reminders_paused")
     .notNull()
     .default(false),
