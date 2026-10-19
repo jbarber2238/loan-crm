@@ -188,7 +188,10 @@ export async function registerFridayLead(input: FridayRegistration): Promise<{ l
     }
   }
 
-  const existing = await db.query.leads.findFirst({ where: or(eq(leads.email, email), eq(leads.phone, phone)) });
+  // Same email is the same person. Failing that, the same phone number is: and then
+  // the email they just typed is the one to use, since that's where they're reading mail.
+  const existing =
+    (await db.query.leads.findFirst({ where: eq(leads.email, email) })) ?? (await db.query.leads.findFirst({ where: eq(leads.phone, phone) }));
   const booking = {
     role: input.role,
     monthlyList: true,
@@ -209,7 +212,7 @@ export async function registerFridayLead(input: FridayRegistration): Promise<{ l
 
   let lead: Lead;
   if (existing) {
-    [lead] = await db.update(leads).set({ name: input.name.trim(), ...booking }).where(eq(leads.id, existing.id)).returning();
+    [lead] = await db.update(leads).set({ name: input.name.trim(), email, ...booking }).where(eq(leads.id, existing.id)).returning();
     await db.insert(leadActivities).values({ leadId: lead.id, type: "form_submitted", metadata: { source: "friday_zoom", repeat: true } });
   } else {
     [lead] = await db.insert(leads).values({ name: input.name.trim(), email, phone, source: "friday_zoom", ...booking }).returning();
