@@ -16,8 +16,7 @@ export interface PortalReferral {
   address: string;
   referredOn: string;
   loanType: string;
-  loanAmount: number; // the requested amount until terms are approved, then the approved amount
-  loanAmountIsApproved: boolean;
+  loanAmount: number; // the deal's loan amount field, as it stands now
   stage: PartnerStage;
   bucket: StageBucket;
   payoutText: string;
@@ -135,8 +134,7 @@ export async function getPartnerDashboard(partner: { id: string; tier: number })
       address: deal.propertyAddress,
       referredOn: shortDate(deal.createdAt),
       loanType: labelFor(LOAN_CATEGORIES, deal.loanCategory),
-      loanAmount: Number(deal.approvedLoanAmount) || Number(deal.loanAmountRequested) || 0,
-      loanAmountIsApproved: Number(deal.approvedLoanAmount) > 0,
+      loanAmount: Number(deal.loanAmountRequested) || 0,
       stage,
       bucket,
       payoutText,

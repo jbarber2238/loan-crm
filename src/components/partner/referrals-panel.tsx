@@ -135,11 +135,6 @@ export function ReferralsPanel({
                   <td className="py-3 pr-4">{r.loanType}</td>
                   <td className="py-3 pr-4">
                     <p className="tabular-nums">{r.loanAmount ? money(r.loanAmount) : "—"}</p>
-                    {r.loanAmount > 0 && (
-                      <p className="text-[11px]" style={{ color: MOSS }}>
-                        {r.loanAmountIsApproved ? "Approved" : "Requested"}
-                      </p>
-                    )}
                   </td>
                   <td className="py-3 pr-4">
                     <StageProgressBar bucket={r.bucket} />
