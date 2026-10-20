@@ -52,6 +52,8 @@ export interface BoardDeal {
   assignedProcessorName: string | null;
   lenderName: string | null;
   isArchived: boolean;
+  /** Two-letter state when the property is in a state that requires a license to close. */
+  licenseState?: string | null;
 }
 
 // Once a deal reaches Initial App Review, hour-level granularity in a stage
@@ -192,6 +194,11 @@ function DealCard({ deal }: { deal: BoardDeal }) {
             {deal.isArchived && (
               <Badge variant="outline" className="text-[10px]">
                 Archived
+              </Badge>
+            )}
+            {deal.licenseState && (
+              <Badge variant="warning" className="text-[10px]" title="A license is required to close in this state">
+                License required · {deal.licenseState}
               </Badge>
             )}
             <p className="font-medium text-sm leading-tight">{deal.propertyAddress}</p>

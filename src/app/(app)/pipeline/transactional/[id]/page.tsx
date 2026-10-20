@@ -5,6 +5,8 @@ import { requireAdminOrLoanOfficer } from "@/server/auth/guards";
 import { db } from "@/server/db/client";
 import { transactionalLoans } from "@/server/db/schema";
 import { TransactionalDetail } from "@/components/transactional/transactional-detail";
+import { LicenseFlagBanner } from "@/components/deals/license-flag-banner";
+import { licenseFlagForAddress } from "@/server/licensing";
 
 export default async function TransactionalLoanPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireAdminOrLoanOfficer();
@@ -16,12 +18,14 @@ export default async function TransactionalLoanPage({ params }: { params: Promis
   ]);
   // A deleted request is only ever visible to an admin (who can restore it).
   if (!loan || (loan.deletedAt && !user.isAdmin)) notFound();
+  const licenseFlag = await licenseFlagForAddress(loan.propertyAddress);
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
       <Link href="/pipeline/transactional" className="text-sm text-muted-foreground underline hover:text-foreground">
         ← Transactional pipeline
       </Link>
+      {licenseFlag && <LicenseFlagBanner flag={licenseFlag} />}
       <TransactionalDetail
         isAdmin={user.isAdmin}
         lenderName={loan.lender?.name ?? null}

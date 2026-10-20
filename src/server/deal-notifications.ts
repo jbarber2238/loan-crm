@@ -4,6 +4,9 @@ import { deals, users } from "@/server/db/schema";
 import { sendGmailAs } from "@/server/gmail/send";
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
+import { createNotifications } from "@/server/notifications";
+import { licenseFlagForAddress } from "@/server/licensing";
+import { describeBroker } from "@/lib/license-flag";
 import { emailShell, htmlButton, htmlFactList, escapeHtml } from "@/lib/email-html";
 import { labelFor, LOAN_CATEGORIES } from "@/lib/labels";
 import {
@@ -256,6 +259,19 @@ export async function notifyAdminOfNewDeal(dealId: string): Promise<void> {
     if (dscr !== null) {
       facts.push({ label: `Est. DSCR (at ${ROUGH_DSCR_RATE_PCT}%, ${ROUGH_DSCR_TERM_YEARS}-yr)`, value: dscr.toFixed(2) });
     }
+  }
+
+  const licenseFlag = await licenseFlagForAddress(deal.propertyAddress);
+  if (licenseFlag) {
+    // In front of you the moment it lands: a bell alert and a line at the top of the email.
+    await createNotifications([admin.id, deal.assignedLoanOfficerId], {
+      type: "license_required",
+      title: `License required: ${licenseFlag.stateName}`,
+      body: `${deal.propertyAddress}. Close under ${describeBroker(licenseFlag.broker)}.`,
+      href: `/deals/${deal.id}`,
+      dealId: deal.id,
+    });
+    facts.unshift({ label: "License required", value: `${licenseFlag.stateName}. Close under ${describeBroker(licenseFlag.broker)}` });
   }
 
   if (deal.assignedLoanOfficer) {

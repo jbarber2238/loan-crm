@@ -4,6 +4,7 @@ import { deals } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { expireStaleFollowUps, autoArchiveStaleDeals, purgeExpiredDeletedDeals } from "@/server/deal-stage-automation";
 import Link from "next/link";
+import { licenseFlagsFor } from "@/server/licensing";
 import { KanbanBoard, type BoardDeal } from "@/components/board/kanban-board";
 import { BoardFilters } from "@/components/board/board-filters";
 import { BoardSearch } from "@/components/board/board-search";
@@ -64,7 +65,8 @@ export default async function PipelinePage({
     db.query.lenders.findMany({ orderBy: (lenders, { asc }) => asc(lenders.name) }),
   ]);
 
-  const boardDeals: BoardDeal[] = allDeals.map((deal) => {
+  const licenseFlags = await licenseFlagsFor(allDeals.map((d) => d.propertyAddress));
+  const boardDeals: BoardDeal[] = allDeals.map((deal, index) => {
     const sortedHistory = [...deal.stageHistory].sort(
       (a, b) => a.changedAt.getTime() - b.changedAt.getTime()
     );
@@ -88,6 +90,7 @@ export default async function PipelinePage({
       assignedProcessorName: deal.assignedProcessor?.name ?? null,
       lenderName: deal.lender?.name ?? null,
       isArchived: Boolean(deal.archivedAt),
+      licenseState: licenseFlags[index]?.stateCode ?? null,
     };
   });
 

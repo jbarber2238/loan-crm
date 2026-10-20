@@ -7,6 +7,9 @@ import { getUserEmailSignatureHtml } from "@/server/users";
 import { emailShell, escapeHtml, htmlButton, htmlFactList } from "@/lib/email-html";
 import { transactionalFees, formatPoints } from "@/lib/transactional-fees";
 import { formatDay, formatMoney } from "@/lib/transactional-shared";
+import { createNotifications } from "@/server/notifications";
+import { licenseFlagForAddress } from "@/server/licensing";
+import { describeBroker } from "@/lib/license-flag";
 
 type Loan = typeof transactionalLoans.$inferSelect;
 
@@ -33,11 +36,24 @@ export async function notifyAdminsOfNewTransactionalLoan(loan: Loan): Promise<vo
   ]);
   const appUrl = process.env.APP_URL ?? "http://localhost:3000";
 
+  const licenseFlag = await licenseFlagForAddress(loan.propertyAddress);
+  if (licenseFlag) {
+    await createNotifications(admins.map((a) => a.id), {
+      type: "license_required",
+      title: `License required: ${licenseFlag.stateName}`,
+      body: `${loan.propertyAddress} (double close). Close under ${describeBroker(licenseFlag.broker)}.`,
+      href: `/pipeline/transactional/${loan.id}`,
+    });
+  }
+
   const body = emailShell({
     companyName,
     heading: `New double close request — ${loan.propertyAddress}`,
     bodyHtml: `
       ${htmlFactList([
+        ...(licenseFlag
+          ? [{ label: "License required", value: `${licenseFlag.stateName}. Close under ${describeBroker(licenseFlag.broker)}` }]
+          : []),
         { label: "Property address", value: loan.propertyAddress },
         { label: "Funding amount", value: formatMoney(funding) },
         { label: "Closing date", value: formatDay(loan.closingDate) },

@@ -424,6 +424,15 @@ export const companySettings = pgTable("company_settings", {
   // Master switch for the partner program. While off, partner emails and the
   // portal only work for staff-owned test addresses.
   partnerProgramLive: boolean("partner_program_live").notNull().default(false),
+  // Licensing (Settings → Licensing): this company's own NMLS ID (blank if it
+  // holds no license), and a licensed broker to close deals under in states
+  // that require a license to close.
+  nmlsId: text("nmls_id"),
+  licensedBrokerName: text("licensed_broker_name"),
+  licensedBrokerCompany: text("licensed_broker_company"),
+  licensedBrokerPhone: text("licensed_broker_phone"),
+  licensedBrokerEmail: text("licensed_broker_email"),
+  licensedBrokerNotes: text("licensed_broker_notes"),
   // Shown on every outgoing email template (pricing requests, borrower
   // lifecycle emails) — base64, same storage pattern as every other file
   // in this app. Null until Justin uploads one.
@@ -2285,3 +2294,11 @@ export const fridaySends = pgTable(
   },
   (t) => [unique("friday_sends_unique").on(t.leadId, t.kind, t.sessionKey)]
 );
+
+// States where closing a deal requires a license this company doesn't hold. A
+// deal whose property is in one of these gets flagged everywhere it appears.
+export const licenseRequiredStates = pgTable("license_required_states", {
+  stateCode: text("state_code").primaryKey(), // two-letter code, e.g. "CA"
+  note: text("note"),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});

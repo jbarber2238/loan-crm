@@ -15,6 +15,8 @@ import { PipelineStepper } from "@/components/deals/pipeline-stepper";
 import { AcceptedTermsHeader } from "@/components/deals/accepted-terms-header";
 import { ProcessingFeeInvoiceStatus } from "@/components/deals/processing-fee-invoice-status";
 import { PartnerPayoutBanner } from "@/components/deals/partner-payout-banner";
+import { LicenseFlagBanner } from "@/components/deals/license-flag-banner";
+import { licenseFlagForAddress } from "@/server/licensing";
 import { labelFor, LOAN_CATEGORIES, STAGES } from "@/lib/labels";
 import { conservativeValueBasis } from "@/lib/term-sheet-calculations";
 import { PAUSED_STAGES } from "@/lib/deal-pipeline";
@@ -45,6 +47,7 @@ function StageReasonBanner({ deal }: { deal: DealDetail }) {
 export async function DealHeader({ deal }: { deal: DealDetail }) {
   const s = sectionsFor(deal.loanCategory);
   const currentUser = await requireUser();
+  const licenseFlag = await licenseFlagForAddress(deal.propertyAddress);
   const partnerAssignment = currentUser.isAdmin
     ? {
         currentPartnerId: deal.referredByAffiliateId ?? null,
@@ -159,6 +162,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
       <PipelineStepper stage={deal.stage} pausedFromStage={deal.pausedFromStage} />
       <StageReasonBanner deal={deal} />
 
+      {licenseFlag && <LicenseFlagBanner flag={licenseFlag} />}
       <PartnerPayoutBanner deal={deal} isAdmin={currentUser.isAdmin} />
 
       {deal.stripeInvoiceStatus && deal.stripeInvoiceAmount && (
