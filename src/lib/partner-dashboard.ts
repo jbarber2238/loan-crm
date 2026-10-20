@@ -75,3 +75,21 @@ export function howPaidFigures(tier: number) {
     examplePayout: partnerPayoutAmount(originationFeeForPoints(exampleLoan, 2), tier),
   };
 }
+
+export const PROGRESS_STEPS = ["submitted", "review", "closing", "funded"] as const;
+
+/** How the mini progress bar draws a referral: how many of the four boxes are filled, and whether it's stopped. */
+export function stageProgress(bucket: StageBucket): { filled: number; state: "moving" | "funded" | "stopped" } {
+  if (bucket === "paused" || bucket === "didnt_proceed") return { filled: 0, state: "stopped" };
+  const filled = PROGRESS_STEPS.indexOf(bucket) + 1;
+  return { filled, state: bucket === "funded" ? "funded" : "moving" };
+}
+
+export type ReferralView = "active" | "funded" | "stopped";
+
+/** Which tab a referral lives under: still moving (including paused), funded, or didn't proceed. */
+export function viewFor(bucket: StageBucket): ReferralView {
+  if (bucket === "funded") return "funded";
+  if (bucket === "didnt_proceed") return "stopped";
+  return "active";
+}

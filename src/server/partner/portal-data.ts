@@ -2,7 +2,6 @@ import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { deals, partnerEvents, partnerPayouts } from "@/server/db/schema";
 import { LOAN_CATEGORIES, labelFor } from "@/lib/labels";
-import { borrowerDisplay } from "@/lib/partner-display";
 import {
   type PartnerStage,
   estimatePayout,
@@ -13,10 +12,12 @@ import { type StageBucket, activityLine, bucketFor, shortDate } from "@/lib/part
 
 export interface PortalReferral {
   id: string;
-  borrower: string; // the borrower's company when there is one, otherwise first name + last initial
+  borrower: string; // the borrower's name
+  address: string;
   referredOn: string;
   loanType: string;
-  loanAmount: number;
+  loanAmount: number; // the requested amount until terms are approved, then the approved amount
+  loanAmountIsApproved: boolean;
   stage: PartnerStage;
   bucket: StageBucket;
   payoutText: string;
@@ -58,7 +59,7 @@ export async function getPartnerDashboard(partner: { id: string; tier: number })
     columns: {
       id: true,
       borrowerName: true,
-      borrowerEntityName: true,
+      propertyAddress: true,
       loanCategory: true,
       stage: true,
       loanAmountRequested: true,
@@ -130,10 +131,12 @@ export async function getPartnerDashboard(partner: { id: string; tier: number })
 
     return {
       id: deal.id,
-      borrower: borrowerDisplay(deal.borrowerEntityName, deal.borrowerName),
+      borrower: deal.borrowerName.trim(),
+      address: deal.propertyAddress,
       referredOn: shortDate(deal.createdAt),
       loanType: labelFor(LOAN_CATEGORIES, deal.loanCategory),
       loanAmount: Number(deal.approvedLoanAmount) || Number(deal.loanAmountRequested) || 0,
+      loanAmountIsApproved: Number(deal.approvedLoanAmount) > 0,
       stage,
       bucket,
       payoutText,
@@ -145,7 +148,7 @@ export async function getPartnerDashboard(partner: { id: string; tier: number })
   const paid = payouts.filter((p) => p.status === "paid");
   const paidToDate = paid.reduce((sum, p) => sum + Number(p.paidAmount ?? 0), 0);
 
-  const labelByDeal = new Map(rows.map((r) => [r.id, borrowerDisplay(r.borrowerEntityName, r.borrowerName)]));
+  const labelByDeal = new Map(rows.map((r) => [r.id, r.borrowerName.trim()]));
   const events = await db.query.partnerEvents.findMany({
     where: and(eq(partnerEvents.partnerId, partner.id), inArray(partnerEvents.type, ["referral_submitted", "stage_change", "payout_paid"])),
     orderBy: desc(partnerEvents.createdAt),

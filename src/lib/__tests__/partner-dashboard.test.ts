@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activityLine, bucketFor, howPaidFigures, shortDate } from "@/lib/partner-dashboard";
+import { activityLine, bucketFor, howPaidFigures, shortDate, stageProgress, viewFor } from "@/lib/partner-dashboard";
 import { borrowerDisplay } from "@/lib/partner-display";
 
 describe("partner dashboard helpers", () => {
@@ -35,5 +35,25 @@ describe("partner dashboard helpers", () => {
 
   it("formats dates as month and day", () => {
     expect(shortDate(new Date("2026-10-09T00:00:00Z"), "UTC")).toBe("Oct 9");
+  });
+});
+
+describe("referral progress and tabs", () => {
+  it("fills one more box for each step", () => {
+    expect(stageProgress("submitted")).toEqual({ filled: 1, state: "moving" });
+    expect(stageProgress("review")).toEqual({ filled: 2, state: "moving" });
+    expect(stageProgress("closing")).toEqual({ filled: 3, state: "moving" });
+    expect(stageProgress("funded")).toEqual({ filled: 4, state: "funded" });
+  });
+
+  it("shows a paused or stopped referral as unfilled", () => {
+    expect(stageProgress("paused")).toEqual({ filled: 0, state: "stopped" });
+    expect(stageProgress("didnt_proceed")).toEqual({ filled: 0, state: "stopped" });
+  });
+
+  it("sorts referrals into the Active, Funded and Didn't proceed tabs", () => {
+    expect(["submitted", "review", "closing", "paused"].map((b) => viewFor(b as never))).toEqual(["active", "active", "active", "active"]);
+    expect(viewFor("funded")).toBe("funded");
+    expect(viewFor("didnt_proceed")).toBe("stopped");
   });
 });
