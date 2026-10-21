@@ -289,7 +289,20 @@ function DocumentSection({
  * Insurance and title revisions, plus any miscellaneous document worth keeping.
  * Each carries its note, and they download alongside everything else.
  */
-function SavedFilesSection({ dealId, files, propertyLabel }: { dealId: string; files: DealFileRow[]; propertyLabel: string }) {
+function SavedFilesSection({
+  dealId,
+  files,
+  propertyLabel,
+  title,
+  allowAdd,
+}: {
+  dealId: string;
+  files: DealFileRow[];
+  propertyLabel: string;
+  title: string;
+  /** Only Miscellaneous takes documents added right here; insurance and title versions come from the Key Dates tab. */
+  allowAdd: boolean;
+}) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [downloading, setDownloading] = useState(false);
   const [open, setOpen] = useState(false);
@@ -308,7 +321,7 @@ function SavedFilesSection({ dealId, files, propertyLabel }: { dealId: string; f
         <DialogHeader>
           <DialogTitle>Add a document</DialogTitle>
           <DialogDescription>
-            For anything relevant to this file that doesn&apos;t belong to a client need. It&apos;s saved here with your note. Insurance and title versions are uploaded from the Key Dates tab.
+            For anything relevant to this file that doesn&apos;t belong to a client need. It&apos;s saved under Miscellaneous with your note. Insurance and title versions are uploaded from the Key Dates tab.
           </DialogDescription>
         </DialogHeader>
         <DealFileUploadForm dealId={dealId} category="other" notePlaceholder="What is this and why are we keeping it?" onDone={() => setOpen(false)} />
@@ -331,10 +344,10 @@ function SavedFilesSection({ dealId, files, propertyLabel }: { dealId: string; f
 
   return (
     <CollapsibleSection
-      title="Insurance, Title & Other"
+      title={title}
       description={`${files.length} document${files.length === 1 ? "" : "s"}`}
       defaultOpen
-      headerExtra={addDocument}
+      headerExtra={allowAdd ? addDocument : undefined}
     >
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -347,11 +360,11 @@ function SavedFilesSection({ dealId, files, propertyLabel }: { dealId: string; f
             Select all
           </label>
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" size="sm" variant="outline" disabled={downloading || selected.size === 0} onClick={() => handleDownload([...selected], "Selected Insurance, Title & Other")}>
+            <Button type="button" size="sm" variant="outline" disabled={downloading || selected.size === 0} onClick={() => handleDownload([...selected], `Selected ${title}`)}>
               <Download className="size-3.5" />
               Download selection ({selected.size})
             </Button>
-            <Button type="button" size="sm" variant="outline" disabled={downloading || files.length === 0} onClick={() => handleDownload(files.map((f) => f.id), "All Insurance, Title & Other")}>
+            <Button type="button" size="sm" variant="outline" disabled={downloading || files.length === 0} onClick={() => handleDownload(files.map((f) => f.id), `All ${title}`)}>
               <Download className="size-3.5" />
               Download all
             </Button>
@@ -458,7 +471,20 @@ export function DocumentsTab({
         needs={needs}
         catalog={catalog}
       />
-      <SavedFilesSection dealId={dealId} files={savedFiles} propertyLabel={propertyLabel} />
+      <SavedFilesSection
+        dealId={dealId}
+        title="Insurance & Title"
+        files={savedFiles.filter((f) => f.category !== "other")}
+        propertyLabel={propertyLabel}
+        allowAdd={false}
+      />
+      <SavedFilesSection
+        dealId={dealId}
+        title="Miscellaneous"
+        files={savedFiles.filter((f) => f.category === "other")}
+        propertyLabel={propertyLabel}
+        allowAdd
+      />
       <DocumentSection
         dealId={dealId}
         title="Rejected"

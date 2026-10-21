@@ -3,7 +3,7 @@ export type DealFileCategory = "insurance" | "title" | "other";
 export const DEAL_FILE_CATEGORY_LABELS: Record<DealFileCategory, string> = {
   insurance: "Property Insurance (HOI)",
   title: "Title",
-  other: "Other",
+  other: "Miscellaneous",
 };
 
 export const DEAL_FILE_MAX_BYTES = 15 * 1024 * 1024;
