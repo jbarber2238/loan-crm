@@ -108,7 +108,7 @@ export function BrandedIntakeForm({
       <div className="mx-auto max-w-2xl rounded-sm p-6 md:p-10" style={CARD_STYLE}>
         {showLogo && <MannaLogo className="h-10 w-auto" />}
         <p className="mt-4 text-sm" style={{ color: BASALT }}>
-          Please complete this form to receive a pricing quote. Working with {loanOfficer.name}.
+          Please complete this form to receive a pricing quote. {loanOfficer.name} will be your loan officer.
         </p>
         <div className="mt-6">
           <ActionForm action={submitAction} className="space-y-6">
