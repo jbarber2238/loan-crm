@@ -296,6 +296,27 @@ function SavedFilesSection({ dealId, files, propertyLabel }: { dealId: string; f
   const [editing, setEditing] = useState<string | null>(null);
   const allSelected = files.length > 0 && files.every((f) => selected.has(f.id));
 
+  const addDocument = (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button type="button" size="sm">
+          <Plus className="size-3.5" />
+          Add document
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Add a document</DialogTitle>
+          <DialogDescription>
+            For anything relevant to this file that doesn&apos;t belong to a client need. It&apos;s saved here with your note. Insurance and title versions are uploaded from the Key Dates tab.
+          </DialogDescription>
+        </DialogHeader>
+        <DealFileUploadForm dealId={dealId} category="other" notePlaceholder="What is this and why are we keeping it?" onDone={() => setOpen(false)} />
+      </DialogContent>
+    </Dialog>
+  );
+
+
   async function handleDownload(ids: string[], label: string) {
     if (!ids.length) return;
     setDownloading(true);
@@ -312,7 +333,8 @@ function SavedFilesSection({ dealId, files, propertyLabel }: { dealId: string; f
     <CollapsibleSection
       title="Insurance, Title & Other"
       description={`${files.length} document${files.length === 1 ? "" : "s"}`}
-      defaultOpen={files.length > 0}
+      defaultOpen
+      headerExtra={addDocument}
     >
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -325,23 +347,6 @@ function SavedFilesSection({ dealId, files, propertyLabel }: { dealId: string; f
             Select all
           </label>
           <div className="flex flex-wrap items-center gap-2">
-            <Dialog open={open} onOpenChange={setOpen}>
-              <DialogTrigger asChild>
-                <Button type="button" size="sm">
-                  <Plus className="size-3.5" />
-                  Add document
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>Add a document</DialogTitle>
-                  <DialogDescription>
-                    For anything relevant to this file that doesn&apos;t belong to a client need. It&apos;s saved here with your note. Insurance and title versions are uploaded from the Key Dates tab.
-                  </DialogDescription>
-                </DialogHeader>
-                <DealFileUploadForm dealId={dealId} category="other" notePlaceholder="What is this and why are we keeping it?" onDone={() => setOpen(false)} />
-              </DialogContent>
-            </Dialog>
             <Button type="button" size="sm" variant="outline" disabled={downloading || selected.size === 0} onClick={() => handleDownload([...selected], "Selected Insurance, Title & Other")}>
               <Download className="size-3.5" />
               Download selection ({selected.size})
