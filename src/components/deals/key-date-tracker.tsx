@@ -27,6 +27,9 @@ import { SignaturePreview } from "@/components/emails/signature-preview";
 import { HtmlBodyEditor } from "@/components/emails/html-body-editor";
 import type { RecipientCandidate } from "@/lib/email-recipients";
 import { AppraisalDocumentCell } from "@/components/deals/appraisal-document-cell";
+import { DealFilesDialog } from "@/components/deals/deal-files-dialog";
+import { DealFileEntry } from "@/components/deals/deal-file-parts";
+import { mergeAuditTrail, versionLabels, type DealFileRow } from "@/lib/deal-files";
 import { cn } from "@/lib/utils";
 
 // The viewer's own calendar day, not the UTC day (which is already
@@ -205,19 +208,23 @@ function AuditTrailDialog({
   item,
   label,
   events,
+  files,
 }: {
   dealId: string;
   item: KeyDateItem;
   label: string;
   events: KeyDateEvent[];
+  files: DealFileRow[];
 }) {
   const config = KEY_DATE_ITEMS.find((i) => i.key === item)!;
   const rootStatus = config.statuses[0];
+  const trail = mergeAuditTrail(events, files);
+  const versions = versionLabels(files);
 
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button type="button" size="icon-sm" variant="ghost" title="Audit trail" disabled={events.length === 0}>
+        <Button type="button" size="icon-sm" variant="ghost" title="Audit trail" disabled={trail.length === 0}>
           <History className="size-4" />
         </Button>
       </DialogTrigger>
@@ -225,8 +232,16 @@ function AuditTrailDialog({
         <DialogHeader>
           <DialogTitle>{label} — audit trail</DialogTitle>
         </DialogHeader>
-        <ul className="space-y-2">
-          {events.map((e) => {
+        <ul className="max-h-[60vh] space-y-2 overflow-y-auto">
+          {trail.map((entry) => {
+            if (entry.kind === "file") {
+              return (
+                <li key={`file-${entry.file.id}`}>
+                  <DealFileEntry dealId={dealId} file={entry.file} version={versions.get(entry.file.id)} />
+                </li>
+              );
+            }
+            const e = entry.event;
             const isRoot = e.status === rootStatus;
             return (
               <li key={e.id} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
@@ -253,7 +268,7 @@ function AuditTrailDialog({
               </li>
             );
           })}
-          {events.length === 0 && <p className="text-sm text-muted-foreground">No history yet.</p>}
+          {trail.length === 0 && <p className="text-sm text-muted-foreground">No history yet.</p>}
         </ul>
       </DialogContent>
     </Dialog>
@@ -426,11 +441,13 @@ export function KeyDateTracker({
   insuranceEmail,
   titleEmail,
   appraisalDocumentFileName,
+  files,
 }: {
   dealId: string;
   loanCategory: string;
   events: KeyDateEvent[];
   appraisalDocumentFileName: string | null;
+  files: DealFileRow[];
 } & ContactInfo & {
     appraisalNotes: string | null;
     insuranceNotes: string | null;
@@ -482,6 +499,9 @@ export function KeyDateTracker({
                           fileName={appraisalDocumentFileName}
                         />
                       )}
+                      {(config.key === "insurance" || config.key === "title") && (
+                        <DealFilesDialog dealId={dealId} category={config.key} label={config.label} files={files} />
+                      )}
                     </td>
                     <td className="py-2.5 pr-3">
                       {config.emailable && (
@@ -501,7 +521,13 @@ export function KeyDateTracker({
                           label={config.label}
                           notes={notesByItem[config.key]}
                         />
-                        <AuditTrailDialog dealId={dealId} item={config.key} label={config.label} events={itemEvents} />
+                        <AuditTrailDialog
+                          dealId={dealId}
+                          item={config.key}
+                          label={config.label}
+                          events={itemEvents}
+                          files={files.filter((f) => f.category === config.key)}
+                        />
                       </div>
                     </td>
                   </tr>

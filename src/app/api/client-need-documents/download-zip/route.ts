@@ -2,7 +2,7 @@ import JSZip from "jszip";
 import { inArray } from "drizzle-orm";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db/client";
-import { dealClientNeedDocuments } from "@/server/db/schema";
+import { dealClientNeedDocuments, dealFiles } from "@/server/db/schema";
 
 /**
  * Bundles the given document ids into one zip — used by the Documents tab's
@@ -20,10 +20,13 @@ export async function POST(request: Request) {
   const ids = Array.isArray(body?.ids) ? body.ids.filter((v: unknown) => typeof v === "string") : [];
   if (!ids.length) return new Response("No documents selected", { status: 400 });
 
-  const docs = await db.query.dealClientNeedDocuments.findMany({
-    where: inArray(dealClientNeedDocuments.id, ids),
-    columns: { fileName: true, data: true },
-  });
+  // The Documents tab mixes client-need documents with insurance, title and
+  // other files saved on the deal; the ids are unique across both.
+  const [needDocs, savedFiles] = await Promise.all([
+    db.query.dealClientNeedDocuments.findMany({ where: inArray(dealClientNeedDocuments.id, ids), columns: { fileName: true, data: true } }),
+    db.query.dealFiles.findMany({ where: inArray(dealFiles.id, ids), columns: { fileName: true, data: true } }),
+  ]);
+  const docs = [...needDocs, ...savedFiles];
   if (!docs.length) return new Response("No matching documents", { status: 404 });
 
   const zip = new JSZip();

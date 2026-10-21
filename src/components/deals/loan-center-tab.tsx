@@ -7,6 +7,7 @@ import { ClientNeedsNote, type ClientNeedsNoteData } from "@/components/deals/cl
 import { ConditionsTab, type DealCondition } from "@/components/deals/conditions-tab";
 import { NotesTab } from "@/components/deals/notes-tab";
 import { KeyDateTracker } from "@/components/deals/key-date-tracker";
+import type { DealFileRow } from "@/lib/deal-files";
 import { KeyDatesForm } from "@/components/deals/key-dates-form";
 import type { KeyDateEvent } from "@/lib/key-date-tracker";
 import type { DealCatalogItem } from "@/components/deals/add-client-need-to-deal-dialog";
@@ -82,6 +83,7 @@ export function LoanCenterTab({
   insuranceNotes,
   titleNotes,
   keyDateEvents,
+  dealFiles,
   appraisalDocumentFileName,
   emailLog,
   initialTab,
@@ -133,6 +135,7 @@ export function LoanCenterTab({
   insuranceNotes: string | null;
   titleNotes: string | null;
   keyDateEvents: KeyDateEvent[];
+  dealFiles: DealFileRow[];
   appraisalDocumentFileName: string | null;
   emailLog: EmailLogEntry[];
   initialTab?: string;
@@ -213,6 +216,7 @@ export function LoanCenterTab({
             insuranceEmail={insuranceAgentEmail}
             titleEmail={titleAgentEmail}
             appraisalDocumentFileName={appraisalDocumentFileName}
+            files={dealFiles}
           />
           <KeyDatesForm
             dealId={dealId}
@@ -238,6 +242,7 @@ export function LoanCenterTab({
             accepted={documents.accepted}
             rejected={documents.rejected}
             unused={documents.unused}
+            savedFiles={dealFiles}
             propertyLabel={propertyLabel}
             needs={clientNeeds.map((n) => ({
               id: n.id,

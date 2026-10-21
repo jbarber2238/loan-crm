@@ -2307,3 +2307,27 @@ export const licenseRequiredStates = pgTable("license_required_states", {
   note: text("note"),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
 });
+
+// Files saved on a deal outside the client-needs flow: the revisions of an
+// insurance binder or title commitment (each with its own note, so every
+// version stays visible in the Key Dates audit trail) and miscellaneous
+// documents worth keeping. All of them also show on the Documents tab.
+export const dealFiles = pgTable("deal_files", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  dealId: uuid("deal_id")
+    .notNull()
+    .references(() => deals.id, { onDelete: "cascade" }),
+  category: text("category").notNull(), // insurance | title | other
+  fileName: text("file_name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  fileSize: integer("file_size").notNull(),
+  data: text("data").notNull(), // base64 — same pattern as every other stored file
+  note: text("note"),
+  uploadedByUserId: uuid("uploaded_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
+export const dealFilesRelations = relations(dealFiles, ({ one }) => ({
+  deal: one(deals, { fields: [dealFiles.dealId], references: [deals.id] }),
+  uploadedBy: one(users, { fields: [dealFiles.uploadedByUserId], references: [users.id] }),
+}));

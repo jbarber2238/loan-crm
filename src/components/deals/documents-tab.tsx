@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Download, FileText, Undo2, Pencil, Check, X, ArrowRightLeft } from "lucide-react";
+import { Download, FileText, Undo2, Pencil, Check, X, ArrowRightLeft, Plus } from "lucide-react";
 import { CollapsibleSection } from "@/components/email-templates/collapsible-section";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -12,6 +12,9 @@ import { restoreRejectedDocuments, renameClientNeedDocument } from "@/server/act
 import { restoreClientNeeds } from "@/server/actions/client-needs";
 import type { DealDocumentRow } from "@/server/actions/client-need-documents";
 import { ChangeNeedDialog, type ChangeNeedCandidate } from "@/components/deals/change-need-dialog";
+import { DealFileEntry, DealFileUploadForm, formatStamp } from "@/components/deals/deal-file-parts";
+import { DEAL_FILE_CATEGORY_LABELS, type DealFileRow } from "@/lib/deal-files";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import type { DealCatalogItem } from "@/components/deals/add-client-need-to-deal-dialog";
 
 async function downloadZip(ids: string[], zipName: string) {
@@ -282,11 +285,149 @@ function DocumentSection({
   );
 }
 
+/**
+ * Insurance and title revisions, plus any miscellaneous document worth keeping.
+ * Each carries its note, and they download alongside everything else.
+ */
+function SavedFilesSection({ dealId, files, propertyLabel }: { dealId: string; files: DealFileRow[]; propertyLabel: string }) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [downloading, setDownloading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
+  const allSelected = files.length > 0 && files.every((f) => selected.has(f.id));
+
+  async function handleDownload(ids: string[], label: string) {
+    if (!ids.length) return;
+    setDownloading(true);
+    try {
+      await downloadZip(ids, `${propertyLabel} - ${label}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't download these documents");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <CollapsibleSection
+      title="Insurance, Title & Other"
+      description={`${files.length} document${files.length === 1 ? "" : "s"}`}
+      defaultOpen={files.length > 0}
+    >
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <Checkbox
+              checked={allSelected}
+              disabled={files.length === 0}
+              onCheckedChange={(v) => setSelected(v === true ? new Set(files.map((f) => f.id)) : new Set())}
+            />
+            Select all
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button type="button" size="sm">
+                  <Plus className="size-3.5" />
+                  Add document
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Add a document</DialogTitle>
+                  <DialogDescription>
+                    For anything relevant to this file that doesn&apos;t belong to a client need. It&apos;s saved here with your note. Insurance and title versions are uploaded from the Key Dates tab.
+                  </DialogDescription>
+                </DialogHeader>
+                <DealFileUploadForm dealId={dealId} category="other" notePlaceholder="What is this and why are we keeping it?" onDone={() => setOpen(false)} />
+              </DialogContent>
+            </Dialog>
+            <Button type="button" size="sm" variant="outline" disabled={downloading || selected.size === 0} onClick={() => handleDownload([...selected], "Selected Insurance, Title & Other")}>
+              <Download className="size-3.5" />
+              Download selection ({selected.size})
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={downloading || files.length === 0} onClick={() => handleDownload(files.map((f) => f.id), "All Insurance, Title & Other")}>
+              <Download className="size-3.5" />
+              Download all
+            </Button>
+          </div>
+        </div>
+
+        {files.length === 0 ? (
+          <p className="text-sm text-muted-foreground">None yet.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/40 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  <th className="w-10 px-3 py-2" />
+                  <th className="px-3 py-2">Document Name</th>
+                  <th className="px-3 py-2">Type</th>
+                  <th className="px-3 py-2">Note</th>
+                  <th className="px-3 py-2">Added</th>
+                  <th className="w-10 px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {files.map((f) => (
+                  <tr key={f.id} className="border-b align-top last:border-0">
+                    <td className="px-3 py-2">
+                      <Checkbox
+                        checked={selected.has(f.id)}
+                        onCheckedChange={(v) =>
+                          setSelected((prev) => {
+                            const next = new Set(prev);
+                            if (v === true) next.add(f.id);
+                            else next.delete(f.id);
+                            return next;
+                          })
+                        }
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <a href={`/api/deal-files/${f.id}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:underline">
+                        <FileText className="size-3.5 shrink-0 text-muted-foreground" />
+                        <span className="break-all">{f.fileName}</span>
+                      </a>
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">{DEAL_FILE_CATEGORY_LABELS[f.category]}</td>
+                    <td className="max-w-sm px-3 py-2 whitespace-pre-wrap text-muted-foreground">{f.note ?? "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
+                      {formatStamp(f.createdAt)}
+                      {f.uploadedByName ? <span className="block text-xs">{f.uploadedByName}</span> : null}
+                    </td>
+                    <td className="px-3 py-2">
+                      <Dialog open={editing === f.id} onOpenChange={(o) => setEditing(o ? f.id : null)}>
+                        <DialogTrigger asChild>
+                          <button type="button" className="text-muted-foreground hover:text-foreground" title="Edit note or delete">
+                            <Pencil className="size-3.5" />
+                          </button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-lg">
+                          <DialogHeader>
+                            <DialogTitle>{DEAL_FILE_CATEGORY_LABELS[f.category]} document</DialogTitle>
+                          </DialogHeader>
+                          <DealFileEntry dealId={dealId} file={f} />
+                        </DialogContent>
+                      </Dialog>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </CollapsibleSection>
+  );
+}
+
 export function DocumentsTab({
   dealId,
   accepted,
   rejected,
   unused,
+  savedFiles,
   propertyLabel,
   needs,
   catalog,
@@ -295,6 +436,7 @@ export function DocumentsTab({
   accepted: DealDocumentRow[];
   rejected: DealDocumentRow[];
   unused: DealDocumentRow[];
+  savedFiles: DealFileRow[];
   propertyLabel: string;
   needs: ChangeNeedCandidate[];
   catalog: DealCatalogItem[];
@@ -311,6 +453,7 @@ export function DocumentsTab({
         needs={needs}
         catalog={catalog}
       />
+      <SavedFilesSection dealId={dealId} files={savedFiles} propertyLabel={propertyLabel} />
       <DocumentSection
         dealId={dealId}
         title="Rejected"

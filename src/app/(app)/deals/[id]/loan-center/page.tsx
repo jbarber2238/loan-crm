@@ -8,6 +8,7 @@ import { TeamChatPanel } from "@/components/team-chat/team-chat-panel";
 import { getDealDocumentsForDocumentsTab } from "@/server/actions/client-need-documents";
 import { getEmailLogForDeal } from "@/server/actions/email-log";
 import { LoanCenterTab } from "@/components/deals/loan-center-tab";
+import { getDealFiles } from "@/server/data/deal-files";
 import type { ClientNeed } from "@/components/deals/client-needs-tab";
 
 export default async function DealLoanCenterPage({
@@ -24,7 +25,7 @@ export default async function DealLoanCenterPage({
   const deal = await getDealDetail(id);
   if (!deal) notFound();
 
-  const [allUsers, clientNeedsCatalog, conditions, clientNeeds, categoryProducts, allProducts, documents, emailLog] = await Promise.all([
+  const [allUsers, clientNeedsCatalog, conditions, clientNeeds, categoryProducts, allProducts, documents, emailLog, dealFiles] = await Promise.all([
     db.query.users.findMany({ where: (users, { eq }) => eq(users.active, true) }),
     db.query.clientNeeds.findMany({
       columns: { id: true, itemName: true, needType: true, isCustom: true },
@@ -68,6 +69,7 @@ export default async function DealLoanCenterPage({
     getAllProductOptions(),
     getDealDocumentsForDocumentsTab(id),
     getEmailLogForDeal(id),
+    getDealFiles(id),
   ]);
 
   const noteAuthor = deal.clientNeedsNoteUpdatedByUserId ? allUsers.find((u) => u.id === deal.clientNeedsNoteUpdatedByUserId) : null;
@@ -158,6 +160,7 @@ export default async function DealLoanCenterPage({
         createdByName: e.createdBy?.name ?? null,
       }))}
       appraisalDocumentFileName={deal.appraisalDocumentFileName}
+      dealFiles={dealFiles}
       emailLog={emailLog}
     />
   );
