@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/server/auth/guards";
-import { getCompanyName, getCompanyLogoFileName, getCompanyLogo } from "@/server/settings";
-import { updateCompanyName, updateCompanyLogo, removeCompanyLogo } from "@/server/actions/settings";
+import { getCompanyName, getCompanyLogoFileName, getCompanyLogo, getCompanyWireInstructions } from "@/server/settings";
+import { updateCompanyName, updateCompanyLogo, removeCompanyLogo, updateCompanyWireInstructions, removeCompanyWireInstructions } from "@/server/actions/settings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,7 @@ import { SubmitButton } from "@/components/forms/submit-button";
 export default async function CompanySettingsPage() {
   await requireAdmin();
   const companyName = await getCompanyName();
-  const [logoFileName, logo] = await Promise.all([getCompanyLogoFileName(), getCompanyLogo()]);
+  const [logoFileName, logo, wire] = await Promise.all([getCompanyLogoFileName(), getCompanyLogo(), getCompanyWireInstructions()]);
 
   return (
     <div className="space-y-6">
@@ -61,6 +61,42 @@ export default async function CompanySettingsPage() {
               <p className="text-xs text-muted-foreground">PNG or JPG, up to 2MB.</p>
             </div>
             <SubmitButton>Save Changes</SubmitButton>
+          </ActionForm>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Wire Instructions</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            The company&apos;s wire instructions. Every team member, processors included, can open them from My Profile, so nobody has to ask for them.
+          </p>
+          {wire && (
+            <div className="flex items-center gap-3 rounded-md border p-3">
+              <a href="/api/company-wire-instructions" target="_blank" rel="noreferrer" className="text-sm font-medium underline underline-offset-2">
+                {wire.fileName}
+              </a>
+              {wire.updatedAt && (
+                <span className="text-xs text-muted-foreground">
+                  Uploaded {wire.updatedAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </span>
+              )}
+              <ActionForm action={removeCompanyWireInstructions} successMessage="Wire instructions removed" confirmMessage="Remove the wire instructions? Your team won't be able to open them until you upload a new file." className="ml-auto">
+                <SubmitButton size="sm" variant="ghost">
+                  Remove
+                </SubmitButton>
+              </ActionForm>
+            </div>
+          )}
+          <ActionForm action={updateCompanyWireInstructions} successMessage="Wire instructions saved" className="max-w-sm space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="wire">{wire ? "Replace wire instructions" : "Upload wire instructions"}</Label>
+              <Input id="wire" name="wire" type="file" accept="application/pdf,image/*,.doc,.docx" />
+              <p className="text-xs text-muted-foreground">PDF or image, up to 15MB. Only admins can upload or change it.</p>
+            </div>
+            <SubmitButton>Save</SubmitButton>
           </ActionForm>
         </CardContent>
       </Card>

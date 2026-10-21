@@ -432,6 +432,12 @@ export const companySettings = pgTable("company_settings", {
   // separated), and how many days until the invite link expires.
   partnerInviteReminderDays: text("partner_invite_reminder_days").notNull().default("2,5,9,14"),
   partnerInviteExpiresDays: integer("partner_invite_expires_days").notNull().default(21),
+  // The company's wire instructions (Settings → Company), a file every staff
+  // member can open, so processors can send them to title without asking.
+  wireInstructionsFileName: text("wire_instructions_file_name"),
+  wireInstructionsMimeType: text("wire_instructions_mime_type"),
+  wireInstructionsData: text("wire_instructions_data"),
+  wireInstructionsUpdatedAt: timestamp("wire_instructions_updated_at", { mode: "date", withTimezone: true }),
   nmlsId: text("nmls_id"),
   licensedBrokerName: text("licensed_broker_name"),
   licensedBrokerCompany: text("licensed_broker_company"),

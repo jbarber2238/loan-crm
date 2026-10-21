@@ -2,7 +2,7 @@ import { requireUser } from "@/server/auth/guards";
 import { updateMyProfile } from "@/server/actions/users";
 import { getMySoundPrefs } from "@/server/actions/notifications";
 import { NotificationSoundSettings } from "@/components/settings/notification-sound-settings";
-import { getTcpaOutboundWindow } from "@/server/settings";
+import { getTcpaOutboundWindow, getCompanyWireInstructions } from "@/server/settings";
 import { TCPA_ABSOLUTE_START, TCPA_ABSOLUTE_END } from "@/lib/tcpa";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -20,10 +20,25 @@ export default async function MyProfilePage() {
   const user = await requireUser();
   const tcpaWindow = await getTcpaOutboundWindow();
   const soundPrefs = await getMySoundPrefs();
+  const wire = await getCompanyWireInstructions();
   const outboundMin = tcpaWindow?.start.slice(0, 5) ?? TCPA_ABSOLUTE_START;
   const outboundMax = tcpaWindow?.end.slice(0, 5) ?? TCPA_ABSOLUTE_END;
 
   return (
+    <div className="space-y-6">
+      {wire && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Company wire instructions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <a href="/api/company-wire-instructions" target="_blank" rel="noreferrer" className="text-sm font-medium underline underline-offset-2">
+              {wire.fileName}
+            </a>
+            <p className="mt-1 text-xs text-muted-foreground">Open or download to send to title or a borrower.</p>
+          </CardContent>
+        </Card>
+      )}
     <Card>
       <CardHeader>
         <CardTitle>My Profile</CardTitle>
@@ -187,5 +202,6 @@ export default async function MyProfilePage() {
         )}
       </CardContent>
     </Card>
+    </div>
   );
 }

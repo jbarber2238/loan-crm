@@ -6,6 +6,7 @@ import { db } from "@/server/db/client";
 import { companySettings } from "@/server/db/schema";
 import { requireAdmin } from "@/server/auth/guards";
 import { computeLogoIsLight } from "@/server/logo-analysis";
+import { fail } from "@/lib/action-result";
 
 export async function updateCompanyName(formData: FormData) {
   await requireAdmin();
@@ -129,4 +130,37 @@ export async function disconnectStripe() {
     .set({ stripeSecretKey: null, stripeWebhookSecret: null, updatedAt: new Date() })
     .where(eq(companySettings.id, "default"));
   revalidatePath("/settings/integrations");
+}
+
+const MAX_WIRE_FILE_SIZE = 15 * 1024 * 1024; // 15MB
+
+/** Saves (or replaces) the company wire instructions every staff member can open. */
+export async function updateCompanyWireInstructions(formData: FormData) {
+  await requireAdmin();
+  const file = formData.get("wire");
+  if (!(file instanceof File) || file.size === 0) return fail("Choose a file to upload.");
+  if (file.size > MAX_WIRE_FILE_SIZE) return fail("That file is over 15MB. Please upload a smaller one.");
+
+  const values = {
+    wireInstructionsFileName: file.name,
+    wireInstructionsMimeType: file.type || "application/octet-stream",
+    wireInstructionsData: Buffer.from(await file.arrayBuffer()).toString("base64"),
+    wireInstructionsUpdatedAt: new Date(),
+  };
+  await db
+    .insert(companySettings)
+    .values({ id: "default", name: process.env.COMPANY_NAME ?? "Manna Lending", ...values })
+    .onConflictDoUpdate({ target: companySettings.id, set: { ...values, updatedAt: new Date() } });
+  revalidatePath("/settings/company");
+  revalidatePath("/settings");
+}
+
+export async function removeCompanyWireInstructions() {
+  await requireAdmin();
+  await db
+    .update(companySettings)
+    .set({ wireInstructionsFileName: null, wireInstructionsMimeType: null, wireInstructionsData: null, wireInstructionsUpdatedAt: null, updatedAt: new Date() })
+    .where(eq(companySettings.id, "default"));
+  revalidatePath("/settings/company");
+  revalidatePath("/settings");
 }

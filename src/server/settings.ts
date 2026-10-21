@@ -109,3 +109,12 @@ export async function getTcpaOutboundWindow(): Promise<{ start: string; end: str
   if (!row?.tcpaOutboundStart || !row.tcpaOutboundEnd) return null;
   return { start: row.tcpaOutboundStart, end: row.tcpaOutboundEnd };
 }
+
+/** Name and upload date of the company wire instructions file, or null when none is uploaded. */
+export async function getCompanyWireInstructions(): Promise<{ fileName: string; updatedAt: Date | null } | null> {
+  const row = await db.query.companySettings.findFirst({
+    where: eq(companySettings.id, "default"),
+    columns: { wireInstructionsFileName: true, wireInstructionsUpdatedAt: true },
+  });
+  return row?.wireInstructionsFileName ? { fileName: row.wireInstructionsFileName, updatedAt: row.wireInstructionsUpdatedAt } : null;
+}
