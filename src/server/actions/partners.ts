@@ -4,6 +4,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { fail } from "@/lib/action-result";
+import { formatReminderDays, parseReminderDays } from "@/lib/partner-invite-cadence";
 import { companySettings, deals, partnerPayouts, referralAffiliates } from "@/server/db/schema";
 import { requireAdmin } from "@/server/auth/guards";
 import { appUrl, button, greeting, isProgramLive, sendPartnerEmail } from "@/server/partner/email";
@@ -224,4 +225,20 @@ export async function revealPartnerBanking(partnerId: string) {
     accountType: string;
   };
   return details;
+}
+
+/** Saves when invite reminders go out and when an invite times out. */
+export async function savePartnerInviteSettings(formData: FormData) {
+  await requireAdmin();
+  const rawDays = String(formData.get("reminderDays") ?? "");
+  const days = parseReminderDays(rawDays);
+  if (rawDays.trim() && days.length === 0) return fail("Enter whole numbers of days, like 2, 5, 9, 14.");
+  const expires = Number(formData.get("expiresDays"));
+  if (!Number.isInteger(expires) || expires < 1 || expires > 365) return fail("Enter how many days until the invite expires (1 to 365).");
+  if (days.length && days[days.length - 1] >= expires) return fail("The last reminder has to come before the invite expires.");
+  await db
+    .insert(companySettings)
+    .values({ id: "default", name: process.env.COMPANY_NAME ?? "Manna Lending", partnerInviteReminderDays: formatReminderDays(days), partnerInviteExpiresDays: expires })
+    .onConflictDoUpdate({ target: companySettings.id, set: { partnerInviteReminderDays: formatReminderDays(days), partnerInviteExpiresDays: expires } });
+  revalidatePartnerViews();
 }

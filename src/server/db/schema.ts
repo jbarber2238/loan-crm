@@ -93,6 +93,7 @@ export const emailTemplateCategoryEnum = pgEnum("email_template_category", [
   "title_request",
   "application_submission",
   "friday_zoom",
+  "partner_invite",
 ]);
 
 export const dealStageEnum = pgEnum("deal_stage", [
@@ -427,6 +428,10 @@ export const companySettings = pgTable("company_settings", {
   // Licensing (Settings → Licensing): this company's own NMLS ID (blank if it
   // holds no license), and a licensed broker to close deals under in states
   // that require a license to close.
+  // Partner invites: which days after an invite a reminder goes out (comma
+  // separated), and how many days until the invite link expires.
+  partnerInviteReminderDays: text("partner_invite_reminder_days").notNull().default("2,5,9,14"),
+  partnerInviteExpiresDays: integer("partner_invite_expires_days").notNull().default(21),
   nmlsId: text("nmls_id"),
   licensedBrokerName: text("licensed_broker_name"),
   licensedBrokerCompany: text("licensed_broker_company"),

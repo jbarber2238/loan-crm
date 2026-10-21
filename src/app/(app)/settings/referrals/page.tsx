@@ -3,6 +3,8 @@ import { requireAdmin } from "@/server/auth/guards";
 import { db } from "@/server/db/client";
 import { buildPartnerLinks } from "@/server/actions/referral-affiliates";
 import { isProgramLive } from "@/server/partner/email";
+import { getInviteSettings } from "@/server/partner/invite";
+import { formatReminderDays, isInviteExpired } from "@/lib/partner-invite-cadence";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CopyButton } from "@/components/partner/copy-button";
@@ -10,6 +12,7 @@ import { ContactQuickActions } from "@/components/messaging/contact-quick-action
 import { MarkPaidControl } from "@/components/deals/partner-payout-controls";
 import {
   InvitePartnerForm,
+  InviteReminderSettings,
   MigrateLegacyButton,
   PartnerActions,
   ProgramLiveSwitch,
@@ -31,6 +34,7 @@ export default async function ReferralsSettingsPage() {
   await requireAdmin();
   const now = new Date().getTime();
 
+  const inviteSettings = await getInviteSettings();
   const [partners, live, payouts] = await Promise.all([
     db.query.referralAffiliates.findMany({
       orderBy: (a, { desc }) => desc(a.createdAt),
@@ -69,6 +73,10 @@ export default async function ReferralsSettingsPage() {
         <CardContent className="space-y-4 pt-6">
           <ProgramLiveSwitch live={live} />
           <InvitePartnerForm />
+          <div className="border-t pt-4">
+            <p className="mb-2 text-sm font-medium">Invite reminders</p>
+            <InviteReminderSettings reminderDays={formatReminderDays(inviteSettings.reminderDays)} expiresDays={inviteSettings.expiresDays} />
+          </div>
         </CardContent>
       </Card>
 
@@ -133,7 +141,13 @@ export default async function ReferralsSettingsPage() {
               <CardTitle className="flex flex-wrap items-center gap-2 text-base">
                 {label}
                 {p.name && <span className="font-normal text-muted-foreground">— {p.email}</span>}
-                <Badge variant={p.status === "active" ? "success" : "secondary"}>{STATUS_LABEL[p.status] ?? p.status}</Badge>
+                {(p.status === "invited" || p.status === "profile_complete") &&
+                p.portalInvitedAt &&
+                isInviteExpired((now - p.portalInvitedAt.getTime()) / DAY, inviteSettings.expiresDays) ? (
+                  <Badge variant="warning">Invite expired. Re-send to start again</Badge>
+                ) : (
+                  <Badge variant={p.status === "active" ? "success" : "secondary"}>{STATUS_LABEL[p.status] ?? p.status}</Badge>
+                )}
                 {p.status === "active" || p.status === "paused" ? <Badge variant="outline">{p.tier}% tier</Badge> : null}
               </CardTitle>
               <PartnerActions partnerId={p.id} status={p.status} tier={p.tier} name={label} />

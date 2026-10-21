@@ -8,6 +8,7 @@ import {
   invitePartner,
   migrateLegacyPartners,
   resendPartnerInvite,
+  savePartnerInviteSettings,
   revealPartnerBanking,
   setPartnerStatus,
   setPartnerTier,
@@ -236,5 +237,37 @@ export function RevealBanking({ partnerId, last4 }: { partnerId: string; last4: 
     >
       Reveal account ····{last4 ?? ""}
     </Button>
+  );
+}
+
+export function InviteReminderSettings({ reminderDays, expiresDays }: { reminderDays: string; expiresDays: number }) {
+  const router = useRouter();
+  return (
+    <form
+      className="flex flex-wrap items-end gap-3"
+      action={async (formData) => {
+        const result = await savePartnerInviteSettings(formData);
+        if (result && "error" in result) toast.error(result.error);
+        else {
+          toast.success("Saved");
+          router.refresh();
+        }
+      }}
+    >
+      <div className="space-y-1.5">
+        <Label htmlFor="reminderDays">Send reminders on days</Label>
+        <Input id="reminderDays" name="reminderDays" defaultValue={reminderDays} placeholder="2, 5, 9, 14" className="w-44" />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="expiresDays">Invite expires after (days)</Label>
+        <Input id="expiresDays" name="expiresDays" type="number" min={1} defaultValue={expiresDays} className="w-36" />
+      </div>
+      <Button type="submit" variant="outline">
+        Save
+      </Button>
+      <p className="basis-full text-xs text-muted-foreground">
+        Days count from when the invite was sent, and the last reminder goes out as the link nears expiry. Edit the wording under Settings → Email Templates → Partner Invites &amp; Reminders. Leave the days blank for no reminders.
+      </p>
+    </form>
   );
 }

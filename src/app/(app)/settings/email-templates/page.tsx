@@ -13,6 +13,7 @@ export default async function EmailTemplatesPage() {
 
   const pricingTemplates = templates.filter((t) => t.category === "pricing_request");
   const borrowerTemplates = templates.filter((t) => t.category === "borrower_lifecycle");
+  const inviteTemplates = templates.filter((t) => t.category === "partner_invite");
   const fridayTemplates = templates.filter((t) => t.category === "friday_zoom");
   const vendorTemplates = templates.filter((t) =>
     ["insurance_request", "title_request", "application_submission"].includes(t.category)
@@ -48,6 +49,20 @@ export default async function EmailTemplatesPage() {
                 {vendorTemplates.map((t) => (
                   <EmailTemplateCard key={t.id} template={t} />
                 ))}
+              </div>
+            ),
+          },
+          {
+            key: "partner-invites",
+            title: "Partner Invites & Reminders",
+            description:
+              "The invite email and the reminders that follow until someone sets up their partner account. When they go out is set under Settings → Referrals. {{setupButton}} becomes their personal link button.",
+            children: (
+              <div className="space-y-2" key="invite-list">
+                {inviteTemplates.map((t) => (
+                  <EmailTemplateCard key={t.id} template={t} />
+                ))}
+                {inviteTemplates.length === 0 && <p className="text-sm text-muted-foreground">No partner invite templates yet.</p>}
               </div>
             ),
           },

@@ -200,7 +200,8 @@ export type EmailTemplateCategory =
   | "insurance_request"
   | "title_request"
   | "application_submission"
-  | "friday_zoom";
+  | "friday_zoom"
+  | "partner_invite";
 
 export const FRIDAY_ZOOM_TOKENS: EmailTemplateToken[] = [
   { key: "firstName", description: "The person's first name" },
@@ -210,6 +211,14 @@ export const FRIDAY_ZOOM_TOKENS: EmailTemplateToken[] = [
   { key: "partnerSignupButton", description: "A \"Set up your partner account\" button (their setup link)" },
   { key: "partnerPortalButton", description: "An \"Open your partner portal\" button" },
   { key: "cheatSheetButton", description: "A \"Get the Send-It Cheat Sheet\" button" },
+];
+
+export const PARTNER_INVITE_TOKENS: EmailTemplateToken[] = [
+  { key: "firstName", description: "The partner's first name (\"there\" if we don't have it)" },
+  { key: "inviterName", description: "The person who invited them (you)" },
+  { key: "setupButton", description: "A button to set up their account (their personal link)" },
+  { key: "expiryDate", description: "The day their invite link stops working, e.g. \"November 10\"" },
+  { key: "daysLeft", description: "How many days are left before the link expires, e.g. \"7\"" },
 ];
 
 export function tokensForCategory(category: EmailTemplateCategory): EmailTemplateToken[] {
@@ -224,6 +233,8 @@ export function tokensForCategory(category: EmailTemplateCategory): EmailTemplat
       return APPLICATION_SUBMISSION_TOKENS;
     case "friday_zoom":
       return FRIDAY_ZOOM_TOKENS;
+    case "partner_invite":
+      return PARTNER_INVITE_TOKENS;
     case "borrower_lifecycle":
     default:
       return BORROWER_LIFECYCLE_TOKENS;

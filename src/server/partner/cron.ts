@@ -1,49 +1,55 @@
 import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { leads, partnerBorrowers, referralAffiliates } from "@/server/db/schema";
+import { leads, partnerBorrowers, partnerEvents, referralAffiliates, users } from "@/server/db/schema";
 import { evaluateTier, TIER_AT_RISK_DAYS } from "@/lib/partner-comp";
 import { appUrl, button, greeting, notifyAdmins, sendPartnerEmail } from "@/server/partner/email";
-import { createInviteToken } from "@/server/partner/invite";
+import { createInviteToken, getInviteSettings, sendInviteTemplate } from "@/server/partner/invite";
+import { nextDueStep, reminderTemplateKey } from "@/lib/partner-invite-cadence";
 import { logPartnerEvent } from "@/server/partner/events";
 
 const DAY = 24 * 60 * 60 * 1000;
 const ageDays = (d: Date | null, now: Date) => (d ? (now.getTime() - d.getTime()) / DAY : 0);
 
-/** Day-2 and day-5 nudges for partners who were invited but haven't finished setting up. */
+/**
+ * Reminders for partners who were invited but haven't finished setting up,
+ * on the schedule in Settings → Referrals (default days 2, 5, 9, 14) and
+ * stopping when the invite expires. Each reminder is an editable template.
+ */
 async function nudgeStalledSignups(now: Date) {
+  const { reminderDays, expiresDays } = await getInviteSettings();
   const rows = await db.query.referralAffiliates.findMany({
     where: inArray(referralAffiliates.status, ["invited", "profile_complete"]),
   });
   let sent = 0;
   for (const p of rows) {
+    if (!p.portalInvitedAt) continue;
     // People who came through the Friday Zoom get their own follow-up and nudge from that sequence.
     const fridayLead = await db.query.leads.findFirst({
       where: and(eq(leads.email, p.email), sql`${leads.fridayBookedSessionDate} is not null`),
       columns: { id: true },
     });
     if (fridayLead) continue;
-    const age = ageDays(p.portalInvitedAt, now);
-    const which = age >= 5 && !p.inviteNudge2At ? 2 : age >= 2 && !p.inviteNudge1At ? 1 : 0;
-    if (!which) continue;
-    const link =
-      p.status === "profile_complete" ? `${appUrl()}/partner/sign-in` : `${appUrl()}/partner/join/${await createInviteToken(p.id)}`;
-    const ok = await sendPartnerEmail(p, {
-      subject: which === 1 ? "Finish setting up your partner account" : "Your partner invite is still waiting",
-      heading: "Your partner account is almost ready",
-      bodyHtml:
-        greeting(p) +
-        `<p style="margin:0 0 16px;">${
-          p.status === "profile_complete"
-            ? "One last step — accept the partner terms and you can start referring."
-            : "It takes about two minutes to set up your account, and then your referral link is ready to share."
-        }</p>` +
-        button(p.status === "profile_complete" ? "Accept terms" : "Set up your account", link),
+
+    // Steps already handled since this invite (or its latest re-send) went out.
+    const events = await db.query.partnerEvents.findMany({
+      where: and(eq(partnerEvents.partnerId, p.id), eq(partnerEvents.type, "nudged"), gte(partnerEvents.createdAt, p.portalInvitedAt)),
     });
-    await db
-      .update(referralAffiliates)
-      .set(which === 1 ? { inviteNudge1At: now } : { inviteNudge2At: now })
-      .where(eq(referralAffiliates.id, p.id));
-    await logPartnerEvent(p.id, "nudged", { nudge: which, sent: ok });
+    const handled = new Set(events.map((e) => Number(e.payload?.step)).filter((n) => Number.isInteger(n)));
+    const { due, skipped } = nextDueStep(ageDays(p.portalInvitedAt, now), reminderDays, handled, expiresDays);
+    for (const step of skipped) await logPartnerEvent(p.id, "nudged", { step, sent: false, skipped: true });
+    if (!due) continue;
+
+    const expiresAt = new Date(p.portalInvitedAt.getTime() + expiresDays * DAY);
+    const afterTerms = p.status === "profile_complete";
+    const setupUrl = afterTerms ? `${appUrl()}/partner/sign-in` : `${appUrl()}/partner/join/${await createInviteToken(p.id, expiresAt)}`;
+    const inviter = await db.query.users.findFirst({ where: eq(users.id, p.invitedByUserId), columns: { name: true } });
+    const ok = await sendInviteTemplate(p, reminderTemplateKey(due, reminderDays.length), {
+      inviterName: inviter?.name ?? null,
+      setupUrl,
+      setupLabel: afterTerms ? "Accept the terms" : "Set up your partner account",
+      expiresAt,
+    });
+    await logPartnerEvent(p.id, "nudged", { step: due, of: reminderDays.length, sent: ok });
     if (ok) sent++;
   }
   return sent;
