@@ -70,3 +70,21 @@ describe("embed snippet", () => {
     expect(snippet).toContain("manna-embed-height");
   });
 });
+
+import { visibleGroups } from "@/components/settings/settings-nav";
+
+describe("settings menu", () => {
+  it("shows an admin every page, in groups", () => {
+    const groups = visibleGroups(true);
+    expect(groups.map((g) => g.title)).toEqual(["Account", "Company", "Communication", "Programs", "System"]);
+    expect(groups.flatMap((g) => g.items).map((i) => i.href)).toEqual([
+      "/settings", "/settings/company", "/settings/licensing", "/settings/team", "/settings/phone",
+      "/settings/email-templates", "/settings/referrals", "/settings/integrations", "/settings/deleted-deals",
+    ]);
+  });
+
+  it("shows everyone else only their own profile", () => {
+    const items = visibleGroups(false).flatMap((g) => g.items);
+    expect(items.map((i) => i.href)).toEqual(["/settings"]);
+  });
+});
