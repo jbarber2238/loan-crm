@@ -47,15 +47,13 @@ Your invite to the Manna Lending partner program is still waiting for you. Once 
   },
   {
     key: "partner_invite_reminder_third",
-    name: "Partner invite — reminder 3",
-    subject: "A quick reminder about your partner invite",
+    name: "Partner invite — reminder 3 (the value)",
+    subject: "What a referral can pay you",
     body: `Hi {{firstName}},
 
-Just a quick reminder that your partner invite is open. It's two minutes to set up, and then you can start sending investor deals our way.
+A quick note on why this is worth two minutes. You earn 20% of our fee on your referral's first funded deal, with a $500 minimum, and 10% on every repeat deal that borrower closes for the next 24 months. Your client gets a straight answer in minutes, and you watch every step of their loan in your portal.
 
-{{setupButton}}
-
-Not the right time? No problem, just ignore this and I'll stop reminding you soon.`,
+{{setupButton}}`,
   },
   {
     key: "partner_invite_reminder_final",
@@ -63,10 +61,8 @@ Not the right time? No problem, just ignore this and I'll stop reminding you soo
     subject: "Your partner invite link expires in {{daysLeft}} days",
     body: `Hi {{firstName}},
 
-This is the last reminder: the link to set up your partner account stops working on {{expiryDate}}.
+This is the last reminder: your link to set up your partner account stops working on {{expiryDate}}. One investor deal that funds pays you at least $500, and the same borrower keeps paying you on repeat deals for two years.
 
-{{setupButton}}
-
-If you'd still like to join after that, reply to this email and I'll send you a fresh one.`,
+{{setupButton}}`,
   },
 ];
