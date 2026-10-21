@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { users } from "@/server/db/schema";
 import { BrandedIntakeForm } from "@/components/marketing/branded-intake-form";
+import { EmbedResizer } from "@/components/marketing/embed-resizer";
 
 const archivo = Archivo({
   subsets: ["latin"],
@@ -30,12 +31,18 @@ export default async function EmbeddableIntakePage({
   });
 
   return (
-    <BrandedIntakeForm
-      loanOfficer={loanOfficer}
-      submitted={submitted === "1"}
-      redirectBasePath="/embed/intake"
-      fontVariable={archivo.variable}
-      affiliateId={typeof aff === "string" ? aff : undefined}
-    />
+    <>
+      {/* Let the page behind the iframe show through instead of the app's own background. */}
+      <style>{"html,body{background:transparent !important}"}</style>
+      <EmbedResizer />
+      <BrandedIntakeForm
+        loanOfficer={loanOfficer}
+        submitted={submitted === "1"}
+        redirectBasePath="/embed/intake"
+        fontVariable={archivo.variable}
+        affiliateId={typeof aff === "string" ? aff : undefined}
+        embedded
+      />
+    </>
   );
 }

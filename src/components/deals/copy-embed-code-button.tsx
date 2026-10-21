@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { buildEmbedSnippet } from "@/lib/embed-snippet";
 
 // Hardcoded to the public brand domain rather than window.location.origin —
 // staff usually work from the internal Vercel URL day to day, but the
@@ -28,7 +29,7 @@ export function CopyEmbedCodeButton({
       onClick={async () => {
         const query = affiliateId ? `?aff=${affiliateId}` : "";
         const src = `${EMBED_ORIGIN}/embed/intake/${loanOfficerId}${query}`;
-        const snippet = `<iframe src="${src}" style="width:100%;max-width:720px;height:2200px;border:none;" title="Loan Inquiry"></iframe>`;
+        const snippet = buildEmbedSnippet(src);
         await navigator.clipboard.writeText(snippet);
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);

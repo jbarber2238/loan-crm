@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { referralAffiliates, users } from "@/server/db/schema";
 import { appUrl } from "@/server/partner/email";
+import { buildEmbedSnippet } from "@/lib/embed-snippet";
 
 // Referral links always route to this one loan officer regardless of who
 // invited the partner — the only one this brokerage has today. Revisit if
@@ -32,7 +33,7 @@ export async function buildPartnerLinks(partner: {
     shortLink: partner.referralSlug ? `${origin}/r/${partner.referralSlug}` : null,
     intakeLink,
     embedSrc,
-    embedSnippet: `<iframe src="${embedSrc}" style="width:100%;max-width:720px;height:2200px;border:none;" title="Loan Inquiry"></iframe>`,
+    embedSnippet: buildEmbedSnippet(embedSrc),
   };
 }
 

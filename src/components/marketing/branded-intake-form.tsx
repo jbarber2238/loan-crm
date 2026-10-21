@@ -57,6 +57,7 @@ export function BrandedIntakeForm({
   showLogo = true,
   affiliateId,
   redirectTo,
+  embedded = false,
 }: {
   loanOfficer: { id: string; name: string | null; active: boolean } | undefined;
   submitted: boolean;
@@ -70,11 +71,17 @@ export function BrandedIntakeForm({
   // Full post-submit path, for links that live somewhere other than
   // `${redirectBasePath}/<loanOfficerId>` (a partner's /r/<slug> page).
   redirectTo?: string;
+  // Inside a partner's website: no teal backdrop or full-screen height, so the
+  // form sits on whatever page it's dropped into.
+  embedded?: boolean;
 }) {
+  const pageClass = embedded ? `${fontVariable} p-1` : `${fontVariable} ${PAGE_CLASS}`;
+  const pageStyle = embedded ? { backgroundColor: "transparent" } : PAGE_STYLE;
+  const cardStyle = embedded ? { ...CARD_STYLE, border: "1px solid #CBB8A0" } : CARD_STYLE;
   if (!loanOfficer || !loanOfficer.active) {
     return (
-      <div className={`${fontVariable} ${PAGE_CLASS} flex items-center justify-center`} style={PAGE_STYLE}>
-        <div className="max-w-md rounded-sm p-8 text-center text-sm" style={{ ...CARD_STYLE, color: BASALT }}>
+      <div id={embedded ? "manna-embed-root" : undefined} className={`${pageClass} flex items-center justify-center`} style={pageStyle}>
+        <div className="max-w-md rounded-sm p-8 text-center text-sm" style={{ ...cardStyle, color: BASALT }}>
           This intake link isn&apos;t active. Please reach out to your loan officer directly.
         </div>
       </div>
@@ -83,8 +90,8 @@ export function BrandedIntakeForm({
 
   if (submitted) {
     return (
-      <div className={`${fontVariable} ${PAGE_CLASS} flex items-center justify-center`} style={PAGE_STYLE}>
-        <div className="max-w-md rounded-sm p-8 text-center" style={CARD_STYLE}>
+      <div id={embedded ? "manna-embed-root" : undefined} className={`${pageClass} flex items-center justify-center`} style={pageStyle}>
+        <div className="max-w-md rounded-sm p-8 text-center" style={cardStyle}>
           {showLogo && <MannaLogo className="mx-auto h-10 w-auto" />}
           <h1 className="mt-6 text-xl font-medium" style={{ color: TEAL }}>
             Thanks — we&apos;ve got it
@@ -104,8 +111,8 @@ export function BrandedIntakeForm({
   }
 
   return (
-    <div className={`${fontVariable} ${PAGE_CLASS}`} style={PAGE_STYLE}>
-      <div className="mx-auto max-w-2xl rounded-sm p-6 md:p-10" style={CARD_STYLE}>
+    <div id={embedded ? "manna-embed-root" : undefined} className={pageClass} style={pageStyle}>
+      <div className="mx-auto max-w-2xl rounded-sm p-6 md:p-10" style={cardStyle}>
         {showLogo && <MannaLogo className="h-10 w-auto" />}
         <p className="mt-4 text-sm" style={{ color: BASALT }}>
           Please complete this form to receive a pricing quote. {loanOfficer.name} will be your loan officer.

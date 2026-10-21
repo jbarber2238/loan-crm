@@ -52,3 +52,21 @@ describe("Partner invite templates", () => {
     }
   });
 });
+
+import { buildEmbedSnippet } from "@/lib/embed-snippet";
+
+describe("embed snippet", () => {
+  const snippet = buildEmbedSnippet("https://mannalendingco.com/embed/intake/abc?aff=xyz");
+
+  it("frames the form, centered, with a sensible starting height", () => {
+    expect(snippet).toContain('src="https://mannalendingco.com/embed/intake/abc?aff=xyz"');
+    expect(snippet).toContain("margin:0 auto");
+    expect(snippet).toContain("height:700px");
+  });
+
+  it("includes the resize listener that only trusts its own frame", () => {
+    expect(snippet).toContain("<script>");
+    expect(snippet).toContain("e.source===f.contentWindow");
+    expect(snippet).toContain("manna-embed-height");
+  });
+});
