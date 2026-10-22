@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   deletePartner,
   invitePartner,
-  migrateLegacyPartners,
+  migrateLegacyPartner,
   resendPartnerInvite,
   savePartnerInviteSettings,
   revealPartnerBanking,
@@ -107,29 +107,11 @@ export function InvitePartnerForm() {
   );
 }
 
-export function MigrateLegacyButton({ count, live }: { count: number; live: boolean }) {
-  const { run, pending } = useRun();
-  const [confirm, setConfirm] = useState(false);
+export function MigrateLegacyNotice({ count }: { count: number }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-      <p>
-        {count} existing affiliate{count === 1 ? "" : "s"} from before the portal. Migrating emails each one a link to set a
-        password and accept the terms. Their old referral links keep working.
-        {!live && " (Turn the program live first.)"}
-      </p>
-      <Button type="button" size="sm" disabled={pending || !live} onClick={() => setConfirm(true)}>
-        Migrate &amp; send invites
-      </Button>
-      <ConfirmDialog
-        open={confirm}
-        title="Migrate existing affiliates?"
-        message={`This sends ${count} email${count === 1 ? "" : "s"} right now.`}
-        onCancel={() => setConfirm(false)}
-        onConfirm={() => {
-          setConfirm(false);
-          run(() => migrateLegacyPartners(), "Invites sent");
-        }}
-      />
+    <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+      {count} existing affiliate{count === 1 ? "" : "s"} from before the portal. Migrate each one from its own card below when
+      you&apos;re ready: that emails them a link to set a password and accept the terms. Their old referral links keep working.
     </div>
   );
 }
@@ -139,18 +121,38 @@ export function PartnerActions({
   status,
   tier,
   name,
+  live,
 }: {
   partnerId: string;
   status: string;
   tier: number;
   name: string;
+  live: boolean;
 }) {
   const { run, pending } = useRun();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmMigrate, setConfirmMigrate] = useState(false);
   const invited = status === "invited" || status === "profile_complete";
   const activeish = status === "active" || status === "paused";
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {status === "legacy" && (
+        <>
+          <Button type="button" size="sm" disabled={pending || !live} title={live ? undefined : "Turn the program live first"} onClick={() => setConfirmMigrate(true)}>
+            Migrate &amp; send invite
+          </Button>
+          <ConfirmDialog
+            open={confirmMigrate}
+            title={`Migrate ${name}?`}
+            message={`This emails ${name} a link to set a password and accept the terms, right now.`}
+            onCancel={() => setConfirmMigrate(false)}
+            onConfirm={() => {
+              setConfirmMigrate(false);
+              run(() => migrateLegacyPartner(partnerId), "Invite sent");
+            }}
+          />
+        </>
+      )}
       {invited && (
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => run(() => resendPartnerInvite(partnerId), "Invite re-sent")}>
           Resend invite

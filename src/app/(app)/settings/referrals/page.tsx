@@ -13,7 +13,7 @@ import { MarkPaidControl } from "@/components/deals/partner-payout-controls";
 import {
   InvitePartnerForm,
   InviteReminderSettings,
-  MigrateLegacyButton,
+  MigrateLegacyNotice,
   PartnerActions,
   ProgramLiveSwitch,
   RevealBanking,
@@ -80,7 +80,7 @@ export default async function ReferralsSettingsPage() {
         </CardContent>
       </Card>
 
-      {legacyCount > 0 && <MigrateLegacyButton count={legacyCount} live={live} />}
+      {legacyCount > 0 && <MigrateLegacyNotice count={legacyCount} />}
 
       {(stalled.length > 0 || quiet.length > 0) && (
         <Card>
@@ -150,7 +150,7 @@ export default async function ReferralsSettingsPage() {
                 )}
                 {p.status === "active" || p.status === "paused" ? <Badge variant="outline">{p.tier}% tier</Badge> : null}
               </CardTitle>
-              <PartnerActions partnerId={p.id} status={p.status} tier={p.tier} name={label} />
+              <PartnerActions partnerId={p.id} status={p.status} tier={p.tier} name={label} live={live} />
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               {p.phone && (

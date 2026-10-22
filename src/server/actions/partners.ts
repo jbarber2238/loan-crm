@@ -65,30 +65,30 @@ export async function resendPartnerInvite(partnerId: string) {
 }
 
 /**
- * One-time button: moves the affiliates from before the portal into the partner
- * program and emails each one to set a password and accept the terms. Refuses
- * until the program is switched live, so nobody gets the email early.
+ * Moves one pre-portal affiliate into the partner program and emails them a link to
+ * set a password and accept the terms. One at a time, on purpose: each gets migrated
+ * after a conversation. Refuses until the program is switched live, so nobody gets
+ * the email early.
  */
-export async function migrateLegacyPartners() {
+export async function migrateLegacyPartner(partnerId: string) {
   const admin = await requireAdmin();
   if (!(await isProgramLive())) {
-    return fail('Turn on "Partner program live" first — this sends each existing affiliate an email.');
+    return fail('Turn on "Partner program live" first — this sends the affiliate an email.');
   }
-  const legacy = await db.query.referralAffiliates.findMany({ where: eq(referralAffiliates.status, "legacy") });
-  let migrated = 0;
-  for (const partner of legacy) {
-    const slug = partner.referralSlug ?? (await uniqueSlug(partner.name, partner.email));
-    const [updated] = await db
-      .update(referralAffiliates)
-      .set({ status: "invited", referralSlug: slug, portalInvitedAt: new Date() })
-      .where(eq(referralAffiliates.id, partner.id))
-      .returning();
-    await logPartnerEvent(partner.id, "migrated", { by: admin.id });
-    await sendInviteEmail(updated, admin.name ?? null, await createInviteToken(partner.id));
-    migrated++;
-  }
+  const partner = await db.query.referralAffiliates.findFirst({ where: eq(referralAffiliates.id, partnerId) });
+  if (!partner) return fail("Partner not found");
+  if (partner.status !== "legacy") return fail("This affiliate has already been migrated.");
+
+  const slug = partner.referralSlug ?? (await uniqueSlug(partner.name, partner.email));
+  const [updated] = await db
+    .update(referralAffiliates)
+    .set({ status: "invited", referralSlug: slug, portalInvitedAt: new Date() })
+    .where(eq(referralAffiliates.id, partner.id))
+    .returning();
+  await logPartnerEvent(partner.id, "migrated", { by: admin.id });
+  await sendInviteEmail(updated, admin.name ?? null, await createInviteToken(partner.id));
   revalidatePartnerViews();
-  return { migrated };
+  return { migrated: 1 };
 }
 
 // ---- Management ------------------------------------------------------------
