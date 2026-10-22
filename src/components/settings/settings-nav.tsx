@@ -84,7 +84,7 @@ export function SettingsNav({ isAdmin, pathnameOverride }: { isAdmin: boolean; p
   return (
     <>
       {/* Phones: one scrollable row, in the same order as the groups. */}
-      <nav aria-label="Settings" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:hidden">
+      <nav aria-label="Settings" className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 sm:-mx-4 sm:px-4 md:hidden">
         {groups.flatMap((g) => g.items).map((i) => link(i, true))}
       </nav>
       {/* Wider screens: a left menu with a heading per group. */}

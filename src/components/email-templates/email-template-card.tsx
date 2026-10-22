@@ -125,7 +125,7 @@ export function EmailTemplateCard({ template }: { template: EmailTemplateRow }) 
         )}
         <span className="flex-1 text-sm font-medium">{template.name}</span>
         {!template.active && <Badge variant="secondary">Inactive</Badge>}
-        <code className="text-xs text-muted-foreground">{template.key}</code>
+        <code className="text-xs text-muted-foreground break-all">{template.key}</code>
       </CollapsibleTrigger>
 
       <CollapsibleContent>

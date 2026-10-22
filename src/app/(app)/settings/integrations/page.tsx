@@ -64,7 +64,7 @@ export default async function IntegrationsSettingsPage() {
               />
               <p className="text-xs text-muted-foreground">
                 Issued when you create a webhook subscription pointing at{" "}
-                <code className="rounded bg-muted px-1 py-0.5">{webhookUrl}</code> — used to confirm webhook
+                <code className="rounded bg-muted px-1 py-0.5 break-all">{webhookUrl}</code> — used to confirm webhook
                 deliveries really came from PandaDoc.
               </p>
             </div>
@@ -118,7 +118,7 @@ export default async function IntegrationsSettingsPage() {
               />
               <p className="text-xs text-muted-foreground">
                 Issued when you add a webhook endpoint pointing at{" "}
-                <code className="rounded bg-muted px-1 py-0.5">{stripeWebhookUrl}</code> listening for the{" "}
+                <code className="rounded bg-muted px-1 py-0.5 break-all">{stripeWebhookUrl}</code> listening for the{" "}
                 <code className="rounded bg-muted px-1 py-0.5">invoice.paid</code> event.
               </p>
             </div>

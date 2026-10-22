@@ -119,8 +119,8 @@ export default async function DashboardPage({
     <div className="space-y-10 pb-16">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-semibold">Dashboard</h1>
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1 rounded-md border p-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap gap-1 rounded-md border p-1">
             {DASHBOARD_RANGES.map((r) => (
               <Link
                 key={r.value}

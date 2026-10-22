@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Phone as PhoneIcon } from "lucide-react";
+import { ChevronLeft, Phone as PhoneIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -87,6 +87,8 @@ export function CommunicationsView({
   const [tab, setTab] = useState<"messages" | "dial">("messages");
   const [selectedId, setSelectedId] = useState<string | null>(conversations[0]?.id ?? null);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  // On phones the list and the open thread take turns filling the screen.
+  const [showThread, setShowThread] = useState(false);
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
 
@@ -118,7 +120,7 @@ export function CommunicationsView({
         <DialTab />
       ) : (
         <div className="flex min-h-0 flex-1 gap-4 pt-3">
-          <div className="w-72 shrink-0 overflow-y-auto border-r pr-3">
+          <div className={cn("w-full shrink-0 overflow-y-auto md:block md:w-72 md:border-r md:pr-3", showThread && "hidden")}>
             {conversations.length === 0 && <p className="p-3 text-sm text-muted-foreground">No activity yet.</p>}
             {conversations.map((c) => {
               const isUnread = c.hasUnread && !readIds.has(c.id);
@@ -134,6 +136,7 @@ export function CommunicationsView({
                   key={c.id}
                   onClick={() => {
                     setSelectedId(c.id);
+                    setShowThread(true);
                     setReadIds((prev) => new Set(prev).add(c.id));
                     void markConversationRead(c.id);
                   }}
@@ -153,14 +156,26 @@ export function CommunicationsView({
           </div>
 
           {selected ? (
-            <ThreadPane key={selected.id} conversation={selected} />
+            <div className={cn("min-h-0 min-w-0 flex-1 flex-col md:flex", showThread ? "flex" : "hidden")}>
+              <button
+                onClick={() => setShowThread(false)}
+                className="mb-2 flex items-center gap-1 self-start text-sm text-muted-foreground md:hidden"
+              >
+                <ChevronLeft className="size-4" /> All conversations
+              </button>
+              <ThreadPane key={selected.id} conversation={selected} />
+            </div>
           ) : (
-            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+            <div className="hidden flex-1 items-center justify-center text-sm text-muted-foreground md:flex">
               Select a conversation
             </div>
           )}
 
-          {selected && <InfoPanel conversationId={selected.id} phone={selected.primaryPhone} dealId={selected.dealId} allDeals={allDeals} />}
+          {selected && (
+            <div className="hidden lg:flex">
+              <InfoPanel conversationId={selected.id} phone={selected.primaryPhone} dealId={selected.dealId} allDeals={allDeals} />
+            </div>
+          )}
         </div>
       )}
     </div>
