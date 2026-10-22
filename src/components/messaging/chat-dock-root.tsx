@@ -35,7 +35,7 @@ export function ChatDockRoot() {
         </div>
       ))}
 
-      <div className="flex flex-col items-end gap-2 pb-4">
+      <div className="flex flex-col items-end gap-2 pb-4 max-lg:pb-[calc(1rem+var(--bottom-bar,0px))]">
         {minimized.map((w) => (
           <button
             key={w.conversationId}

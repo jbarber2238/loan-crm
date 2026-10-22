@@ -1,6 +1,7 @@
 import { DocumentsTab } from "@/components/deals/documents-tab";
 import type { DealDocumentRow } from "@/server/actions/client-need-documents";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TabsContent } from "@/components/ui/tabs";
+import { LoanCenterTabsShell } from "@/components/deals/loan-center-tabs-shell";
 import { RolesTab } from "@/components/deals/roles-tab";
 import { ClientNeedsTab, type ClientNeed } from "@/components/deals/client-needs-tab";
 import { ClientNeedsNote, type ClientNeedsNoteData } from "@/components/deals/client-needs-note";
@@ -146,17 +147,7 @@ export function LoanCenterTab({
 }) {
   return (
     <div className="space-y-4">
-      <Tabs defaultValue={initialTab ?? "client-needs"}>
-        <TabsList className="max-w-full justify-start overflow-x-auto [&>button]:shrink-0">
-          <TabsTrigger value="client-needs">Client Needs</TabsTrigger>
-          <TabsTrigger value="conditions">Conditions</TabsTrigger>
-          <TabsTrigger value="roles">Roles and Key Contacts</TabsTrigger>
-          <TabsTrigger value="key-dates">Key Dates</TabsTrigger>
-          <TabsTrigger value="email-log">Email Log</TabsTrigger>
-          <TabsTrigger value="notes">Notes</TabsTrigger>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
-          <TabsTrigger value="team-chat">Team Chat</TabsTrigger>
-        </TabsList>
+      <LoanCenterTabsShell initialTab={initialTab}>
 
         <TabsContent value="client-needs" className="space-y-4">
           <ClientNeedsNote dealId={dealId} note={clientNeedsNote} />
@@ -256,7 +247,7 @@ export function LoanCenterTab({
         </TabsContent>
 
         <TabsContent value="team-chat">{teamChat}</TabsContent>
-      </Tabs>
+      </LoanCenterTabsShell>
     </div>
   );
 }

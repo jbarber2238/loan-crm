@@ -25,7 +25,7 @@ export default async function TeamChatPage({ searchParams }: { searchParams: Pro
         <p className="text-sm text-muted-foreground">Internal only. Borrowers never see anything here.</p>
       </div>
       <div className="grid gap-4 md:grid-cols-[280px_1fr]">
-        <div className="space-y-2">
+        <div className={cn("space-y-2", room && "hidden md:block")}>
         <NewChatDialog currentUserId={me.id} />
         <ul className="space-y-1">
           {list.map((r) => (
@@ -57,9 +57,14 @@ export default async function TeamChatPage({ searchParams }: { searchParams: Pro
           ))}
         </ul>
         </div>
-        <div className="space-y-2">
+        <div className={cn("space-y-2", !room && "hidden md:block")}>
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">{active?.title ?? "General"}</h2>
+            <div className="flex items-center gap-2">
+              <Link href="/team-chat" className="text-sm text-primary md:hidden">
+                ‹ All chats
+              </Link>
+              <h2 className="text-sm font-semibold">{active?.title ?? "General"}</h2>
+            </div>
             {active?.kind === "deal" && active.dealId && (
               <Link href={`/deals/${active.dealId}/loan-center?tab=team-chat`} className="text-xs text-primary hover:underline">
                 Open deal
@@ -70,7 +75,7 @@ export default async function TeamChatPage({ searchParams }: { searchParams: Pro
             key={activeId}
             roomId={activeId}
             showMembers={active?.kind !== "general"}
-            heightClass="h-[calc(100vh-14rem)] min-h-[420px]"
+            heightClass="h-[calc(100dvh-13rem)] min-h-[360px] md:h-[calc(100vh-14rem)] md:min-h-[420px]"
           />
         </div>
       </div>

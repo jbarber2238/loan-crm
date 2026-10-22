@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Minus, X, Phone as PhoneIcon, UserPlus } from "lucide-react";
+import { ChevronLeft, Minus, X, Phone as PhoneIcon, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -136,10 +136,13 @@ export function ChatWindowPanel({
   }
 
   return (
-    <div className="flex h-[min(420px,70vh)] w-[min(20rem,calc(100vw-1.5rem))] flex-col rounded-t-lg border border-b-0 bg-popover shadow-xl">
-      <div className="flex items-center justify-between rounded-t-lg border-b bg-muted px-3 py-2">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{dockWindow.contactName}</p>
+    <div className="fixed inset-0 z-50 flex h-dvh w-screen flex-col bg-popover sm:static sm:z-auto sm:h-[min(420px,70vh)] sm:w-80 sm:rounded-t-lg sm:border sm:border-b-0 sm:shadow-xl">
+      <div className="flex items-center justify-between border-b bg-muted px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:rounded-t-lg sm:pt-2">
+        <Button type="button" variant="ghost" size="icon" onClick={onMinimize} aria-label="Back" className="-ml-1 mr-1 shrink-0 sm:hidden">
+          <ChevronLeft className="size-5" />
+        </Button>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-base font-semibold sm:text-sm">{dockWindow.contactName}</p>
           <p className="truncate text-xs text-muted-foreground">
             {dockWindow.contactType} · {dockWindow.contactPhone}
           </p>
@@ -158,7 +161,7 @@ export function ChatWindowPanel({
           <Button type="button" variant="ghost" size="icon-sm" onClick={handleCall} title="Call" aria-label="Call">
             <PhoneIcon className="size-3.5" />
           </Button>
-          <Button type="button" variant="ghost" size="icon-sm" onClick={onMinimize} title="Minimize" aria-label="Minimize">
+          <Button type="button" variant="ghost" size="icon-sm" onClick={onMinimize} title="Minimize" aria-label="Minimize" className="max-sm:hidden">
             <Minus className="size-3.5" />
           </Button>
           <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} title="Close" aria-label="Close">
@@ -198,7 +201,7 @@ export function ChatWindowPanel({
         />
       )}
 
-      <div className="flex-1 space-y-2 overflow-y-auto p-3">
+      <div className="flex-1 space-y-2 overflow-y-auto p-3 max-sm:space-y-3">
         {!loaded && <p className="text-center text-xs text-muted-foreground">Loading…</p>}
         {loaded && timeline.length === 0 && (
           <p className="text-center text-xs text-muted-foreground">No messages or calls yet.</p>
@@ -207,7 +210,7 @@ export function ChatWindowPanel({
           t.kind === "message" ? (
             <div key={t.item.id} className={`flex ${t.item.direction === "outbound" ? "justify-end" : "justify-start"}`}>
               <div
-                className={`max-w-[85%] rounded-lg px-2.5 py-1.5 text-sm whitespace-pre-wrap ${
+                className={`max-w-[85%] rounded-lg px-2.5 py-1.5 text-sm whitespace-pre-wrap max-sm:px-3 max-sm:py-2 max-sm:text-[15px] ${
                   t.item.direction === "outbound" ? "bg-foreground text-background" : "bg-muted"
                 }`}
               >
@@ -227,7 +230,7 @@ export function ChatWindowPanel({
         <div ref={bottomRef} />
       </div>
 
-      <form onSubmit={handleSend} className="flex items-end gap-2 border-t p-2">
+      <form onSubmit={handleSend} className="flex items-end gap-2 border-t p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
         <Textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
@@ -239,9 +242,9 @@ export function ChatWindowPanel({
           }}
           rows={2}
           placeholder="Type a message…"
-          className="min-h-0 resize-none text-sm"
+          className="min-h-0 resize-none text-base sm:text-sm"
         />
-        <Button type="submit" size="sm" disabled={isPending || !body.trim()}>
+        <Button type="submit" size="sm" className="max-sm:h-10 max-sm:px-4" disabled={isPending || !body.trim()}>
           Send
         </Button>
       </form>
