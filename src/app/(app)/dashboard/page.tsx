@@ -326,7 +326,7 @@ export default async function DashboardPage({
         <SectionHeading title="Loan Officer Performance" />
         <Card>
           <CardContent className="pt-6">
-            <div className="space-y-2">
+            <div className="space-y-2 overflow-x-auto [&>div]:min-w-[40rem]">
               <div className="grid grid-cols-7 gap-2 text-xs font-medium text-muted-foreground">
                 <span className="col-span-2">Loan Officer</span>
                 <span className="text-right">Closed</span>
@@ -438,7 +438,7 @@ export default async function DashboardPage({
             <p className="text-xs text-muted-foreground">Priced with, chosen, closed, lost, and average time to close once chosen.</p>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
+            <div className="space-y-2 overflow-x-auto [&>div]:min-w-[40rem]">
               <div className="grid grid-cols-6 gap-2 text-xs font-medium text-muted-foreground">
                 <span className="col-span-2">Lender</span>
                 <span className="text-right">Priced</span>
@@ -474,7 +474,7 @@ export default async function DashboardPage({
             </p>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
+            <div className="space-y-2 overflow-x-auto [&>div]:min-w-[40rem]">
               <div className="grid grid-cols-3 gap-2 text-xs font-medium text-muted-foreground">
                 <span>Lender</span>
                 <span className="text-right">Time to Term Sheet</span>
@@ -497,7 +497,7 @@ export default async function DashboardPage({
             <CardTitle className="text-base">Referral Partner Performance</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
+            <div className="space-y-2 overflow-x-auto [&>div]:min-w-[40rem]">
               <div className="grid grid-cols-4 gap-2 text-xs font-medium text-muted-foreground">
                 <span>Partner</span>
                 <span className="text-right">Referrals</span>

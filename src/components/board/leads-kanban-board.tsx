@@ -76,7 +76,7 @@ function Column({ status, leads }: { status: LeadStatus; leads: BoardLead[] }) {
   return (
     <div
       ref={setNodeRef}
-      className={`flex w-64 shrink-0 flex-col rounded-lg border bg-muted/40 ${isOver ? "ring-2 ring-primary" : ""}`}
+      className={`flex w-64 shrink-0 snap-start flex-col rounded-lg border bg-muted/40 ${isOver ? "ring-2 ring-primary" : ""}`}
     >
       <div className="flex items-center justify-between px-3 py-2 border-b bg-background/60 rounded-t-lg">
         <span className="text-sm font-medium">{LEAD_STATUS_LABELS[status]}</span>
@@ -141,7 +141,7 @@ export function LeadsKanbanBoard({ leads }: { leads: BoardLead[] }) {
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className={`flex gap-3 overflow-x-auto pb-4 ${isPending ? "opacity-70" : ""}`}>
+      <div className={`flex snap-x gap-3 overflow-x-auto pb-4 ${isPending ? "opacity-70" : ""}`}>
         {KANBAN_COLUMNS.map((status) => (
           <Column key={status} status={status} leads={leadsByStatus.get(status) ?? []} />
         ))}

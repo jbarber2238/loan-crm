@@ -127,7 +127,7 @@ function Column({ stage, label, loans }: { stage: string; label: string; loans: 
   return (
     <div
       ref={setNodeRef}
-      className={`flex w-64 shrink-0 flex-col rounded-lg border bg-muted/40 ${isOver ? "ring-2 ring-primary" : ""}`}
+      className={`flex w-64 shrink-0 snap-start flex-col rounded-lg border bg-muted/40 ${isOver ? "ring-2 ring-primary" : ""}`}
     >
       <div className="flex flex-col gap-0.5 rounded-t-lg border-b bg-background/60 px-3 py-2">
         <div className="flex items-center justify-between">
@@ -229,7 +229,7 @@ export function TransactionalBoard({ loans }: { loans: BoardLoan[] }) {
   return (
     <DndContext sensors={sensors} onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))} onDragEnd={handleDragEnd}>
       <OpenValueBanner loans={localLoans} />
-      <div className={`flex gap-3 overflow-x-auto pb-4 ${isPending ? "opacity-70" : ""}`}>
+      <div className={`flex snap-x gap-3 overflow-x-auto pb-4 ${isPending ? "opacity-70" : ""}`}>
         {TRANSACTIONAL_STAGES.map((s) => (
           <Column key={s.value} stage={s.value} label={s.label} loans={byStage.get(s.value) ?? []} />
         ))}

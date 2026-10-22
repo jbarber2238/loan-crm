@@ -147,7 +147,7 @@ export function LoanCenterTab({
   return (
     <div className="space-y-4">
       <Tabs defaultValue={initialTab ?? "client-needs"}>
-        <TabsList>
+        <TabsList className="max-w-full justify-start overflow-x-auto [&>button]:shrink-0">
           <TabsTrigger value="client-needs">Client Needs</TabsTrigger>
           <TabsTrigger value="conditions">Conditions</TabsTrigger>
           <TabsTrigger value="roles">Roles and Key Contacts</TabsTrigger>

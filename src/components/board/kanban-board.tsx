@@ -163,9 +163,10 @@ function DealCardMenu({ deal }: { deal: BoardDeal }) {
   );
 }
 
-function DealCard({ deal }: { deal: BoardDeal }) {
+function DealCard({ deal, draggable = true }: { deal: BoardDeal; draggable?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: deal.id,
+    disabled: !draggable,
   });
 
   const style = transform
@@ -178,8 +179,8 @@ function DealCard({ deal }: { deal: BoardDeal }) {
     <div
       ref={setNodeRef}
       style={style}
-      {...listeners}
-      {...attributes}
+      {...(draggable ? listeners : {})}
+      {...(draggable ? attributes : {})}
       className={isDragging ? "opacity-40" : ""}
     >
       <Link href={`/deals/${deal.id}`}>
@@ -306,12 +307,12 @@ function Column({
 function OpenPipelineBanner({ deals }: { deals: BoardDeal[] }) {
   const { value, loanVolume, dealCount } = summarizeOpenPipeline(deals);
   return (
-    <div className="mb-4 flex flex-wrap items-end justify-between gap-x-8 gap-y-3 rounded-xl bg-primary px-6 py-5 text-primary-foreground shadow-sm">
+    <div className="mb-4 flex flex-wrap items-end justify-between gap-x-8 gap-y-3 rounded-xl bg-primary px-4 py-4 text-primary-foreground shadow-sm sm:px-6 sm:py-5">
       <div>
         <p className="text-xs font-semibold uppercase tracking-widest text-primary-foreground/70">
           Open Pipeline Value
         </p>
-        <p className="mt-1 text-4xl font-bold tabular-nums tracking-tight md:text-5xl">{formatAmount(value)}</p>
+        <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight sm:text-4xl md:text-5xl">{formatAmount(value)}</p>
       </div>
       <div className="flex gap-8 text-sm">
         <div>
@@ -342,6 +343,7 @@ export function KanbanBoard({ deals }: { deals: BoardDeal[] }) {
     setLocalDeals(deals);
   }
 
+  const [phoneStage, setPhoneStage] = useState<string>(STAGES[0].value);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const dealsByStage = useMemo(() => {
@@ -401,7 +403,37 @@ export function KanbanBoard({ deals }: { deals: BoardDeal[] }) {
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <OpenPipelineBanner deals={localDeals} />
-      <div className={`flex gap-3 overflow-x-auto pb-4 ${isPending ? "opacity-70" : ""}`}>
+      {/* Phones: one stage at a time, as a plain list of cards (no dragging). Change a deal's stage from the deal itself. */}
+      <div className={`space-y-3 md:hidden ${isPending ? "opacity-70" : ""}`}>
+        <div role="tablist" aria-label="Pipeline stage" className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1">
+          {STAGES.map((stage) => {
+            const count = dealsByStage.get(stage.value)?.length ?? 0;
+            const on = stage.value === phoneStage;
+            return (
+              <button
+                key={stage.value}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                onClick={() => setPhoneStage(stage.value)}
+                className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm ${on ? "border-foreground bg-foreground font-medium text-background" : "text-muted-foreground"}`}
+              >
+                {stage.label} ({count})
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
+          Pipeline Stage Value: {formatAmount((dealsByStage.get(phoneStage) ?? []).reduce((sum, d) => sum + dealLeadValue(d).amount, 0))}
+        </p>
+        <div className="space-y-2">
+          {(dealsByStage.get(phoneStage) ?? []).map((deal) => (
+            <DealCard key={deal.id} deal={deal} draggable={false} />
+          ))}
+          {(dealsByStage.get(phoneStage) ?? []).length === 0 && <p className="rounded-lg border p-4 text-center text-sm text-muted-foreground">No deals in this stage.</p>}
+        </div>
+      </div>
+      <div className={`hidden gap-3 overflow-x-auto pb-4 md:flex ${isPending ? "opacity-70" : ""}`}>
         {STAGES.map((stage) => (
           <Column
             key={stage.value}

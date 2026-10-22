@@ -139,7 +139,7 @@ function PricingRequestCard({
         </Badge>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label>To</Label>
             <p className="rounded-md border bg-muted/30 px-3 py-2 text-sm">{request.lenderRep.email}</p>

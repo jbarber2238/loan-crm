@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,8 +16,12 @@ const Ctx = createContext<MobileNavContext>({ open: false, setOpen: () => undefi
 export function MobileNavProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const [lastPath, setLastPath] = useState(pathname);
   // Going somewhere closes the menu, so it never sits over the page you just opened.
-  useEffect(() => setOpen(false), [pathname]);
+  if (pathname !== lastPath) {
+    setLastPath(pathname);
+    setOpen(false);
+  }
   return <Ctx.Provider value={{ open, setOpen }}>{children}</Ctx.Provider>;
 }
 

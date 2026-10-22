@@ -55,7 +55,8 @@ export function PipelineStepper({
 
   return (
     <div className="flex items-start gap-2">
-      <div className="max-w-xl flex-1">
+      <div className="max-w-xl min-w-0 flex-1 overflow-x-auto">
+        <div className="min-w-[30rem]">
         <div
           role="img"
           aria-label={`Pipeline progress: currently at ${labelFor(STAGES, anchorStage)}`}
@@ -84,6 +85,7 @@ export function PipelineStepper({
               {s.label}
             </span>
           ))}
+        </div>
         </div>
       </div>
       {isPaused && (

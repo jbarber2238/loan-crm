@@ -181,7 +181,7 @@ function SubmitApplicationEmailDialog({ dealId, onSubmitted }: { dealId: string;
           <p className="text-sm text-destructive">{error}</p>
         ) : (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <RecipientLine id="submit-app-to" label="To" value={to} onChange={setTo} candidates={candidates} />
               <RecipientLine id="submit-app-cc" label="Cc" value={cc} onChange={setCc} candidates={candidates} />
             </div>
