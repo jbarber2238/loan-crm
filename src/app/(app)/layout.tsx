@@ -1,3 +1,4 @@
+import type { Metadata, Viewport } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { AppSidebar } from "@/components/layout/app-sidebar";
@@ -6,6 +7,16 @@ import { TopBar } from "@/components/layout/top-bar";
 import { ChatDockProvider } from "@/components/messaging/chat-dock-context";
 import { ChatDockRoot } from "@/components/messaging/chat-dock-root";
 import { MobileNavProvider } from "@/components/layout/mobile-nav";
+
+// The staff app only (not the public site): lets "Add to Home Screen" on an iPhone or iPad
+// install it like an app, with its own name, icon and no browser bar.
+export const metadata: Metadata = {
+  manifest: "/crm.webmanifest",
+  icons: { apple: "/brand/app-icon-180.png" },
+  appleWebApp: { capable: true, title: "Manna CRM", statusBarStyle: "default" },
+};
+
+export const viewport: Viewport = { themeColor: "#143D4A" };
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const session = await auth();
