@@ -10,7 +10,8 @@ import { requireAdmin } from "@/server/auth/guards";
 import { appUrl, button, greeting, isProgramLive, sendPartnerEmail } from "@/server/partner/email";
 import { logPartnerEvent } from "@/server/partner/events";
 import { decryptSecret } from "@/server/partner/crypto";
-import { markBrokerFeeReceived } from "@/server/partner/payouts";
+import { ensurePayoutForClosedDeal, markBrokerFeeReceived, recomputePayoutStatuses } from "@/server/partner/payouts";
+import { partnerStageFor } from "@/lib/partner-comp";
 import { createInviteToken, sendInviteEmail, uniqueSlug } from "@/server/partner/invite";
 import { isPgErrorCode } from "@/lib/pg-error";
 import { escapeHtml } from "@/lib/email-html";
@@ -140,7 +141,7 @@ export async function deletePartner(partnerId: string) {
 /** Admin-only: point a deal at a different partner (or none). The only way a referral's partner ever changes after submission; logged. */
 export async function assignDealPartner(dealId: string, partnerId: string | null) {
   const admin = await requireAdmin();
-  const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId), columns: { id: true, referredByAffiliateId: true } });
+  const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId), columns: { id: true, stage: true, propertyAddress: true, referredByAffiliateId: true } });
   if (!deal) return fail("Deal not found");
   if (deal.referredByAffiliateId === partnerId) return;
 
@@ -152,7 +153,19 @@ export async function assignDealPartner(dealId: string, partnerId: string | null
     .update(deals)
     .set({ referredByAffiliateId: partnerId, partnerVisibleStage: null, partnerPayoutKind: null, updatedAt: new Date() })
     .where(eq(deals.id, dealId));
-  if (partnerId) await logPartnerEvent(partnerId, "attribution_changed", { by: admin.id, from: deal.referredByAffiliateId, to: partnerId }, dealId);
+  if (partnerId) {
+    await logPartnerEvent(partnerId, "attribution_changed", { by: admin.id, from: deal.referredByAffiliateId, to: partnerId }, dealId);
+    // Show the referral in the partner's portal as of where the deal is right now, without
+    // firing a stage-change email for every step it already passed; a deal that has already
+    // closed gets its payout row now, since no later stage change will create it.
+    const visible = partnerStageFor(deal.stage);
+    await db.update(deals).set({ partnerVisibleStage: visible }).where(eq(deals.id, dealId));
+    await logPartnerEvent(partnerId, "referral_submitted", { property: deal.propertyAddress, manual: true }, dealId);
+    if (visible === "closed") {
+      await ensurePayoutForClosedDeal(dealId);
+      await recomputePayoutStatuses(partnerId);
+    }
+  }
   if (deal.referredByAffiliateId) await logPartnerEvent(deal.referredByAffiliateId, "attribution_changed", { by: admin.id, from: deal.referredByAffiliateId, to: partnerId }, dealId);
   revalidatePath(`/deals/${dealId}`);
   revalidatePartnerViews();

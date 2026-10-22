@@ -115,15 +115,18 @@ export function MarkPaidControl({ payoutId, amount, compact }: { payoutId: strin
 }
 
 /** Admin-only: attribute (or re-attribute) a deal to a partner; the only way a referral's partner ever changes. */
-export function AssignPartnerMenuItem({
-  dealId,
-  currentPartnerId,
-  partners,
-}: {
+type AssignPartnerProps = {
   dealId: string;
   currentPartnerId: string | null;
   partners: { id: string; label: string }[];
-}) {
+};
+
+function AssignPartnerDialog({
+  dealId,
+  currentPartnerId,
+  partners,
+  trigger,
+}: AssignPartnerProps & { trigger: React.ReactNode }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(currentPartnerId ?? "none");
@@ -147,15 +150,19 @@ export function AssignPartnerMenuItem({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Referring partner…</DropdownMenuItem>
-      </DialogTrigger>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) setValue(currentPartnerId ?? "none");
+      }}
+    >
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Referring partner</DialogTitle>
           <DialogDescription>
-            Who gets credit for this deal. Changing it moves the referral (and any unpaid payout) to the new partner and is logged.
+            Who gets credit for this deal. It shows up in their portal right away at the stage it&apos;s in now. Changing it later moves the referral (and any unpaid payout) to the new partner and is logged.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -178,5 +185,30 @@ export function AssignPartnerMenuItem({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+export function AssignPartnerMenuItem(props: AssignPartnerProps) {
+  return <AssignPartnerDialog {...props} trigger={<DropdownMenuItem onSelect={(e) => e.preventDefault()}>Referring partner…</DropdownMenuItem>} />;
+}
+
+/** Overview-screen card: who referred this deal, with a one-click way to credit (or re-credit) a partner. */
+export function ReferringPartnerCard(props: AssignPartnerProps) {
+  const current = props.partners.find((p) => p.id === props.currentPartnerId);
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 p-3">
+      <div className="min-w-0 text-sm">
+        <span className="text-muted-foreground">Referred by: </span>
+        <span className="font-medium">{current ? current.label : props.currentPartnerId ? "A partner no longer in the program" : "No referral partner"}</span>
+      </div>
+      <AssignPartnerDialog
+        {...props}
+        trigger={
+          <Button type="button" variant="outline" size="sm">
+            {props.currentPartnerId ? "Change partner" : "Assign to a partner"}
+          </Button>
+        }
+      />
+    </div>
   );
 }

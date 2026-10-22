@@ -1,7 +1,7 @@
 import { Mail } from "lucide-react";
-import { inArray } from "drizzle-orm";
-import { db } from "@/server/db/client";
-import { referralAffiliates } from "@/server/db/schema";
+import { cn } from "@/lib/utils";
+import { DealHeaderShell, DealHeaderToggle, HEADER_DETAIL } from "@/components/deals/deal-header-shell";
+import { loadAssignablePartners } from "@/server/data/partner-options";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CopyBorrowerContactButton } from "@/components/deals/copy-borrower-contact-button";
@@ -51,18 +51,12 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
   const partnerAssignment = currentUser.isAdmin
     ? {
         currentPartnerId: deal.referredByAffiliateId ?? null,
-        partners: (
-          await db.query.referralAffiliates.findMany({
-            where: inArray(referralAffiliates.status, ["active", "paused", "legacy"]),
-            orderBy: (a, { asc }) => asc(a.name),
-            columns: { id: true, name: true, email: true },
-          })
-        ).map((a) => ({ id: a.id, label: a.name ? `${a.name} (${a.email})` : a.email })),
+        partners: await loadAssignablePartners(),
       }
     : undefined;
   return (
-    <div className="space-y-3 rounded-lg border p-4">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <DealHeaderShell>
+      <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-semibold">{deal.propertyAddress}</h1>
@@ -72,14 +66,15 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
           </div>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
             <span>{deal.borrowerName}</span>
+            <DealHeaderToggle />
             {deal.borrowerPhone && (
-              <span className="flex items-center gap-1">
+              <span className={cn("flex items-center gap-1", HEADER_DETAIL)}>
                 · {deal.borrowerPhone}
                 <ContactQuickActions phone={deal.borrowerPhone} name={deal.borrowerName} contactType="Borrower" dealId={deal.id} />
               </span>
             )}
             {deal.borrowerEmail && (
-              <span className="flex items-center gap-1">
+              <span className={cn("flex items-center gap-1", HEADER_DETAIL)}>
                 · {deal.borrowerEmail}
                 <Button asChild variant="ghost" size="icon-sm" title="Email borrower" aria-label="Email borrower">
                   <a href={`mailto:${deal.borrowerEmail}`}>
@@ -88,14 +83,16 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
                 </Button>
               </span>
             )}
-            <CopyBorrowerContactButton name={deal.borrowerName} phone={deal.borrowerPhone} email={deal.borrowerEmail} />
+            <span className={HEADER_DETAIL}>
+              <CopyBorrowerContactButton name={deal.borrowerName} phone={deal.borrowerPhone} email={deal.borrowerEmail} />
+            </span>
           </div>
-          <p className="mt-1.5 text-sm font-semibold text-foreground">
+          <p className={cn("mt-1.5 text-sm font-semibold text-foreground", HEADER_DETAIL)}>
             {labelFor(LOAN_CATEGORIES, deal.loanCategory)} · LO: {deal.assignedLoanOfficer.name}
             {deal.assignedProcessor && ` · Processor: ${deal.assignedProcessor.name}`}
           </p>
           {currentUser.baseRole === "processor" && (
-            <div className="mt-1.5">
+            <div className={cn("mt-1.5", HEADER_DETAIL)}>
               <IntroButtons dealId={deal.id} />
             </div>
           )}
@@ -118,7 +115,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
                 const ltarv = arv ? (loanAmount / arv) * 100 : null;
                 const ltc = totalProjectCost ? (loanAmount / totalProjectCost) * 100 : null;
                 return (
-                  <p className="text-xs text-muted-foreground">
+                  <p className={cn("text-xs text-muted-foreground", HEADER_DETAIL)}>
                     Requested loan amount: ${loanAmount.toLocaleString()}
                     {ltarv !== null && ` · LTARV: ${ltarv.toFixed(1)}%`}
                     {ltc !== null && ` · LTC: ${ltc.toFixed(1)}%`}
@@ -134,7 +131,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
               );
               const requestedLtv = basis ? (loanAmount / basis) * 100 : null;
               return (
-                <p className="text-xs text-muted-foreground">
+                <p className={cn("text-xs text-muted-foreground", HEADER_DETAIL)}>
                   Requested loan amount: ${loanAmount.toLocaleString()}
                   {requestedLtv !== null && ` · Requested LTV: ${requestedLtv.toFixed(1)}%`}
                   {tail}
@@ -143,7 +140,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
             })()
           )}
         </div>
-        <div className="flex max-w-full flex-wrap items-center gap-2">
+        <div className={cn("flex max-w-full flex-wrap items-center gap-2", HEADER_DETAIL)}>
           {deal.loanCategory === "new_construction" && <CloneDealDialog dealId={deal.id} />}
           {CONVERTIBLE_TO_DSCR_REFI_CATEGORIES.has(deal.loanCategory) && (
             <DscrConversionLinkDialog dealId={deal.id} />
@@ -159,6 +156,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
         </div>
       </div>
 
+      <div className={cn("flex flex-col gap-3", HEADER_DETAIL)}>
       <PipelineStepper stage={deal.stage} pausedFromStage={deal.pausedFromStage} />
       <StageReasonBanner deal={deal} />
 
@@ -216,6 +214,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
           brokerPortalUrl={deal.lender.brokerPortalUrl}
         />
       )}
-    </div>
+      </div>
+    </DealHeaderShell>
   );
 }
