@@ -12,6 +12,7 @@ import { logPartnerEvent } from "@/server/partner/events";
 import { decryptSecret } from "@/server/partner/crypto";
 import { ensurePayoutForClosedDeal, markBrokerFeeReceived, recomputePayoutStatuses } from "@/server/partner/payouts";
 import { partnerStageFor } from "@/lib/partner-comp";
+import { notifyPartnerOfCreditedReferral } from "@/server/partner/stage-events";
 import { createInviteToken, sendInviteEmail, uniqueSlug } from "@/server/partner/invite";
 import { isPgErrorCode } from "@/lib/pg-error";
 import { escapeHtml } from "@/lib/email-html";
@@ -139,7 +140,7 @@ export async function deletePartner(partnerId: string) {
 }
 
 /** Admin-only: point a deal at a different partner (or none). The only way a referral's partner ever changes after submission; logged. */
-export async function assignDealPartner(dealId: string, partnerId: string | null) {
+export async function assignDealPartner(dealId: string, partnerId: string | null, notifyPartner = false) {
   const admin = await requireAdmin();
   const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId), columns: { id: true, stage: true, propertyAddress: true, referredByAffiliateId: true } });
   if (!deal) return fail("Deal not found");
@@ -165,6 +166,7 @@ export async function assignDealPartner(dealId: string, partnerId: string | null
       await ensurePayoutForClosedDeal(dealId);
       await recomputePayoutStatuses(partnerId);
     }
+    if (notifyPartner) await notifyPartnerOfCreditedReferral(dealId);
   }
   if (deal.referredByAffiliateId) await logPartnerEvent(deal.referredByAffiliateId, "attribution_changed", { by: admin.id, from: deal.referredByAffiliateId, to: partnerId }, dealId);
   revalidatePath(`/deals/${dealId}`);

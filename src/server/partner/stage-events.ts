@@ -158,6 +158,42 @@ export async function onDealStageChanged(dealId: string, toStage: string): Promi
   }
 }
 
+/**
+ * Tells a partner a referral was credited to them by hand (a borrower who came in
+ * without their link). Says where the deal stands right now rather than claiming it
+ * just arrived. Only active partners are emailed; never throws.
+ */
+export async function notifyPartnerOfCreditedReferral(dealId: string): Promise<void> {
+  try {
+    const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId) });
+    if (!deal?.referredByAffiliateId) return;
+    const partner = await db.query.referralAffiliates.findFirst({ where: eq(referralAffiliates.id, deal.referredByAffiliateId) });
+    if (!partner || partner.status !== "active") return;
+
+    const visible = partnerStageFor(deal.stage);
+    if (visible === "closed") {
+      await sendClosedEmail(partner, deal);
+      return;
+    }
+    if (visible === "didnt_proceed") return;
+
+    const label = PARTNER_STAGE_LABELS[visible];
+    await sendPartnerEmail(partner, {
+      subject: `A referral was added to your account — ${street(deal.propertyAddress)}`,
+      heading: "A referral was added to your account",
+      bodyHtml:
+        greeting(partner) +
+        `<p style="margin:0 0 16px;">${escapeHtml(deal.borrowerName)}'s request on ${escapeHtml(street(deal.propertyAddress))} has been credited to you as a referral. It's currently at <strong>${escapeHtml(label)}</strong>.</p>` +
+        payoutLine(deal, partner) +
+        `<p style="margin:0 0 16px;">You'll see every step it takes in your portal.</p>` +
+        button("Open your portal", portalUrl()),
+      dealId,
+    });
+  } catch (err) {
+    console.error("notifyPartnerOfCreditedReferral failed:", err);
+  }
+}
+
 async function sendClosedEmail(partner: Partner, deal: Deal): Promise<void> {
   const needsBanking = !partner.bankingReceivedAt;
   const needsW9 = !partner.w9ReceivedAt;

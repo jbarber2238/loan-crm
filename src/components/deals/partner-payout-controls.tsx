@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { assignDealPartner, markBrokerFeeReceivedAction, markPayoutPaidAction } from "@/server/actions/partners";
 import { isActionError } from "@/lib/action-result";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -130,17 +131,19 @@ function AssignPartnerDialog({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(currentPartnerId ?? "none");
+  const [notify, setNotify] = useState(true);
   const [pending, startTransition] = useTransition();
+  const isNewPartner = value !== "none" && value !== currentPartnerId;
 
   function save() {
     startTransition(async () => {
       try {
-        const result = await assignDealPartner(dealId, value === "none" ? null : value);
+        const result = await assignDealPartner(dealId, value === "none" ? null : value, isNewPartner && notify);
         if (isActionError(result)) {
           toast.error(result.error);
           return;
         }
-        toast.success("Referring partner updated");
+        toast.success(isNewPartner && notify ? "Referring partner updated and notified" : "Referring partner updated");
         setOpen(false);
         router.refresh();
       } catch (err) {
@@ -179,6 +182,12 @@ function AssignPartnerDialog({
               ))}
             </SelectContent>
           </Select>
+          {isNewPartner && (
+            <label className="flex items-start gap-2 text-sm">
+              <Checkbox checked={notify} onCheckedChange={(c) => setNotify(c === true)} className="mt-0.5" />
+              <span>Let the partner know by email that this referral was added to their account</span>
+            </label>
+          )}
           <Button type="button" className="w-full" disabled={pending} onClick={save}>
             {pending ? "Saving…" : "Save"}
           </Button>
