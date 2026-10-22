@@ -37,8 +37,8 @@ export default async function TeamSettingsPage() {
     const pending = !user.name;
     return (
       <Card key={user.id}>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-base">
+        <CardHeader className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+          <CardTitle className="flex min-w-0 flex-wrap items-center gap-2 text-base break-all">
             {pending ? (
               <>
                 {user.email}
