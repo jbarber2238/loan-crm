@@ -143,7 +143,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
             })()
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex max-w-full flex-wrap items-center gap-2">
           {deal.loanCategory === "new_construction" && <CloneDealDialog dealId={deal.id} />}
           {CONVERTIBLE_TO_DSCR_REFI_CATEGORIES.has(deal.loanCategory) && (
             <DscrConversionLinkDialog dealId={deal.id} />
