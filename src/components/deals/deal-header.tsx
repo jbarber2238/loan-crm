@@ -1,5 +1,5 @@
 import { Mail } from "lucide-react";
-import { DealHeaderShell, DealHeaderToggle, HEADER_DETAIL } from "@/components/deals/deal-header-shell";
+import { DealHeaderShell, DealHeaderToggle } from "@/components/deals/deal-header-shell";
 import { loadAssignablePartners } from "@/server/data/partner-options";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,15 @@ function StageReasonBanner({ deal }: { deal: DealDetail }) {
     </p>
   );
 }
+
+/**
+ * Hide-on-phones-until-expanded marker for the header's detail pieces. Phones
+ * and iPads (below lg) start collapsed to just the address and borrower name so
+ * the activity being worked on gets the screen; laptops always show everything.
+ * Kept here, not in the client shell: a client module's exports can't be read
+ * as plain values from a server component.
+ */
+const HEADER_DETAIL = "max-lg:group-data-[open=false]/hdr:hidden";
 
 export async function DealHeader({ deal }: { deal: DealDetail }) {
   const s = sectionsFor(deal.loanCategory);
