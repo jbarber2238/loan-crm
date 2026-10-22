@@ -13,6 +13,7 @@ import {
 } from "@/server/actions/notifications";
 import { getChatRooms, type ChatRoomSummary } from "@/server/actions/team-chat";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { MobileNavButton } from "@/components/layout/mobile-nav";
 import { playSound } from "@/lib/notification-sound";
 import { cn } from "@/lib/utils";
 import { GLOBAL_CHAT_CHANNEL, getRealtimeClient } from "@/lib/realtime";
@@ -105,7 +106,7 @@ function NotificationsMenu() {
       <IconButton label="Notifications" count={count}>
         <Bell className="size-5" />
       </IconButton>
-      <PopoverContent align="end" className="w-96 p-0">
+      <PopoverContent align="end" className="w-[calc(100vw-1.5rem)] p-0 sm:w-96">
         <div className="flex items-center justify-between border-b px-4 py-3">
           <p className="text-sm font-semibold">Notifications</p>
           {count > 0 && (
@@ -195,7 +196,7 @@ function TeamChatMenu() {
       <IconButton label="Team chat" count={unread}>
         <MessageCircle className="size-5" />
       </IconButton>
-      <PopoverContent align="end" className="w-96 p-0">
+      <PopoverContent align="end" className="w-[calc(100vw-1.5rem)] p-0 sm:w-96">
         <div className="flex items-center justify-between border-b px-4 py-3">
           <p className="text-sm font-semibold">Team Chat</p>
           <p className="text-xs text-muted-foreground">Internal only</p>
@@ -241,9 +242,12 @@ function TeamChatMenu() {
 /** Top-right bar: team chat (internal) and notifications — kept apart from client texting in Communications. */
 export function TopBar() {
   return (
-    <div className="sticky top-0 z-10 flex h-14 items-center justify-end gap-2 border-b bg-background/90 px-4 backdrop-blur md:px-6">
-      <TeamChatMenu />
-      <NotificationsMenu />
+    <div className="sticky top-0 z-10 flex h-14 items-center justify-between gap-2 border-b bg-background/90 px-3 backdrop-blur sm:px-4 md:px-6">
+      <MobileNavButton />
+      <div className="ml-auto flex items-center gap-2">
+        <TeamChatMenu />
+        <NotificationsMenu />
+      </div>
     </div>
   );
 }

@@ -21,6 +21,8 @@ import {
 import { signOutAction } from "@/server/actions/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
+import { useMobileNav } from "@/components/layout/mobile-nav";
 import { cn } from "@/lib/utils";
 
 interface SidebarUser {
@@ -73,8 +75,8 @@ export function AppSidebar({
       ]
     : [];
 
-  return (
-    <aside className="fixed inset-y-0 left-0 z-20 flex w-60 flex-col bg-[#111318] text-zinc-300">
+  const inner = (
+    <>
       <div className="flex min-h-14 flex-col justify-center gap-1.5 border-b border-white/10 px-4 py-3">
         <Link href="/pipeline" className="flex flex-col items-start gap-1.5">
           {logo ? (
@@ -189,6 +191,22 @@ export function AppSidebar({
           </form>
         </div>
       </div>
-    </aside>
+    </>
+  );
+
+  const { open, setOpen } = useMobileNav();
+  return (
+    <>
+      {/* Large screens: the fixed sidebar. */}
+      <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col bg-[#111318] text-zinc-300 lg:flex">{inner}</aside>
+      {/* Phones and upright iPads: the same menu, slid in from the left. */}
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent side="left" showCloseButton={false} className="flex w-72 max-w-[85vw] flex-col gap-0 border-0 bg-[#111318] p-0 text-zinc-300 lg:hidden">
+          <SheetTitle className="sr-only">Menu</SheetTitle>
+          <SheetDescription className="sr-only">Main navigation</SheetDescription>
+          {inner}
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }

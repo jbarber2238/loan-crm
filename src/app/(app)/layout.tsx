@@ -5,6 +5,7 @@ import { getCompanyName, getCompanyLogo } from "@/server/settings";
 import { TopBar } from "@/components/layout/top-bar";
 import { ChatDockProvider } from "@/components/messaging/chat-dock-context";
 import { ChatDockRoot } from "@/components/messaging/chat-dock-root";
+import { MobileNavProvider } from "@/components/layout/mobile-nav";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const session = await auth();
@@ -30,13 +31,15 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
 
   return (
     <ChatDockProvider>
+      <MobileNavProvider>
       <div>
         <AppSidebar user={session.user} companyName={companyName} logo={logo} />
-        <main className="ml-60 min-h-screen">
+        <main className="min-h-screen lg:ml-60">
           <TopBar />
-          <div className="p-4 md:p-6">{children}</div>
+          <div className="p-3 sm:p-4 md:p-6">{children}</div>
         </main>
       </div>
+      </MobileNavProvider>
       <ChatDockRoot />
     </ChatDockProvider>
   );

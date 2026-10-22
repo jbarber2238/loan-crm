@@ -23,14 +23,16 @@ export function ChatDockRoot() {
   const minimized = windows.filter((w) => w.minimized);
 
   return (
-    <div className="fixed right-4 bottom-0 z-40 flex items-end gap-3">
-      {expanded.map((w) => (
-        <ChatWindowPanel
-          key={w.conversationId}
-          dockWindow={w}
-          onClose={() => closeChat(w.conversationId)}
-          onMinimize={() => minimizeChat(w.conversationId)}
-        />
+    <div className="fixed right-3 bottom-0 z-40 flex items-end gap-3 sm:right-4">
+      {/* On a phone only the newest open chat shows, so panels never run off the screen. */}
+      {expanded.map((w, i) => (
+        <div key={w.conversationId} className={i === expanded.length - 1 ? "" : "hidden sm:block"}>
+          <ChatWindowPanel
+            dockWindow={w}
+            onClose={() => closeChat(w.conversationId)}
+            onMinimize={() => minimizeChat(w.conversationId)}
+          />
+        </div>
       ))}
 
       <div className="flex flex-col items-end gap-2 pb-4">

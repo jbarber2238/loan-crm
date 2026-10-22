@@ -40,7 +40,7 @@ export function NewMessagePopover({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="flex h-[420px] w-80 flex-col rounded-t-lg border border-b-0 bg-popover shadow-xl">
+    <div className="flex h-[min(420px,70vh)] w-[min(20rem,calc(100vw-1.5rem))] flex-col rounded-t-lg border border-b-0 bg-popover shadow-xl">
       <div className="flex items-center justify-between rounded-t-lg border-b bg-muted px-3 py-2">
         <p className="text-sm font-semibold">New message</p>
         <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close">
