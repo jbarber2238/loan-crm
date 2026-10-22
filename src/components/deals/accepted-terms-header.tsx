@@ -281,7 +281,7 @@ export function AcceptedTermsHeader({
   );
   const editLockAndSubmit = (
     <>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <EditAcceptedTermsDialog
           dealId={dealId}
           loanCategory={loanCategory}
@@ -319,9 +319,9 @@ export function AcceptedTermsHeader({
   );
   return (
     <div className="space-y-2 border-t pt-2">
-      <div className="flex flex-wrap items-start gap-3">
+      <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-start">
         {isHardMoneyDraw ? (
-          <div className="grid flex-1 items-start grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-7">
+          <div className="grid w-full items-start grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-7 lg:w-auto lg:flex-1">
             <GroupLabel title="Loan Terms" first />
             <Field label="Lender" value={lenderName} />
             <Field label="Loan Amount" value={money(approvedLoanAmount)} />
@@ -401,7 +401,7 @@ export function AcceptedTermsHeader({
           </div>
         ) : (
           <>
-            <div className="grid flex-1 items-start grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-7">
+            <div className="grid w-full items-start grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-7 lg:w-auto lg:flex-1">
               <Field label="Lender" value={lenderName} />
               <Field label="Loan Term" value={loanTermValue} />
               <Field label="Amortization" value={finalAmortizationType || "—"} />
@@ -451,7 +451,7 @@ export function AcceptedTermsHeader({
             {/* This layout has no group-label rows, so its tiles really are
                 row one — a plain sibling column lines up correctly without
                 needing any of the grid-placement tricks above. */}
-            <div className="flex shrink-0 flex-col items-end gap-2">
+            <div className="flex w-full shrink-0 flex-col items-stretch gap-2 lg:w-auto lg:items-end">
               {cashToCloseField}
               {estClosingField}
               {editLockAndSubmit}
