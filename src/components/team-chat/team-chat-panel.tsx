@@ -247,7 +247,7 @@ function MessageRow({ m, mine, compact }: { m: ChatMessage; mine: boolean; compa
  */
 export function TeamChatPanel({
   roomId,
-  heightClass = "h-[560px]",
+  heightClass = "h-[calc(100dvh-10rem)] min-h-[320px] lg:h-[560px]",
   showMembers = true,
 }: {
   roomId: string;
