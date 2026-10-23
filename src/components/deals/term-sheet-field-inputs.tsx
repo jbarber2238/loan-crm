@@ -56,8 +56,9 @@ function groupFields(fields: TermSheetField[]) {
   ];
   const loanNumbers = pickInOrder(fields, LOAN_NUMBER_KEYS);
   const lenderFees = [
+    ...pickInOrder(fields, ["lenderOriginationPoints"]),
     ...(!hasRateBuydown && costToBorrowerFee ? [costToBorrowerFee] : []),
-    ...pickInOrder(fields, LENDER_FEE_KEYS),
+    ...pickInOrder(fields, LENDER_FEE_KEYS.filter((k) => k !== "lenderOriginationPoints")),
   ];
   const internal = fields.filter((f) => f.adminOnly);
 
