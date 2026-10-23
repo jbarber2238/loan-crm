@@ -32,7 +32,7 @@ const LENDER_PRODUCT_KEYS = [
 ];
 const ADDITIONAL_TERM_KEYS = ["creditPullType", "prepaymentPenalty"];
 const BROKER_FEE_KEYS = ["originationPoints", "originationFee", "rateBuydownPoints"];
-const LOAN_NUMBER_KEYS = ["loanAmount", "initialAdvance", "approvedRehabCost", "reservesMonths", "reservesRequired", "approvedArv", "netProceedsCap"];
+const LOAN_NUMBER_KEYS = ["loanAmount", "initialAdvance", "approvedRehabCost", "interestReserve", "reservesMonths", "reservesRequired", "approvedArv", "netProceedsCap"];
 const LENDER_FEE_KEYS = ["underwritingDocFee", "drawFee"];
 
 function pickInOrder(fields: TermSheetField[], keys: string[]): TermSheetField[] {
@@ -171,6 +171,8 @@ export function TermSheetFieldInputs({
   const [buydownFee, setBuydownFee] = useState(initialBuydownFee);
   const [rehabCost, setRehabCost] = useState(String(values.approvedRehabCost ?? ""));
   const [arv, setArv] = useState(String(values.approvedArv ?? ""));
+  const [initialAdvance, setInitialAdvance] = useState(String(values.initialAdvance ?? ""));
+  const [interestReserve, setInterestReserve] = useState(String(values.interestReserve ?? ""));
   const [underwritingFee, setUnderwritingFee] = useState(String(values.underwritingDocFee ?? ""));
   const [netProceedsCap, setNetProceedsCap] = useState(String(values.netProceedsCap ?? ""));
 
@@ -237,6 +239,8 @@ export function TermSheetFieldInputs({
   // Rate & term is a refinance, so LTV is measured against the as-is value.
   const ltvAtCap = maxLoanAtCap !== null && estimatedAsIsValue ? (maxLoanAtCap / estimatedAsIsValue) * 100 : null;
 
+  const combinedLoanTotal = (Number(initialAdvance) || 0) + (Number(rehabCost) || 0) + (Number(interestReserve) || 0);
+
   function renderField(field: TermSheetField) {
     const defaultValue = values[field.key] ?? field.defaultValue;
     return (
@@ -259,6 +263,22 @@ export function TermSheetFieldInputs({
             type="number"
             value={rehabCost}
             onChange={(e) => setRehabCost(e.target.value)}
+          />
+        ) : field.key === "initialAdvance" ? (
+          <Input
+            id={field.key}
+            name={field.key}
+            type="number"
+            value={initialAdvance}
+            onChange={(e) => setInitialAdvance(e.target.value)}
+          />
+        ) : field.key === "interestReserve" ? (
+          <Input
+            id={field.key}
+            name={field.key}
+            type="number"
+            value={interestReserve}
+            onChange={(e) => setInterestReserve(e.target.value)}
           />
         ) : field.key === "approvedArv" ? (
           <Input id={field.key} name={field.key} type="number" value={arv} onChange={(e) => setArv(e.target.value)} />
@@ -336,6 +356,12 @@ export function TermSheetFieldInputs({
           />
         )}
         {field.helperText && <p className="text-xs text-muted-foreground">{field.helperText}</p>}
+        {field.key === "interestReserve" && Number(interestReserve) > 0 && (
+          <p className="text-xs font-medium">
+            Initial advance + rehab/construction + reserve = {combinedLoanTotal.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}
+            {Number(loanAmount) !== combinedLoanTotal && " — Total Loan Amount above doesn't match yet."}
+          </p>
+        )}
       </div>
     );
   }

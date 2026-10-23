@@ -181,10 +181,12 @@ function fillCombinedLoanAmount(
   const rehabCost = Number(fields.approvedRehabCost);
   if (!Number.isFinite(initialAdvance) || !Number.isFinite(rehabCost)) return { notFoundKeys, note: null };
 
-  fields.loanAmount = initialAdvance + rehabCost;
+  const interestReserve = Number(fields.interestReserve);
+  const reserve = Number.isFinite(interestReserve) ? interestReserve : 0;
+  fields.loanAmount = initialAdvance + rehabCost + reserve;
   return {
     notFoundKeys: notFoundKeys.filter((k) => k !== "loanAmount"),
-    note: `Total loan amount computed as initial advance ($${initialAdvance.toLocaleString()}) + rehab/construction cost ($${rehabCost.toLocaleString()}).`,
+    note: `Total loan amount computed as initial advance ($${initialAdvance.toLocaleString()}) + rehab/construction cost ($${rehabCost.toLocaleString()})${reserve > 0 ? ` + interest reserve ($${reserve.toLocaleString()})` : ""}.`,
   };
 }
 

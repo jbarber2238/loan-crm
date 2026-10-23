@@ -289,6 +289,9 @@ export function TermSheetPdf({
                     label={rehabOrConstructionBudgetLabel(loanCategory)}
                     value={money(fields.approvedRehabCost)}
                   />
+                  {num(fields, "interestReserve") > 0 && (
+                    <Row label="Interest Reserve (financed)" value={money(fields.interestReserve)} />
+                  )}
                 </>
               )}
               <Row label="Interest Rate" value={pct(fields.interestRate)} />

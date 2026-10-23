@@ -128,6 +128,13 @@ function hardMoneyDrawFields(category: string): TermSheetField[] {
   return [
     { key: "initialAdvance", label: "Initial Advance", type: "currency" },
     { key: "approvedRehabCost", label: rehabOrConstructionBudgetLabel(category), type: "currency" },
+    {
+      key: "interestReserve",
+      label: "Interest Reserve (financed)",
+      type: "currency",
+      helperText:
+        "Only when the lender lets the borrower finance their interest: an extra amount added to the loan, with monthly interest drawn from it instead of paid out of pocket. Leave blank if there isn't one. Include it in Total Loan Amount.",
+    },
     { key: "approvedArv", label: "Approved ARV (After Repair Value)", type: "currency" },
     {
       key: "interestType",
