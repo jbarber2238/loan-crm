@@ -92,6 +92,8 @@ Loan amount vs. a quoted LTV: lenders sometimes price a refinance or a DSCR purc
 
 Rate + points pricing: lenders very commonly quote as "RATE% and N pt(s)" or "RATE% and N points" (e.g. "6.99% and 1 pt") — this is NOT the same as an origination fee. "N pt(s)" means a discount/buydown fee of N% of the loan amount. When you see this pattern, set interestRate to RATE and convert the points into a dollar amount for costToBorrowerFee (points ÷ 100 × loan amount) — do not leave costToBorrowerFee blank just because the reply never uses the words "rate buydown" or "points fee".
 
+Lender origination on fix-and-flip/new-construction loans (lenderOriginationPoints + costToBorrowerFee, when lenderOriginationPoints is in the target list): lenders quote their own origination in points — "1 point," "1 pt," "origination: 1%," "1% origination fee." Put the number of points in lenderOriginationPoints (1 for one point, 1.5 for a point and a half) and the dollar amount in costToBorrowerFee (points ÷ 100 × the total loan amount — which is initial advance + rehab/construction holdback (+ interest reserve, if any) when the lender didn't state a single total). If the lender quotes a flat dollar origination instead, put it in costToBorrowerFee and leave lenderOriginationPoints out. This is the LENDER's charge — never confuse it with our own broker origination, which is not a target field.
+
 Underwriting and Doc Fee: lenders itemize their own closing-cost fees in all kinds of ways — "processing fee," "underwriting fee," "admin fee," "doc prep fee," "doc fee," etc. NONE of these are the same thing as origination points or a rate buydown (handled separately above). Add up every one of these lender-charged fee line items and put the SUM into the single underwritingDocFee field — do not create separate fields for them and do not list them individually in "notes". For example, if the lender's reply mentions a $1,495 underwriting fee and a $745 processing fee, underwritingDocFee should be 2240.
 
 Interest Type (Dutch vs Non-Dutch) on fix-and-flip/new-construction loans: lenders word this very differently from one to the next, so infer it from the STRUCTURE of the payment figures rather than exact wording. If the reply shows TWO payment amounts — an initial/day-1 payment calculated on just the initial advance, alongside a separate maximum/fully-drawn payment calculated on the full loan amount — that pattern means the loan is Non-Dutch (the borrower only pays interest on what's actually been advanced/drawn so far). Lenders phrase this two-payment pattern many different ways: "Day 1 Payment" vs "Payment (Max)", "Initial Payment" vs "Fully Drawn Payment", "Interest-Only Payment (Initial Advance)" vs "Interest-Only Payment (Full Loan Amount)", etc. — look for two distinct interest-payment numbers, one tied to the initial/current advance and one tied to the full/max committed amount. If instead there's only ONE interest payment figure, calculated on the full loan amount from the start, that means the loan is Dutch. Set interestType to "Dutch" or "Non-Dutch" based on this — don't leave it in notFoundKeys just because the lender never uses the words "Dutch" or "Non-Dutch" themselves.
@@ -148,7 +150,7 @@ Interest reserve (interestReserve, fix-and-flip/new-construction only): some len
     }
 
     // Optional fields most lenders don't offer — never flagged as "couldn't find".
-    const OPTIONAL_KEYS = new Set(["interestReserve"]);
+    const OPTIONAL_KEYS = new Set(["interestReserve", "lenderOriginationPoints"]);
     const notFoundKeys = Array.isArray(rawOption.notFoundKeys)
       ? rawOption.notFoundKeys.filter((k): k is string => typeof k === "string" && validKeys.has(k) && !OPTIONAL_KEYS.has(k))
       : [];
@@ -219,6 +221,16 @@ function finalizeOption(
     notes.push(
       `Loan amount computed from the lender's quoted ${raw.quotedLtvPercent}% LTV × $${valueBasis.toLocaleString()} value basis.`
     );
+  }
+
+  // Points quoted but the dollar fee wasn't worked out (the total loan amount was only
+  // known after the steps above): fee = points × total loan amount.
+  const lenderPts = Number(fields.lenderOriginationPoints);
+  const loanAmt = Number(fields.loanAmount);
+  if (!("costToBorrowerFee" in fields) && Number.isFinite(lenderPts) && lenderPts > 0 && loanAmt > 0) {
+    fields.costToBorrowerFee = Math.round(loanAmt * (lenderPts / 100));
+    notFoundKeys = notFoundKeys.filter((k) => k !== "costToBorrowerFee");
+    notes.push(`Lender origination computed as ${lenderPts} point(s) × $${loanAmt.toLocaleString()} loan amount.`);
   }
 
   return {

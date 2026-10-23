@@ -33,7 +33,7 @@ const LENDER_PRODUCT_KEYS = [
 const ADDITIONAL_TERM_KEYS = ["creditPullType", "prepaymentPenalty"];
 const BROKER_FEE_KEYS = ["originationPoints", "originationFee", "rateBuydownPoints"];
 const LOAN_NUMBER_KEYS = ["loanAmount", "initialAdvance", "approvedRehabCost", "interestReserve", "reservesMonths", "reservesRequired", "approvedArv", "netProceedsCap"];
-const LENDER_FEE_KEYS = ["underwritingDocFee", "drawFee"];
+const LENDER_FEE_KEYS = ["lenderOriginationPoints", "underwritingDocFee", "drawFee"];
 
 function pickInOrder(fields: TermSheetField[], keys: string[]): TermSheetField[] {
   const byKey = new Map(fields.map((f) => [f.key, f] as const));
@@ -153,6 +153,7 @@ export function TermSheetFieldInputs({
   // tracked too so LTARV/LTC can recalculate live alongside them. Every
   // other field stays a plain uncontrolled input.
   const hasRateBuydownPoints = fields.some((f) => f.key === "rateBuydownPoints");
+  const hasLenderPoints = fields.some((f) => f.key === "lenderOriginationPoints");
 
   const initialLoanAmount = String(values.loanAmount ?? "");
   const initialPoints = String(values.originationPoints ?? "2");
@@ -169,6 +170,8 @@ export function TermSheetFieldInputs({
   const [fee, setFee] = useState(initialFee);
   const [buydownPoints, setBuydownPoints] = useState(initialBuydownPoints);
   const [buydownFee, setBuydownFee] = useState(initialBuydownFee);
+  const [lenderPoints, setLenderPoints] = useState(String(values.lenderOriginationPoints ?? ""));
+  const [lenderFee, setLenderFee] = useState(String(values.costToBorrowerFee ?? ""));
   const [rehabCost, setRehabCost] = useState(String(values.approvedRehabCost ?? ""));
   const [arv, setArv] = useState(String(values.approvedArv ?? ""));
   const [initialAdvance, setInitialAdvance] = useState(String(values.initialAdvance ?? ""));
@@ -184,6 +187,23 @@ export function TermSheetFieldInputs({
       const buydownComputed = computeRateBuydownFee(v, buydownPoints);
       if (buydownComputed) setBuydownFee(buydownComputed);
     }
+    if (hasLenderPoints && lenderPoints.trim() !== "") {
+      const lenderComputed = computeRateBuydownFee(v, lenderPoints);
+      if (lenderComputed) setLenderFee(lenderComputed);
+    }
+  }
+
+  function handleLenderPointsChange(v: string) {
+    setLenderPoints(v);
+    if (v.trim() === "") return;
+    const computed = computeRateBuydownFee(loanAmount, v);
+    if (computed) setLenderFee(computed);
+  }
+
+  // A hand-typed flat fee replaces the points figure rather than disagreeing with it.
+  function handleLenderFeeChange(v: string) {
+    setLenderFee(v);
+    setLenderPoints("");
   }
 
   function handlePointsChange(v: string) {
@@ -301,6 +321,23 @@ export function TermSheetFieldInputs({
             step="0.01"
             value={buydownPoints}
             onChange={(e) => handleBuydownPointsChange(e.target.value)}
+          />
+        ) : field.key === "lenderOriginationPoints" ? (
+          <Input
+            id={field.key}
+            name={field.key}
+            type="number"
+            step="0.01"
+            value={lenderPoints}
+            onChange={(e) => handleLenderPointsChange(e.target.value)}
+          />
+        ) : field.key === "costToBorrowerFee" && hasLenderPoints ? (
+          <Input
+            id={field.key}
+            name={field.key}
+            type="number"
+            value={lenderFee}
+            onChange={(e) => handleLenderFeeChange(e.target.value)}
           />
         ) : field.key === "costToBorrowerFee" && hasRateBuydownPoints ? (
           <Input id={field.key} name={field.key} type="number" value={buydownFee} readOnly className="bg-muted" />

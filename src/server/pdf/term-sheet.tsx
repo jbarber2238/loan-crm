@@ -1,6 +1,7 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { LOAN_CATEGORIES, labelFor } from "@/lib/labels";
 import { rehabOrConstructionBudgetLabel, isInterestOnlyCategory } from "@/lib/loan-sections";
+import { costToBorrowerLabelFor } from "@/lib/term-sheet-fields";
 import {
   calculateDscrRatio,
   calculateDutchMonthlyInterest,
@@ -218,8 +219,9 @@ export function TermSheetPdf({
   const drawFee = isHardMoneyDraw ? num(fields, "drawFee") : 0;
   const drawBudgetName = loanCategory === "new_construction" ? "construction" : "rehab";
 
+  const lenderPts = num(fields, "lenderOriginationPoints");
   const costToBorrowerLabel =
-    loanCategory.startsWith("dscr") || loanCategory === "portfolio" ? "Rate Buydown Fee" : "Lender Fee";
+    costToBorrowerLabelFor(loanCategory) + (isHardMoneyDraw && lenderPts > 0 ? ` (${lenderPts} pt${lenderPts === 1 ? "" : "s"})` : "");
 
   // Purchase/hard-money-draw: what the borrower brings to the closing
   // table. Refinance: the loan's net proceeds after paying off the existing

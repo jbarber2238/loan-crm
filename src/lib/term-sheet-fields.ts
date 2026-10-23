@@ -73,14 +73,23 @@ function baseFields(category: string): TermSheetField[] {
 // The Cost to Borrower slot means something different depending on product:
 // a discretionary rate buydown on DSCR, or the lender's own origination
 // points on a hard money loan. Same storage key either way.
+export function costToBorrowerLabelFor(category: string): string {
+  if (DSCR_CATEGORIES.has(category) || category === "portfolio") return "Rate Buydown Fee";
+  return HARD_MONEY_DRAW_CATEGORIES.has(category) ? "Lender Origination Fee" : "Lender Fee";
+}
+
 function costToBorrowerField(category: string): TermSheetField {
   const isRateBuydown = DSCR_CATEGORIES.has(category) || category === "portfolio";
-  const label = isRateBuydown ? "Rate Buydown Fee" : "Lender Fee";
+  const label = costToBorrowerLabelFor(category);
   return {
     key: "costToBorrowerFee",
     label,
     type: "currency",
-    helperText: isRateBuydown ? "Rate Buydown Points × loan amount — computed automatically." : undefined,
+    helperText: isRateBuydown
+      ? "Rate Buydown Points × loan amount — computed automatically."
+      : HARD_MONEY_DRAW_CATEGORIES.has(category)
+        ? "Lender Origination Points × total loan amount — computed automatically. Or type a flat dollar amount if the lender quotes one."
+        : undefined,
   };
 }
 
@@ -111,6 +120,18 @@ function feesFields(category: string): TermSheetField[] {
             type: "percent" as const,
             defaultValue: "0",
             helperText: "Defaults to 0% (no buydown) — change it and Rate Buydown Fee below recalculates automatically.",
+          },
+        ]
+      : []),
+    // Fix-and-flip/new construction lenders quote their own origination in points
+    // (e.g. 1 pt); the dollar fee below is worked out from it.
+    ...(HARD_MONEY_DRAW_CATEGORIES.has(category)
+      ? [
+          {
+            key: "lenderOriginationPoints",
+            label: "Lender Origination Points",
+            type: "percent" as const,
+            helperText: "The lender's own origination, in points (1 = 1% of the total loan amount). Leave blank if they quote a flat fee instead.",
           },
         ]
       : []),

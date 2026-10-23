@@ -14,6 +14,7 @@ import {
   REFINANCE_CATEGORIES,
 } from "@/lib/term-sheet-calculations";
 import { isInterestOnlyCategory, rehabOrConstructionBudgetLabel } from "@/lib/loan-sections";
+import { costToBorrowerLabelFor } from "@/lib/term-sheet-fields";
 
 const HARD_MONEY_DRAW_CATEGORIES = new Set(["fix_and_flip", "new_construction"]);
 import { ActionForm } from "@/components/forms/action-form";
@@ -153,7 +154,7 @@ export function AcceptedTermsHeader({
   const toggleLock = toggleRateLock.bind(null, dealId, !rateLocked);
 
   const isRateBuydown = isRateBuydownCategory(loanCategory);
-  const costToBorrowerLabel = isRateBuydown ? "Rate Buydown Fee" : "Lender Fee";
+  const costToBorrowerLabel = costToBorrowerLabelFor(loanCategory);
 
   const loanAmountNum = Number(approvedLoanAmount) || 0;
   const originationPoints = originationPointsOverride !== null ? Number(originationPointsOverride) : 2;
