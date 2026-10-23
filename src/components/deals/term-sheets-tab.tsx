@@ -33,7 +33,7 @@ import { NewTermSheetForm } from "@/components/deals/new-term-sheet-form";
 import { TermSheetFieldInputs } from "@/components/deals/term-sheet-field-inputs";
 import { ComposeFields, type EmailComposeState } from "@/components/emails/compose-fields";
 import { ADMIN_ONLY_FIELDS, termSheetFieldsFor } from "@/lib/term-sheet-fields";
-import { valueBasisFor, calculateLtv } from "@/lib/term-sheet-calculations";
+import { ratioSummaryParts } from "@/lib/term-sheet-calculations";
 import { isInterestOnlyCategory } from "@/lib/loan-sections";
 import { allowedTermSheetCategories, canChangeLoanType, loanCategoryLabel } from "@/lib/loan-type-changes";
 
@@ -129,15 +129,28 @@ function termSheetSummary(
 ): string | null {
   const rate = numField(fields, "interestRate");
   const loanAmount = numField(fields, "loanAmount");
-  const valueBasis = valueBasisFor(category, purchasePrice, estimatedAsIsValue);
-  const ltv = loanAmount !== null ? calculateLtv(loanAmount, valueBasis) : null;
   const typeLabel = loanTypeSummary(category, fields);
+  const ratios =
+    loanAmount !== null
+      ? ratioSummaryParts(category, {
+          loanAmount,
+          purchasePrice,
+          estimatedAsIsValue,
+          approvedArv: numField(fields, "approvedArv"),
+          approvedRehabCost: numField(fields, "approvedRehabCost"),
+        })
+      : [];
 
-  const parts = [
-    rate !== null ? `${Number(rate.toFixed(3))}%` : null,
-    typeLabel,
-    ltv !== null ? `${Number(ltv.toFixed(1))}% LTV` : null,
-  ].filter((p): p is string => Boolean(p));
+  // Only when the lender is financing interest into the loan (a dollar amount on the sheet).
+  const interestReserve = numField(fields, "interestReserve");
+  const reserveLabel =
+    interestReserve !== null && interestReserve > 0
+      ? `interest reserve ${interestReserve.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}`
+      : null;
+
+  const parts = [rate !== null ? `${Number(rate.toFixed(3))}%` : null, typeLabel, ...ratios, reserveLabel].filter(
+    (p): p is string => Boolean(p)
+  );
 
   return parts.length ? parts.join(", ") : null;
 }

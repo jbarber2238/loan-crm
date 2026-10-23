@@ -412,6 +412,21 @@ export interface RatioMetric {
 }
 
 /** Which ratio(s) to show for a category, given the loan amount and deal/term-sheet figures already on hand. */
+/**
+ * The ratios worth quoting for a loan category, as short strings ("72.3% LTARV",
+ * "108.9% LTC") — fix-and-flip/new construction are sized on after-repair value
+ * and total project cost, never a plain LTV. Anything that can't be computed
+ * (no ARV on the sheet yet, say) is left out.
+ */
+export function ratioSummaryParts(
+  category: string,
+  inputs: Parameters<typeof ratioMetricsFor>[1]
+): string[] {
+  return ratioMetricsFor(category, inputs)
+    .filter((m): m is RatioMetric & { valuePct: number } => m.valuePct !== null)
+    .map((m) => `${Number(m.valuePct.toFixed(1))}% ${m.label}`);
+}
+
 export function ratioMetricsFor(
   category: string,
   {

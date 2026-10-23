@@ -1,7 +1,9 @@
-import { conservativeValueBasis, calculateLtv } from "@/lib/term-sheet-calculations";
+import { conservativeValueBasis, calculateLtv, ratioSummaryParts } from "@/lib/term-sheet-calculations";
 import { isInterestOnlyCategory } from "@/lib/loan-sections";
 import { htmlFactList } from "@/lib/email-html";
 import type { deals, termSheets } from "@/server/db/schema";
+
+const HARD_MONEY_DRAW_CATEGORIES = new Set(["fix_and_flip", "new_construction"]);
 
 type Deal = typeof deals.$inferSelect;
 // Each sheet's own loan type comes from its product — it can differ from the
@@ -144,12 +146,23 @@ export function buildTermSheetButtonLabels(deal: Deal, sheets: TermSheet[]): Rec
     const valueBasis = conservativeValueBasis(sheet.product.category, purchasePrice, estimatedAsIsValue);
     const ltvPct = loanAmount !== null ? calculateLtv(loanAmount, valueBasis) : null;
     const typeLabel = loanTypeLabelForButton(sheet.product.category, fields);
+    // Fix-and-flip/new construction are quoted as LTARV and LTC, not a plain LTV.
+    const ratioParts =
+      loanAmount !== null && HARD_MONEY_DRAW_CATEGORIES.has(sheet.product.category)
+        ? ratioSummaryParts(sheet.product.category, {
+            loanAmount,
+            purchasePrice,
+            estimatedAsIsValue,
+            approvedArv: numField(fields, "approvedArv"),
+            approvedRehabCost: numField(fields, "approvedRehabCost"),
+          })
+        : ltvPct !== null
+          ? [`${formatPercent(ltvPct)} LTV`]
+          : [];
 
-    const parts = [
-      rate !== null ? formatRatePercent(rate) : null,
-      typeLabel,
-      ltvPct !== null ? `${formatPercent(ltvPct)} LTV` : null,
-    ].filter((p): p is string => Boolean(p));
+    const parts = [rate !== null ? formatRatePercent(rate) : null, typeLabel, ...ratioParts].filter(
+      (p): p is string => Boolean(p)
+    );
 
     labels[sheet.id] = parts.length ? parts.join(", ") : "View term sheet";
   }
