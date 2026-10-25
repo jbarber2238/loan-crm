@@ -1104,3 +1104,10 @@ html.dark,
   letter-spacing: 0.08em;
   color: #fdb78f;
 }
+
+/* ---- Phones: leave room for the bottom bar, and lift the floating chat button above it ---- */
+@media (max-width: 1023px) {
+  .dark main {
+    padding-bottom: 84px;
+  }
+}
