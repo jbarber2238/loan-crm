@@ -272,3 +272,8 @@ html.dark,
   border-radius: 0.5rem;
   padding: 0.75rem;
 }
+
+/* ---- Charts and progress bars: orange fills (they were white at 70%) ---- */
+.dark .bg-foreground\/70 {
+  background-color: var(--primary);
+}
