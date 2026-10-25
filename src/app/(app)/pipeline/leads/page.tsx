@@ -24,7 +24,33 @@ export default async function LeadsPipelinePage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      {/* Dark appearance: the same count and links as a hero banner (design board "Leads"). */}
+      <section
+        data-pipeline-banner
+        className="theme-dark-only !flex flex-wrap items-end justify-between rounded-xl"
+        aria-label="Active leads"
+      >
+        <div>
+          <p data-banner-eyebrow className="uppercase">Active leads</p>
+          <p data-banner-value className="mt-1.5">{leads.length}</p>
+          <p className="mt-1 text-[13px] text-[rgba(255,255,255,.82)]">From the marketing site&apos;s gated tools</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/pipeline/leads/friday"
+            className="inline-flex min-h-11 items-center rounded-full bg-[#0b0c0d] px-5 text-sm font-semibold !text-white"
+          >
+            Friday Zoom →
+          </Link>
+          <Link
+            href="/pipeline/leads/call-list"
+            className="inline-flex min-h-11 items-center rounded-full bg-white px-5 text-sm font-semibold !text-[#0b0c0d]"
+          >
+            Call List →
+          </Link>
+        </div>
+      </section>
+      <div className="theme-light-only flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           {leads.length} lead{leads.length === 1 ? "" : "s"} from the marketing site&apos;s gated tools.
         </p>

@@ -210,7 +210,7 @@ function DealCard({ deal, draggable = true }: { deal: BoardDeal; draggable?: boo
             <div className="flex items-end justify-between gap-2">
               <div>
                 <div className="text-[11px] tracking-[0.08em] text-[#605d5b] uppercase [font-family:var(--font-inter-tight),var(--font-inter),sans-serif]">
-                  {leadValue.basisLabel}
+                  {leadValue.basisLabel === "Requested Loan Amount" ? "Requested" : leadValue.basisLabel}
                 </div>
                 <div className="text-[22px] leading-7 font-bold tabular-nums [font-family:var(--font-inter-tight),var(--font-inter),sans-serif]">
                   {formatAmount(leadValue.basisAmount)}
@@ -381,19 +381,19 @@ function OpenPipelineBanner({ deals }: { deals: BoardDeal[] }) {
   return (
     <div data-pipeline-banner className="mb-4 flex flex-wrap items-end justify-between gap-x-8 gap-y-3 rounded-xl bg-primary px-4 py-4 text-primary-foreground shadow-sm sm:px-6 sm:py-5">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-widest text-primary-foreground/70">
+        <p className="text-xs font-semibold uppercase tracking-widest text-primary-foreground/70" data-banner-eyebrow>
           Open Pipeline Value
         </p>
-        <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight sm:text-4xl md:text-5xl">{formatAmount(value)}</p>
+        <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight sm:text-4xl md:text-5xl" data-banner-value>{formatAmount(value)}</p>
       </div>
       <div className="flex gap-8 text-sm">
         <div>
-          <p className="text-xs uppercase tracking-wide text-primary-foreground/70">Open deals</p>
-          <p className="text-xl font-semibold tabular-nums">{dealCount}</p>
+          <p className="text-xs uppercase tracking-wide text-primary-foreground/70" data-banner-stat-label>Open deals</p>
+          <p className="text-xl font-semibold tabular-nums" data-banner-stat>{dealCount}</p>
         </div>
         <div>
-          <p className="text-xs uppercase tracking-wide text-primary-foreground/70">Loan volume</p>
-          <p className="text-xl font-semibold tabular-nums">{formatAmount(loanVolume)}</p>
+          <p className="text-xs uppercase tracking-wide text-primary-foreground/70" data-banner-stat-label>Loan volume</p>
+          <p className="text-xl font-semibold tabular-nums" data-banner-stat>{formatAmount(loanVolume)}</p>
         </div>
       </div>
       <p className="w-full text-xs text-primary-foreground/60">New through Clear to Close</p>

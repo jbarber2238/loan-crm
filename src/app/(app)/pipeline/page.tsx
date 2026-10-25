@@ -111,10 +111,20 @@ export default async function PipelinePage({
             View Archived Deals
           </Link>
         </div>
-        <BoardSearch />
+        <div className="flex flex-wrap items-center gap-3">
+          <BoardSearch />
+          <Link
+            href="/deals/new"
+            className="theme-dark-only !inline-flex min-h-11 items-center rounded-full bg-[#fa5f05] px-[22px] text-sm font-bold text-[#0b0c0d] hover:bg-[#fdb78f]"
+          >
+            + New Deal
+          </Link>
+        </div>
       </div>
-      <PipelineTabs showLeads={user.isAdmin || user.baseRole === "loan_officer"} />
-      <BoardFilters loanOfficers={loanOfficers} processors={processors} lenders={lenderOptions} />
+      <div data-board-toolbar className="space-y-4">
+        <PipelineTabs showLeads={user.isAdmin || user.baseRole === "loan_officer"} />
+        <BoardFilters loanOfficers={loanOfficers} processors={processors} lenders={lenderOptions} />
+      </div>
       <KanbanBoard deals={boardDeals} />
     </div>
   );

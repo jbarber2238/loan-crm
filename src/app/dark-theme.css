@@ -182,8 +182,8 @@ html.dark,
   line-height: 18px;
   color: rgba(246, 246, 246, 0.86);
 }
-.dark [data-slot="input"]:not([class*="h-7"]):not([class*="h-8"]),
-.dark [data-slot="select-trigger"]:not([data-size="sm"]):not([class*="h-7"]):not([class*="h-8"]) {
+.dark [data-slot="input"]:not([class*="h-7"]),
+.dark [data-slot="select-trigger"]:not([data-size="sm"]):not([class*="h-7"]) {
   min-height: 46px;
   padding-inline: 14px;
   font-size: 15px;
@@ -489,26 +489,81 @@ html.dark,
   color: var(--brand-light);
 }
 
-/* ---- Pipeline "Open pipeline value" banner: black into orange ----
+/* ---- Banner (pipeline, transactional, leads): black into orange into peach ----
    Phones: the orange only warms the far right edge, so every label stays on a dark ground.
    Wider screens: the stats sit over the bright end, so they switch to Onyx text. */
 .dark [data-pipeline-banner] {
-  background-image: linear-gradient(100deg, #0b0c0d 0%, #1a0d05 55%, #7a3004 85%, #fa5f05 100%);
-  background-color: #0b0c0d;
+  border-radius: 28px;
+  padding: 32px 40px;
+  background-image: linear-gradient(100deg, #060607 0%, #060607 12%, #1a0d05 55%, #7a3004 85%, #fa5f05 100%);
+  background-color: #060607;
   color: #ffffff;
-  border: 1px solid var(--border);
+  border: 0;
+  align-items: flex-end;
+  gap: 24px 56px;
+}
+@media (max-width: 640px) {
+  .dark [data-pipeline-banner] {
+    padding: 22px 20px;
+    border-radius: 24px;
+  }
 }
 .dark [data-pipeline-banner] [class*="text-primary-foreground"] {
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(255, 255, 255, 0.82);
+}
+.dark [data-banner-eyebrow] {
+  font-family: var(--font-inter-tight), var(--font-inter), sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  font-weight: 500;
+}
+.dark [data-banner-value] {
+  font-size: clamp(38px, 6vw, 60px);
+  line-height: 1.07;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+.dark [data-banner-stat-label] {
+  font-family: var(--font-inter-tight), var(--font-inter), sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+.dark [data-banner-stat] {
+  font-size: clamp(26px, 4vw, 36px);
+  line-height: 1.1;
+  font-weight: 700;
 }
 @media (min-width: 768px) {
   .dark [data-pipeline-banner] {
-    background-image: linear-gradient(100deg, #0b0c0d 0%, #4a1f05 38%, #fa5f05 78%, #fdb78f 100%);
+    background-image: linear-gradient(100deg, #060607 0%, #060607 12%, #bc4704 46%, #fa5f05 72%, #fdb78f 100%);
   }
   .dark [data-pipeline-banner] > div:nth-child(2),
-  .dark [data-pipeline-banner] > div:nth-child(2) [class*="text-primary-foreground"] {
+  .dark [data-pipeline-banner] > div:nth-child(2) [class*="text-primary-foreground"],
+  .dark [data-pipeline-banner] > div:nth-child(2) [data-banner-stat-label],
+  .dark [data-pipeline-banner] > div:nth-child(2) [data-banner-stat] {
     color: #0b0c0d;
   }
+}
+
+/* ---- Pipeline toolbar: tabs on the left, the four filters on the right ---- */
+.dark [data-board-toolbar] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.dark [data-board-toolbar] > * {
+  margin: 0;
+}
+.dark [data-board-toolbar] [data-slot="select-trigger"] {
+  min-height: 44px;
+  border-radius: 12px;
+}
+.dark [data-pill-search] {
+  width: min(340px, 100%);
 }
 
 /* ---- Show the dark-only drawing of a component and hide its light twin ---- */
@@ -807,4 +862,92 @@ html.dark,
 .dark .deal-card-white [data-slot="badge"] {
   background-color: #fff0e6;
   color: #a33d03;
+}
+
+/* ---- Leads board ---- */
+.dark [data-lcol] {
+  width: auto;
+  flex: 1 0 210px;
+  gap: 12px;
+  padding: 14px;
+  border: 0;
+  border-radius: 20px;
+  background-color: var(--c-column);
+}
+.dark [data-lcol] > div:first-child {
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+}
+.dark [data-lcol] > div:first-child > span:first-child {
+  font-size: 15px;
+  font-weight: 700;
+}
+.dark [data-lcol] > div:first-child > span:last-child {
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  background-color: rgba(246, 246, 246, 0.1);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.dark [data-lcol] > div:last-child {
+  padding: 0;
+}
+.dark [data-lcol][data-status="hot"] {
+  background-color: #fdb78f;
+  color: #0b0c0d;
+}
+.dark [data-lcol][data-status="hot"] > div:first-child > span:last-child {
+  background-color: #0b0c0d;
+  color: #ffffff;
+}
+
+
+/* ---- Type scale from the boards: body 15, helper 13 ---- */
+.dark main .text-sm {
+  font-size: 15px;
+  line-height: 22px;
+}
+.dark main .text-xs {
+  font-size: 13px;
+  line-height: 19px;
+}
+
+/* ---- Lists of linked cards (lenders): real gaps between them ---- */
+.dark a:has(> [data-slot="card"]) {
+  display: block;
+}
+.dark a > [data-slot="card"] [data-slot="card-header"] {
+  padding-block: 8px;
+}
+.dark a > [data-slot="card"] [data-slot="card-title"] {
+  font-size: 18px;
+}
+.dark a > [data-slot="card"] [data-slot="card-title"] .text-sm {
+  font-size: 15px;
+  color: rgba(246, 246, 246, 0.78);
+}
+
+/* ---- File pickers ---- */
+.dark input[type="file"] {
+  min-height: 46px;
+  padding: 7px 12px;
+  border: 1px solid var(--c-line-strong);
+  border-radius: 12px;
+  background-color: var(--c-field);
+  color: rgba(246, 246, 246, 0.86);
+}
+.dark input[type="file"]::file-selector-button {
+  margin-right: 12px;
+  padding: 6px 14px;
+  border: 1px solid rgba(246, 246, 246, 0.22);
+  border-radius: 9999px;
+  background: #17181a;
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
 }

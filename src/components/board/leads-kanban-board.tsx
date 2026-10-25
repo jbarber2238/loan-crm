@@ -52,7 +52,28 @@ function LeadCard({ lead }: { lead: BoardLead }) {
   return (
     <div ref={setNodeRef} style={style} {...listeners} {...attributes} className={isDragging ? "opacity-40" : ""}>
       <Link href={`/pipeline/leads/${lead.id}`}>
-        <Card className="cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow">
+        <article className="theme-dark-only deal-card-white flex cursor-grab flex-col gap-3 rounded-2xl border border-[#e2dfdd] bg-[#ffffff] p-4 text-[#0b0c0d] active:cursor-grabbing hover:border-[#fa5f05]">
+          <h3 className="text-base leading-snug font-semibold">{lead.name}</h3>
+          <span className="self-start rounded-full bg-[#333f48] px-2.5 py-1 text-xs font-semibold text-white">
+            {lead.source.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+          </span>
+          {summary && (
+            <div>
+              <div className="text-[11px] tracking-[0.08em] text-[#605d5b] uppercase [font-family:var(--font-inter-tight),var(--font-inter),sans-serif]">
+                {summary.split(" · ")[0].split(" ")[0]}
+              </div>
+              <div className="text-[22px] leading-7 font-bold tabular-nums [font-family:var(--font-inter-tight),var(--font-inter),sans-serif]">
+                {summary.split(" · ")[0].split(" ").slice(1).join(" ")}
+              </div>
+              {summary.includes(" · ") && (
+                <div className="mt-0.5 text-xs text-[#605d5b]">{summary.split(" · ").slice(1).join(" · ")}</div>
+              )}
+            </div>
+          )}
+          <span className="self-start rounded-full bg-[#fff0e6] px-2.5 py-1 text-xs font-semibold text-[#a33d03]">{lead.phone}</span>
+          <div className="border-t border-[#eceae8] pt-2.5 text-xs text-[#605d5b]">{hoursSince(lead.lastActivityAt)}h since activity</div>
+        </article>
+        <Card className="theme-light-only cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow">
           <CardContent className="p-3 space-y-1.5">
             <p className="font-medium text-sm leading-tight">{lead.name}</p>
             <p className="text-xs text-muted-foreground">{lead.source}</p>
@@ -76,6 +97,8 @@ function Column({ status, leads }: { status: LeadStatus; leads: BoardLead[] }) {
   return (
     <div
       ref={setNodeRef}
+      data-lcol
+      data-status={status}
       className={`flex w-64 shrink-0 snap-start flex-col rounded-lg border bg-muted/40 ${isOver ? "ring-2 ring-primary" : ""}`}
     >
       <div className="flex items-center justify-between px-3 py-2 border-b bg-background/60 rounded-t-lg">
@@ -83,6 +106,11 @@ function Column({ status, leads }: { status: LeadStatus; leads: BoardLead[] }) {
         <span className="text-xs text-muted-foreground">{leads.length}</span>
       </div>
       <div className="flex flex-col gap-2 p-2 min-h-24 overflow-y-auto max-h-[70vh]">
+        {leads.length === 0 && (
+          <div className="theme-dark-only flex min-h-[140px] items-center justify-center rounded-2xl border border-dashed border-[rgba(246,246,246,.18)] text-sm text-[rgba(246,246,246,.72)]">
+            No leads yet
+          </div>
+        )}
         {leads.map((lead) => (
           <LeadCard key={lead.id} lead={lead} />
         ))}

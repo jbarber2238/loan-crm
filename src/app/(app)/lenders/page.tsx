@@ -231,7 +231,7 @@ export default async function LendersPage() {
 
               <div className="space-y-2">
                 {allLenders.map((lender) => (
-                  <details key={lender.id} className="group rounded-md border">
+                  <details data-acc key={lender.id} className="group rounded-md border">
                     <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
                       <span>{lender.name}</span>
                       <span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
