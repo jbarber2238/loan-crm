@@ -102,6 +102,7 @@ export async function buildAllDealTokens(deal: Deal): Promise<Record<string, str
 
     // Property
     propertyAddress: deal.propertyAddress,
+    propertyStreet: deal.propertyAddress.split(",")[0].trim() || deal.propertyAddress,
     parcelId: textOr(deal.parcelId),
     propertyTypeLabel: deal.propertyType ? labelFor(PROPERTY_TYPES, deal.propertyType) : "Not provided",
     unitCount: numOrNA(deal.unitCount),

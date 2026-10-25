@@ -55,6 +55,7 @@ export const ALL_DEAL_TOKENS: EmailTemplateToken[] = [
 
   // Property
   { key: "propertyAddress", description: "Subject property address" },
+  { key: "propertyStreet", description: "Just the street line of the property address, e.g. \"7552 Wheat Rd\" (short enough for a subject line)" },
   { key: "parcelId", description: "Assessor's Parcel Number (new construction with no address yet)" },
   { key: "propertyTypeLabel", description: "Property type (Single Family, Duplex, etc.)" },
   { key: "unitCount", description: "Unit count when finished" },
