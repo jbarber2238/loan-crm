@@ -74,7 +74,7 @@ export function LoanCenterTabsShell({ initialTab, children }: { initialTab?: str
 
       <nav
         aria-label="Loan Center"
-        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 grid translate-z-0 grid-cols-5 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
       >
         {BAR.map((t) => (
           <BarButton key={t.value} item={t} active={tab === t.value} onClick={() => select(t.value)} />

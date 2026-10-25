@@ -5,6 +5,7 @@ import { requireUser } from "@/server/auth/guards";
 import { DealHeader } from "@/components/deals/deal-header";
 import { DealLifecycleBanner } from "@/components/deals/deal-lifecycle-banner";
 import { ClearToCloseEmailBanner } from "@/components/deals/clear-to-close-email-banner";
+import { DealPhoneBar } from "@/components/deals/deal-phone-bar";
 
 export default async function DealDetailLayout({
   children,
@@ -32,6 +33,7 @@ export default async function DealDetailLayout({
       <ClearToCloseEmailBanner deal={deal} />
       <DealHeader deal={deal} />
       {children}
+      <DealPhoneBar dealId={deal.id} />
     </div>
   );
 }
