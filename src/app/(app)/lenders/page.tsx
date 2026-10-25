@@ -63,7 +63,7 @@ export default async function LendersPage() {
   ]);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div data-wide className="mx-auto max-w-3xl space-y-6">
       <h1 data-lenders-title className="text-xl font-semibold">Lenders</h1>
 
       <Tabs defaultValue="lenders">

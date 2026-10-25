@@ -54,7 +54,7 @@ function LenderFields({ lender }: { lender?: TransactionalLender }) {
 export function TransactionalLendersSection({ isAdmin, lenders }: { isAdmin: boolean; lenders: TransactionalLender[] }) {
   return (
     <>
-      <div className="flex items-start justify-between gap-4">
+      <div data-intro-row className="flex items-start justify-between gap-4">
         <p className="text-sm text-muted-foreground">
           The lender(s) you send double-close funding requests to. New transactional requests are assigned to the first
           one automatically; you can change it on any request.

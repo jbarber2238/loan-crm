@@ -672,3 +672,49 @@ html.dark,
   background-color: #121315;
   padding: 14px 20px;
 }
+
+/* ---- Sliders (leverage calculators) ---- */
+.dark [data-slot="slider-track"] {
+  height: 6px;
+  background-color: #333f48;
+}
+.dark [data-slot="slider-range"] {
+  background: linear-gradient(90deg, #bc4704, #fa5f05);
+}
+.dark [data-slot="slider-thumb"] {
+  width: 20px;
+  height: 20px;
+  background-color: #ffffff;
+  border: 3px solid #fa5f05;
+}
+
+/* ---- Generic bordered panels (rows, strips, wells) take the design's softer corners ---- */
+.dark :is([class~="rounded-md"], [class~="rounded-lg"])[class~="border"]:not([data-slot], button, a, input, select, textarea, img, details) {
+  border-radius: 14px;
+  border-color: rgba(246, 246, 246, 0.1);
+}
+.dark [class~="rounded-lg"][class~="border"][class~="p-4"]:not([data-slot], button, a, input, select, textarea, img, details) {
+  border-radius: 16px;
+}
+
+/* ---- Lenders ---- */
+.dark [data-wide] {
+  max-width: 1080px;
+}
+.dark a > [data-slot="card"] {
+  background: linear-gradient(160deg, rgba(250, 95, 5, 0.1), rgba(250, 95, 5, 0) 45%), #121315;
+}
+.dark a:hover > [data-slot="card"] {
+  border-color: rgba(253, 183, 143, 0.4);
+}
+.dark [data-intro-row] {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 16px;
+}
+.dark [data-intro-row] > p {
+  align-self: flex-start;
+  color: rgba(246, 246, 246, 0.78);
+  font-size: 15px;
+  line-height: 24px;
+}
