@@ -1066,3 +1066,41 @@ html.dark,
 .dark [data-csec="card"][data-state="open"] > [data-csec-head] svg {
   color: #fdb78f;
 }
+
+/* ---- Lender detail ---- */
+.dark [data-slot="collapsible"][class*="rounded-md"][class*="border"] {
+  border-radius: 16px;
+  background-color: var(--c-field);
+}
+.dark [data-slot="collapsible"][class*="rounded-md"][class*="border"] > [data-slot="collapsible-trigger"] {
+  min-height: 56px;
+  padding: 8px 18px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.dark [data-slot="collapsible"][class*="rounded-md"][data-state="open"] > [data-slot="collapsible-trigger"] {
+  color: #fa5f05;
+}
+.dark [data-rep-row] {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* A label that follows a hint or a field gets real separation from it */
+.dark main .space-y-1\.5 > [data-slot="label"]:not(:first-child) {
+  margin-top: 10px;
+}
+
+/* ---- Grouped form sections (term sheet fields, intake): bordered well, peach label ---- */
+.dark [data-fgroup] {
+  border-radius: 16px;
+  border: 1px solid var(--c-line-soft);
+  background-color: var(--c-field);
+  padding: 18px;
+}
+.dark [data-fgroup] > p:first-child {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #fdb78f;
+}

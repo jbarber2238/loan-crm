@@ -83,7 +83,7 @@ function groupFields(fields: TermSheetField[]) {
 
 function FieldGroup({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="space-y-3 rounded-lg border p-4">
+    <div data-fgroup className="space-y-3 rounded-lg border p-4">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</div>
     </div>

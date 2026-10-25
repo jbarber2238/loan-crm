@@ -136,7 +136,7 @@ export default async function LenderDetailPage({
           {user.isAdmin ? (
             rep ? (
               // Two sibling forms — Save owns the name/email/phone fields, Remove needs none.
-              <div className="flex flex-col gap-2 md:flex-row md:items-end">
+              <div data-rep-row className="flex flex-col gap-2 md:flex-row md:items-end">
                 <ActionForm
                   action={updateLenderRep.bind(null, lenderId, rep.id)}
                   successMessage="Rep saved"
