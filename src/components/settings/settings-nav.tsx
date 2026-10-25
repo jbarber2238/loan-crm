@@ -65,6 +65,7 @@ export function SettingsNav({ isAdmin, pathnameOverride }: { isAdmin: boolean; p
         key={item.href}
         href={item.href}
         aria-current={active ? "page" : undefined}
+        data-snav={mobile ? "chip" : "item"}
         className={cn(
           "flex items-center gap-2 text-sm transition-colors",
           mobile ? "shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5" : "rounded-md px-3 py-1.5",
@@ -88,10 +89,10 @@ export function SettingsNav({ isAdmin, pathnameOverride }: { isAdmin: boolean; p
         {groups.flatMap((g) => g.items).map((i) => link(i, true))}
       </nav>
       {/* Wider screens: a left menu with a heading per group. */}
-      <nav aria-label="Settings" className="hidden w-52 shrink-0 space-y-5 md:block">
+      <nav aria-label="Settings" data-snav-menu className="hidden w-52 shrink-0 space-y-5 md:block">
         {groups.map((g) => (
           <div key={g.title} className="space-y-1">
-            <p className="px-3 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">{g.title}</p>
+            <p data-snav-group className="px-3 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">{g.title}</p>
             {g.items.map((i) => link(i, false))}
           </div>
         ))}

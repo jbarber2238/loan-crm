@@ -718,3 +718,40 @@ html.dark,
   font-size: 15px;
   line-height: 24px;
 }
+
+/* ---- Settings menu: sidebar-style items, orange when selected ---- */
+.dark [data-snav="item"] {
+  min-height: 44px;
+  padding-inline: 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(246, 246, 246, 0.8);
+  background: transparent;
+}
+.dark [data-snav="item"]:hover {
+  color: #fdb78f;
+  background: transparent;
+}
+.dark [data-snav="item"][aria-current="page"] {
+  background-color: rgba(250, 95, 5, 0.14);
+  color: #fa5f05;
+  font-weight: 600;
+}
+.dark [data-snav-group] {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: rgba(246, 246, 246, 0.72);
+}
+.dark [data-snav="chip"] {
+  min-height: 40px;
+  border: 1px solid rgba(246, 246, 246, 0.2);
+  background: transparent;
+  color: rgba(246, 246, 246, 0.86);
+}
+.dark [data-snav="chip"][aria-current="page"] {
+  background-color: #fa5f05;
+  border-color: #fa5f05;
+  color: #0b0c0d;
+  font-weight: 700;
+}
