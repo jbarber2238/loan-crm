@@ -1111,3 +1111,14 @@ html.dark,
     padding-bottom: 84px;
   }
 }
+
+/* ---- Small uppercase section labels read as the board's peach "eyebrow" ---- */
+.dark main p.uppercase.tracking-wide.text-muted-foreground,
+.dark main p.uppercase.tracking-wider.text-muted-foreground {
+  color: #fdb78f;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.dark main p + [data-slot="label"] {
+  margin-top: 12px;
+}
