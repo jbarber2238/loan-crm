@@ -101,7 +101,8 @@ export function derivePortalTheme(headerHex: string, accentHex: string): PortalT
     soft: mix(accent, WHITE, 0.55),
     ink,
     tint,
-    up: mix(head, WHITE, 0.12),
+    // Stages not reached yet: a step lighter than a dark header, a step darker than a light one.
+    up: headText.color === WHITE ? mix(head, WHITE, 0.12) : mix(head, "#000000", 0.14),
     headIsDark: headText.color === WHITE,
   };
 }
