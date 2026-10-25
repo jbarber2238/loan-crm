@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/server/auth/guards";
+import { getMyAppearance } from "@/server/actions/appearance";
+import { DashboardDark } from "@/components/dashboard/dashboard-dark";
 import { buildDashboardData } from "@/server/dashboard-metrics";
 import { DASHBOARD_RANGES, DEFAULT_DASHBOARD_RANGE, isDashboardRange } from "@/lib/dashboard-ranges";
 import { STAGES, LOAN_CATEGORIES, labelFor } from "@/lib/labels";
@@ -70,12 +72,15 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  await requireAdmin();
+  const adminUser = await requireAdmin();
   const params = await searchParams;
   const range =
     typeof params.range === "string" && isDashboardRange(params.range) ? params.range : DEFAULT_DASHBOARD_RANGE;
 
-  const data = await buildDashboardData(range);
+  const [data, appearance] = await Promise.all([buildDashboardData(range), getMyAppearance()]);
+  if (appearance.theme === "dark") {
+    return <DashboardDark data={data} range={range} firstName={adminUser.name?.split(" ")[0] ?? "there"} />;
+  }
   const enabled = new Set(data.enabledDashboardMetrics);
 
   const lostDisqualifiedEntered = data.pipelineConversion.funnel

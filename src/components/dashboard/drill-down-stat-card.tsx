@@ -21,6 +21,9 @@ export function DrillDownStatCard<T extends DrillDownDeal & { viaRestore?: boole
   deals,
   emptyMessage = "No deals behind this number in this range.",
   compact = false,
+  tile = false,
+  pill,
+  featured = false,
 }: {
   label: string;
   value: string;
@@ -29,12 +32,53 @@ export function DrillDownStatCard<T extends DrillDownDeal & { viaRestore?: boole
   emptyMessage?: string;
   /** Smaller card for tight layouts (e.g. beside the payout widget). */
   compact?: boolean;
+  /** The dark dashboard's tile look: label, big figure, caption. */
+  tile?: boolean;
+  /** Small chip beside the label (e.g. "5 open"). */
+  pill?: string;
+  /** Orange-tinted background for the one figure worth a second look. */
+  featured?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const clickable = deals.length > 0;
 
+  const clickProps = {
+    role: clickable ? "button" : undefined,
+    tabIndex: clickable ? 0 : undefined,
+    onClick: clickable ? () => setOpen(true) : undefined,
+    onKeyDown: clickable
+      ? (e: React.KeyboardEvent) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setOpen(true);
+          }
+        }
+      : undefined,
+  };
+
   return (
     <>
+      {tile ? (
+        <div
+          {...clickProps}
+          className={`flex flex-col gap-1.5 rounded-[22px] border border-[rgba(246,246,246,.08)] p-[20px_22px] ${
+            featured
+              ? "bg-[linear-gradient(160deg,rgba(250,95,5,.12),rgba(250,95,5,0)_50%),#121315]"
+              : "bg-[#121315]"
+          } ${clickable ? "cursor-pointer transition-colors hover:border-[#fdb78f]/60" : ""}`}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm text-[rgba(246,246,246,.78)]">{label}</span>
+            {pill && (
+              <span className="rounded-full bg-[rgba(250,95,5,.16)] px-2.5 py-[3px] text-xs font-semibold text-[#fdb78f]">{pill}</span>
+            )}
+          </div>
+          <span className="text-[34px] leading-10 font-bold tracking-[-0.015em] [font-family:var(--font-inter-tight),var(--font-inter),sans-serif]">
+            {value}
+          </span>
+          {sub && <span className="text-[13px] text-[rgba(246,246,246,.72)]">{sub}</span>}
+        </div>
+      ) : (
       <Card
         size={compact ? "sm" : "default"}
         role={clickable ? "button" : undefined}
@@ -60,6 +104,7 @@ export function DrillDownStatCard<T extends DrillDownDeal & { viaRestore?: boole
           {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
         </CardContent>
       </Card>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-lg">
