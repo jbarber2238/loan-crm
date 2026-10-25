@@ -84,6 +84,7 @@ export default async function CompanySettingsPage() {
         configured={Boolean(branding.headerColor && branding.accentColor)}
         initialHeader={branding.headerColor}
         initialAccent={branding.accentColor}
+        initialButton={branding.buttonColor}
         initialPalette={branding.palette}
         logoSrc={logo?.src ?? null}
         companyName={companyName}

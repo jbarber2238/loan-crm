@@ -27,16 +27,16 @@
   background-color: var(--bp-accent);
 }
 [data-branded] .bp-primary {
-  background-color: var(--bp-accent);
-  border-color: var(--bp-accent);
-  color: var(--bp-on);
+  background-color: var(--bp-btn);
+  border-color: var(--bp-btn);
+  color: var(--bp-btn-on);
   border-radius: 9999px;
   font-weight: 700;
 }
 [data-branded] .bp-primary:hover:not(:disabled) {
-  background-color: var(--bp-soft);
-  border-color: var(--bp-soft);
-  color: var(--bp-on);
+  background-color: var(--bp-btn-soft);
+  border-color: var(--bp-btn-soft);
+  color: var(--bp-btn-on);
 }
 [data-branded] .bp-tag {
   background-color: var(--bp-tint);

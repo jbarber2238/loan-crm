@@ -64,12 +64,21 @@ export type PortalTheme = {
   head: string;
   headText: string;
   headRatio: number;
+  /** The progress color: the progress bar and the stage bar's reached stages. */
   accent: string;
+  /** Text on the progress color. */
   on: string;
   onRatio: number;
   /** The lighter "current stage" color. */
   soft: string;
-  /** The accent as readable text on the pale tint. */
+  /** The upload-button color. */
+  button: string;
+  /** Text on the upload button. */
+  buttonOn: string;
+  buttonOnRatio: number;
+  /** The button's hover color. */
+  buttonSoft: string;
+  /** The button color as readable text on the pale tint. */
   ink: string;
   /** The pale tint behind "Needed" tags. */
   tint: string;
@@ -78,17 +87,23 @@ export type PortalTheme = {
   headIsDark: boolean;
 };
 
-/** Everything the portal needs, derived from the two colors a company chooses. */
-export function derivePortalTheme(headerHex: string, accentHex: string): PortalTheme {
+/**
+ * Everything the portal needs, derived from the colors a company chooses: the header, the
+ * progress color (progress bar and stage bar) and the upload-button color. The button color
+ * defaults to the progress color when it isn't given.
+ */
+export function derivePortalTheme(headerHex: string, accentHex: string, buttonHex?: string | null): PortalTheme {
   const head = normalizeHex(headerHex);
   const accent = normalizeHex(accentHex);
-  if (!head || !accent) throw new Error("Both colors must be valid hex colors.");
+  const button = normalizeHex(buttonHex) ?? accent;
+  if (!head || !accent || !button) throw new Error("Colors must be valid hex colors.");
 
   const headText = readableOn(head);
   const on = readableOn(accent);
-  const tint = mix(accent, WHITE, 0.9);
-  // Darken the accent until it's readable on its own tint.
-  let ink = mix(accent, "#000000", 0.35);
+  const buttonOn = readableOn(button);
+  const tint = mix(button, WHITE, 0.9);
+  // Darken the button color until it's readable on its own tint.
+  let ink = mix(button, "#000000", 0.35);
   for (let i = 0; i < 6 && contrast(ink, tint) < MIN_TEXT_CONTRAST; i++) ink = mix(ink, "#000000", 0.2);
 
   return {
@@ -99,6 +114,10 @@ export function derivePortalTheme(headerHex: string, accentHex: string): PortalT
     on: on.color,
     onRatio: on.ratio,
     soft: mix(accent, WHITE, 0.55),
+    button,
+    buttonOn: buttonOn.color,
+    buttonOnRatio: buttonOn.ratio,
+    buttonSoft: mix(button, WHITE, 0.55),
     ink,
     tint,
     // Stages not reached yet: a step lighter than a dark header, a step darker than a light one.
@@ -115,6 +134,9 @@ export function portalCssVars(theme: PortalTheme): Record<string, string> {
     "--bp-accent": theme.accent,
     "--bp-on": theme.on,
     "--bp-soft": theme.soft,
+    "--bp-btn": theme.button,
+    "--bp-btn-on": theme.buttonOn,
+    "--bp-btn-soft": theme.buttonSoft,
     "--bp-ink": theme.ink,
     "--bp-tint": theme.tint,
     "--bp-up": theme.up,
@@ -128,7 +150,7 @@ export type BrandSwatch = { hex: string; name: string | null; usage: string | nu
  * reads with white text, the button color is the most vivid mid-tone that reads with its text
  * color and isn't the header. Used to repair or fill in what the AI suggests.
  */
-export function pickBrandColors(palette: BrandSwatch[]): { header: string; accent: string } | null {
+export function pickBrandColors(palette: BrandSwatch[]): { header: string; accent: string; button: string } | null {
   const colors = palette.map((p) => normalizeHex(p.hex)).filter((h): h is string => Boolean(h));
   const unique = [...new Set(colors)];
   if (unique.length === 0) return null;
@@ -147,5 +169,5 @@ export function pickBrandColors(palette: BrandSwatch[]): { header: string; accen
     [...candidates].sort((a, b) => saturation(b) - saturation(a))[0] ??
     unique.find((c) => c !== header) ??
     header;
-  return { header, accent };
+  return { header, accent, button: accent };
 }

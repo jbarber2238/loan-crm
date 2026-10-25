@@ -122,7 +122,9 @@ export async function getCompanyWireInstructions(): Promise<{ fileName: string; 
 
 export type PortalBranding = {
   headerColor: string | null;
+  /** The progress color (progress bar and stage bar). */
   accentColor: string | null;
+  buttonColor: string | null;
   palette: { hex: string; name: string | null; usage: string | null }[];
 };
 
@@ -130,7 +132,7 @@ export type PortalBranding = {
 export async function getPortalBranding(): Promise<PortalBranding> {
   const row = await db.query.companySettings.findFirst({
     where: eq(companySettings.id, "default"),
-    columns: { portalHeaderColor: true, portalAccentColor: true, portalBrandPalette: true },
+    columns: { portalHeaderColor: true, portalAccentColor: true, portalButtonColor: true, portalBrandPalette: true },
   });
   const header = normalizeHex(row?.portalHeaderColor);
   const accent = normalizeHex(row?.portalAccentColor);
@@ -138,6 +140,7 @@ export async function getPortalBranding(): Promise<PortalBranding> {
   return {
     headerColor: both ? header : null,
     accentColor: both ? accent : null,
+    buttonColor: both ? (normalizeHex(row?.portalButtonColor) ?? accent) : null,
     palette: row?.portalBrandPalette ?? [],
   };
 }
@@ -146,6 +149,6 @@ export async function getPortalBranding(): Promise<PortalBranding> {
 export async function getPortalLook() {
   const [branding, logo, name] = await Promise.all([getPortalBranding(), getCompanyLogo(), getCompanyName()]);
   const theme =
-    branding.headerColor && branding.accentColor ? derivePortalTheme(branding.headerColor, branding.accentColor) : null;
+    branding.headerColor && branding.accentColor ? derivePortalTheme(branding.headerColor, branding.accentColor, branding.buttonColor) : null;
   return { theme, logo, companyName: name };
 }

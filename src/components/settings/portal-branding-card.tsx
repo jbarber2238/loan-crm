@@ -25,6 +25,7 @@ import { PIPELINE_STAGES } from "@/lib/deal-pipeline";
 
 const DEFAULT_HEADER = "#0B0C0D";
 const DEFAULT_ACCENT = "#FA5F05";
+const DEFAULT_BUTTON = "#FA5F05";
 
 function ContrastChip({ color }: { color: string | null }) {
   if (!color) return <span className="text-xs text-muted-foreground">Enter a hex color like #14213D</span>;
@@ -85,17 +86,30 @@ function ColorField({
   );
 }
 
-function Preview({ header, accent, logoSrc, companyName }: { header: string; accent: string; logoSrc: string | null; companyName: string }) {
+function Preview({
+  header,
+  accent,
+  button,
+  logoSrc,
+  companyName,
+}: {
+  header: string;
+  accent: string;
+  button: string;
+  logoSrc: string | null;
+  companyName: string;
+}) {
   const h = normalizeHex(header);
   const a = normalizeHex(accent);
-  if (!h || !a) {
+  const b = normalizeHex(button);
+  if (!h || !a || !b) {
     return (
       <div className="flex h-full min-h-40 items-center justify-center rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-        Enter both colors to see the preview.
+        Enter all three colors to see the preview.
       </div>
     );
   }
-  const t = derivePortalTheme(h, a);
+  const t = derivePortalTheme(h, a, b);
   const current = 4;
   return (
     <div className="overflow-hidden rounded-2xl border bg-white text-[#0b0c0d]">
@@ -136,7 +150,7 @@ function Preview({ header, accent, logoSrc, companyName }: { header: string; acc
         </div>
         <span
           className="inline-flex min-h-9 items-center rounded-full px-4 text-[13px] font-bold"
-          style={{ background: t.accent, color: t.on }}
+          style={{ background: t.button, color: t.buttonOn }}
         >
           Upload file(s)
         </span>
@@ -152,6 +166,7 @@ export function PortalBrandingCard({
   configured,
   initialHeader,
   initialAccent,
+  initialButton,
   initialPalette,
   logoSrc,
   companyName,
@@ -160,6 +175,7 @@ export function PortalBrandingCard({
   configured: boolean;
   initialHeader: string | null;
   initialAccent: string | null;
+  initialButton: string | null;
   initialPalette: BrandSwatch[];
   logoSrc: string | null;
   companyName: string;
@@ -169,6 +185,7 @@ export function PortalBrandingCard({
   const fileRef = useRef<HTMLInputElement>(null);
   const [header, setHeader] = useState(initialHeader ?? DEFAULT_HEADER);
   const [accent, setAccent] = useState(initialAccent ?? DEFAULT_ACCENT);
+  const [button, setButton] = useState(initialButton ?? initialAccent ?? DEFAULT_BUTTON);
   const [palette, setPalette] = useState<BrandSwatch[]>(initialPalette);
   const [aiNotes, setAiNotes] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -178,6 +195,7 @@ export function PortalBrandingCard({
 
   const headerOk = Boolean(normalizeHex(header));
   const accentOk = Boolean(normalizeHex(accent));
+  const buttonOk = Boolean(normalizeHex(button));
 
   function readBrandKit() {
     const file = fileRef.current?.files?.[0];
@@ -197,6 +215,7 @@ export function PortalBrandingCard({
         setPalette(result.palette);
         setHeader(result.header);
         setAccent(result.accent);
+        setButton(result.button);
         setAiNotes(result.notes);
         toast.success("Colors pulled from your brand kit. Adjust them below if you like, then save.");
       } catch (err) {
@@ -208,7 +227,8 @@ export function PortalBrandingCard({
   function save() {
     const formData = new FormData();
     formData.set("headerColor", header);
-    formData.set("accentColor", accent);
+    formData.set("progressColor", accent);
+    formData.set("buttonColor", button);
     formData.set("palette", JSON.stringify(palette));
     startSaving(async () => {
       try {
@@ -219,6 +239,7 @@ export function PortalBrandingCard({
         }
         setHeader(normalizeHex(header) ?? header);
         setAccent(normalizeHex(accent) ?? accent);
+        setButton(normalizeHex(button) ?? button);
         setIsConfigured(true);
         toast.success("Borrower portal colors saved");
         router.refresh();
@@ -238,6 +259,7 @@ export function PortalBrandingCard({
         }
         setHeader(DEFAULT_HEADER);
         setAccent(DEFAULT_ACCENT);
+        setButton(DEFAULT_BUTTON);
         setPalette([]);
         setAiNotes(null);
         setIsConfigured(false);
@@ -269,7 +291,7 @@ export function PortalBrandingCard({
               </Label>
               <p className="text-xs text-muted-foreground">
                 Upload your brand guidelines (PDF, PNG, JPG or SVG). We read the exact colors and suggest which go in the
-                header and which on the buttons. You can change either one afterward.
+                header, the progress bar and the upload button. You can change any of the three afterward.
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 <Input
@@ -300,10 +322,16 @@ export function PortalBrandingCard({
               onChange={setHeader}
             />
             <ColorField
-              label="Button and progress color"
-              hint="Used for upload buttons, the stage bar and the progress bar."
+              label="Progress bar color"
+              hint="The progress bar and the reached stages of the loan-stage bar."
               value={accent}
               onChange={setAccent}
+            />
+            <ColorField
+              label="Upload button color"
+              hint="The Upload file(s) and Submit buttons, and the Needed tags beside them."
+              value={button}
+              onChange={setButton}
             />
 
             {palette.length > 0 && (
@@ -321,7 +349,10 @@ export function PortalBrandingCard({
                         Header
                       </Button>
                       <Button type="button" size="sm" variant="outline" onClick={() => setAccent(c.hex)}>
-                        Buttons
+                        Progress
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => setButton(c.hex)}>
+                        Button
                       </Button>
                     </li>
                   ))}
@@ -336,12 +367,12 @@ export function PortalBrandingCard({
 
           <div className="min-w-[280px] flex-1 space-y-2">
             <Label>Live preview</Label>
-            <Preview header={header} accent={accent} logoSrc={logoSrc} companyName={companyName} />
+            <Preview header={header} accent={accent} button={button} logoSrc={logoSrc} companyName={companyName} />
           </div>
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Button type="button" onClick={save} disabled={saving || !headerOk || !accentOk}>
+          <Button type="button" onClick={save} disabled={saving || !headerOk || !accentOk || !buttonOk}>
             {saving ? "Saving…" : "Save Changes"}
           </Button>
           {previewHref && (

@@ -32,6 +32,14 @@ describe("brand colors", () => {
     expect(contrast(t.ink, t.tint)).toBeGreaterThanOrEqual(4.5);
   });
 
+  it("lets the upload button have its own color", () => {
+    const t = derivePortalTheme("#14213D", "#2EC4B6", "#F2A65A");
+    expect(t.accent).toBe("#2EC4B6");
+    expect(t.button).toBe("#F2A65A");
+    expect(t.buttonOn).toBe("#0B0C0D");
+    expect(derivePortalTheme("#14213D", "#2EC4B6").button).toBe("#2EC4B6");
+  });
+
   it("blends colors", () => {
     expect(mix("#000000", "#FFFFFF", 0.5)).toBe("#808080");
   });
@@ -42,7 +50,7 @@ describe("brand colors", () => {
       { hex: "#14213D", name: "Navy", usage: null },
       { hex: "#2EC4B6", name: "Teal", usage: null },
     ]);
-    expect(picked).toEqual({ header: "#14213D", accent: "#2EC4B6" });
+    expect(picked).toEqual({ header: "#14213D", accent: "#2EC4B6", button: "#2EC4B6" });
   });
 
   it("returns null for an empty palette", () => {

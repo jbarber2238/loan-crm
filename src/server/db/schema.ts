@@ -464,6 +464,8 @@ export const companySettings = pgTable("company_settings", {
   // the palette is what the AI brand-kit upload pulled out, kept so the colors can be re-picked.
   portalHeaderColor: text("portal_header_color"),
   portalAccentColor: text("portal_accent_color"),
+  // Upload-button color; null means "same as the progress color".
+  portalButtonColor: text("portal_button_color"),
   portalBrandPalette: jsonb("portal_brand_palette").$type<{ hex: string; name: string | null; usage: string | null }[]>(),
   // PandaDoc integration (Settings → Integrations) — the API key for
   // creating/sending documents, and the shared key PandaDoc issues when the
