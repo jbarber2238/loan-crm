@@ -37,7 +37,7 @@ export function NotesTab({ dealId, notes }: { dealId: string; notes: Note[] }) {
 
   return (
     <div className="space-y-4">
-      <Card>
+      <Card data-hi>
         <CardContent className="pt-6">
           <ActionForm
             action={addNote}

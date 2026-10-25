@@ -88,7 +88,7 @@ export function RolesTab({
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card data-hi>
         <CardHeader>
           <CardTitle>Assigned staff</CardTitle>
         </CardHeader>

@@ -147,7 +147,7 @@ export function ConditionsTab({ dealId, conditions }: { dealId: string; conditio
 
   return (
     <div className="space-y-4">
-      <Card>
+      <Card data-hi>
         <CardHeader>
           <CardTitle className="text-base">Extract Conditions from Lender Email</CardTitle>
         </CardHeader>

@@ -464,7 +464,7 @@ export function KeyDateTracker({
   };
 
   return (
-    <Card>
+    <Card data-hi>
       <CardContent className="pt-6">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
