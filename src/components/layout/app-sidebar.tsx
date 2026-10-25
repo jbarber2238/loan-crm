@@ -77,7 +77,7 @@ export function AppSidebar({
 
   const inner = (
     <>
-      <div className="flex min-h-14 flex-col justify-center gap-1.5 border-b border-white/10 px-4 py-3">
+      <div data-sb="brand" className="flex min-h-14 flex-col justify-center gap-1.5 border-b border-white/10 px-4 py-3">
         <Link href="/pipeline" className="flex flex-col items-start gap-1.5">
           {logo ? (
             <>
@@ -101,11 +101,12 @@ export function AppSidebar({
         </Link>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+      <nav data-sb="nav" className="flex-1 space-y-1 overflow-y-auto p-3">
         {dealId ? (
           <>
             <Link
               href="/pipeline"
+              data-sb="item"
               className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
             >
               <ArrowLeft className="size-4" />
@@ -119,6 +120,8 @@ export function AppSidebar({
                 <Link
                   key={link.href}
                   href={link.href}
+                  data-sb="item"
+                  data-active={active ? "true" : undefined}
                   className={cn(
                     "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
                     active ? "bg-white/10 text-white" : "text-zinc-400 hover:bg-white/5 hover:text-white"
@@ -140,6 +143,8 @@ export function AppSidebar({
               <Link
                 key={link.href}
                 href={link.href}
+                data-sb="item"
+                data-active={active ? "true" : undefined}
                 className={cn(
                   "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
                   active ? "bg-white/10 text-white" : "text-zinc-400 hover:bg-white/5 hover:text-white"
@@ -153,9 +158,12 @@ export function AppSidebar({
         )}
       </nav>
 
-      <div className="space-y-1 border-t border-white/10 p-3">
+      <div data-sb="footer" className="space-y-1 border-t border-white/10 p-3">
+        <div id="sidebar-slot" />
         <Link
           href="/settings"
+          data-sb="item"
+          data-active={pathname.startsWith("/settings") ? "true" : undefined}
           className={cn(
             "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
             pathname.startsWith("/settings")
@@ -167,7 +175,7 @@ export function AppSidebar({
           Settings
         </Link>
 
-        <div className="flex items-center gap-2.5 px-3 py-2">
+        <div data-sb="user" className="flex items-center gap-2.5 px-3 py-2">
           <Avatar className="size-7">
             <AvatarImage src={user.image ?? undefined} alt={user.name ?? ""} />
             <AvatarFallback>{user.name?.[0] ?? "?"}</AvatarFallback>

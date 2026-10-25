@@ -553,7 +553,7 @@ function ArchivedTermSheetsSection({
   if (termSheets.length === 0) return null;
 
   return (
-    <details className="group rounded-lg border">
+    <details data-acc className="group rounded-lg border">
       <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
         Archived Term Sheets ({termSheets.length})
         <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />

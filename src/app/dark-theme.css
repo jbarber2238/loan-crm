@@ -86,55 +86,321 @@ html.dark,
   font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
-/* ---- Controls: pills for buttons and tabs, softer corners on fields, hairline separation ---- */
+/* =====================================================================
+   Component layer. Values come straight from the design handoff boards:
+   cards 22px / hairline .08, pills 999px, inputs 46px / 12px, tabs in a
+   bordered pill with the active one in orange.
+   ===================================================================== */
+
+/* ---- Cards ---- */
+.dark [data-slot="card"] {
+  --card-spacing: 24px;
+  border-radius: 22px;
+  border: 1px solid rgba(246, 246, 246, 0.08);
+  background-color: #121315;
+  box-shadow: none;
+}
+.dark [data-slot="card"][data-size="sm"] {
+  --card-spacing: 18px;
+  border-radius: 18px;
+}
+.dark [data-slot="card-title"]:not(.text-muted-foreground) {
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+.dark [data-slot="card-title"].text-muted-foreground {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(246, 246, 246, 0.78);
+}
+.dark [data-slot="card-description"] {
+  font-size: 13px;
+  color: rgba(246, 246, 246, 0.72);
+}
+
+/* ---- Buttons: pills, orange for the primary one, outlined for the rest ---- */
+.dark [data-slot="button"]:not([class*="size-"]) {
+  min-height: 40px;
+  padding-inline: 18px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.dark [data-slot="button"]:not([class*="size-"]):is([class*="h-6"], [class*="h-7"], [class*="h-8"]) {
+  min-height: 34px;
+  padding-inline: 14px;
+  font-size: 13px;
+}
 .dark [data-slot="button"] {
   border-radius: 9999px;
+}
+.dark [data-slot="button"].bg-primary {
+  background-color: #fa5f05;
+  border-color: #fa5f05;
+  color: #0b0c0d;
+  font-weight: 700;
+}
+.dark [data-slot="button"].bg-primary:hover {
+  background-color: #fdb78f;
+  border-color: #fdb78f;
+}
+.dark [data-slot="button"]:is(.border-input, .bg-secondary, [class*="hover:bg-muted"]):not(.bg-primary):not([class*="bg-destructive"]) {
+  background-color: transparent;
+  border-color: rgba(246, 246, 246, 0.22);
+  color: #ffffff;
+}
+.dark [data-slot="button"]:is(.border-input, .bg-secondary):not(.bg-primary):hover {
+  border-color: #fdb78f;
+  background-color: transparent;
+}
+.dark [data-slot="button"][class*="bg-destructive"],
+.dark [data-slot="button"].text-destructive {
+  background-color: transparent;
+  color: #fdb78f;
+  border-color: rgba(253, 183, 143, 0.4);
+}
+
+/* ---- Fields ---- */
+.dark [data-slot="label"] {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  color: rgba(246, 246, 246, 0.86);
+}
+.dark [data-slot="input"]:not([class*="h-7"]):not([class*="h-8"]),
+.dark [data-slot="select-trigger"]:not([data-size="sm"]):not([class*="h-7"]):not([class*="h-8"]) {
+  min-height: 46px;
+  padding-inline: 14px;
+  font-size: 15px;
 }
 .dark [data-slot="input"],
 .dark [data-slot="textarea"],
 .dark [data-slot="select-trigger"] {
-  border-radius: 0.75rem;
-  background-color: var(--background);
-}
-.dark [data-slot="card"],
-.dark [data-slot="dialog-content"],
-.dark [data-slot="popover-content"] {
-  border-color: var(--border);
-}
-.dark [data-slot="card"] {
-  border-radius: 1rem;
-  box-shadow: none;
-}
-.dark [data-slot="dialog-content"] {
-  border-radius: 1.5rem;
-  box-shadow: 0 40px 120px rgba(0, 0, 0, 0.6);
-}
-.dark [data-slot="dialog-overlay"] {
-  background-color: rgba(0, 0, 0, 0.6);
-}
-/* The default badge is a filled primary; in dark it reads as an azure pill so orange stays rare. */
-.dark [data-slot="badge"].bg-primary {
-  background-color: var(--azure);
+  border: 1px solid rgba(246, 246, 246, 0.18);
+  border-radius: 12px;
+  background-color: #0b0c0d;
   color: #ffffff;
 }
-.dark :focus-visible {
-  outline-color: var(--ring);
+.dark [data-slot="textarea"] {
+  min-height: 92px;
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 21px;
+}
+.dark [data-slot="input"]::placeholder,
+.dark [data-slot="textarea"]::placeholder {
+  color: rgba(246, 246, 246, 0.5);
+}
+.dark [data-slot="input"]:focus-visible,
+.dark [data-slot="textarea"]:focus-visible,
+.dark [data-slot="select-trigger"]:focus-visible {
+  outline: 2px solid #fdb78f;
+  outline-offset: 2px;
+  border-color: rgba(246, 246, 246, 0.18);
+  box-shadow: none;
+}
+.dark [data-slot="checkbox"] {
+  border-color: rgba(246, 246, 246, 0.5);
+  background-color: #0b0c0d;
+  border-radius: 6px;
+}
+.dark [data-slot="checkbox"][data-state="checked"] {
+  background-color: #fa5f05;
+  border-color: #fa5f05;
+  color: #0b0c0d;
 }
 
-/* ---- App chrome ---- */
-.dark aside {
-  border-right: 1px solid var(--border);
+/* ---- Tabs: a bordered pill; the selected one is the orange "you are here" ---- */
+.dark [data-slot="tabs-list"] {
+  height: auto;
+  padding: 4px;
+  gap: 2px;
+  border-radius: 9999px;
+  background-color: #121315;
+  border: 1px solid rgba(246, 246, 246, 0.1);
 }
-.dark .bg-\[\#111318\] {
-  background-color: #08090a;
+.dark [data-slot="tabs-trigger"] {
+  min-height: 36px;
+  padding-inline: 16px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(246, 246, 246, 0.72);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.dark [data-slot="tabs-trigger"]:hover {
+  color: #fdb78f;
+}
+.dark [data-slot="tabs-trigger"][data-state="active"] {
+  background-color: #fa5f05;
+  color: #0b0c0d;
+  font-weight: 700;
+}
+.dark [data-slot="tabs-trigger"]::after {
+  display: none;
 }
 
-/* ---- Light surfaces hard-coded in components ---- */
-.dark .bg-white {
-  background-color: var(--card);
+/* ---- Badges become chips ---- */
+.dark [data-slot="badge"] {
+  height: auto;
+  min-height: 24px;
+  padding: 0 10px;
+  border: 0;
+  font-size: 12px;
+  font-weight: 600;
 }
-.dark .border-white {
-  border-color: var(--border);
+.dark [data-slot="badge"].border-border {
+  background-color: rgba(250, 95, 5, 0.16);
+  color: #fdb78f;
+}
+.dark [data-slot="badge"].bg-secondary {
+  background-color: #333f48;
+  color: #f6f6f6;
+}
+.dark [data-slot="badge"][class*="bg-green"] {
+  background-color: var(--done-bg);
+  color: var(--done-text);
+}
+.dark [data-slot="badge"][class*="bg-amber"],
+.dark [data-slot="badge"][class*="bg-destructive"] {
+  background-color: rgba(250, 95, 5, 0.18);
+  color: #fdb78f;
+}
+
+/* ---- Tables ---- */
+.dark [data-slot="table-head"] {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(246, 246, 246, 0.78);
+}
+.dark [data-slot="table-row"] {
+  border-color: rgba(246, 246, 246, 0.08);
+}
+.dark [data-slot="table-cell"] {
+  font-size: 14px;
+}
+
+/* ---- Overlays ---- */
+.dark [data-slot="dialog-content"] {
+  background-color: #121315;
+  border: 1px solid rgba(246, 246, 246, 0.14);
+  border-radius: 26px;
+  padding: 28px;
+}
+.dark [data-slot="popover-content"],
+.dark [data-slot="dropdown-menu-content"],
+.dark [data-slot="select-content"] {
+  background-color: #121315;
+  border: 1px solid rgba(246, 246, 246, 0.14);
+  border-radius: 14px;
+}
+.dark [data-slot="dropdown-menu-item"]:focus,
+.dark [data-slot="select-item"]:focus {
+  background-color: rgba(250, 95, 5, 0.14);
+  color: #fdb78f;
+}
+
+/* ---- Page titles ---- */
+.dark main h1 {
+  font-size: clamp(26px, 6vw, 34px);
+  line-height: 1.18;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+.dark [data-lenders-title]::after {
+  content: ".";
+  color: #fa5f05;
+}
+.dark [data-lenders-title] {
+  font-size: clamp(34px, 8vw, 48px);
+  line-height: 1.17;
+}
+
+/* ---- Collapsible sections (deal overview, term sheets) ---- */
+.dark details[data-acc] {
+  border-radius: 16px;
+  border: 1px solid rgba(246, 246, 246, 0.1);
+  background-color: #0b0c0d;
+}
+.dark details[data-acc] > summary {
+  min-height: 56px;
+  padding: 8px 18px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.dark details[data-acc] > div {
+  border-top: 1px solid rgba(246, 246, 246, 0.08);
+}
+
+/* ---- App chrome: sidebar, top bar, floating compose button ---- */
+.dark aside[class*="fixed"],
+.dark [data-slot="sheet-content"][class*="bg-"] {
+  background-color: #060607;
+  border-right: 1px solid rgba(246, 246, 246, 0.07);
+}
+.dark [data-sb="brand"] {
+  border-color: transparent;
+  padding-top: 24px;
+  padding-bottom: 8px;
+}
+.dark [data-sb="nav"] {
+  padding: 12px 16px;
+}
+.dark [data-sb="item"] {
+  min-height: 44px;
+  padding-inline: 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(246, 246, 246, 0.72);
+  background: transparent;
+}
+.dark [data-sb="item"]:hover {
+  color: #fdb78f;
+  background: transparent;
+}
+.dark [data-sb="item"][data-active="true"] {
+  background-color: rgba(250, 95, 5, 0.14);
+  color: #fa5f05;
+  font-weight: 600;
+}
+.dark [data-sb="footer"] {
+  border-color: transparent;
+  padding: 12px 16px 20px;
+}
+.dark [data-sb="user"] {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  background-color: #333f48;
+}
+.dark [data-sb="user"] [data-slot="avatar"] {
+  width: 40px;
+  height: 40px;
+}
+.dark [data-sb="user"] [data-slot="avatar-fallback"] {
+  background: linear-gradient(135deg, #bc4704, #fa5f05 60%, #fdb78f);
+  color: #0b0c0d;
+  font-weight: 800;
+}
+.dark [data-sb="user"] p:last-of-type {
+  color: rgba(246, 246, 246, 0.8);
+}
+.dark main > div:first-child[class*="sticky"] {
+  height: 72px;
+  background-color: rgba(11, 12, 13, 0.9);
+  border-bottom: 1px solid rgba(246, 246, 246, 0.07);
+}
+.dark main > div:first-child[class*="sticky"] [data-slot="button"][class*="size-"],
+.dark main > div:first-child[class*="sticky"] [data-slot="popover-trigger"] {
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(246, 246, 246, 0.14);
+  background-color: #121315;
+  color: rgba(246, 246, 246, 0.86);
 }
 
 /* Soft status tints (warnings, successes, errors, info) re-drawn for a dark ground */
@@ -254,18 +520,6 @@ html.dark,
   color: var(--primary-foreground);
 }
 
-/* ---- Sidebar: active item is an orange-tinted pill ---- */
-.dark aside .bg-white\/10,
-.dark [data-slot="sheet-content"] .bg-white\/10 {
-  background-color: var(--brand-tint);
-}
-.dark aside .bg-white\/10,
-.dark aside .bg-white\/10 *,
-.dark [data-slot="sheet-content"] .bg-white\/10,
-.dark [data-slot="sheet-content"] .bg-white\/10 * {
-  color: var(--brand-light);
-}
-
 /* ---- Email previews are drawn on white: that's how the recipient sees them ---- */
 .dark div[style*="font-family:Arial"] {
   background-color: #ffffff;
@@ -276,4 +530,10 @@ html.dark,
 /* ---- Charts and progress bars: orange fills (they were white at 70%) ---- */
 .dark .bg-foreground\/70 {
   background-color: var(--primary);
+}
+
+/* ---- Deal header title ---- */
+.dark .group\/hdr h1 {
+  font-size: clamp(22px, 5vw, 32px);
+  line-height: 1.25;
 }

@@ -819,6 +819,8 @@ export interface PipelineAgingRow {
   stage: string;
   daysInStage: number;
   expectedDays: number;
+  loanCategory: string;
+  loanAmountRequested: number;
 }
 
 /**
@@ -862,6 +864,8 @@ function buildPipelineAging(dealsData: DealWithRelations[]): PipelineAgingRow[] 
         stage: deal.stage,
         daysInStage,
         expectedDays,
+        loanCategory: deal.loanCategory,
+        loanAmountRequested: Number(deal.loanAmountRequested) || 0,
       });
     }
   }
