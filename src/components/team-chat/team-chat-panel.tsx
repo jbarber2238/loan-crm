@@ -203,6 +203,7 @@ function Composer({
           value={text}
           rows={1}
           autoFocus={autoFocus}
+          data-chat-phone={phone ? "" : undefined}
           placeholder={placeholder}
           onChange={(e) => {
             setText(e.target.value);

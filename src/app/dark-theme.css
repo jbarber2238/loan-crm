@@ -1122,3 +1122,22 @@ html.dark,
 .dark main p + [data-slot="label"] {
   margin-top: 12px;
 }
+
+/* iPhones zoom the whole page when a field under 16px is tapped; keep every field at 16px on phones and tablets. */
+@media (max-width: 1023px) {
+  .dark input:not([type="checkbox"], [type="radio"], [type="range"]),
+  .dark textarea,
+  .dark [data-slot="input"],
+  .dark [data-slot="textarea"],
+  .dark [data-slot="select-trigger"] {
+    font-size: 16px;
+  }
+}
+
+/* The full-screen phone chat's message box: a slim, round, Messenger-style field. */
+.dark [data-slot="textarea"][data-chat-phone] {
+  min-height: 40px;
+  padding: 8px 16px;
+  border-radius: 24px;
+  line-height: 22px;
+}
