@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { companySettings } from "@/server/db/schema";
+import { derivePortalTheme, normalizeHex } from "@/lib/brand-colors";
 
 export const DEFAULT_COMPANY_NAME = "[Your Company]";
 
@@ -117,4 +118,34 @@ export async function getCompanyWireInstructions(): Promise<{ fileName: string; 
     columns: { wireInstructionsFileName: true, wireInstructionsUpdatedAt: true },
   });
   return row?.wireInstructionsFileName ? { fileName: row.wireInstructionsFileName, updatedAt: row.wireInstructionsUpdatedAt } : null;
+}
+
+export type PortalBranding = {
+  headerColor: string | null;
+  accentColor: string | null;
+  palette: { hex: string; name: string | null; usage: string | null }[];
+};
+
+/** The borrower upload link's chosen colors. Both null means the standard look. */
+export async function getPortalBranding(): Promise<PortalBranding> {
+  const row = await db.query.companySettings.findFirst({
+    where: eq(companySettings.id, "default"),
+    columns: { portalHeaderColor: true, portalAccentColor: true, portalBrandPalette: true },
+  });
+  const header = normalizeHex(row?.portalHeaderColor);
+  const accent = normalizeHex(row?.portalAccentColor);
+  const both = header && accent;
+  return {
+    headerColor: both ? header : null,
+    accentColor: both ? accent : null,
+    palette: row?.portalBrandPalette ?? [],
+  };
+}
+
+/** What the public borrower pages need: the derived theme (or null for the standard look) and the logo. */
+export async function getPortalLook() {
+  const [branding, logo, name] = await Promise.all([getPortalBranding(), getCompanyLogo(), getCompanyName()]);
+  const theme =
+    branding.headerColor && branding.accentColor ? derivePortalTheme(branding.headerColor, branding.accentColor) : null;
+  return { theme, logo, companyName: name };
 }

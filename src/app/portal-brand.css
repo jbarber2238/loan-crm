@@ -1,0 +1,44 @@
+/*
+ * Borrower upload link: company colors. Everything here sits under [data-branded], which the
+ * page only sets when the company has chosen its two colors; without it the portal keeps its
+ * standard look. The --bp-* variables come from src/lib/brand-colors.ts.
+ */
+[data-branded] .bp-header {
+  background-color: var(--bp-head);
+  color: var(--bp-head-text);
+}
+[data-branded] .bp-header .bp-muted {
+  color: var(--bp-head-text);
+  opacity: 0.78;
+}
+[data-branded] .bp-stage {
+  color: var(--bp-head-text);
+  background-color: var(--bp-up);
+}
+[data-branded] .bp-stage[data-state="reached"] {
+  background-color: var(--bp-accent);
+  color: var(--bp-on);
+}
+[data-branded] .bp-stage[data-state="current"] {
+  background-color: var(--bp-soft);
+  color: var(--bp-on);
+}
+[data-branded] .bp-fill {
+  background-color: var(--bp-accent);
+}
+[data-branded] .bp-primary {
+  background-color: var(--bp-accent);
+  border-color: var(--bp-accent);
+  color: var(--bp-on);
+  border-radius: 9999px;
+  font-weight: 700;
+}
+[data-branded] .bp-primary:hover:not(:disabled) {
+  background-color: var(--bp-soft);
+  border-color: var(--bp-soft);
+  color: var(--bp-on);
+}
+[data-branded] .bp-tag {
+  background-color: var(--bp-tint);
+  color: var(--bp-ink);
+}

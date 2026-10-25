@@ -3,10 +3,13 @@ import { getDealForBorrowerUpload } from "@/server/actions/borrower-upload";
 import { BorrowerUploadNeedRow, AcceptedNeedRow } from "@/components/borrower-upload/borrower-upload-need-row";
 import { Card, CardContent } from "@/components/ui/card";
 import { PipelineStepper } from "@/components/deals/pipeline-stepper";
-import { getCompanyName } from "@/server/settings";
+import { getPortalLook } from "@/server/settings";
+import { PortalFrame } from "@/components/borrower-upload/portal-frame";
+import { PortalStageBar } from "@/components/borrower-upload/portal-stage-bar";
+import { TERMINAL_NEGATIVE_STAGES } from "@/lib/deal-pipeline";
 import type { BorrowerKeyDate } from "@/lib/borrower-key-dates";
 
-function ProgressBar({ completed, total }: { completed: number; total: number }) {
+function ProgressBar({ completed, total, branded }: { completed: number; total: number; branded: boolean }) {
   const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
   return (
     <div className="space-y-1.5">
@@ -18,7 +21,7 @@ function ProgressBar({ completed, total }: { completed: number; total: number })
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
         <div
-          className="h-full rounded-full bg-green-600 transition-all"
+          className={`h-full rounded-full transition-all ${branded ? "bp-fill" : "bg-green-600"}`}
           style={{ width: `${percent}%` }}
         />
       </div>
@@ -67,7 +70,7 @@ function SectionLabel({ children }: { children: ReactNode }) {
 export default async function BorrowerUploadPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const deal = await getDealForBorrowerUpload(token);
-  const companyName = await getCompanyName();
+  const { theme, logo, companyName } = await getPortalLook();
 
   if (!deal) {
     return (
@@ -112,58 +115,63 @@ export default async function BorrowerUploadPage({ params }: { params: Promise<{
         ? "Everything below has been submitted and accepted."
         : "Here's what's left to complete before we can move your loan forward.";
 
+  const muted = theme ? "bp-muted" : "text-primary-foreground/70";
+  const mutedStrong = theme ? "bp-muted" : "text-primary-foreground/80";
+
   return (
-    <div className="mx-auto max-w-3xl p-4 py-8 md:p-8">
-      <div className="overflow-hidden rounded-xl border shadow-sm">
-        <div className="bg-primary px-6 py-6 text-primary-foreground md:px-8">
-          <p className="text-xs font-semibold text-primary-foreground/70 uppercase tracking-wide">{companyName}</p>
+    <PortalFrame
+      theme={theme}
+      logo={logo}
+      companyName={companyName}
+      headerExtra={
+        <>
           {deal.showPipeline && (
             <div className="mt-4 mb-5 space-y-2">
-              <p className="text-xs font-semibold text-primary-foreground/70 uppercase tracking-wide">
-                Where your loan is
-              </p>
-              <PipelineStepper stage={deal.pipelineStage} pausedFromStage={null} onDark />
+              <p className={`text-xs font-semibold uppercase tracking-wide ${muted}`}>Where your loan is</p>
+              {theme && !TERMINAL_NEGATIVE_STAGES.has(deal.pipelineStage) ? (
+                <PortalStageBar stage={deal.pipelineStage} />
+              ) : (
+                <PipelineStepper stage={deal.pipelineStage} pausedFromStage={null} onDark />
+              )}
             </div>
           )}
           <h1 className="mt-1 text-xl font-semibold text-balance">{headline}</h1>
-          <p className="mt-1 text-sm text-primary-foreground/80">{subheadline}</p>
-          <p className="mt-3 text-xs text-primary-foreground/70">
+          <p className={`mt-1 text-sm ${mutedStrong}`}>{subheadline}</p>
+          <p className={`mt-3 text-xs ${muted}`}>
             {deal.propertyAddress} · Loan #{deal.loanNumber}
           </p>
+        </>
+      }
+    >
+      {deal.keyDates && <KeyDatesStrip items={deal.keyDates} />}
+      {total > 0 && <ProgressBar completed={acceptedNeeds.length} total={total} branded={Boolean(theme)} />}
+
+      {orderedNeeded.length > 0 && (
+        <div className="space-y-3">
+          {(submittedNeeds.length > 0 || acceptedNeeds.length > 0) && <SectionLabel>To do</SectionLabel>}
+          {orderedNeeded.map((need) => (
+            <BorrowerUploadNeedRow key={need.id} token={token} need={need} />
+          ))}
         </div>
+      )}
 
-        <div className="space-y-6 bg-card p-6 md:p-8">
-          {deal.keyDates && <KeyDatesStrip items={deal.keyDates} />}
-          {total > 0 && <ProgressBar completed={acceptedNeeds.length} total={total} />}
-
-          {orderedNeeded.length > 0 && (
-            <div className="space-y-3">
-              {(submittedNeeds.length > 0 || acceptedNeeds.length > 0) && <SectionLabel>To do</SectionLabel>}
-              {orderedNeeded.map((need) => (
-                <BorrowerUploadNeedRow key={need.id} token={token} need={need} />
-              ))}
-            </div>
-          )}
-
-          {submittedNeeds.length > 0 && (
-            <div className="space-y-3">
-              <SectionLabel>Submitted — under review</SectionLabel>
-              {submittedNeeds.map((need) => (
-                <BorrowerUploadNeedRow key={need.id} token={token} need={need} />
-              ))}
-            </div>
-          )}
-
-          {acceptedNeeds.length > 0 && (
-            <div className="space-y-2">
-              <SectionLabel>Completed</SectionLabel>
-              {acceptedNeeds.map((need) => (
-                <AcceptedNeedRow key={need.id} need={need} />
-              ))}
-            </div>
-          )}
+      {submittedNeeds.length > 0 && (
+        <div className="space-y-3">
+          <SectionLabel>Submitted — under review</SectionLabel>
+          {submittedNeeds.map((need) => (
+            <BorrowerUploadNeedRow key={need.id} token={token} need={need} />
+          ))}
         </div>
-      </div>
-    </div>
+      )}
+
+      {acceptedNeeds.length > 0 && (
+        <div className="space-y-2">
+          <SectionLabel>Completed</SectionLabel>
+          {acceptedNeeds.map((need) => (
+            <AcceptedNeedRow key={need.id} need={need} />
+          ))}
+        </div>
+      )}
+    </PortalFrame>
   );
 }

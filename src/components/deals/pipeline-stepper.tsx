@@ -6,7 +6,7 @@ import { labelFor, STAGES } from "@/lib/labels";
 // since there are 9 segments packed into one compact bar.
 const CHEVRON_DEPTH = 5;
 
-function chevronClipPath(index: number, total: number, depth = CHEVRON_DEPTH): string | undefined {
+export function chevronClipPath(index: number, total: number, depth = CHEVRON_DEPTH): string | undefined {
   const h = `${depth}px`;
   const isFirst = index === 0;
   const isLast = index === total - 1;

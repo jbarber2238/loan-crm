@@ -1,5 +1,9 @@
 import { requireAdmin } from "@/server/auth/guards";
-import { getCompanyName, getCompanyLogoFileName, getCompanyLogo, getCompanyWireInstructions } from "@/server/settings";
+import { getCompanyName, getCompanyLogoFileName, getCompanyLogo, getCompanyWireInstructions, getPortalBranding } from "@/server/settings";
+import { PortalBrandingCard } from "@/components/settings/portal-branding-card";
+import { db } from "@/server/db/client";
+import { deals } from "@/server/db/schema";
+import { isNotNull } from "drizzle-orm";
 import { updateCompanyName, updateCompanyLogo, removeCompanyLogo, updateCompanyWireInstructions, removeCompanyWireInstructions } from "@/server/actions/settings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,7 +14,18 @@ import { SubmitButton } from "@/components/forms/submit-button";
 export default async function CompanySettingsPage() {
   await requireAdmin();
   const companyName = await getCompanyName();
-  const [logoFileName, logo, wire] = await Promise.all([getCompanyLogoFileName(), getCompanyLogo(), getCompanyWireInstructions()]);
+  const [logoFileName, logo, wire, branding] = await Promise.all([
+    getCompanyLogoFileName(),
+    getCompanyLogo(),
+    getCompanyWireInstructions(),
+    getPortalBranding(),
+  ]);
+  // "Open full portal" shows a real borrower link: the newest deal that has one.
+  const sampleDeal = await db.query.deals.findFirst({
+    where: isNotNull(deals.borrowerUploadToken),
+    columns: { borrowerUploadToken: true },
+    orderBy: (d, { desc }) => desc(d.createdAt),
+  });
 
   return (
     <div className="space-y-6">
@@ -38,7 +53,7 @@ export default async function CompanySettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Shown at the top of every outgoing email — pricing requests to lenders and borrower emails alike.
+            Shown at the top of every outgoing email — pricing requests to lenders and borrower emails alike — in the CRM sidebar, and on your borrower upload link.
           </p>
           {logoFileName && logo && (
             <div className="flex items-center gap-3 rounded-md border p-3">
@@ -64,6 +79,16 @@ export default async function CompanySettingsPage() {
           </ActionForm>
         </CardContent>
       </Card>
+
+      <PortalBrandingCard
+        configured={Boolean(branding.headerColor && branding.accentColor)}
+        initialHeader={branding.headerColor}
+        initialAccent={branding.accentColor}
+        initialPalette={branding.palette}
+        logoSrc={logo?.src ?? null}
+        companyName={companyName}
+        previewHref={sampleDeal?.borrowerUploadToken ? `/borrower-upload/${sampleDeal.borrowerUploadToken}` : null}
+      />
 
       <Card>
         <CardHeader>

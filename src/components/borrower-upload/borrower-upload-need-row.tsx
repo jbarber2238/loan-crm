@@ -72,7 +72,7 @@ function QuestionnaireForm({ token, need }: { token: string; need: BorrowerUploa
         </div>
       ))}
       {error && <p className="text-xs text-destructive">{error}</p>}
-      <Button type="submit" size="sm" disabled={pending}>
+      <Button type="submit" size="sm" className="bp-primary" disabled={pending}>
         {pending ? "Submitting…" : "Submit"}
       </Button>
       {submitted && !pending && <span className="ml-2 text-xs text-muted-foreground">Received, thank you!</span>}
@@ -110,7 +110,7 @@ function PandaDocFormButton({ token, need }: { token: string; need: BorrowerUplo
   return (
     <div className="space-y-1.5">
       {!url && (
-        <Button type="button" size="sm" disabled={pending} onClick={handleClick}>
+        <Button type="button" size="sm" className="bp-primary" disabled={pending} onClick={handleClick}>
           {pending ? "Loading…" : "Fill out and sign"}
         </Button>
       )}
@@ -170,7 +170,7 @@ export function BorrowerUploadNeedRow({ token, need }: { token: string; need: Bo
             <p className="text-xs text-amber-600">Please select all {need.minFiles} files at once (e.g. front &amp; back)</p>
           )}
         </div>
-        <Badge variant={need.status === "review_needed" ? "warning" : "destructive"}>
+        <Badge variant={need.status === "review_needed" ? "warning" : "destructive"} className="bp-tag">
           {STATUS_LABEL[need.status]}
         </Badge>
       </div>
@@ -195,7 +195,7 @@ export function BorrowerUploadNeedRow({ token, need }: { token: string; need: Bo
           )}
           <div className="flex items-center gap-2">
             <input ref={inputRef} type="file" multiple className="hidden" onChange={handleChange} />
-            <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => inputRef.current?.click()}>
+            <Button type="button" size="sm" variant="outline" className="bp-primary" disabled={pending} onClick={() => inputRef.current?.click()}>
               {pending ? "Uploading…" : "Upload file(s)"}
             </Button>
             {justUploaded && !pending && <span className="text-xs text-muted-foreground">Received, thank you!</span>}
