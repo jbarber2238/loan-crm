@@ -2,6 +2,8 @@ import { requireUser } from "@/server/auth/guards";
 import { updateMyProfile } from "@/server/actions/users";
 import { getMySoundPrefs } from "@/server/actions/notifications";
 import { NotificationSoundSettings } from "@/components/settings/notification-sound-settings";
+import { AppearanceCard } from "@/components/settings/appearance-card";
+import { getMyAppearance } from "@/server/actions/appearance";
 import { getTcpaOutboundWindow, getCompanyWireInstructions } from "@/server/settings";
 import { TCPA_ABSOLUTE_START, TCPA_ABSOLUTE_END } from "@/lib/tcpa";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +22,7 @@ export default async function MyProfilePage() {
   const user = await requireUser();
   const tcpaWindow = await getTcpaOutboundWindow();
   const soundPrefs = await getMySoundPrefs();
+  const appearance = await getMyAppearance();
   const wire = await getCompanyWireInstructions();
   const outboundMin = tcpaWindow?.start.slice(0, 5) ?? TCPA_ABSOLUTE_START;
   const outboundMax = tcpaWindow?.end.slice(0, 5) ?? TCPA_ABSOLUTE_END;
@@ -202,6 +205,7 @@ export default async function MyProfilePage() {
         )}
       </CardContent>
     </Card>
+    <AppearanceCard initialTheme={appearance.theme} />
     </div>
   );
 }

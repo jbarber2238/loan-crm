@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Inter, Inter_Tight } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { getCompanyName } from "@/server/settings";
@@ -9,6 +9,11 @@ const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });
+
+// Only the dark appearance uses these two (see dark-theme.css); preload is off so the default
+// look and public pages never download them.
+const inter = Inter({ variable: "--font-inter", subsets: ["latin"], display: "swap", preload: false });
+const interTight = Inter_Tight({ variable: "--font-inter-tight", subsets: ["latin"], display: "swap", preload: false });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -43,7 +48,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} ${interTight.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-muted/30">
         <TooltipProvider>

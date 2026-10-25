@@ -1,0 +1,260 @@
+/*
+ * Dark appearance: an optional, per-user alternative to the default look. Applied by putting
+ * the `dark` class on <html> (and on the app's own wrapper for first paint) when a user turns it
+ * on under Settings > My Profile > Appearance. Light is untouched: nothing here applies without
+ * the class. Palette and rules follow the Manna design system handoff.
+ *
+ *   Onyx #0b0c0d app · #121315 raised · #17181a wells · #2b2c2e hairlines
+ *   Vivid Orange #fa5f05 is the one action color · #fdb78f for orange words on dark
+ *   Dark Azure #333f48 for pills and upcoming stages · done-green #7ddba6 on dark
+ */
+
+:root.dark,
+.dark {
+  color-scheme: dark;
+
+  --background: #0b0c0d;
+  --foreground: #ffffff;
+  --card: #121315;
+  --card-foreground: #ffffff;
+  --popover: #121315;
+  --popover-foreground: #ffffff;
+  --primary: #fa5f05;
+  --primary-foreground: #0b0c0d;
+  --secondary: #17181a;
+  --secondary-foreground: #ffffff;
+  --muted: #17181a;
+  --muted-foreground: #b4b4b3;
+  --accent: #1f2022;
+  --accent-foreground: #ffffff;
+  --destructive: #ff7b6e;
+  --border: #2b2c2e;
+  --input: #2b2c2e;
+  --ring: #fdb78f;
+  --chart-1: #fdb78f;
+  --chart-2: #fa5f05;
+  --chart-3: #a33d03;
+  --chart-4: #605d5b;
+  --chart-5: #333f48;
+  --sidebar: #08090a;
+  --sidebar-foreground: #e8e8e7;
+  --sidebar-primary: #fa5f05;
+  --sidebar-primary-foreground: #0b0c0d;
+  --sidebar-accent: #2a1a10;
+  --sidebar-accent-foreground: #fdb78f;
+  --sidebar-border: #2b2c2e;
+  --sidebar-ring: #fdb78f;
+
+  --brand: #fa5f05;
+  --brand-light: #fdb78f;
+  --brand-text: #fdb78f;
+  --brand-tint: #2a1a10;
+  --azure: #333f48;
+  --done-text: #7ddba6;
+  --done-bg: #12261b;
+  --done-border: #2f6b49;
+}
+
+/* The wrapper div paints its own ground so the first frame is never white. */
+.dark:not(html) {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+html.dark body {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+/* ---- Type: Inter for reading, Inter Tight for headings and numbers ---- */
+html.dark,
+.dark {
+  font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.dark h1,
+.dark h2,
+.dark h3,
+.dark [data-slot="card-title"],
+.dark [data-slot="dialog-title"] {
+  font-family: var(--font-inter-tight), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.015em;
+}
+.dark input,
+.dark textarea,
+.dark select,
+.dark button {
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ---- Controls: pills for buttons and tabs, softer corners on fields, hairline separation ---- */
+.dark [data-slot="button"] {
+  border-radius: 9999px;
+}
+.dark [data-slot="input"],
+.dark [data-slot="textarea"],
+.dark [data-slot="select-trigger"] {
+  border-radius: 0.75rem;
+  background-color: var(--background);
+}
+.dark [data-slot="card"],
+.dark [data-slot="dialog-content"],
+.dark [data-slot="popover-content"] {
+  border-color: var(--border);
+}
+.dark [data-slot="card"] {
+  border-radius: 1rem;
+  box-shadow: none;
+}
+.dark [data-slot="dialog-content"] {
+  border-radius: 1.5rem;
+  box-shadow: 0 40px 120px rgba(0, 0, 0, 0.6);
+}
+.dark [data-slot="dialog-overlay"] {
+  background-color: rgba(0, 0, 0, 0.6);
+}
+/* The default badge is a filled primary; in dark it reads as an azure pill so orange stays rare. */
+.dark [data-slot="badge"].bg-primary {
+  background-color: var(--azure);
+  color: #ffffff;
+}
+.dark :focus-visible {
+  outline-color: var(--ring);
+}
+
+/* ---- App chrome ---- */
+.dark aside {
+  border-right: 1px solid var(--border);
+}
+.dark .bg-\[\#111318\] {
+  background-color: #08090a;
+}
+
+/* ---- Light surfaces hard-coded in components ---- */
+.dark .bg-white {
+  background-color: var(--card);
+}
+.dark .border-white {
+  border-color: var(--border);
+}
+
+/* Soft status tints (warnings, successes, errors, info) re-drawn for a dark ground */
+.dark .bg-amber-50,
+.dark .bg-amber-100 {
+  background-color: #2a200e;
+}
+.dark .text-amber-900,
+.dark .text-amber-950,
+.dark .text-amber-800,
+.dark .text-amber-700,
+.dark .text-amber-900\/80,
+.dark .text-amber-800\/80 {
+  color: #f1c27d;
+}
+.dark .text-amber-600 {
+  color: #f5b35a;
+}
+.dark .border-amber-200,
+.dark .border-amber-300,
+.dark .border-amber-400 {
+  border-color: #5c4318;
+}
+
+.dark .bg-green-50,
+.dark .bg-emerald-100 {
+  background-color: var(--done-bg);
+}
+.dark .text-green-600,
+.dark .text-green-700,
+.dark .text-green-800,
+.dark .text-emerald-700 {
+  color: var(--done-text);
+}
+.dark .border-green-200 {
+  border-color: var(--done-border);
+}
+
+.dark .bg-red-50 {
+  background-color: #2a1313;
+}
+.dark .text-red-600,
+.dark .text-red-800 {
+  color: #ff8f84;
+}
+.dark .border-red-200 {
+  border-color: #5c2323;
+}
+
+.dark .bg-blue-100 {
+  background-color: #12202e;
+}
+.dark .text-blue-700 {
+  color: #8fbaf3;
+}
+.dark .bg-violet-100 {
+  background-color: #1d1530;
+}
+.dark .text-violet-700 {
+  color: #c7b8fb;
+}
+.dark .bg-cyan-100 {
+  background-color: #0f2328;
+}
+.dark .text-cyan-700 {
+  color: #7fd3e0;
+}
+.dark .bg-orange-100 {
+  background-color: var(--brand-tint);
+}
+.dark .text-orange-700 {
+  color: var(--brand-light);
+}
+
+/* ---- Pipeline "Open pipeline value" banner: black into orange ---- */
+.dark [data-pipeline-banner] {
+  background-image: linear-gradient(100deg, #0b0c0d 0%, #4a1f05 38%, #fa5f05 78%, #fdb78f 100%);
+  background-color: #0b0c0d;
+  color: #ffffff;
+  border: 1px solid var(--border);
+}
+
+/* ---- Show the dark-only drawing of a component and hide its light twin ---- */
+.theme-dark-only {
+  display: none;
+}
+.dark .theme-dark-only {
+  display: block;
+}
+.dark .theme-dark-only.flex {
+  display: flex;
+}
+.dark .theme-light-only {
+  display: none;
+}
+
+/* ---- Selected chips and tabs read as the orange "you are here" ---- */
+.dark .bg-foreground {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+.dark .text-background {
+  color: var(--primary-foreground);
+}
+
+/* ---- Sidebar: active item is an orange-tinted pill ---- */
+.dark aside .bg-white\/10,
+.dark [data-slot="sheet-content"] .bg-white\/10 {
+  background-color: var(--brand-tint);
+}
+.dark aside .bg-white\/10,
+.dark aside .bg-white\/10 *,
+.dark [data-slot="sheet-content"] .bg-white\/10,
+.dark [data-slot="sheet-content"] .bg-white\/10 * {
+  color: var(--brand-light);
+}
+
+/* ---- Email previews are drawn on white: that's how the recipient sees them ---- */
+.dark div[style*="font-family:Arial"] {
+  background-color: #ffffff;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+}

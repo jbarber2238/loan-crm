@@ -7,6 +7,9 @@ import { TopBar } from "@/components/layout/top-bar";
 import { ChatDockProvider } from "@/components/messaging/chat-dock-context";
 import { ChatDockRoot } from "@/components/messaging/chat-dock-root";
 import { MobileNavProvider } from "@/components/layout/mobile-nav";
+import { getMyAppearance } from "@/server/actions/appearance";
+import { ThemeSync } from "@/components/appearance/theme-sync";
+import { DarkModeWelcome } from "@/components/appearance/dark-mode-welcome";
 
 // The staff app only (not the public site): lets "Add to Home Screen" on an iPhone or iPad
 // install it like an app, with its own name, icon and no browser bar.
@@ -38,12 +41,15 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     redirect("/onboarding");
   }
 
-  const [companyName, logo] = await Promise.all([getCompanyName(), getCompanyLogo()]);
+  const [companyName, logo, appearance] = await Promise.all([getCompanyName(), getCompanyLogo(), getMyAppearance()]);
+  const firstName = session.user.name?.split(" ")[0] ?? "there";
 
   return (
     <ChatDockProvider>
       <MobileNavProvider>
-      <div>
+      <ThemeSync theme={appearance.theme} />
+      {!appearance.welcomeSeen && <DarkModeWelcome firstName={firstName} />}
+      <div className={appearance.theme === "dark" ? "dark" : undefined}>
         <AppSidebar user={session.user} companyName={companyName} logo={logo} />
         <main className="min-h-screen lg:ml-60">
           <TopBar />

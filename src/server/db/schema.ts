@@ -235,6 +235,10 @@ export const users = pgTable("user", {
   soundChat: boolean("sound_chat").notNull().default(true),
   soundTexts: boolean("sound_texts").notNull().default(true),
   soundNotifications: boolean("sound_notifications").notNull().default(true),
+  // Appearance (My Profile): 'light' is today's look; 'dark' is the optional alternative theme.
+  // dark_mode_welcome_seen_at is set once the one-time "try dark mode" dialog has been dealt with.
+  uiTheme: text("ui_theme").notNull().default("light"),
+  darkModeWelcomeSeenAt: timestamp("dark_mode_welcome_seen_at", { mode: "date" }),
   inboundHoursStart: time("inbound_hours_start"),
   inboundHoursEnd: time("inbound_hours_end"),
   outboundHoursStart: time("outbound_hours_start"),

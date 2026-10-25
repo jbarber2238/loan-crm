@@ -307,7 +307,7 @@ function Column({
 function OpenPipelineBanner({ deals }: { deals: BoardDeal[] }) {
   const { value, loanVolume, dealCount } = summarizeOpenPipeline(deals);
   return (
-    <div className="mb-4 flex flex-wrap items-end justify-between gap-x-8 gap-y-3 rounded-xl bg-primary px-4 py-4 text-primary-foreground shadow-sm sm:px-6 sm:py-5">
+    <div data-pipeline-banner className="mb-4 flex flex-wrap items-end justify-between gap-x-8 gap-y-3 rounded-xl bg-primary px-4 py-4 text-primary-foreground shadow-sm sm:px-6 sm:py-5">
       <div>
         <p className="text-xs font-semibold uppercase tracking-widest text-primary-foreground/70">
           Open Pipeline Value
