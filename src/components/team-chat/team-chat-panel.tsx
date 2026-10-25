@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { FileText, MessageSquare, Mic, Paperclip, Square, X } from "lucide-react";
+import { ArrowUp, ChevronLeft, FileText, MessageSquare, Mic, Paperclip, Square, X } from "lucide-react";
 import {
   getRoomState,
   markRoomRead,
@@ -16,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useVoiceRecorder, type VoiceClip } from "@/components/messaging/use-voice-recorder";
 import { RoomMembersDialog } from "@/components/team-chat/room-members-dialog";
+import { useLoanCenterNav } from "@/components/deals/loan-center-nav-context";
 import { cn } from "@/lib/utils";
 import { GLOBAL_CHAT_CHANNEL, getRealtimeClient, roomChannelName } from "@/lib/realtime";
 
@@ -24,6 +27,48 @@ import { GLOBAL_CHAT_CHANNEL, getRealtimeClient, roomChannelName } from "@/lib/r
 const POLL_LIVE_MS = 30_000;
 const POLL_FALLBACK_MS = 4_000;
 const TYPING_TTL_MS = 4_000;
+
+
+// ---- Phone: the chat takes the whole screen, like Messenger -------------------------------------
+
+function subscribePhone(callback: () => void) {
+  const mq = window.matchMedia("(max-width: 1023px)");
+  mq.addEventListener("change", callback);
+  return () => mq.removeEventListener("change", callback);
+}
+/** True below the laptop breakpoint. */
+function useIsPhone(): boolean {
+  return useSyncExternalStore(
+    subscribePhone,
+    () => window.matchMedia("(max-width: 1023px)").matches,
+    () => false
+  );
+}
+
+function subscribeViewport(callback: () => void) {
+  const vv = window.visualViewport;
+  window.addEventListener("resize", callback);
+  vv?.addEventListener("resize", callback);
+  vv?.addEventListener("scroll", callback);
+  return () => {
+    window.removeEventListener("resize", callback);
+    vv?.removeEventListener("resize", callback);
+    vv?.removeEventListener("scroll", callback);
+  };
+}
+/** The part of the screen that's actually visible (shrinks when the keyboard opens), as "top|height". */
+function useVisibleBox(): { top: number; height: number } {
+  const raw = useSyncExternalStore(
+    subscribeViewport,
+    () => {
+      const vv = window.visualViewport;
+      return vv ? `${Math.round(vv.offsetTop)}|${Math.round(vv.height)}` : `0|${window.innerHeight}`;
+    },
+    () => "0|0"
+  );
+  const [top, height] = raw.split("|").map(Number);
+  return { top, height };
+}
 
 function timeLabel(iso: string): string {
   const d = new Date(iso);
@@ -47,11 +92,14 @@ function Composer({
   onSend,
   onTyping,
   autoFocus,
+  phone,
 }: {
   placeholder: string;
   onSend: (message: OutgoingMessage) => Promise<void>;
   onTyping?: () => void;
   autoFocus?: boolean;
+  /** Messenger-style: round text field, send arrow. */
+  phone?: boolean;
 }) {
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -166,11 +214,24 @@ function Composer({
               submit();
             }
           }}
-          className="min-h-9 resize-none"
+          className={cn("min-h-9 resize-none", phone && "max-h-32 min-h-10 rounded-3xl px-4 py-2")}
         />
-        <Button type="button" size="sm" disabled={pending || voice.recording || !canSend} onClick={submit}>
-          {pending ? "Sending…" : "Send"}
-        </Button>
+        {phone ? (
+          <Button
+            type="button"
+            size="icon"
+            className="size-10 shrink-0 rounded-full"
+            aria-label="Send"
+            disabled={pending || voice.recording || !canSend}
+            onClick={submit}
+          >
+            <ArrowUp className="size-5" />
+          </Button>
+        ) : (
+          <Button type="button" size="sm" disabled={pending || voice.recording || !canSend} onClick={submit}>
+            {pending ? "Sending…" : "Send"}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -222,7 +283,34 @@ function Attachments({ items }: { items: ChatAttachment[] }) {
   );
 }
 
-function MessageRow({ m, mine, compact }: { m: ChatMessage; mine: boolean; compact?: boolean }) {
+function MessageRow({ m, mine, compact, bubble }: { m: ChatMessage; mine: boolean; compact?: boolean; bubble?: boolean }) {
+  if (bubble) {
+    return (
+      <div className={cn("flex items-end gap-2", mine && "flex-row-reverse")}>
+        {!mine && (
+          <Avatar className="size-7 shrink-0">
+            <AvatarImage src={m.authorImage ?? undefined} alt="" />
+            <AvatarFallback>{m.authorName[0] ?? "?"}</AvatarFallback>
+          </Avatar>
+        )}
+        <div className={cn("flex min-w-0 max-w-[80%] flex-col", mine ? "items-end" : "items-start")}>
+          {!mine && <p className="mb-0.5 px-1 text-[11px] text-muted-foreground">{m.authorName}</p>}
+          {m.body && (
+            <p
+              className={cn(
+                "rounded-2xl px-3.5 py-2 text-[15px] whitespace-pre-wrap break-words",
+                mine ? "bg-primary text-primary-foreground" : "bg-muted"
+              )}
+            >
+              {m.body}
+            </p>
+          )}
+          <Attachments items={m.attachments} />
+          <p className="mt-0.5 px-1 text-[10px] text-muted-foreground">{timeLabel(m.createdAt)}</p>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className={cn("flex gap-2.5", compact && "gap-2")}>
       <Avatar className={compact ? "size-6" : "size-8"}>
@@ -249,11 +337,21 @@ export function TeamChatPanel({
   roomId,
   heightClass = "h-[calc(100dvh-10rem)] min-h-[320px] lg:h-[560px]",
   showMembers = true,
+  phoneTitle = "Team chat",
+  backHref,
 }: {
   roomId: string;
   heightClass?: string;
   showMembers?: boolean;
+  /** Shown in the full-screen header on a phone. */
+  phoneTitle?: string;
+  /** Where the phone's back arrow goes; inside the Loan Center it returns to that page's first section instead. */
+  backHref?: string;
 }) {
+  const router = useRouter();
+  const loanCenter = useLoanCenterNav();
+  const isPhone = useIsPhone();
+  const box = useVisibleBox();
   const [state, setState] = useState<ChatRoomState | null>(null);
   const [openThread, setOpenThread] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -345,6 +443,21 @@ export function TeamChatPanel({
     }
   }, [state]);
 
+  // On a phone the chat owns the screen: freeze the page behind it, and keep the newest message in view
+  // when the keyboard opens or closes.
+  useEffect(() => {
+    if (!isPhone) return;
+    const html = document.documentElement;
+    const previous = html.style.overflow;
+    html.style.overflow = "hidden";
+    return () => {
+      html.style.overflow = previous;
+    };
+  }, [isPhone]);
+  useEffect(() => {
+    if (isPhone) bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [isPhone, box.height]);
+
   const typingNames = Object.values(typing).map((t) => t.name.split(" ")[0]);
 
   // "Seen by": everyone else whose read marker is at/after my latest top-level message.
@@ -392,7 +505,105 @@ export function TeamChatPanel({
     void channelRef.current?.send({ type: "broadcast", event: "typing", payload: { userId: state.currentUserId, name: me } });
   }
 
-  if (!state) return <div className={cn("flex items-center justify-center text-sm text-muted-foreground", heightClass)}>Loading chat…</div>;
+  if (!state && !isPhone) return <div className={cn("flex items-center justify-center text-sm text-muted-foreground", heightClass)}>Loading chat…</div>;
+
+  const goBack = () => {
+    if (loanCenter) loanCenter.goToTab("client-needs");
+    else if (backHref) router.push(backHref);
+    else router.back();
+  };
+
+  const messageList = state ? (
+    <>
+      {topLevel.length === 0 && (
+        <div className="flex h-full flex-col items-center justify-center gap-1 text-center text-sm text-muted-foreground">
+          <MessageSquare className="size-6" />
+          No messages yet. Say something to the team.
+        </div>
+      )}
+      {topLevel.map((m) => {
+        const thread = replies.get(m.id) ?? [];
+        const isOpen = openThread === m.id;
+        const mine = m.userId === state.currentUserId;
+        return (
+          <div key={m.id} className="space-y-2">
+            <MessageRow m={m} mine={mine} bubble={isPhone} />
+            <div className={cn(isPhone ? (mine ? "pr-1 text-right" : "pl-9") : "pl-10")}>
+              <button
+                type="button"
+                className="text-xs text-primary hover:underline"
+                onClick={() => setOpenThread(isOpen ? null : m.id)}
+              >
+                {thread.length > 0 ? `${thread.length} ${thread.length === 1 ? "reply" : "replies"}` : "Reply"}
+              </button>
+              {(isOpen || thread.length > 0) && (
+                <div className={cn("mt-2 space-y-2 border-l-2 pl-3 text-left", isPhone && mine && "ml-auto max-w-[85%]")}>
+                  {thread.map((r) => (
+                    <MessageRow key={r.id} m={r} mine={r.userId === state.currentUserId} compact bubble={isPhone} />
+                  ))}
+                  {isOpen && <Composer placeholder="Reply in thread…" autoFocus phone={isPhone} onSend={(msg) => send(msg, m.id)} onTyping={announceTyping} />}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+      {seenBy.length > 0 && <p className="text-right text-[11px] text-muted-foreground">Seen by {seenBy.join(", ")}</p>}
+      <div ref={bottomRef} />
+    </>
+  ) : (
+    <p className="py-10 text-center text-sm text-muted-foreground">Loading chat…</p>
+  );
+
+  const composerArea = (
+    <>
+      {typingNames.length > 0 && (
+        <p className="mb-1.5 text-xs text-muted-foreground">
+          {typingNames.join(", ")} {typingNames.length === 1 ? "is" : "are"} typing…
+        </p>
+      )}
+      <Composer
+        placeholder={isPhone ? "Message the team" : "Message the team (internal only — clients never see this)"}
+        phone={isPhone}
+        onSend={(msg) => send(msg)}
+        onTyping={announceTyping}
+      />
+    </>
+  );
+
+  // Phone: a full-screen conversation like Messenger. A header with a back arrow, messages that scroll
+  // on their own, and the message box pinned to the bottom (riding above the keyboard when it's open).
+  if (isPhone) {
+    const keyboardOpen = typeof window !== "undefined" && box.height > 0 && box.height < window.innerHeight - 120;
+    return (
+      <div
+        data-team-chat-phone
+        className="fixed inset-x-0 z-[60] flex flex-col bg-background"
+        style={box.height > 0 ? { top: box.top, height: box.height } : { top: 0, bottom: 0 }}
+      >
+        <div className="flex shrink-0 items-center gap-1 border-b px-2 py-2">
+          {backHref && !loanCenter ? (
+            <Link href={backHref} aria-label="Back" className="flex size-10 items-center justify-center rounded-full hover:bg-muted">
+              <ChevronLeft className="size-6" />
+            </Link>
+          ) : (
+            <button type="button" aria-label="Back" onClick={goBack} className="flex size-10 items-center justify-center rounded-full hover:bg-muted">
+              <ChevronLeft className="size-6" />
+            </button>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-base leading-tight font-semibold">{phoneTitle}</p>
+            <p className="text-[11px] text-muted-foreground">Internal only. Clients never see this.</p>
+          </div>
+          {showMembers && <RoomMembersDialog roomId={roomId} />}
+        </div>
+        <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-3">{messageList}</div>
+        <div className={cn("shrink-0 border-t px-3 pt-2", keyboardOpen ? "pb-2" : "pb-[max(env(safe-area-inset-bottom),0.75rem)]")}>
+          {composerArea}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("flex flex-col rounded-md border", heightClass)}>
@@ -401,54 +612,8 @@ export function TeamChatPanel({
           <RoomMembersDialog roomId={roomId} />
         </div>
       )}
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
-        {topLevel.length === 0 && (
-          <div className="flex h-full flex-col items-center justify-center gap-1 text-center text-sm text-muted-foreground">
-            <MessageSquare className="size-6" />
-            No messages yet. Say something to the team.
-          </div>
-        )}
-        {topLevel.map((m) => {
-          const thread = replies.get(m.id) ?? [];
-          const isOpen = openThread === m.id;
-          return (
-            <div key={m.id} className="space-y-2">
-              <MessageRow m={m} mine={m.userId === state.currentUserId} />
-              <div className="pl-10">
-                <button
-                  type="button"
-                  className="text-xs text-primary hover:underline"
-                  onClick={() => setOpenThread(isOpen ? null : m.id)}
-                >
-                  {thread.length > 0 ? `${thread.length} ${thread.length === 1 ? "reply" : "replies"}` : "Reply"}
-                </button>
-                {(isOpen || thread.length > 0) && (
-                  <div className="mt-2 space-y-2 border-l-2 pl-3">
-                    {thread.map((r) => (
-                      <MessageRow key={r.id} m={r} mine={r.userId === state.currentUserId} compact />
-                    ))}
-                    {isOpen && <Composer placeholder="Reply in thread…" autoFocus onSend={(msg) => send(msg, m.id)} onTyping={announceTyping} />}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-        {seenBy.length > 0 && <p className="text-right text-[11px] text-muted-foreground">Seen by {seenBy.join(", ")}</p>}
-        <div ref={bottomRef} />
-      </div>
-      <div className="border-t p-3">
-        {typingNames.length > 0 && (
-          <p className="mb-1.5 text-xs text-muted-foreground">
-            {typingNames.join(", ")} {typingNames.length === 1 ? "is" : "are"} typing…
-          </p>
-        )}
-        <Composer
-          placeholder="Message the team (internal only — clients never see this)"
-          onSend={(msg) => send(msg)}
-          onTyping={announceTyping}
-        />
-      </div>
+      <div className="flex-1 space-y-4 overflow-y-auto p-4">{messageList}</div>
+      <div className="border-t p-3">{composerArea}</div>
     </div>
   );
 }

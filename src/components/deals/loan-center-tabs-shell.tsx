@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
+import { LoanCenterNavContext } from "@/components/deals/loan-center-nav-context";
 import { cn } from "@/lib/utils";
 
 type TabItem = { value: string; label: string; short: string; icon: LucideIcon };
@@ -61,6 +62,7 @@ export function LoanCenterTabsShell({ initialTab, children }: { initialTab?: str
   const moreActive = MORE.some((t) => t.value === tab);
 
   return (
+    <LoanCenterNavContext.Provider value={{ goToTab: select }}>
     <Tabs value={tab} onValueChange={select} className="pb-28 lg:pb-0">
       <TabsList className="max-w-full justify-start overflow-x-auto max-lg:hidden [&>button]:shrink-0">
         {TABS.map((t) => (
@@ -110,6 +112,7 @@ export function LoanCenterTabsShell({ initialTab, children }: { initialTab?: str
         </SheetContent>
       </Sheet>
     </Tabs>
+    </LoanCenterNavContext.Provider>
   );
 }
 

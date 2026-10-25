@@ -75,6 +75,8 @@ export default async function TeamChatPage({ searchParams }: { searchParams: Pro
             key={activeId}
             roomId={activeId}
             showMembers={active?.kind !== "general"}
+            phoneTitle={active?.title ?? "General"}
+            backHref="/team-chat"
             heightClass="h-[calc(100dvh-13rem)] min-h-[360px] md:h-[calc(100vh-14rem)] md:min-h-[420px]"
           />
         </div>

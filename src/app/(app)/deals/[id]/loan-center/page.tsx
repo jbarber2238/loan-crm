@@ -86,7 +86,7 @@ export default async function DealLoanCenterPage({
             Internal only — the borrower never sees this. Client texts live under Communications.
           </p>
           {teamChatRoomId ? (
-            <TeamChatPanel roomId={teamChatRoomId} />
+            <TeamChatPanel roomId={teamChatRoomId} phoneTitle={deal.propertyAddress} />
           ) : (
             <p className="rounded-md border p-4 text-sm text-muted-foreground">
               You&apos;re not on this deal&apos;s chat. Ask its loan officer or an admin to add you.
