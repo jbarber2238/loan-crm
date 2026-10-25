@@ -185,10 +185,10 @@ function DealCard({ deal, draggable = true }: { deal: BoardDeal; draggable?: boo
     >
       <Link href={`/deals/${deal.id}`}>
         {/* Dark appearance draws the card its own way (design board "v1 card"); CSS shows one of the two. */}
-        <article className="theme-dark-only cursor-grab rounded-2xl border border-[rgba(246,246,246,.08)] bg-[#121315] p-4 active:cursor-grabbing hover:border-[#fdb78f]/50">
+        <article className="theme-dark-only deal-card-white cursor-grab rounded-2xl border border-[#e2dfdd] bg-[#ffffff] p-4 text-[#0b0c0d] active:cursor-grabbing hover:border-[#fa5f05]">
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs tracking-[0.06em] text-[rgba(246,246,246,.72)] uppercase [font-family:var(--font-inter-tight),var(--font-inter),sans-serif]">
+              <span className="text-xs tracking-[0.06em] text-[#605d5b] uppercase [font-family:var(--font-inter-tight),var(--font-inter),sans-serif]">
                 Loan #{deal.loanNumber}
               </span>
               <DealCardMenu deal={deal} />
@@ -205,18 +205,18 @@ function DealCard({ deal, draggable = true }: { deal: BoardDeal; draggable?: boo
             )}
             <div>
               <h3 className="text-base leading-[22px] font-semibold">{deal.propertyAddress}</h3>
-              <p className="mt-1 text-[13px] text-[rgba(246,246,246,.72)]">{deal.borrowerName}</p>
+              <p className="mt-1 text-[13px] text-[#605d5b]">{deal.borrowerName}</p>
             </div>
             <div className="flex items-end justify-between gap-2">
               <div>
-                <div className="text-[11px] tracking-[0.08em] text-[rgba(246,246,246,.72)] uppercase [font-family:var(--font-inter-tight),var(--font-inter),sans-serif]">
+                <div className="text-[11px] tracking-[0.08em] text-[#605d5b] uppercase [font-family:var(--font-inter-tight),var(--font-inter),sans-serif]">
                   {leadValue.basisLabel}
                 </div>
                 <div className="text-[22px] leading-7 font-bold tabular-nums [font-family:var(--font-inter-tight),var(--font-inter),sans-serif]">
                   {formatAmount(leadValue.basisAmount)}
                 </div>
               </div>
-              <div className="rounded-full bg-[rgba(250,95,5,.16)] px-2.5 py-1.5 text-xs font-bold whitespace-nowrap text-[#fdb78f] tabular-nums">
+              <div className="rounded-full bg-[#fff0e6] px-2.5 py-1.5 text-xs font-bold whitespace-nowrap text-[#a33d03] tabular-nums">
                 Lead {formatAmount(leadValue.amount)}
               </div>
             </div>
@@ -224,20 +224,20 @@ function DealCard({ deal, draggable = true }: { deal: BoardDeal; draggable?: boo
               <span className="rounded-full bg-[#333f48] px-2.5 py-1 text-xs font-semibold text-white">
                 {labelFor(LOAN_CATEGORIES, deal.loanCategory)}
               </span>
-              <span className="text-xs text-[rgba(246,246,246,.72)]">Submitted {formatDate(deal.createdAt)}</span>
+              <span className="text-xs text-[#605d5b]">Submitted {formatDate(deal.createdAt)}</span>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {deal.assignedLoanOfficerName && (
-                <span className="rounded-lg bg-[#17181a] px-2.5 py-1 text-xs font-medium">LO: {deal.assignedLoanOfficerName}</span>
+                <span className="rounded-lg bg-[#f6f6f6] px-2.5 py-1 text-xs font-medium">LO: {deal.assignedLoanOfficerName}</span>
               )}
               {deal.assignedProcessorName && (
-                <span className="rounded-lg bg-[#17181a] px-2.5 py-1 text-xs font-medium">Proc: {deal.assignedProcessorName}</span>
+                <span className="rounded-lg bg-[#f6f6f6] px-2.5 py-1 text-xs font-medium">Proc: {deal.assignedProcessorName}</span>
               )}
               {deal.lenderName && (
-                <span className="rounded-lg bg-[#17181a] px-2.5 py-1 text-xs font-medium">{deal.lenderName}</span>
+                <span className="rounded-lg bg-[#f6f6f6] px-2.5 py-1 text-xs font-medium">{deal.lenderName}</span>
               )}
             </div>
-            <div className="flex flex-wrap justify-between gap-x-2 gap-y-0.5 border-t border-[rgba(246,246,246,.08)] pt-2.5 text-xs text-[rgba(246,246,246,.72)]">
+            <div className="flex flex-wrap justify-between gap-x-2 gap-y-0.5 border-t border-[#ecEAE8] pt-2.5 text-xs text-[#605d5b]">
               <span>{daysSince(deal.createdAt)}d since submission</span>
               <span>
                 {DAY_GRANULARITY_STAGES.has(deal.stage)
@@ -361,7 +361,7 @@ function Column({
       </div>
       <div className="flex flex-col gap-2 p-2 min-h-24 overflow-y-auto max-h-[70vh]">
         {deals.length === 0 && (
-          <div className="theme-dark-only rounded-[14px] border-[1.5px] border-dashed border-[rgba(246,246,246,.18)] px-3 py-[18px] text-center text-xs text-[rgba(246,246,246,.72)]">
+          <div className="theme-dark-only rounded-[14px] border-[1.5px] border-dashed border-[var(--c-line-strong)] px-3 py-[18px] text-center text-xs text-muted-foreground">
             Drop a deal here
           </div>
         )}

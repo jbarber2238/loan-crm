@@ -53,6 +53,20 @@
   --done-text: #7ddba6;
   --done-bg: #12261b;
   --done-border: #2f6b49;
+
+  /* Surface helpers the component layer reads, so a page can flip to the light surface. */
+  --c-card: #121315;
+  --c-field: #0b0c0d;
+  --c-column: #17181a;
+  --c-line: rgba(246, 246, 246, 0.08);
+  --c-line-soft: rgba(246, 246, 246, 0.1);
+  --c-line-strong: rgba(246, 246, 246, 0.18);
+  --c-dim: rgba(246, 246, 246, 0.72);
+  --c-pill-on-bg: #fa5f05;
+  --c-pill-on-fg: #0b0c0d;
+  --c-chip-bg: rgba(250, 95, 5, 0.16);
+  --c-chip-fg: #fdb78f;
+  --c-bar-bg: rgba(11, 12, 13, 0.9);
 }
 
 /* The wrapper div paints its own ground so the first frame is never white. */
@@ -96,8 +110,8 @@ html.dark,
 .dark [data-slot="card"] {
   --card-spacing: 24px;
   border-radius: 22px;
-  border: 1px solid rgba(246, 246, 246, 0.08);
-  background-color: #121315;
+  border: 1px solid var(--c-line);
+  background-color: var(--c-card);
   box-shadow: none;
 }
 .dark [data-slot="card"][data-size="sm"] {
@@ -117,7 +131,7 @@ html.dark,
 }
 .dark [data-slot="card-description"] {
   font-size: 13px;
-  color: rgba(246, 246, 246, 0.72);
+  color: var(--c-dim);
 }
 
 /* ---- Buttons: pills, orange for the primary one, outlined for the rest ---- */
@@ -147,8 +161,8 @@ html.dark,
 }
 .dark [data-slot="button"]:is(.border-input, .bg-secondary, [class*="hover:bg-muted"]):not(.bg-primary):not([class*="bg-destructive"]) {
   background-color: transparent;
-  border-color: rgba(246, 246, 246, 0.22);
-  color: #ffffff;
+  border-color: var(--c-line-strong);
+  color: var(--foreground);
 }
 .dark [data-slot="button"]:is(.border-input, .bg-secondary):not(.bg-primary):hover {
   border-color: #fdb78f;
@@ -177,10 +191,10 @@ html.dark,
 .dark [data-slot="input"],
 .dark [data-slot="textarea"],
 .dark [data-slot="select-trigger"] {
-  border: 1px solid rgba(246, 246, 246, 0.18);
+  border: 1px solid var(--c-line-strong);
   border-radius: 12px;
-  background-color: #0b0c0d;
-  color: #ffffff;
+  background-color: var(--c-field);
+  color: var(--foreground);
 }
 .dark [data-slot="textarea"] {
   min-height: 92px;
@@ -190,7 +204,7 @@ html.dark,
 }
 .dark [data-slot="input"]::placeholder,
 .dark [data-slot="textarea"]::placeholder {
-  color: rgba(246, 246, 246, 0.5);
+  color: var(--c-dim);
 }
 .dark [data-slot="input"]:focus-visible,
 .dark [data-slot="textarea"]:focus-visible,
@@ -253,8 +267,8 @@ html.dark,
   font-weight: 600;
 }
 .dark [data-slot="badge"].border-border {
-  background-color: rgba(250, 95, 5, 0.16);
-  color: #fdb78f;
+  background-color: var(--c-chip-bg);
+  color: var(--c-chip-fg);
 }
 .dark [data-slot="badge"].bg-secondary {
   background-color: #333f48;
@@ -391,16 +405,16 @@ html.dark,
 }
 .dark main > div:first-child[class*="sticky"] {
   height: 72px;
-  background-color: rgba(11, 12, 13, 0.9);
-  border-bottom: 1px solid rgba(246, 246, 246, 0.07);
+  background-color: var(--c-bar-bg);
+  border-bottom: 1px solid var(--c-line);
 }
 .dark main > div:first-child[class*="sticky"] [data-slot="button"][class*="size-"],
 .dark main > div:first-child[class*="sticky"] [data-slot="popover-trigger"] {
   width: 44px;
   height: 44px;
-  border: 1px solid rgba(246, 246, 246, 0.14);
-  background-color: #121315;
-  color: rgba(246, 246, 246, 0.86);
+  border: 1px solid var(--c-line-strong);
+  background-color: var(--c-card);
+  color: var(--foreground);
 }
 
 /* Soft status tints (warnings, successes, errors, info) re-drawn for a dark ground */
@@ -553,8 +567,8 @@ html.dark,
   gap: 2px;
   padding: 4px;
   border-radius: 9999px;
-  border: 1px solid rgba(246, 246, 246, 0.1);
-  background-color: #121315;
+  border: 1px solid var(--c-line-soft);
+  background-color: var(--c-card);
 }
 .dark [data-pill-tabs] a {
   display: inline-flex;
@@ -565,14 +579,14 @@ html.dark,
   border-radius: 9999px;
   font-size: 14px;
   font-weight: 500;
-  color: rgba(246, 246, 246, 0.72);
+  color: var(--c-dim);
 }
 .dark [data-pill-tabs] a:hover {
   color: #fdb78f;
 }
 .dark [data-pill-tabs] a[data-active="true"] {
-  background-color: #fa5f05;
-  color: #0b0c0d;
+  background-color: var(--c-pill-on-bg);
+  color: var(--c-pill-on-fg);
   font-weight: 700;
 }
 .dark [data-pill-search] {
@@ -587,12 +601,12 @@ html.dark,
   width: 304px;
   border: 0;
   border-radius: 18px;
-  background-color: #17181a;
+  background-color: var(--c-column);
 }
 .dark [data-col] > div:first-child {
   padding: 14px 16px 12px;
   border-radius: 18px 18px 0 0;
-  border-color: rgba(246, 246, 246, 0.1);
+  border-color: var(--c-line-soft);
   background-color: transparent;
 }
 .dark [data-col] > div:first-child > div > span:first-child {
@@ -601,12 +615,12 @@ html.dark,
 }
 .dark [data-col] > div:first-child > div > span:last-child {
   font-size: 12px;
-  color: rgba(246, 246, 246, 0.72);
+  color: var(--c-dim);
 }
 .dark [data-stage-value] {
   font-size: 12px;
   font-weight: 600;
-  color: #fdb78f;
+  color: var(--c-chip-fg);
 }
 .dark [data-col] > div:last-child {
   padding: 12px;
@@ -668,8 +682,8 @@ html.dark,
 }
 .dark [data-note-strip] {
   border-radius: 16px;
-  border: 1px solid rgba(246, 246, 246, 0.08);
-  background-color: #121315;
+  border: 1px solid var(--c-line);
+  background-color: var(--c-card);
   padding: 14px 20px;
 }
 
@@ -754,4 +768,18 @@ html.dark,
   border-color: #fa5f05;
   color: #0b0c0d;
   font-weight: 700;
+}
+
+/* ---- The white deal card (design board "v1 card") sits on the dark board ---- */
+.dark .deal-card-white [data-slot="button"] {
+  color: #605d5b;
+  background: transparent;
+  border-color: transparent;
+}
+.dark .deal-card-white [data-slot="button"]:hover {
+  background-color: #f6f6f6;
+}
+.dark .deal-card-white [data-slot="badge"] {
+  background-color: #fff0e6;
+  color: #a33d03;
 }
