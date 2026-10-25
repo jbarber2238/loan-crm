@@ -27,7 +27,7 @@ export function DealPhoneBar({ dealId }: { dealId: string }) {
   // Lets the floating chat button sit above the bar instead of behind it.
   useEffect(() => {
     if (inLoanCenter) return;
-    document.documentElement.style.setProperty("--bottom-bar", "4rem");
+    document.documentElement.style.setProperty("--bottom-bar", "calc(4rem + max(env(safe-area-inset-bottom), 0.875rem))");
     return () => {
       document.documentElement.style.removeProperty("--bottom-bar");
     };
@@ -37,10 +37,10 @@ export function DealPhoneBar({ dealId }: { dealId: string }) {
 
   return (
     <>
-      <div aria-hidden="true" className="h-20 lg:hidden" />
+      <div aria-hidden="true" className="h-28 lg:hidden" />
       <nav
         aria-label="This loan"
-        className="fixed inset-x-0 bottom-0 z-30 grid translate-z-0 grid-cols-4 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 grid translate-z-0 grid-cols-4 border-t bg-background/95 pb-[max(env(safe-area-inset-bottom),0.875rem)] backdrop-blur lg:hidden"
       >
         {ITEMS.map((item) => {
           const href = `${base}${item.path}`;

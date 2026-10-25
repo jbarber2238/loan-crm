@@ -46,7 +46,7 @@ export function LoanCenterTabsShell({ initialTab, children }: { initialTab?: str
 
   // Lets the floating chat button sit above the bar instead of behind it.
   useEffect(() => {
-    document.documentElement.style.setProperty("--bottom-bar", "4rem");
+    document.documentElement.style.setProperty("--bottom-bar", "calc(4rem + max(env(safe-area-inset-bottom), 0.875rem))");
     return () => {
       document.documentElement.style.removeProperty("--bottom-bar");
     };
@@ -61,7 +61,7 @@ export function LoanCenterTabsShell({ initialTab, children }: { initialTab?: str
   const moreActive = MORE.some((t) => t.value === tab);
 
   return (
-    <Tabs value={tab} onValueChange={select} className="pb-20 lg:pb-0">
+    <Tabs value={tab} onValueChange={select} className="pb-28 lg:pb-0">
       <TabsList className="max-w-full justify-start overflow-x-auto max-lg:hidden [&>button]:shrink-0">
         {TABS.map((t) => (
           <TabsTrigger key={t.value} value={t.value}>
@@ -74,7 +74,7 @@ export function LoanCenterTabsShell({ initialTab, children }: { initialTab?: str
 
       <nav
         aria-label="Loan Center"
-        className="fixed inset-x-0 bottom-0 z-30 grid translate-z-0 grid-cols-5 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 grid translate-z-0 grid-cols-5 border-t bg-background/95 pb-[max(env(safe-area-inset-bottom),0.875rem)] backdrop-blur lg:hidden"
       >
         {BAR.map((t) => (
           <BarButton key={t.value} item={t} active={tab === t.value} onClick={() => select(t.value)} />

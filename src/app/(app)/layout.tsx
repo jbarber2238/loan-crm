@@ -20,7 +20,9 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "Manna CRM", statusBarStyle: "default" },
 };
 
-export const viewport: Viewport = { themeColor: "#143D4A" };
+// viewport-fit=cover is what makes env(safe-area-inset-bottom) report the iPhone home-bar height, so the
+// bottom menus can sit above it instead of under it.
+export const viewport: Viewport = { themeColor: "#143D4A", viewportFit: "cover" };
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const session = await auth();

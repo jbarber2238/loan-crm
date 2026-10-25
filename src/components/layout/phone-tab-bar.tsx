@@ -18,7 +18,7 @@ export function PhoneTabBar({ isAdmin }: { isAdmin: boolean }) {
   // Lets the floating chat button sit above the bar instead of behind it.
   useEffect(() => {
     if (hidden) return;
-    document.documentElement.style.setProperty("--bottom-bar", "5rem");
+    document.documentElement.style.setProperty("--bottom-bar", "calc(5rem + max(env(safe-area-inset-bottom), 0.875rem))");
     return () => {
       document.documentElement.style.removeProperty("--bottom-bar");
     };
@@ -39,7 +39,7 @@ export function PhoneTabBar({ isAdmin }: { isAdmin: boolean }) {
   return (
     <nav
       aria-label="Main"
-      className="theme-dark-only fixed inset-x-0 bottom-0 z-30 !grid grid-cols-5 items-end border-t border-[rgba(246,246,246,.08)] bg-[#0b0c0d] pb-[env(safe-area-inset-bottom)] lg:!hidden"
+      className="theme-dark-only fixed inset-x-0 bottom-0 z-30 !grid grid-cols-5 items-end border-t border-[rgba(246,246,246,.08)] bg-[#0b0c0d] pb-[max(env(safe-area-inset-bottom),0.875rem)] lg:!hidden"
     >
       {items.map((item) =>
         item === null ? (
