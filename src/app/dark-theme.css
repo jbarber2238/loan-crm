@@ -567,8 +567,9 @@ html.dark,
   min-height: 44px;
   border-radius: 12px;
 }
-.dark [data-pill-search] {
-  width: min(340px, 100%);
+.dark input[data-pill-search][data-slot="input"] {
+  width: 340px;
+  max-width: 100%;
 }
 
 /* ---- Show the dark-only drawing of a component and hide its light twin ---- */
@@ -642,7 +643,7 @@ html.dark,
   color: var(--c-pill-on-fg);
   font-weight: 700;
 }
-.dark [data-pill-search] {
+.dark input[data-pill-search][data-slot="input"] {
   height: 44px;
   padding-left: 42px;
   border-radius: 9999px;
@@ -1040,4 +1041,28 @@ html.dark,
 }
 .dark main .space-y-1\.5 > :not(:last-child) {
   margin-block-end: 8px;
+}
+
+/* Documents: each section is one card; its title is the small peach label from the board */
+.dark [data-csec="card"] {
+  padding: 18px 24px 22px;
+  border-radius: 22px;
+  border: 1px solid var(--c-line);
+  background-color: var(--c-card);
+}
+.dark [data-csec="card"] > [data-csec-head] {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.dark [data-csec="card"] > [data-csec-head] h2 {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: #fdb78f;
+}
+.dark [data-csec="card"][data-state="open"] > [data-csec-head] h2,
+.dark [data-csec="card"][data-state="open"] > [data-csec-head] svg {
+  color: #fdb78f;
 }

@@ -132,6 +132,7 @@ function DocumentSection({
 
   return (
     <CollapsibleSection
+      card
       title={title}
       description={`${rows.length} document${rows.length === 1 ? "" : "s"}`}
       defaultOpen={rows.length > 0}
@@ -344,6 +345,7 @@ function SavedFilesSection({
 
   return (
     <CollapsibleSection
+      card
       title={title}
       description={`${files.length} document${files.length === 1 ? "" : "s"}`}
       defaultOpen

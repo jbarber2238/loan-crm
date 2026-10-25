@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/server/auth/guards";
 import { getLeads } from "@/server/actions/leads";
 import { LeadsKanbanBoard, type BoardLead } from "@/components/board/leads-kanban-board";
+import { PipelineTabs } from "@/components/board/pipeline-tabs";
 
 export default async function LeadsPipelinePage() {
   const user = await requireUser();
@@ -24,7 +25,11 @@ export default async function LeadsPipelinePage() {
 
   return (
     <div className="space-y-4">
-      {/* Dark appearance: the same count and links as a hero banner (design board "Leads"). */}
+      {/* Dark appearance: the board's page title and view tabs, then the same count and links as a hero banner. */}
+      <div className="theme-dark-only space-y-4">
+        <h1>Pipeline</h1>
+        <PipelineTabs showLeads />
+      </div>
       <section
         data-pipeline-banner
         className="theme-dark-only !flex flex-wrap items-end justify-between rounded-xl"

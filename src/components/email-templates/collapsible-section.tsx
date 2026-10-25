@@ -11,6 +11,7 @@ export function CollapsibleSection({
   open: openProp,
   onOpenChange: onOpenChangeProp,
   headerExtra,
+  card = false,
   children,
 }: {
   title: string;
@@ -20,6 +21,8 @@ export function CollapsibleSection({
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   headerExtra?: ReactNode;
+  /** Dark appearance: draw the whole section (header and body) as one card, as the Documents board does. */
+  card?: boolean;
   children: ReactNode;
 }) {
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
@@ -27,7 +30,7 @@ export function CollapsibleSection({
   const setOpen = onOpenChangeProp ?? setInternalOpen;
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} data-csec className="space-y-3">
+    <Collapsible open={open} onOpenChange={setOpen} data-csec={card ? "card" : "row"} className="space-y-3">
       <div data-csec-head className="flex items-center justify-between gap-2">
         <CollapsibleTrigger className="flex flex-1 items-center gap-2 text-left">
           {open ? (
