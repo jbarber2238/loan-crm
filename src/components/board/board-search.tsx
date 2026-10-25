@@ -37,6 +37,7 @@ export function BoardSearch() {
       value={value}
       onChange={(e) => handleChange(e.target.value)}
       placeholder="Search by borrower, address, or loan #"
+      data-pill-search
       className="w-72"
     />
   );

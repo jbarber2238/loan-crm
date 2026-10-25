@@ -21,13 +21,14 @@ export function PipelineTabs({ showLeads }: { showLeads: boolean }) {
   ];
 
   return (
-    <div className="flex gap-1 border-b">
+    <div data-pill-tabs className="flex gap-1 border-b">
       {tabs.map((tab) => {
         const active = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href);
         return (
           <Link
             key={tab.href}
             href={tab.href}
+            data-active={active ? "true" : undefined}
             className={cn(
               "border-b-2 px-3 py-2 text-sm transition-colors",
               active

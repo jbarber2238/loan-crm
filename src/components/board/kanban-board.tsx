@@ -184,7 +184,73 @@ function DealCard({ deal, draggable = true }: { deal: BoardDeal; draggable?: boo
       className={isDragging ? "opacity-40" : ""}
     >
       <Link href={`/deals/${deal.id}`}>
-        <Card className="cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow">
+        {/* Dark appearance draws the card its own way (design board "v1 card"); CSS shows one of the two. */}
+        <article className="theme-dark-only cursor-grab rounded-2xl border border-[rgba(246,246,246,.08)] bg-[#121315] p-4 active:cursor-grabbing hover:border-[#fdb78f]/50">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs tracking-[0.06em] text-[rgba(246,246,246,.72)] uppercase [font-family:var(--font-inter-tight),var(--font-inter),sans-serif]">
+                Loan #{deal.loanNumber}
+              </span>
+              <DealCardMenu deal={deal} />
+            </div>
+            {(deal.isArchived || deal.licenseState) && (
+              <div className="flex flex-wrap gap-1.5">
+                {deal.isArchived && <Badge variant="outline">Archived</Badge>}
+                {deal.licenseState && (
+                  <Badge variant="warning" title="A license is required to close in this state">
+                    License required · {deal.licenseState}
+                  </Badge>
+                )}
+              </div>
+            )}
+            <div>
+              <h3 className="text-base leading-[22px] font-semibold">{deal.propertyAddress}</h3>
+              <p className="mt-1 text-[13px] text-[rgba(246,246,246,.72)]">{deal.borrowerName}</p>
+            </div>
+            <div className="flex items-end justify-between gap-2">
+              <div>
+                <div className="text-[11px] tracking-[0.08em] text-[rgba(246,246,246,.72)] uppercase [font-family:var(--font-inter-tight),var(--font-inter),sans-serif]">
+                  {leadValue.basisLabel}
+                </div>
+                <div className="text-[22px] leading-7 font-bold tabular-nums [font-family:var(--font-inter-tight),var(--font-inter),sans-serif]">
+                  {formatAmount(leadValue.basisAmount)}
+                </div>
+              </div>
+              <div className="rounded-full bg-[rgba(250,95,5,.16)] px-2.5 py-1.5 text-xs font-bold whitespace-nowrap text-[#fdb78f] tabular-nums">
+                Lead {formatAmount(leadValue.amount)}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-[#333f48] px-2.5 py-1 text-xs font-semibold text-white">
+                {labelFor(LOAN_CATEGORIES, deal.loanCategory)}
+              </span>
+              <span className="text-xs text-[rgba(246,246,246,.72)]">Submitted {formatDate(deal.createdAt)}</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {deal.assignedLoanOfficerName && (
+                <span className="rounded-lg bg-[#17181a] px-2.5 py-1 text-xs font-medium">LO: {deal.assignedLoanOfficerName}</span>
+              )}
+              {deal.assignedProcessorName && (
+                <span className="rounded-lg bg-[#17181a] px-2.5 py-1 text-xs font-medium">Proc: {deal.assignedProcessorName}</span>
+              )}
+              {deal.lenderName && (
+                <span className="rounded-lg bg-[#17181a] px-2.5 py-1 text-xs font-medium">{deal.lenderName}</span>
+              )}
+            </div>
+            <div className="flex flex-wrap justify-between gap-x-2 gap-y-0.5 border-t border-[rgba(246,246,246,.08)] pt-2.5 text-xs text-[rgba(246,246,246,.72)]">
+              <span>{daysSince(deal.createdAt)}d since submission</span>
+              <span>
+                {DAY_GRANULARITY_STAGES.has(deal.stage)
+                  ? `${daysSince(deal.currentStageEnteredAt)}d in stage`
+                  : `${hoursSince(deal.currentStageEnteredAt)}h in stage`}
+              </span>
+              {DAY_GRANULARITY_STAGES.has(deal.stage) && deal.processingEnteredAt && (
+                <span className="w-full">{daysSince(deal.processingEnteredAt)}d since app review</span>
+              )}
+            </div>
+          </div>
+        </article>
+        <Card className="theme-light-only cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow">
           <CardContent className="p-3 space-y-1.5">
             <div className="flex items-start justify-between gap-1">
               <p className="text-[10px] font-medium text-muted-foreground tracking-wide">
@@ -279,6 +345,7 @@ function Column({
   return (
     <div
       ref={setNodeRef}
+      data-col
       className={`flex w-64 shrink-0 flex-col rounded-lg border bg-muted/40 ${
         isOver ? "ring-2 ring-primary" : ""
       }`}
@@ -288,11 +355,16 @@ function Column({
           <span className="text-sm font-medium">{label}</span>
           <span className="text-xs text-muted-foreground">{deals.length}</span>
         </div>
-        <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
+        <span data-stage-value className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
           Pipeline Stage Value: {formatAmount(totalLeadValue)}
         </span>
       </div>
       <div className="flex flex-col gap-2 p-2 min-h-24 overflow-y-auto max-h-[70vh]">
+        {deals.length === 0 && (
+          <div className="theme-dark-only rounded-[14px] border-[1.5px] border-dashed border-[rgba(246,246,246,.18)] px-3 py-[18px] text-center text-xs text-[rgba(246,246,246,.72)]">
+            Drop a deal here
+          </div>
+        )}
         {deals.map((deal) => (
           <DealCard key={deal.id} deal={deal} />
         ))}
