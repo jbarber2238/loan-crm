@@ -27,8 +27,8 @@ export function CollapsibleSection({
   const setOpen = onOpenChangeProp ?? setInternalOpen;
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
+    <Collapsible open={open} onOpenChange={setOpen} data-csec className="space-y-3">
+      <div data-csec-head className="flex items-center justify-between gap-2">
         <CollapsibleTrigger className="flex flex-1 items-center gap-2 text-left">
           {open ? (
             <ChevronDown className="size-4 shrink-0 text-muted-foreground" />

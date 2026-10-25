@@ -419,7 +419,7 @@ function TermSheetCard({
     canChangeLoanType(dealLoanCategory, termSheet.product.category);
 
   return (
-    <Card>
+    <Card data-hi>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle className="text-base">

@@ -136,14 +136,19 @@ html.dark,
 
 /* ---- Buttons: pills, orange for the primary one, outlined for the rest ---- */
 .dark [data-slot="button"]:not([class*="size-"]) {
-  min-height: 40px;
-  padding-inline: 18px;
+  min-height: 44px;
+  padding-inline: 20px;
   font-size: 14px;
   font-weight: 600;
 }
-.dark [data-slot="button"]:not([class*="size-"]):is([class*="h-6"], [class*="h-7"], [class*="h-8"]) {
-  min-height: 34px;
-  padding-inline: 14px;
+.dark [data-slot="button"]:not([class*="size-"]):is([class*="h-6"]) {
+  min-height: 32px;
+  padding-inline: 12px;
+  font-size: 12px;
+}
+.dark [data-slot="button"]:not([class*="size-"]):is([class*="h-7"]) {
+  min-height: 38px;
+  padding-inline: 16px;
   font-size: 13px;
 }
 .dark [data-slot="button"] {
@@ -589,13 +594,6 @@ html.dark,
   color: var(--primary-foreground);
 }
 
-/* ---- Email previews are drawn on white: that's how the recipient sees them ---- */
-.dark div[style*="font-family:Arial"] {
-  background-color: #ffffff;
-  border-radius: 0.5rem;
-  padding: 0.75rem;
-}
-
 /* ---- Charts and progress bars: orange fills (they were white at 70%) ---- */
 .dark .bg-foreground\/70 {
   background-color: var(--primary);
@@ -960,4 +958,86 @@ html.dark,
 /* ---- Cards the boards give the soft orange glow ---- */
 .dark [data-hi] {
   background: linear-gradient(160deg, rgba(250, 95, 5, 0.1), rgba(250, 95, 5, 0) 45%), var(--c-card);
+}
+
+/* ---- Collapsible lists (pricing by lender, documents, conditions): a bordered row with the chevron on the right ---- */
+.dark [data-csec-head] {
+  min-height: 64px;
+  padding: 10px 18px;
+  border-radius: 18px;
+  border: 1px solid var(--c-line);
+  background-color: var(--c-card);
+}
+.dark [data-csec-head] > button {
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  min-height: 44px;
+}
+.dark [data-csec-head] h2 {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #ffffff;
+}
+.dark [data-csec-head] p {
+  font-size: 13px;
+  color: var(--c-dim);
+}
+.dark [data-csec][data-state="open"] > [data-csec-head] h2,
+.dark [data-csec][data-state="open"] > [data-csec-head] svg {
+  color: #fa5f05;
+}
+.dark [data-csec][data-state="open"] > [data-csec-head] svg {
+  transform: rotate(0deg);
+}
+
+/* ---- Pricing: "Price Loan" on the left, "Expand all" on the right ---- */
+.dark [data-price-bar] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.dark [data-price-bar] > div {
+  margin: 0;
+}
+.dark [data-price-bar] > div:first-child {
+  order: 1;
+  justify-content: flex-start;
+}
+.dark [data-price-bar] > div:last-child {
+  order: 2;
+}
+
+/* ---- Email editors: edited on the dark ground (recipients still get the normal light email) ---- */
+.dark div[style*="font-family:Arial"] {
+  background-color: #0b0c0d;
+  border-radius: 12px;
+  padding: 14px 16px;
+  color: #f6f6f6 !important;
+}
+.dark div[style*="font-family:Arial"] * {
+  color: inherit !important;
+}
+.dark div[style*="font-family:Arial"] a {
+  color: #fdb78f !important;
+}
+
+/* ---- Client need rows ---- */
+.dark [data-need-title] {
+  font-family: var(--font-inter-tight), var(--font-inter), sans-serif;
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+
+/* ---- Spacing: a helper line and the button after it get breathing room ---- */
+.dark form > [data-slot="button"]:not(:first-child),
+.dark form > button:not(:first-child) {
+  margin-top: 10px;
+}
+.dark main .space-y-1\.5 > :not(:last-child) {
+  margin-block-end: 8px;
 }

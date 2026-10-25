@@ -726,7 +726,7 @@ function ClientNeedRow({
               className="mt-0.5"
             />
             <div>
-            <p className="flex items-center gap-2 text-sm font-medium">
+            <p data-need-title className="flex items-center gap-2 text-sm font-medium">
               {hasExpandableContent ? (
                 <button
                   type="button"

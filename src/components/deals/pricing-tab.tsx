@@ -282,6 +282,7 @@ export function PricingTab({
         </CardContent>
       </Card>
 
+      <div data-price-bar className="space-y-4">
       <div className="flex justify-end gap-2">
         {draftCount >= 2 && (
           <ActionForm
@@ -310,6 +311,7 @@ export function PricingTab({
           </Button>
         </div>
       )}
+      </div>
 
       <div className="space-y-3">
         {groups.map((group) => {
