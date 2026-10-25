@@ -51,3 +51,8 @@
 [data-branded] .bp-stage-dot[data-state="current"] {
   background-color: var(--bp-soft);
 }
+[data-branded] .bp-selected {
+  background-color: var(--bp-btn);
+  border-color: var(--bp-btn);
+  color: var(--bp-btn-on);
+}

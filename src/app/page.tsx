@@ -4,6 +4,7 @@ import Link from "next/link";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { ProgramsSection } from "@/components/marketing/programs-section";
+import { ReviewsSection } from "@/components/marketing/reviews-section";
 
 const archivo = Archivo({
   subsets: ["latin"],
@@ -170,6 +171,9 @@ export default function MarketingHomePage() {
           </p>
         </div>
       </section>
+
+      {/* Published client reviews (hidden until staff publish one) */}
+      <ReviewsSection />
 
       {/* How it works */}
       <section style={{ backgroundColor: SAND }}>

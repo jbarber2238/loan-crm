@@ -990,6 +990,11 @@ export const deals = pgTable("deals", {
   // Entering either one moves the deal to that stage; moving the deal to that
   // stage by hand fills it in (see deal-stage-automation.ts / updateDealStage).
   clearToCloseDate: timestamp("clear_to_close_date", { mode: "date" }),
+  // The "you're Clear to Close" email is never automatic: once a deal reaches that stage
+  // staff are asked yes/no. null = not answered yet; "sent" or "declined" once they have.
+  // A "declined" answer is cleared if the deal leaves Clear to Close (an accidental move).
+  clearToCloseEmailStatus: text("clear_to_close_email_status"),
+  clearToCloseEmailAt: timestamp("clear_to_close_email_at", { mode: "date" }),
   closedDate: timestamp("closed_date", { mode: "date" }),
   // A running note per key-date-tracker item — not itself part of the audit
   // trail (see dealKeyDateEvents below), just a plain field a processor can
@@ -1496,6 +1501,40 @@ export const dealNotes = pgTable("deal_notes", {
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 
+// One row per closed deal: the "thank you" email, its reminders, and the answers. The email goes
+// out when the deal is marked Closed; reminders follow CLOSING_SURVEY_DAYS (src/lib/closing-survey.ts)
+// until they answer or all six requests have gone out. Reviews are only ever shown on the website
+// after staff press Publish on the Client Reviews page, and only with the client's permission.
+export const closingSurveys = pgTable("closing_surveys", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  dealId: uuid("deal_id")
+    .notNull()
+    .unique()
+    .references(() => deals.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  // pending = still being asked, completed = answered, no_response = all six requests sent unanswered,
+  // stopped = staff turned the reminders off.
+  status: text("status").notNull().default("pending"),
+  requestsSent: integer("requests_sent").notNull().default(0),
+  startedAt: timestamp("started_at", { mode: "date" }).notNull().defaultNow(),
+  lastRequestAt: timestamp("last_request_at", { mode: "date" }),
+  nextRequestAt: timestamp("next_request_at", { mode: "date" }),
+  completedAt: timestamp("completed_at", { mode: "date" }),
+  scoreCommunication: integer("score_communication"),
+  scoreProcess: integer("score_process"),
+  scoreSpeed: integer("score_speed"),
+  scoreTerms: integer("score_terms"),
+  scoreRecommend: integer("score_recommend"),
+  privateFeedback: text("private_feedback"),
+  publicReview: text("public_review"),
+  reviewerName: text("reviewer_name"),
+  // The client ticked the box allowing us to use their words in marketing and on the website.
+  reviewPermission: boolean("review_permission").notNull().default(false),
+  publishedToWebsite: boolean("published_to_website").notNull().default(false),
+  publishedAt: timestamp("published_at", { mode: "date" }),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
 export const pricingRequests = pgTable("pricing_requests", {
   id: uuid("id").primaryKey().defaultRandom(),
   dealId: uuid("deal_id")
@@ -1859,6 +1898,10 @@ export const dealConditionsRelations = relations(dealConditions, ({ one }) => ({
     fields: [dealConditions.linkedClientNeedId],
     references: [dealClientNeeds.id],
   }),
+}));
+
+export const closingSurveysRelations = relations(closingSurveys, ({ one }) => ({
+  deal: one(deals, { fields: [closingSurveys.dealId], references: [deals.id] }),
 }));
 
 export const dealNotesRelations = relations(dealNotes, ({ one }) => ({

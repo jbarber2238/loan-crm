@@ -154,6 +154,9 @@ export const BORROWER_LIFECYCLE_TOKENS: EmailTemplateToken[] = [
   { key: "clientNeedsUploadUrl", description: "The borrower's raw upload link, if you'd rather write your own link/wording" },
   { key: "processingFeeInvoiceAmount", description: "The dollar amount actually invoiced (e.g. \"$999\")" },
   { key: "processingFeeInvoiceUrl", description: "Raw link to Stripe's hosted payment page for this invoice, if you'd rather write your own link/wording" },
+  { key: "surveyButton", description: "Closed and survey-reminder emails: a ready-to-click \"Share your experience\" button linking to the client's private survey" },
+  { key: "surveyUrl", description: "Closed and survey-reminder emails: the raw survey link, if you'd rather write your own wording" },
+  { key: "titleContactBlock", description: "Clear to Close email only: the \"schedule your closing\" box with the title company's name, contact, phone and email (only the ones on file)" },
   { key: "processingFeeInvoiceButton", description: "A ready-to-click \"Pay this invoice\" HTML button linking to the Stripe payment page" },
 ];
 

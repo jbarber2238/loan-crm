@@ -12,6 +12,9 @@ export const EMAIL_LOG_CATEGORY_LABELS: Record<string, string> = {
   term_sheet: "Term sheet",
   book_a_call: "Book a call",
   processing_fee_invoice: "Processing fee invoice",
+  borrower_clear_to_close: "Clear to Close announcement",
+  borrower_closed_congrats: "Closed congratulations + survey",
+  borrower_survey_reminder: "Survey reminder (automatic)",
   borrower_activity_digest: "Borrower activity confirmation",
   staff_activity_digest: "Staff activity notification",
   borrower_submission_received: "Submission received",
@@ -40,6 +43,8 @@ export function emailLogCategoryLabel(category: string): string {
 // the ones that fire on their own, with no click behind them.
 export const AUTOMATIC_EMAIL_CATEGORIES = new Set([
   "client_needs_reminder_auto",
+  "borrower_closed_congrats",
+  "borrower_survey_reminder",
   "borrower_activity_digest",
   "staff_activity_digest",
   "borrower_submission_received",

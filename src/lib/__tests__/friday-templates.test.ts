@@ -79,7 +79,7 @@ describe("settings menu", () => {
     expect(groups.map((g) => g.title)).toEqual(["Account", "Company", "Communication", "Programs", "System"]);
     expect(groups.flatMap((g) => g.items).map((i) => i.href)).toEqual([
       "/settings", "/settings/company", "/settings/licensing", "/settings/team", "/settings/phone",
-      "/settings/email-templates", "/settings/referrals", "/settings/integrations", "/settings/deleted-deals",
+      "/settings/email-templates", "/settings/referrals", "/settings/reviews", "/settings/integrations", "/settings/deleted-deals",
     ]);
   });
 

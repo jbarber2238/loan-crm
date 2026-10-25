@@ -751,6 +751,13 @@ export async function updateDealStage(dealId: string, stage: string, reason?: st
     updates.pausedAt = null;
   }
 
+  // A deal pulled back out of Clear to Close (usually a mis-drop) forgets a "don't send" answer so
+  // the question comes back when it really gets there. A sent email is never undone.
+  if (deal.stage === "clear_to_close" && newStage !== "clear_to_close" && deal.clearToCloseEmailStatus === "declined") {
+    updates.clearToCloseEmailStatus = null;
+    updates.clearToCloseEmailAt = null;
+  }
+
   await db.update(deals).set(updates).where(eq(deals.id, dealId));
 
   await db.insert(dealStageHistory).values({

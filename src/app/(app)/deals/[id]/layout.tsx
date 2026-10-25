@@ -4,6 +4,7 @@ import { expireStaleFollowUps, autoArchiveStaleDeals, purgeExpiredDeletedDeals }
 import { requireUser } from "@/server/auth/guards";
 import { DealHeader } from "@/components/deals/deal-header";
 import { DealLifecycleBanner } from "@/components/deals/deal-lifecycle-banner";
+import { ClearToCloseEmailBanner } from "@/components/deals/clear-to-close-email-banner";
 
 export default async function DealDetailLayout({
   children,
@@ -28,6 +29,7 @@ export default async function DealDetailLayout({
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <DealLifecycleBanner deal={deal} />
+      <ClearToCloseEmailBanner deal={deal} />
       <DealHeader deal={deal} />
       {children}
     </div>

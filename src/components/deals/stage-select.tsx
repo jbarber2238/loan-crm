@@ -7,17 +7,21 @@ import { STAGES_REQUIRING_REASON, STAGES_REQUIRING_CONFIRMATION } from "@/lib/de
 import { updateDealStage } from "@/server/actions/deals";
 import { StageReasonDialog } from "@/components/deals/stage-reason-dialog";
 import { ClosedConfirmDialog } from "@/components/deals/closed-confirm-dialog";
+import { ClearToCloseEmailDialog } from "@/components/deals/clear-to-close-email-dialog";
 
 export function StageSelect({ dealId, stage }: { dealId: string; stage: string }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [pendingStage, setPendingStage] = useState<string | null>(null);
   const [pendingClosedStage, setPendingClosedStage] = useState<string | null>(null);
+  const [askClearToCloseEmail, setAskClearToCloseEmail] = useState(false);
 
   function commit(newStage: string, reason?: string, confirmed?: boolean) {
     startTransition(async () => {
       await updateDealStage(dealId, newStage, reason, confirmed);
       router.refresh();
+      // Moving into Clear to Close asks right away whether to tell the borrower.
+      if (newStage === "clear_to_close" && stage !== "clear_to_close") setAskClearToCloseEmail(true);
     });
   }
 
@@ -68,6 +72,7 @@ export function StageSelect({ dealId, stage }: { dealId: string; stage: string }
           }}
         />
       )}
+      <ClearToCloseEmailDialog dealId={dealId} open={askClearToCloseEmail} onOpenChange={setAskClearToCloseEmail} quiet />
     </>
   );
 }

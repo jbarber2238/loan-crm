@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { startClosingSurvey } from "@/server/closing-survey";
 import { db } from "@/server/db/client";
 import { deals, referralAffiliates } from "@/server/db/schema";
 import {
@@ -105,6 +106,8 @@ export async function onReferralCreated(dealId: string): Promise<void> {
  * Shopping <-> Negotiation never ping anyone. Never throws.
  */
 export async function onDealStageChanged(dealId: string, toStage: string): Promise<void> {
+  // Reaching Closed also starts the client's thank-you email and survey (once per deal).
+  if (toStage === "closed") await startClosingSurvey(dealId);
   try {
     const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId) });
     if (!deal?.referredByAffiliateId) return;

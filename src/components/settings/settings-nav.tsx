@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { User, Building2, Users, Handshake, Plug, Phone, Mail, Trash2, ShieldCheck, type LucideIcon } from "lucide-react";
+import { User, Building2, Users, Handshake, Plug, Phone, Mail, Trash2, ShieldCheck, Star, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -36,7 +36,13 @@ export const SETTINGS_GROUPS: NavGroup[] = [
       { href: "/settings/email-templates", label: "Email Templates", icon: Mail, adminOnly: true },
     ],
   },
-  { title: "Programs", items: [{ href: "/settings/referrals", label: "Referrals", icon: Handshake, adminOnly: true }] },
+  {
+    title: "Programs",
+    items: [
+      { href: "/settings/referrals", label: "Referrals", icon: Handshake, adminOnly: true },
+      { href: "/settings/reviews", label: "Client Reviews", icon: Star, adminOnly: true },
+    ],
+  },
   {
     title: "System",
     items: [

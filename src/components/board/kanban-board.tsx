@@ -32,6 +32,7 @@ import { updateDealStage, restoreArchivedDeal } from "@/server/actions/deals";
 import { toast } from "sonner";
 import { StageReasonDialog } from "@/components/deals/stage-reason-dialog";
 import { ClosedConfirmDialog } from "@/components/deals/closed-confirm-dialog";
+import { ClearToCloseEmailDialog } from "@/components/deals/clear-to-close-email-dialog";
 import { DeleteDealDialog } from "@/components/deals/delete-deal-dialog";
 import { ArchiveDealDialog } from "@/components/deals/archive-deal-dialog";
 
@@ -409,6 +410,7 @@ export function KanbanBoard({ deals }: { deals: BoardDeal[] }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pendingDrop, setPendingDrop] = useState<{ dealId: string; stage: string } | null>(null);
   const [pendingClosedDrop, setPendingClosedDrop] = useState<{ dealId: string; stage: string } | null>(null);
+  const [askClearToCloseEmailFor, setAskClearToCloseEmailFor] = useState<string | null>(null);
 
   if (deals !== syncedDeals) {
     setSyncedDeals(deals);
@@ -441,6 +443,8 @@ export function KanbanBoard({ deals }: { deals: BoardDeal[] }) {
     startTransition(async () => {
       await updateDealStage(dealId, newStage, reason, confirmed);
       router.refresh();
+      // Dropped into Clear to Close: ask right away whether to tell the borrower.
+      if (newStage === "clear_to_close") setAskClearToCloseEmailFor(dealId);
     });
   }
 
@@ -526,6 +530,16 @@ export function KanbanBoard({ deals }: { deals: BoardDeal[] }) {
           onConfirm={(reason) => {
             commitStageChange(pendingDrop.dealId, pendingDrop.stage, reason);
             setPendingDrop(null);
+          }}
+        />
+      )}
+      {askClearToCloseEmailFor && (
+        <ClearToCloseEmailDialog
+          dealId={askClearToCloseEmailFor}
+          open
+          quiet
+          onOpenChange={(open) => {
+            if (!open) setAskClearToCloseEmailFor(null);
           }}
         />
       )}
