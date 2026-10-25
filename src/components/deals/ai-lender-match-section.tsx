@@ -53,7 +53,7 @@ export function AiLenderMatchSection({
   }
 
   return (
-    <Card>
+    <Card data-hi>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-base">AI Quick Lender Match</CardTitle>
         <Button type="button" size="sm" variant="outline" onClick={handleRun} disabled={pending}>

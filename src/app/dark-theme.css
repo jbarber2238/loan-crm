@@ -951,3 +951,13 @@ html.dark,
   font-weight: 600;
   cursor: pointer;
 }
+
+/* ---- Page widths: the boards centre a 1080px column ---- */
+.dark main .mx-auto:is(.max-w-3xl, .max-w-4xl) {
+  max-width: 1080px;
+}
+
+/* ---- Cards the boards give the soft orange glow ---- */
+.dark [data-hi] {
+  background: linear-gradient(160deg, rgba(250, 95, 5, 0.1), rgba(250, 95, 5, 0) 45%), var(--c-card);
+}

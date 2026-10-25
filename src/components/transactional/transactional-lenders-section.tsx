@@ -86,7 +86,7 @@ export function TransactionalLendersSection({ isAdmin, lenders }: { isAdmin: boo
       )}
 
       {lenders.map((lender) => (
-        <Card key={lender.id}>
+        <Card data-hi key={lender.id}>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base">{lender.name}</CardTitle>
             {isAdmin && (

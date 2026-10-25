@@ -56,7 +56,7 @@ export function HardMoneyCalculator({
   const overMax = maxLoan !== null && loanAmount > maxLoan;
 
   return (
-    <Card>
+    <Card data-hi>
       <CardHeader>
         <CardTitle>Hard Money Leverage Calculator</CardTitle>
       </CardHeader>

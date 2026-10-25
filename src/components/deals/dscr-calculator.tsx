@@ -56,7 +56,7 @@ export function DscrCalculator({
   const dscr = pitia > 0 ? parsedRent / pitia : null;
 
   return (
-    <Card>
+    <Card data-hi>
       <CardHeader>
         <CardTitle>DSCR Calculator</CardTitle>
       </CardHeader>
