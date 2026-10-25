@@ -209,12 +209,26 @@ html.dark,
   color: var(--brand-light);
 }
 
-/* ---- Pipeline "Open pipeline value" banner: black into orange ---- */
+/* ---- Pipeline "Open pipeline value" banner: black into orange ----
+   Phones: the orange only warms the far right edge, so every label stays on a dark ground.
+   Wider screens: the stats sit over the bright end, so they switch to Onyx text. */
 .dark [data-pipeline-banner] {
-  background-image: linear-gradient(100deg, #0b0c0d 0%, #4a1f05 38%, #fa5f05 78%, #fdb78f 100%);
+  background-image: linear-gradient(100deg, #0b0c0d 0%, #1a0d05 55%, #7a3004 85%, #fa5f05 100%);
   background-color: #0b0c0d;
   color: #ffffff;
   border: 1px solid var(--border);
+}
+.dark [data-pipeline-banner] [class*="text-primary-foreground"] {
+  color: rgba(255, 255, 255, 0.78);
+}
+@media (min-width: 768px) {
+  .dark [data-pipeline-banner] {
+    background-image: linear-gradient(100deg, #0b0c0d 0%, #4a1f05 38%, #fa5f05 78%, #fdb78f 100%);
+  }
+  .dark [data-pipeline-banner] > div:nth-child(2),
+  .dark [data-pipeline-banner] > div:nth-child(2) [class*="text-primary-foreground"] {
+    color: #0b0c0d;
+  }
 }
 
 /* ---- Show the dark-only drawing of a component and hide its light twin ---- */

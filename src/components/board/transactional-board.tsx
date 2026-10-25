@@ -154,7 +154,7 @@ function OpenValueBanner({ loans }: { loans: BoardLoan[] }) {
   const value = open.reduce((sum, l) => sum + l.leadValue, 0);
   const volume = open.reduce((sum, l) => sum + l.fundingAmount, 0);
   return (
-    <div className="mb-4 flex flex-wrap items-end justify-between gap-x-8 gap-y-3 rounded-xl bg-primary px-6 py-5 text-primary-foreground shadow-sm">
+    <div data-pipeline-banner className="mb-4 flex flex-wrap items-end justify-between gap-x-8 gap-y-3 rounded-xl bg-primary px-6 py-5 text-primary-foreground shadow-sm">
       <div>
         <p className="text-xs font-semibold uppercase tracking-widest text-primary-foreground/70">
           Open Transactional Pipeline Value
