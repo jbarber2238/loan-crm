@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { PipelineStepper } from "@/components/deals/pipeline-stepper";
 import { getPortalLook } from "@/server/settings";
 import { PortalFrame } from "@/components/borrower-upload/portal-frame";
-import { PortalStageBar } from "@/components/borrower-upload/portal-stage-bar";
+import { PortalStageBar, PortalStageCompact } from "@/components/borrower-upload/portal-stage-bar";
 import { TERMINAL_NEGATIVE_STAGES } from "@/lib/deal-pipeline";
 import type { BorrowerKeyDate } from "@/lib/borrower-key-dates";
 
@@ -128,14 +128,21 @@ export default async function BorrowerUploadPage({ params }: { params: Promise<{
           {deal.showPipeline && (
             <div className="mt-4 mb-5 space-y-2">
               <p className={`text-xs font-semibold uppercase tracking-wide ${muted}`}>Where your loan is</p>
-              {theme && !TERMINAL_NEGATIVE_STAGES.has(deal.pipelineStage) ? (
-                <PortalStageBar stage={deal.pipelineStage} />
-              ) : (
-                <PipelineStepper stage={deal.pipelineStage} pausedFromStage={null} onDark />
+              {!TERMINAL_NEGATIVE_STAGES.has(deal.pipelineStage) && (
+                <div className="sm:hidden">
+                  <PortalStageCompact stage={deal.pipelineStage} branded={Boolean(theme)} />
+                </div>
               )}
+              <div className={TERMINAL_NEGATIVE_STAGES.has(deal.pipelineStage) ? "" : "hidden sm:block"}>
+                {theme && !TERMINAL_NEGATIVE_STAGES.has(deal.pipelineStage) ? (
+                  <PortalStageBar stage={deal.pipelineStage} />
+                ) : (
+                  <PipelineStepper stage={deal.pipelineStage} pausedFromStage={null} onDark />
+                )}
+              </div>
             </div>
           )}
-          <h1 className="mt-1 text-xl font-semibold text-balance">{headline}</h1>
+          <h1 className="mt-1 text-lg font-semibold text-balance sm:text-xl">{headline}</h1>
           <p className={`mt-1 text-sm ${mutedStrong}`}>{subheadline}</p>
           <p className={`mt-3 text-xs ${muted}`}>
             {deal.propertyAddress} · Loan #{deal.loanNumber}

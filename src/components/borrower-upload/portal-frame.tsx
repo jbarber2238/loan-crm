@@ -28,10 +28,10 @@ export function PortalFrame({
   const needsChip = logo ? headerIsDark !== logo.isLight : false;
 
   return (
-    <div className="mx-auto max-w-3xl p-4 py-8 md:p-8" style={style} data-branded={theme ? "true" : undefined}>
-      <div className="overflow-hidden rounded-xl border shadow-sm">
+    <div className="mx-auto w-full min-w-0 max-w-3xl p-3 py-5 sm:p-4 sm:py-8 md:p-8" style={style} data-branded={theme ? "true" : undefined}>
+      <div className="w-full min-w-0 overflow-hidden rounded-xl border shadow-sm">
         <div
-          className={theme ? "bp-header px-6 py-6 md:px-8" : "bg-primary px-6 py-6 text-primary-foreground md:px-8"}
+          className={theme ? "bp-header px-4 py-5 sm:px-6 sm:py-6 md:px-8" : "bg-primary px-4 py-5 text-primary-foreground sm:px-6 sm:py-6 md:px-8"}
         >
           {logo ? (
             <div className="flex items-center gap-3">
@@ -49,7 +49,7 @@ export function PortalFrame({
           )}
           {headerExtra}
         </div>
-        <div className="space-y-6 bg-card p-6 md:p-8">{children}</div>
+        <div className="space-y-6 bg-card p-4 sm:p-6 md:p-8">{children}</div>
         <p className="border-t bg-card px-6 py-2.5 text-center text-[11px] text-muted-foreground">
           Powered by <strong className="font-semibold text-foreground">Manna</strong>
         </p>

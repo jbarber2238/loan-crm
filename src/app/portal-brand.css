@@ -42,3 +42,12 @@
   background-color: var(--bp-tint);
   color: var(--bp-ink);
 }
+[data-branded] .bp-stage-dot {
+  background-color: var(--bp-up);
+}
+[data-branded] .bp-stage-dot[data-state="reached"] {
+  background-color: var(--bp-accent);
+}
+[data-branded] .bp-stage-dot[data-state="current"] {
+  background-color: var(--bp-soft);
+}

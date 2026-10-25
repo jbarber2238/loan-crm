@@ -19,9 +19,9 @@ import { Label } from "@/components/ui/label";
 // visual payoff for the borrower having completed it.
 export function AcceptedNeedRow({ need }: { need: BorrowerUploadNeed }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-green-600/20 bg-green-600/5 px-4 py-3">
+    <div className="flex min-w-0 items-center gap-3 rounded-lg border border-green-600/20 bg-green-600/5 px-4 py-3">
       <CheckCircle2 className="size-5 shrink-0 text-green-600" aria-hidden="true" />
-      <p className="text-sm text-muted-foreground line-through decoration-green-600/40">{need.itemName}</p>
+      <p className="min-w-0 text-sm break-words text-muted-foreground line-through decoration-green-600/40">{need.itemName}</p>
     </div>
   );
 }
@@ -72,7 +72,7 @@ function QuestionnaireForm({ token, need }: { token: string; need: BorrowerUploa
         </div>
       ))}
       {error && <p className="text-xs text-destructive">{error}</p>}
-      <Button type="submit" size="sm" className="bp-primary" disabled={pending}>
+      <Button type="submit" size="sm" className="bp-primary max-sm:h-11 max-sm:w-full" disabled={pending}>
         {pending ? "Submitting…" : "Submit"}
       </Button>
       {submitted && !pending && <span className="ml-2 text-xs text-muted-foreground">Received, thank you!</span>}
@@ -110,7 +110,7 @@ function PandaDocFormButton({ token, need }: { token: string; need: BorrowerUplo
   return (
     <div className="space-y-1.5">
       {!url && (
-        <Button type="button" size="sm" className="bp-primary" disabled={pending} onClick={handleClick}>
+        <Button type="button" size="sm" className="bp-primary max-sm:h-11 max-sm:w-full" disabled={pending} onClick={handleClick}>
           {pending ? "Loading…" : "Fill out and sign"}
         </Button>
       )}
@@ -161,16 +161,16 @@ export function BorrowerUploadNeedRow({ token, need }: { token: string; need: Bo
   }
 
   return (
-    <div className="space-y-2 rounded-lg border p-4">
+    <div className="min-w-0 space-y-2 rounded-lg border p-3 sm:p-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium">{need.itemName}</p>
+        <div className="min-w-0">
+          <p className="text-sm font-medium break-words">{need.itemName}</p>
           {need.description && <p className="text-sm text-muted-foreground">{need.description}</p>}
           {need.needType === "document_upload" && need.minFiles > 1 && (
             <p className="text-xs text-amber-600">Please select all {need.minFiles} files at once (e.g. front &amp; back)</p>
           )}
         </div>
-        <Badge variant={need.status === "review_needed" ? "warning" : "destructive"} className="bp-tag">
+        <Badge variant={need.status === "review_needed" ? "warning" : "destructive"} className="bp-tag shrink-0 text-center">
           {STATUS_LABEL[need.status]}
         </Badge>
       </div>
@@ -193,9 +193,9 @@ export function BorrowerUploadNeedRow({ token, need }: { token: string; need: Bo
               Download the form: {need.templateFileName}
             </a>
           )}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 max-sm:flex-col max-sm:items-stretch">
             <input ref={inputRef} type="file" multiple className="hidden" onChange={handleChange} />
-            <Button type="button" size="sm" variant="outline" className="bp-primary" disabled={pending} onClick={() => inputRef.current?.click()}>
+            <Button type="button" size="sm" variant="outline" className="bp-primary max-sm:h-11 max-sm:w-full" disabled={pending} onClick={() => inputRef.current?.click()}>
               {pending ? "Uploading…" : "Upload file(s)"}
             </Button>
             {justUploaded && !pending && <span className="text-xs text-muted-foreground">Received, thank you!</span>}
@@ -205,7 +205,7 @@ export function BorrowerUploadNeedRow({ token, need }: { token: string; need: Bo
         <QuestionnaireForm token={token} need={need} />
       ) : need.needType === "link" ? (
         need.linkUrl ? (
-          <Button asChild size="sm">
+          <Button asChild size="sm" className="max-sm:h-11 max-sm:w-full">
             <a href={need.linkUrl} target="_blank" rel="noreferrer">
               Open link
             </a>
@@ -218,7 +218,7 @@ export function BorrowerUploadNeedRow({ token, need }: { token: string; need: Bo
           <p className="text-xs text-muted-foreground">This form is still being set up — check back shortly.</p>
         )
       ) : need.needType === "custom_form" ? (
-        <Button asChild size="sm">
+        <Button asChild size="sm" className="max-sm:h-11 max-sm:w-full">
           <a href={`/borrower-upload/${token}/form/${need.id}`}>
             {need.status === "not_sent" || need.status === "awaiting_docs" ? "Fill out application" : "Review submission"}
           </a>
