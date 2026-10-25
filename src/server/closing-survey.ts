@@ -115,7 +115,7 @@ export async function startClosingSurvey(dealId: string): Promise<void> {
         type: "closing_survey",
         title: "Closed email didn't send",
         body: `${deal.borrowerName} (${deal.propertyAddress}): the congratulations email couldn't be sent from ${deal.assignedLoanOfficer.name ?? "the loan officer"}'s Gmail. It will retry tomorrow.`,
-        href: "/settings/reviews",
+        href: "/directory/reviews",
       });
     }
   } catch (err) {

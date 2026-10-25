@@ -17,6 +17,7 @@ import {
   Layers,
   Inbox,
   Users,
+  Star,
 } from "lucide-react";
 import { signOutAction } from "@/server/actions/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -59,6 +60,8 @@ export function AppSidebar({
       : []),
     { href: "/inbox", label: "Communications", icon: Inbox, exact: false },
     { href: "/directory", label: "Contacts Directory", icon: Users, exact: true },
+    // A page inside the directory section, for admins only.
+    ...(user.isAdmin ? [{ href: "/directory/reviews", label: "Client Reviews", icon: Star, exact: false, sub: true }] : []),
   ];
 
   // "/deals/new" is a static route (the staff new-deal form), not a deal id —
@@ -147,10 +150,11 @@ export function AppSidebar({
                 data-active={active ? "true" : undefined}
                 className={cn(
                   "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
+                  "sub" in link && link.sub && "ml-4 py-1.5 text-[13px]",
                   active ? "bg-white/10 text-white" : "text-zinc-400 hover:bg-white/5 hover:text-white"
                 )}
               >
-                <Icon className="size-4" />
+                <Icon className={cn("size-4", "sub" in link && link.sub && "size-3.5")} />
                 {link.label}
               </Link>
             );

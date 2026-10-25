@@ -83,7 +83,7 @@ export async function submitClosingSurvey(token: string, answers: SurveyAnswers)
     body: `${survey.deal.propertyAddress}: would recommend us ${scores.scoreRecommend}/10.${
       publicReview && reviewPermission ? " They wrote a review you can publish." : ""
     }${answers.privateFeedback?.trim() ? " They also left private feedback." : ""}`,
-    href: "/settings/reviews",
+    href: "/directory/reviews",
   });
   await db.insert(dealNotes).values({
     dealId: survey.deal.id,
@@ -91,7 +91,7 @@ export async function submitClosingSurvey(token: string, answers: SurveyAnswers)
     source: "system",
     body: `Closing survey completed: would recommend ${scores.scoreRecommend}/10.`,
   });
-  revalidatePath("/settings/reviews");
+  revalidatePath("/directory/reviews");
   return { saved: true as const };
 }
 
@@ -109,7 +109,7 @@ export async function setReviewPublished(surveyId: string, published: boolean) {
     .update(closingSurveys)
     .set({ publishedToWebsite: published, publishedAt: published ? new Date() : null })
     .where(eq(closingSurveys.id, surveyId));
-  revalidatePath("/settings/reviews");
+  revalidatePath("/directory/reviews");
   revalidatePath("/");
   return { published };
 }
@@ -118,7 +118,7 @@ export async function setReviewPublished(surveyId: string, published: boolean) {
 export async function sendSurveyReminderNow(surveyId: string) {
   await requireAdmin();
   const sent = await sendSurveyRequestNow(surveyId);
-  revalidatePath("/settings/reviews");
+  revalidatePath("/directory/reviews");
   return sent ? { sent: true as const } : fail("That couldn't be sent. Check the deal has a borrower email and a loan officer whose Gmail is connected.");
 }
 
@@ -132,6 +132,6 @@ export async function setSurveyReminders(surveyId: string, on: boolean) {
     .update(closingSurveys)
     .set(on ? { status: "pending", nextRequestAt: new Date() } : { status: "stopped", nextRequestAt: null })
     .where(eq(closingSurveys.id, surveyId));
-  revalidatePath("/settings/reviews");
+  revalidatePath("/directory/reviews");
   return { on };
 }
