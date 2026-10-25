@@ -44,7 +44,7 @@ function Field({
   className?: string;
 }) {
   return (
-    <div className={cn("flex min-w-0 flex-col justify-center gap-0.5 rounded-md border bg-muted/30 px-2.5 py-1", className)}>
+    <div data-tile className={cn("flex min-w-0 flex-col justify-center gap-0.5 rounded-md border bg-muted/30 px-2.5 py-1", className)}>
       <p className="break-words text-[10px] leading-tight text-muted-foreground">{label}</p>
       <p className="break-words text-sm font-semibold">{value}</p>
       <p className="break-words text-[10px] leading-tight text-muted-foreground">{hint || " "}</p>

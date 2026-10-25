@@ -205,7 +205,7 @@ export function AssignPartnerMenuItem(props: AssignPartnerProps) {
 export function ReferringPartnerCard(props: AssignPartnerProps) {
   const current = props.partners.find((p) => p.id === props.currentPartnerId);
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 p-3">
+    <div data-note-strip className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 p-3">
       <div className="min-w-0 text-sm">
         <span className="text-muted-foreground">Referred by: </span>
         <span className="font-medium">{current ? current.label : props.currentPartnerId ? "A partner no longer in the program" : "No referral partner"}</span>

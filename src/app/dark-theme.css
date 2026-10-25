@@ -612,3 +612,63 @@ html.dark,
   padding: 12px;
   gap: 12px;
 }
+
+/* ---- Deal header ---- */
+.dark .group\/hdr {
+  border-radius: 26px;
+  border: 1px solid rgba(246, 246, 246, 0.08);
+  background-color: #121315;
+  padding: 24px 28px 28px;
+}
+@media (max-width: 640px) {
+  .dark .group\/hdr {
+    padding: 16px;
+    border-radius: 22px;
+  }
+}
+.dark .group\/hdr [data-slot="badge"] {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-family: var(--font-inter-tight), var(--font-inter), sans-serif;
+}
+.dark .group\/hdr [data-slot="select-trigger"] {
+  min-height: 44px;
+  min-width: 190px;
+  border-radius: 9999px;
+}
+.dark .group\/hdr [data-slot="button"][class*="size-"][class*="size-8"],
+.dark .group\/hdr [data-slot="button"][class*="size-"][class*="size-7"] {
+  color: #fdb78f;
+}
+
+/* ---- Fact tiles (accepted terms) and note strips ---- */
+.dark [data-tile] {
+  border-radius: 14px;
+  border: 1px solid rgba(246, 246, 246, 0.1);
+  background-color: rgba(6, 6, 7, 0.55);
+  padding: 10px 12px;
+}
+.dark [data-tile] > p:nth-child(1) {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  color: rgba(246, 246, 246, 0.72);
+}
+.dark [data-tile] > p:nth-child(2) {
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  font-family: var(--font-inter-tight), var(--font-inter), sans-serif;
+}
+.dark [data-tile] > p:nth-child(3) {
+  font-size: 11px;
+  color: rgba(246, 246, 246, 0.66);
+}
+.dark [data-note-strip] {
+  border-radius: 16px;
+  border: 1px solid rgba(246, 246, 246, 0.08);
+  background-color: #121315;
+  padding: 14px 20px;
+}

@@ -62,12 +62,38 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
         partners: await loadAssignablePartners(),
       }
     : undefined;
+  // The dark appearance lays the headline facts out as label/value pairs instead of one sentence.
+  const loanAmt = Number(deal.loanAmountRequested);
+  const stats: { k: string; v: string }[] = [
+    { k: "Loan type", v: labelFor(LOAN_CATEGORIES, deal.loanCategory) },
+    { k: "Loan officer", v: deal.assignedLoanOfficer.name ?? "—" },
+    ...(deal.assignedProcessor ? [{ k: "Processor", v: deal.assignedProcessor.name ?? "—" }] : []),
+    { k: "Requested loan amount", v: `$${loanAmt.toLocaleString()}` },
+  ];
+  if (s.showProjectEconomics) {
+    const purchase = deal.purchasePrice ? Number(deal.purchasePrice) : null;
+    const rehab = deal.estimatedRehabCost ? Number(deal.estimatedRehabCost) : null;
+    const arv = deal.estimatedArv ? Number(deal.estimatedArv) : null;
+    const cost = purchase !== null && rehab !== null ? purchase + rehab : null;
+    if (arv) stats.push({ k: "LTARV", v: `${((loanAmt / arv) * 100).toFixed(1)}%` });
+    if (cost) stats.push({ k: "LTC", v: `${((loanAmt / cost) * 100).toFixed(1)}%` });
+  } else {
+    const basis = conservativeValueBasis(
+      deal.loanCategory,
+      deal.purchasePrice ? Number(deal.purchasePrice) : null,
+      deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null
+    );
+    if (basis) stats.push({ k: "Requested LTV", v: `${((loanAmt / basis) * 100).toFixed(1)}%` });
+  }
+  if (deal.estimatedClosingDate) stats.push({ k: "Est. closing", v: deal.estimatedClosingDate.toLocaleDateString() });
+  const showStats = !(deal.lenderId && deal.lender);
+
   return (
     <DealHeaderShell>
       <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold">{deal.propertyAddress}</h1>
+            <h1 data-deal-title className="text-xl font-semibold">{deal.propertyAddress}</h1>
             <Badge variant="outline" className="text-xs shrink-0">
               Loan #{deal.loanNumber}
             </Badge>
@@ -95,7 +121,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
               <CopyBorrowerContactButton name={deal.borrowerName} phone={deal.borrowerPhone} email={deal.borrowerEmail} />
             </span>
           </div>
-          <p className={`mt-1.5 text-sm font-semibold text-foreground ${HEADER_DETAIL}`}>
+          <p className={`mt-1.5 text-sm font-semibold text-foreground ${HEADER_DETAIL} ${showStats ? "theme-light-only" : ""}`}>
             {labelFor(LOAN_CATEGORIES, deal.loanCategory)} · LO: {deal.assignedLoanOfficer.name}
             {deal.assignedProcessor && ` · Processor: ${deal.assignedProcessor.name}`}
           </p>
@@ -123,7 +149,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
                 const ltarv = arv ? (loanAmount / arv) * 100 : null;
                 const ltc = totalProjectCost ? (loanAmount / totalProjectCost) * 100 : null;
                 return (
-                  <p className={`text-xs text-muted-foreground ${HEADER_DETAIL}`}>
+                  <p className={`text-xs text-muted-foreground ${HEADER_DETAIL} theme-light-only`}>
                     Requested loan amount: ${loanAmount.toLocaleString()}
                     {ltarv !== null && ` · LTARV: ${ltarv.toFixed(1)}%`}
                     {ltc !== null && ` · LTC: ${ltc.toFixed(1)}%`}
@@ -139,7 +165,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
               );
               const requestedLtv = basis ? (loanAmount / basis) * 100 : null;
               return (
-                <p className={`text-xs text-muted-foreground ${HEADER_DETAIL}`}>
+                <p className={`text-xs text-muted-foreground ${HEADER_DETAIL} theme-light-only`}>
                   Requested loan amount: ${loanAmount.toLocaleString()}
                   {requestedLtv !== null && ` · Requested LTV: ${requestedLtv.toFixed(1)}%`}
                   {tail}
@@ -164,6 +190,16 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
         </div>
       </div>
 
+      {showStats && (
+        <dl className={`theme-dark-only !flex flex-wrap gap-x-9 gap-y-3 border-y border-[rgba(246,246,246,.08)] py-3.5 ${HEADER_DETAIL}`}>
+          {stats.map((st) => (
+            <div key={st.k} className="flex flex-col gap-0.5">
+              <dt className="text-xs leading-4 font-medium text-[rgba(246,246,246,.72)]">{st.k}</dt>
+              <dd className="m-0 text-base leading-[22px] font-bold tabular-nums">{st.v}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
       <div className={`flex flex-col gap-3 ${HEADER_DETAIL}`}>
       <PipelineStepper stage={deal.stage} pausedFromStage={deal.pausedFromStage} />
       <StageReasonBanner deal={deal} />

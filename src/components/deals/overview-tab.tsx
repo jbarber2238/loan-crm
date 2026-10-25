@@ -121,7 +121,7 @@ export function OverviewTab({ deal }: { deal: Deal }) {
     <div className="space-y-6">
       {s.showProjectEconomics
         ? purchasePrice !== null && (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-3">
+            <div data-note-strip className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-3">
               <span className="text-sm text-muted-foreground">
                 {s.showConstructionLandOwnership ? "Land purchase price" : "Purchase price"}: $
                 {purchasePrice.toLocaleString()}.
@@ -133,7 +133,7 @@ export function OverviewTab({ deal }: { deal: Deal }) {
             </div>
           )
         : requestedLtv !== null && (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-3">
+            <div data-note-strip className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-3">
               <span className="text-sm text-muted-foreground">
                 {s.showRefinanceFields || purchasePrice === null
                   ? `As-is value: $${estimatedAsIsValue!.toLocaleString()}.`
