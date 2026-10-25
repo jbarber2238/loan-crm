@@ -661,24 +661,49 @@ html.dark,
   border-radius: 14px;
   border: 1px solid rgba(246, 246, 246, 0.1);
   background-color: rgba(6, 6, 7, 0.55);
-  padding: 10px 12px;
+  padding: 14px 16px;
+  gap: 4px;
 }
 .dark [data-tile] > p:nth-child(1) {
   font-size: 12px;
   line-height: 16px;
   font-weight: 500;
   color: rgba(246, 246, 246, 0.72);
+  overflow-wrap: normal;
+  word-break: normal;
 }
 .dark [data-tile] > p:nth-child(2) {
-  font-size: 20px;
-  line-height: 26px;
+  font-size: 22px;
+  line-height: 28px;
   font-weight: 700;
   letter-spacing: -0.005em;
   font-family: var(--font-inter-tight), var(--font-inter), sans-serif;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 .dark [data-tile] > p:nth-child(3) {
   font-size: 11px;
+  line-height: 15px;
   color: rgba(246, 246, 246, 0.66);
+  overflow-wrap: normal;
+  word-break: normal;
+}
+/* Terms tiles: as many 150px+ columns as fit, never seven slivers (the light layout's grid). */
+.dark [data-tiles] {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+.dark [data-tiles] > [class*="md:col-start-7"] {
+  grid-column: auto;
+  grid-row: auto;
+}
+.dark [data-tiles] > [class*="md:col-span-6"] {
+  grid-column: 1 / -1;
+}
+@media (min-width: 1024px) {
+  .dark [data-tiles] + div {
+    width: 300px;
+  }
 }
 .dark [data-note-strip] {
   border-radius: 16px;
