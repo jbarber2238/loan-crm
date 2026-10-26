@@ -74,7 +74,10 @@ export async function previewApplicationSubmissionEmail(dealId: string) {
       deal.lender.introEmailSubject?.trim() || `${deal.propertyAddress} — Loan Submission`,
       introTokens
     );
-    body = `${renderTemplate(deal.lender.introEmailBody.trim(), introTokens)}\n\n${buildTermsParagraph(deal)}`;
+    // The rate/fee paragraph follows the lender's own wording unless the template says to leave it out.
+    const skipTerms = deal.lender.introEmailBody.includes("{{skipTermsParagraph}}");
+    const intro = renderTemplate(deal.lender.introEmailBody.trim(), introTokens);
+    body = skipTerms ? intro : `${intro}\n\n${buildTermsParagraph(deal)}`;
   } else {
     const rendered = await buildApplicationSubmissionEmail(deal, {
       repName: rep.name,

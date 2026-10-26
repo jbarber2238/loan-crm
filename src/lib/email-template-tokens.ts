@@ -120,6 +120,11 @@ export const ALL_DEAL_TOKENS: EmailTemplateToken[] = [
   { key: "lenderName", description: "The lender assigned to this deal" },
 
   ...CONTACT_TOKENS,
+  { key: "titleCompanyName", description: "Title company's name (the firm; titleCompanyAgentName is the contact person)" },
+  { key: "appraisalContactName", description: "Who the appraiser should contact to get into the property: name" },
+  { key: "appraisalContactEmail", description: "Who the appraiser should contact to get into the property: email" },
+  { key: "appraisalContactPhone", description: "Who the appraiser should contact to get into the property: phone number" },
+  { key: "appraisalPaymentEmail", description: "Where the appraisal payment link goes (the borrower's email)" },
 ];
 
 export const PRICING_REQUEST_TOKENS: EmailTemplateToken[] = [
@@ -188,6 +193,18 @@ export const APPLICATION_SUBMISSION_TOKENS: EmailTemplateToken[] = [
     key: "termsParagraph",
     description:
       "Always computed fresh from the deal's own numbers — the quoted rate, buydown, and origination fee, never hand-typed",
+  },
+  {
+    key: "attachedDocumentsList",
+    description: "A bulleted list of what's accepted on this deal's client needs, i.e. what's going to the lender (lender intro emails only)",
+  },
+  {
+    key: "outstandingItemsList",
+    description: "A bulleted list of client needs still not accepted (lender intro emails only)",
+  },
+  {
+    key: "skipTermsParagraph",
+    description: "Put this in a lender's intro email to leave out the automatic rate/fee paragraph that normally follows it (renders as nothing)",
   },
 ];
 

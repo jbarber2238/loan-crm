@@ -171,5 +171,12 @@ export async function buildAllDealTokens(deal: Deal): Promise<Record<string, str
 
     // Insurance/title contacts
     ...buildContactTemplateTokens(deal),
+    titleCompanyName: textOr(deal.titleCompanyName),
+
+    // Who the appraiser calls to get into the property, and where the appraisal payment link goes
+    appraisalContactName: textOr(deal.interiorAccessContactName),
+    appraisalContactEmail: textOr(deal.interiorAccessContactEmail),
+    appraisalContactPhone: textOr(deal.interiorAccessContactPhone),
+    appraisalPaymentEmail: textOr(deal.borrowerEmail),
   };
 }

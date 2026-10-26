@@ -255,6 +255,11 @@ const KEY_CONTACT_FIELD_MAP: Record<string, Record<string, string>> = {
     "Agent Email": "insuranceAgentEmail",
     "Agent Phone Number": "insuranceAgentPhone",
   },
+  "Provide the best contact for appraiser to arrange for the appraisal inspection.": {
+    "Contact Name": "interiorAccessContactName",
+    "Contact Email": "interiorAccessContactEmail",
+    "Contact Phone Number": "interiorAccessContactPhone",
+  },
 };
 
 // For esign/questionnaire needs only — document_upload needs derive their

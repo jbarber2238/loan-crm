@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { emailTemplates } from "@/server/db/schema";
+import { emailTemplates, dealClientNeeds } from "@/server/db/schema";
 import { renderTemplate } from "@/server/pricing-templates";
 import { originationFeeForPoints, effectiveCostToBorrowerFee } from "@/lib/term-sheet-calculations";
 import { buildAllDealTokens } from "@/server/deal-tokens";
@@ -108,10 +108,34 @@ export async function buildApplicationIntroTemplateTokens(
   deal: Deal,
   { repName, senderName, companyName }: { repName: string; senderName: string; companyName: string }
 ): Promise<Record<string, string>> {
+  const lists = await buildSubmissionChecklistLists(deal.id);
   return {
     ...(await buildAllDealTokens(deal)),
     repName: repName.trim().split(/\s+/)[0] || repName,
     senderName,
     companyName,
+    ...lists,
+    // A control word, not content: its presence tells the compose step to skip the auto-added terms paragraph.
+    skipTermsParagraph: "",
+  };
+}
+
+/**
+ * The deal's own client needs as two bulleted lists for a lender submission: what's accepted (going
+ * to the lender) and what's still outstanding. Contact questionnaires and payment links are left
+ * out (their answers appear as their own fields), as are needs on hold or marked unused.
+ */
+export async function buildSubmissionChecklistLists(dealId: string): Promise<{ attachedDocumentsList: string; outstandingItemsList: string }> {
+  const needs = await db.query.dealClientNeeds.findMany({
+    where: eq(dealClientNeeds.dealId, dealId),
+    columns: { itemName: true, status: true, needType: true, onHoldAt: true },
+    orderBy: (n, { asc }) => asc(n.createdAt),
+  });
+  const counted = needs.filter((n) => n.needType !== "questionnaire" && n.needType !== "link" && !n.onHoldAt && n.status !== "unused");
+  const bullets = (items: typeof counted, empty: string) =>
+    items.length ? items.map((n) => `\u2022 ${n.itemName}`).join("\n") : empty;
+  return {
+    attachedDocumentsList: bullets(counted.filter((n) => n.status === "accepted"), "\u2022 (nothing accepted yet)"),
+    outstandingItemsList: bullets(counted.filter((n) => n.status !== "accepted"), "\u2022 None"),
   };
 }
