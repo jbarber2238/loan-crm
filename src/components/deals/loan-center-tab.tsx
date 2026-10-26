@@ -5,6 +5,8 @@ import { LoanCenterTabsShell } from "@/components/deals/loan-center-tabs-shell";
 import { RolesTab } from "@/components/deals/roles-tab";
 import { ClientNeedsTab, type ClientNeed } from "@/components/deals/client-needs-tab";
 import { ClientNeedsNote, type ClientNeedsNoteData } from "@/components/deals/client-needs-note";
+import { EntityDocCarryOverDialog } from "@/components/deals/entity-doc-carryover-dialog";
+import type { EntityDocOffer } from "@/lib/entity-doc-carryover";
 import { ConditionsTab, type DealCondition } from "@/components/deals/conditions-tab";
 import { NotesTab } from "@/components/deals/notes-tab";
 import { KeyDateTracker } from "@/components/deals/key-date-tracker";
@@ -89,6 +91,7 @@ export function LoanCenterTab({
   emailLog,
   initialTab,
   teamChat,
+  entityDocOffer,
   documents,
   propertyLabel,
 }: {
@@ -142,6 +145,8 @@ export function LoanCenterTab({
   initialTab?: string;
   /** Server-rendered internal team chat for this deal. */
   teamChat: React.ReactNode;
+  /** Repeat borrower: entity documents that can come over from an earlier deal (null when there's nothing to offer). */
+  entityDocOffer: EntityDocOffer | null;
   documents: { accepted: DealDocumentRow[]; rejected: DealDocumentRow[]; unused: DealDocumentRow[] };
   propertyLabel: string;
 }) {
@@ -150,6 +155,7 @@ export function LoanCenterTab({
       <LoanCenterTabsShell initialTab={initialTab}>
 
         <TabsContent value="client-needs" className="space-y-4">
+          {entityDocOffer && <EntityDocCarryOverDialog dealId={dealId} offer={entityDocOffer} />}
           <ClientNeedsNote dealId={dealId} note={clientNeedsNote} />
           <ClientNeedsTab
             dealId={dealId}

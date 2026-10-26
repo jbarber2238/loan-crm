@@ -8,6 +8,7 @@ import { TeamChatPanel } from "@/components/team-chat/team-chat-panel";
 import { getDealDocumentsForDocumentsTab } from "@/server/actions/client-need-documents";
 import { getEmailLogForDeal } from "@/server/actions/email-log";
 import { LoanCenterTab } from "@/components/deals/loan-center-tab";
+import { planEntityDocCarryOver } from "@/server/entity-doc-carryover";
 import { getDealFiles } from "@/server/data/deal-files";
 import type { ClientNeed } from "@/components/deals/client-needs-tab";
 
@@ -75,11 +76,13 @@ export default async function DealLoanCenterPage({
   const noteAuthor = deal.clientNeedsNoteUpdatedByUserId ? allUsers.find((u) => u.id === deal.clientNeedsNoteUpdatedByUserId) : null;
   const loanOfficers = allUsers.filter((u) => u.baseRole === "loan_officer");
   const processors = allUsers.filter((u) => u.baseRole === "processor");
+  const entityDocOffer = (await planEntityDocCarryOver(id))?.offer ?? null;
   const assistants = allUsers.filter((u) => u.baseRole === "loan_officer_assistant");
 
   return (
     <LoanCenterTab
       initialTab={tab}
+      entityDocOffer={entityDocOffer}
       teamChat={
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">

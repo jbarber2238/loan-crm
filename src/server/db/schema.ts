@@ -993,6 +993,10 @@ export const deals = pgTable("deals", {
   // The "you're Clear to Close" email is never automatic: once a deal reaches that stage
   // staff are asked yes/no. null = not answered yet; "sent" or "declined" once they have.
   // A "declined" answer is cleared if the deal leaves Clear to Close (an accidental move).
+  // Repeat borrower: after the processing fee is paid, staff are offered the entity documents already on file
+  // from an earlier deal with the same entity. null = not answered yet; "copied" or "declined" once they are.
+  entityDocsCarryoverStatus: text("entity_docs_carryover_status"),
+  entityDocsCarryoverAt: timestamp("entity_docs_carryover_at", { mode: "date" }),
   clearToCloseEmailStatus: text("clear_to_close_email_status"),
   clearToCloseEmailAt: timestamp("clear_to_close_email_at", { mode: "date" }),
   closedDate: timestamp("closed_date", { mode: "date" }),
