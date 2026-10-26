@@ -623,6 +623,45 @@ export async function deleteAppraisalDocument(dealId: string) {
   revalidatePath(`/deals/${dealId}`);
 }
 
+/**
+ * Re-derives the approved LTV / LTARV / LTC from what's on the deal right now (approved loan amount, the
+ * chosen basis, appraised values), exactly as saving the Edit dialog does. Used when an appraisal comes in
+ * and changes the numbers without anyone reopening that dialog.
+ */
+async function recalculateApprovedRatios(dealId: string) {
+  const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId) });
+  if (!deal) return;
+  const isHardMoneyDraw = HARD_MONEY_DRAW_CATEGORIES.has(deal.loanCategory);
+  const loanAmount = deal.approvedLoanAmount ? Number(deal.approvedLoanAmount) : null;
+  if (!loanAmount) return;
+  const rehabCost = deal.approvedRehabCost ? Number(deal.approvedRehabCost) : null;
+  const arv = deal.approvedArv ? Number(deal.approvedArv) : null;
+
+  const asIsBasis = deal.ltvBasedOnPurchasePrice
+    ? conservativeValueBasis(
+        deal.loanCategory,
+        deal.purchasePrice ? Number(deal.purchasePrice) : null,
+        deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null
+      )
+    : deal.appraisedValue
+      ? Number(deal.appraisedValue)
+      : null;
+  const effectiveArv = deal.ltarvBasedOnApprovedArv ? arv : deal.appraisedArv ? Number(deal.appraisedArv) : null;
+
+  const approvedLtv = !isHardMoneyDraw && asIsBasis ? (loanAmount / asIsBasis) * 100 : null;
+  const approvedLtarv = isHardMoneyDraw ? calculateLtarv(loanAmount, effectiveArv) : null;
+  const approvedLtc = isHardMoneyDraw ? calculateLtc(loanAmount, asIsBasis, rehabCost) : null;
+
+  await db
+    .update(deals)
+    .set({
+      approvedLtv: approvedLtv !== null ? String(approvedLtv) : null,
+      approvedLtarv: approvedLtarv !== null ? String(approvedLtarv) : null,
+      approvedLtc: approvedLtc !== null ? String(approvedLtc) : null,
+    })
+    .where(eq(deals.id, dealId));
+}
+
 // Writes the AI scan's reviewed values onto the deal — the same
 // appraisedValue/appraisedArv columns the accepted-terms edit dialog
 // already reads/writes, so whichever path sets them last wins. Only
@@ -634,15 +673,22 @@ export async function deleteAppraisalDocument(dealId: string) {
 export async function applyAppraisalExtraction(dealId: string, formData: FormData) {
   await requireUser();
 
-  const updates: Record<string, string | null> = {};
+  const updates: Partial<typeof deals.$inferInsert> = {};
   if (formData.has("appraisedValue")) updates.appraisedValue = nullableStr(formData, "appraisedValue");
   if (formData.has("appraisedArv")) updates.appraisedArv = nullableStr(formData, "appraisedArv");
+  // Which figure the loan-to-value is measured against: the appraisal just read, or the purchase price.
+  const basis = formData.get("ltvBasis");
+  if (basis === "appraised") updates.ltvBasedOnPurchasePrice = false;
+  if (basis === "purchase") updates.ltvBasedOnPurchasePrice = true;
   if (!Object.keys(updates).length) return;
 
   await db
     .update(deals)
     .set(updates)
     .where(eq(deals.id, dealId));
+
+  // The header's LTV / LTC / LTARV were computed from the old figures, so refresh them with the new ones.
+  await recalculateApprovedRatios(dealId);
 
   revalidatePath(`/deals/${dealId}`);
 }

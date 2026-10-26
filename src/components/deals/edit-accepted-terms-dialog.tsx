@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { updateAcceptedTerms } from "@/server/actions/deals";
 import { STANDARD_PROCESSING_FEE } from "@/lib/term-sheet-calculations";
 import { termSheetFieldsFor } from "@/lib/term-sheet-fields";
+import { conservativeValueBasis } from "@/lib/term-sheet-calculations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -166,17 +167,48 @@ export function EditAcceptedTermsDialog({
               Additional Items (not on the term sheet)
             </p>
 
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox
-                name="ltvBasedOnPurchasePrice"
-                checked={basedOnPurchasePrice}
-                onCheckedChange={(v) => setBasedOnPurchasePrice(v === true)}
-              />
-              {asIsBasisLabel} based on purchase price
-              <span className="text-xs text-muted-foreground">
-                (uncheck once a real appraised value comes in if lender will base valuation on purchase price)
-              </span>
-            </label>
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">{asIsBasisLabel} is calculated against</legend>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {[
+                  {
+                    purchase: true,
+                    title: "Purchase price",
+                    amount: conservativeValueBasis(loanCategory, purchasePrice, estimatedAsIsValue),
+                    empty: "Not on the deal",
+                  },
+                  {
+                    purchase: false,
+                    title: "Appraised value",
+                    amount: appraised.trim() !== "" && Number(appraised) > 0 ? Number(appraised) : null,
+                    empty: "Not in yet",
+                  },
+                ].map((opt) => {
+                  const selected = basedOnPurchasePrice === opt.purchase;
+                  return (
+                    <button
+                      key={opt.title}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setBasedOnPurchasePrice(opt.purchase)}
+                      className={`rounded-lg border p-3 text-left text-sm transition-colors ${
+                        selected ? "border-primary bg-primary/10" : "hover:bg-muted/50"
+                      }`}
+                    >
+                      <span className="block font-medium">{opt.title}</span>
+                      <span className="block text-muted-foreground tabular-nums">
+                        {opt.amount !== null && opt.amount !== undefined ? money(opt.amount) : opt.empty}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {basedOnPurchasePrice && <input type="hidden" name="ltvBasedOnPurchasePrice" value="on" />}
+              {!basedOnPurchasePrice && appraised.trim() === "" && (
+                <p className="text-xs text-amber-600">There&apos;s no appraised value yet, so {asIsBasisLabel} will be blank until you enter one below.</p>
+              )}
+            </fieldset>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">

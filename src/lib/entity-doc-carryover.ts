@@ -6,20 +6,74 @@ export function normalizeName(value: string | null | undefined): string {
   return (value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
-export type EntityDocKind = "articles" | "foreign" | "good_standing" | "operating_agreement" | "ein";
+export type EntityDocKind =
+  | "articles"
+  | "foreign"
+  | "good_standing"
+  | "operating_agreement"
+  | "ein"
+  // Optional extras: reusable on a repeat deal, but only if the processor decides they still apply.
+  | "experience"
+  | "budget"
+  | "reo_schedule"
+  | "drivers_license";
 
-export const ENTITY_DOC_KINDS: {
+export interface CarryOverKindDef {
   kind: EntityDocKind;
   label: string;
-  /** A certificate of good standing goes stale, so it comes over for a quick re-review instead of pre-approved. */
+  /** "entity" documents are pre-selected; "optional" ones are offered unchecked, with a warning. */
+  group: "entity" | "optional";
+  /** Comes over pending re-review instead of approved (and its need stays open). */
   needsReview: boolean;
+  /** Lender-specific sheets only help when the new deal is with the same lender as the earlier one. */
+  requiresSameLender: boolean;
+  /** Shown beside optional documents. */
+  note?: string;
   matches: (needName: string) => boolean;
-}[] = [
-  { kind: "articles", label: "Articles of Organization / Incorporation", needsReview: false, matches: (n) => /articles of (organization|incorporation)/i.test(n) },
-  { kind: "foreign", label: "Foreign entity status documents", needsReview: false, matches: (n) => /foreign entity/i.test(n) },
-  { kind: "good_standing", label: "Certificate of Good Standing", needsReview: true, matches: (n) => /good standing/i.test(n) },
-  { kind: "operating_agreement", label: "Operating Agreement", needsReview: false, matches: (n) => /operating agreement/i.test(n) },
-  { kind: "ein", label: "EIN letter", needsReview: false, matches: (n) => /\bein\b/i.test(n) && !/ach|bank/i.test(n) },
+}
+
+export const ENTITY_DOC_KINDS: CarryOverKindDef[] = [
+  { kind: "articles", label: "Articles of Organization / Incorporation", group: "entity", needsReview: false, requiresSameLender: false, matches: (n) => /articles of (organization|incorporation)/i.test(n) },
+  { kind: "foreign", label: "Foreign entity status documents", group: "entity", needsReview: false, requiresSameLender: false, matches: (n) => /foreign entity/i.test(n) },
+  { kind: "good_standing", label: "Certificate of Good Standing", group: "entity", needsReview: true, requiresSameLender: false, matches: (n) => /good standing/i.test(n) },
+  { kind: "operating_agreement", label: "Operating Agreement", group: "entity", needsReview: false, requiresSameLender: false, matches: (n) => /operating agreement/i.test(n) },
+  { kind: "ein", label: "EIN letter", group: "entity", needsReview: false, requiresSameLender: false, matches: (n) => /\bein\b/i.test(n) && !/ach|bank/i.test(n) },
+  {
+    kind: "experience",
+    label: "Experience sheet",
+    group: "optional",
+    needsReview: true,
+    requiresSameLender: true,
+    note: "From the same lender. Add any projects completed since.",
+    matches: (n) => /experience|track record/i.test(n),
+  },
+  {
+    kind: "budget",
+    label: "Construction / rehab budget",
+    group: "optional",
+    needsReview: true,
+    requiresSameLender: true,
+    note: "From the same lender. Only useful if this project is similar; edit the line items.",
+    matches: (n) => /\bbudget\b/i.test(n),
+  },
+  {
+    kind: "reo_schedule",
+    label: "REO schedule",
+    group: "optional",
+    needsReview: true,
+    requiresSameLender: false,
+    note: "Update it with anything bought or sold since.",
+    matches: (n) => /\breo\b/i.test(n),
+  },
+  {
+    kind: "drivers_license",
+    label: "Driver's license",
+    group: "optional",
+    needsReview: true,
+    requiresSameLender: false,
+    note: "Check that it hasn't expired.",
+    matches: (n) => /driver/i.test(n),
+  },
 ];
 
 /** Which kind of entity document a client need is, if any. */
@@ -56,5 +110,5 @@ export interface EntityDocOffer {
   prior: { id: string; loanNumber: number; address: string; borrowerName: string; borrowerEmail: string | null };
   /** False means the email on the earlier deal differs, so staff confirm it's the same person first. */
   emailMatches: boolean;
-  items: { kind: EntityDocKind; label: string; fileCount: number; needsReview: boolean }[];
+  items: { kind: EntityDocKind; label: string; fileCount: number; needsReview: boolean; group: "entity" | "optional"; note?: string }[];
 }

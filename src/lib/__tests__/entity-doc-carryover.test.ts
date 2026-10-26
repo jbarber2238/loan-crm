@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareBorrowers, entityDocKindOf, normalizeName } from "../entity-doc-carryover";
+import { ENTITY_DOC_KINDS, compareBorrowers, entityDocKindOf, normalizeName } from "../entity-doc-carryover";
 
 describe("normalizeName", () => {
   it("ignores case, punctuation and spacing", () => {
@@ -20,8 +20,33 @@ describe("entityDocKindOf", () => {
   it("leaves everything else alone", () => {
     expect(entityDocKindOf("Bank Statements")).toBeNull();
     expect(entityDocKindOf("ACH Statements")).toBeNull();
-    expect(entityDocKindOf("Drivers License")).toBeNull();
     expect(entityDocKindOf("Dynamo Loan Application")).toBeNull();
+    expect(entityDocKindOf("Purchase Agreement")).toBeNull();
+    expect(entityDocKindOf("Appraisal Payment")).toBeNull();
+    expect(entityDocKindOf("Mortgage Payoff")).toBeNull();
+  });
+});
+
+describe("optional extras", () => {
+  it("recognizes the few documents worth reusing, and flags them as optional and re-reviewed", () => {
+    expect(entityDocKindOf("Investor Experience Tracker (Dynamo Capital)")).toBe("experience");
+    expect(entityDocKindOf("Investor Track Record (LIC)")).toBe("experience");
+    expect(entityDocKindOf("Construction / Rehab Budget (Dynamo Capital)")).toBe("budget");
+    expect(entityDocKindOf("REO Schedule")).toBe("reo_schedule");
+    expect(entityDocKindOf("Drivers License")).toBe("drivers_license");
+    const optional = ENTITY_DOC_KINDS.filter((k) => k.group === "optional");
+    expect(optional.length).toBe(4);
+    expect(optional.every((k) => k.needsReview)).toBe(true);
+    expect(ENTITY_DOC_KINDS.filter((k) => k.group === "entity").map((k) => k.kind).sort()).toEqual(
+      ["articles", "ein", "foreign", "good_standing", "operating_agreement"]
+    );
+  });
+  it("lender-specific sheets need the same lender", () => {
+    const need = (k: string) => ENTITY_DOC_KINDS.find((x) => x.kind === k)!.requiresSameLender;
+    expect(need("experience")).toBe(true);
+    expect(need("budget")).toBe(true);
+    expect(need("reo_schedule")).toBe(false);
+    expect(need("drivers_license")).toBe(false);
   });
 });
 

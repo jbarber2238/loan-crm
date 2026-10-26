@@ -39,6 +39,7 @@ export async function planEntityDocCarryOver(
       borrowerName: true,
       borrowerEmail: true,
       borrowerEntityName: true,
+      lenderId: true,
       stripeInvoiceStatus: true,
       entityDocsCarryoverStatus: true,
       deletedAt: true,
@@ -50,11 +51,13 @@ export async function planEntityDocCarryOver(
   // This deal's own empty slots for each kind of entity document.
   const myNeeds = await db.query.dealClientNeeds.findMany({
     where: eq(dealClientNeeds.dealId, dealId),
-    columns: { id: true, itemName: true },
+    columns: { id: true, itemName: true, needType: true },
     with: { documents: { columns: { id: true } } },
   });
+  // Only plain document-upload needs can receive files (signed forms and questionnaires are deal-specific).
   const slots = new Map<EntityDocKind, string>();
   for (const n of myNeeds) {
+    if (n.needType !== "document_upload") continue;
     const kind = entityDocKindOf(n.itemName);
     if (kind && n.documents.length === 0 && !slots.has(kind)) slots.set(kind, n.id);
   }
@@ -62,7 +65,7 @@ export async function planEntityDocCarryOver(
 
   const candidates = await db.query.deals.findMany({
     where: and(ne(deals.id, dealId), isNull(deals.deletedAt), isNotNull(deals.borrowerEntityName)),
-    columns: { id: true, loanNumber: true, propertyAddress: true, borrowerName: true, borrowerEmail: true, borrowerEntityName: true, createdAt: true },
+    columns: { id: true, loanNumber: true, propertyAddress: true, borrowerName: true, borrowerEmail: true, borrowerEntityName: true, lenderId: true, createdAt: true },
   });
   const matches = candidates
     .map((c) => ({ c, cmp: compareBorrowers(deal, c) }))
@@ -72,13 +75,14 @@ export async function planEntityDocCarryOver(
   for (const { c, cmp } of matches) {
     const theirNeeds = await db.query.dealClientNeeds.findMany({
       where: eq(dealClientNeeds.dealId, c.id),
-      columns: { itemName: true },
+      columns: { itemName: true, needType: true },
       with: { documents: { columns: { id: true, fileName: true, fileSize: true }, where: (d, { eq: e }) => e(d.reviewStatus, "approved") } },
     });
     // An earlier deal can have the same kind of document on two needs, or the same file twice: bring each file once.
     const byKind = new Map<EntityDocKind, string[]>();
     const seen = new Set<string>();
     for (const n of theirNeeds) {
+      if (n.needType !== "document_upload") continue;
       const kind = entityDocKindOf(n.itemName);
       if (!kind) continue;
       for (const d of n.documents) {
@@ -91,12 +95,15 @@ export async function planEntityDocCarryOver(
 
     const items: CarryOverPlanItem[] = [];
     const shown: EntityDocOffer["items"] = [];
+    // Lender-specific sheets (experience, budget) are only worth offering between two deals with the same lender.
+    const sameLender = Boolean(deal.lenderId && c.lenderId && deal.lenderId === c.lenderId);
     for (const k of ENTITY_DOC_KINDS) {
+      if (k.requiresSameLender && !sameLender) continue;
       const target = slots.get(k.kind);
       const source = byKind.get(k.kind);
       if (!target || !source?.length) continue;
       items.push({ kind: k.kind, targetNeedId: target, sourceDocumentIds: source });
-      shown.push({ kind: k.kind, label: k.label, fileCount: source.length, needsReview: k.needsReview });
+      shown.push({ kind: k.kind, label: k.label, fileCount: source.length, needsReview: k.needsReview, group: k.group, note: k.note });
     }
     if (items.length === 0) continue;
 

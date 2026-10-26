@@ -176,6 +176,17 @@ export function AppraisalDocumentCell({
                   defaultValue={result.appraisedValue ?? ""}
                 />
               </div>
+              <fieldset className="space-y-1.5">
+                <legend className="text-sm font-medium">{isHardMoneyDraw ? "LTC" : "LTV"} is calculated against</legend>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="radio" name="ltvBasis" value="appraised" defaultChecked className="size-4 accent-primary" />
+                  The appraised value
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="radio" name="ltvBasis" value="purchase" className="size-4 accent-primary" />
+                  The purchase price
+                </label>
+              </fieldset>
               {isHardMoneyDraw && (
                 <div className="space-y-1.5">
                   <Label htmlFor="appraisedArv">ARV (After Repair Value)</Label>

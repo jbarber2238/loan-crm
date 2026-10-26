@@ -39,7 +39,7 @@ export async function copyEntityDocsFromPriorDeal(
     source: "system",
     body: `Copied ${copied} entity document${copied === 1 ? "" : "s"} (${copiedKinds.map((k) => k.replace(/_/g, " ")).join(", ")}) from loan #${plan.offer.prior.loanNumber}, ${plan.offer.prior.address}. ${
       plan.offer.emailMatches ? "" : "Staff confirmed it is the same borrower (the email on file differs). "
-    }Approved documents were marked accepted; ones that go stale came over for re-review.`,
+    }Approved entity documents were marked accepted; anything else came over for review and may need editing.`,
   });
 
   revalidatePath(`/deals/${dealId}/loan-center`);
