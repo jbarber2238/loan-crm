@@ -12,6 +12,8 @@ import {
   calculateDutchMonthlyInterest,
   calculateEstimatedCashToClose,
   REFINANCE_CATEGORIES,
+  isDscrLikeCategory,
+  estimatedReservesRequired,
 } from "@/lib/term-sheet-calculations";
 import { isInterestOnlyCategory, rehabOrConstructionBudgetLabel } from "@/lib/loan-sections";
 import { costToBorrowerLabelFor } from "@/lib/term-sheet-fields";
@@ -265,11 +267,38 @@ export function AcceptedTermsHeader({
   // browser's own row-sizing keeps them aligned at any width. The other
   // layout has no such rows, so it keeps rendering this as a plain sibling
   // column instead.
+  // Reserves the lender will want to see on top of the cash to close: months of PITIA on a DSCR or portfolio
+  // loan, a dollar figure from the term sheet on the hard-money loans.
+  const termSheetReservesMonths =
+    typeof acceptedTermSheetFields?.reservesMonths === "number" && acceptedTermSheetFields.reservesMonths > 0
+      ? acceptedTermSheetFields.reservesMonths
+      : 6;
+  const reservesFromPitia = isDscrLikeCategory(loanCategory) || loanCategory === "portfolio";
+  const reservesAmount = reservesFromPitia
+    ? monthlyPayment.amount !== null
+      ? estimatedReservesRequired(monthlyPayment.amount, termSheetReservesMonths)
+      : null
+    : typeof acceptedTermSheetFields?.reservesRequired === "number"
+      ? acceptedTermSheetFields.reservesRequired
+      : null;
+  const reservesLabel = reservesFromPitia ? `reserves (${termSheetReservesMonths} mo. PITIA)` : "reserves";
+  const totalToShow = (borrowerReceivesCash ? 0 : estimatedCashToClose) + (reservesAmount ?? 0);
   const cashToCloseField = (
     <Field
       label={borrowerReceivesCash ? "Net Cash to Borrower" : "Cash to Show"}
       value={money(Math.abs(estimatedCashToClose))}
-      hint={borrowerReceivesCash ? "payoff + fees netted against loan amount, excl. reserves" : "down payment + fees, excl. reserves"}
+      hint={
+        <>
+          <span className="block">{borrowerReceivesCash ? "payoff + fees netted against loan amount" : "down payment + fees"}</span>
+          {reservesAmount !== null && reservesAmount > 0 && (
+            <span className="mt-0.5 block font-medium text-foreground">
+              {borrowerReceivesCash
+                ? `Show ${money(reservesAmount)} ${reservesLabel}`
+                : `+ ${money(reservesAmount)} ${reservesLabel} = ${money(totalToShow)} total to show`}
+            </span>
+          )}
+        </>
+      }
       className="w-full"
     />
   );
