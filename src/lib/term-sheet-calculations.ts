@@ -455,3 +455,13 @@ export function ratioMetricsFor(
   }
   return [];
 }
+
+/**
+ * The loan amount that keeps the same LTV when what it's measured against changes (purchase price to
+ * appraised value, or the appraised value coming in different): the LTV is the agreed number, so the
+ * loan amount moves with it. Whole dollars. Null if either figure is missing.
+ */
+export function loanAmountHoldingLtv(loanAmount: number, oldBasis: number | null, newBasis: number | null): number | null {
+  if (!(loanAmount > 0) || !oldBasis || !newBasis || oldBasis <= 0 || newBasis <= 0) return null;
+  return Math.round((loanAmount / oldBasis) * newBasis);
+}

@@ -34,7 +34,7 @@ import {
   parseIntakeFormData,
 } from "@/server/actions/parse-intake";
 import { extractTermSheetFields } from "@/lib/term-sheet-fields";
-import { conservativeValueBasis, calculateLtarv, calculateLtc } from "@/lib/term-sheet-calculations";
+import { conservativeValueBasis, calculateLtarv, calculateLtc, loanAmountHoldingLtv } from "@/lib/term-sheet-calculations";
 import { syncProcessingFeeInvoice } from "@/server/billing";
 import { toE164 } from "@/server/twilio-client";
 import { onDealStageChanged, onReferralCreated } from "@/server/partner/stage-events";
@@ -671,7 +671,10 @@ async function recalculateApprovedRatios(dealId: string) {
 // extractAppraisalData's own comment, there's no home for it on the deal
 // yet.
 export async function applyAppraisalExtraction(dealId: string, formData: FormData) {
-  await requireUser();
+  const user = await requireUser();
+
+  const before = await db.query.deals.findFirst({ where: eq(deals.id, dealId) });
+  if (!before) throw new Error("Deal not found");
 
   const updates: Partial<typeof deals.$inferInsert> = {};
   if (formData.has("appraisedValue")) updates.appraisedValue = nullableStr(formData, "appraisedValue");
@@ -686,6 +689,44 @@ export async function applyAppraisalExtraction(dealId: string, formData: FormDat
     .update(deals)
     .set(updates)
     .where(eq(deals.id, dealId));
+
+  // On a loan sized by LTV the LTV is the agreed number: if what it's measured against just changed, the
+  // loan amount moves with it (and the fees that are a % of it), not the LTV.
+  const after = { ...before, ...updates };
+  const isHardMoneyDraw = HARD_MONEY_DRAW_CATEGORIES.has(before.loanCategory);
+  const oldLoan = before.approvedLoanAmount ? Number(before.approvedLoanAmount) : null;
+  const basisOf = (d: typeof before) =>
+    d.ltvBasedOnPurchasePrice
+      ? conservativeValueBasis(
+          d.loanCategory,
+          d.purchasePrice ? Number(d.purchasePrice) : null,
+          d.estimatedAsIsValue ? Number(d.estimatedAsIsValue) : null
+        )
+      : d.appraisedValue
+        ? Number(d.appraisedValue)
+        : null;
+  const oldBasis = basisOf(before);
+  const newBasis = basisOf(after);
+  if (!isHardMoneyDraw && oldLoan && oldBasis && newBasis && oldBasis !== newBasis) {
+    const ltv = oldLoan / oldBasis;
+    const newLoan = loanAmountHoldingLtv(oldLoan, oldBasis, newBasis)!;
+    const oldFee = before.costToBorrowerFee ? Number(before.costToBorrowerFee) : null;
+    await db
+      .update(deals)
+      .set({
+        approvedLoanAmount: String(newLoan),
+        ...(oldFee !== null ? { costToBorrowerFee: String(Math.round((oldFee * newLoan) / oldLoan)) } : {}),
+      })
+      .where(eq(deals.id, dealId));
+    await db.insert(dealNotes).values({
+      dealId,
+      authorUserId: user.id,
+      source: "system",
+      body: `Appraisal applied: loan amount changed from $${oldLoan.toLocaleString()} to $${newLoan.toLocaleString()} to hold LTV at ${(ltv * 100).toFixed(1)}% against the ${
+        after.ltvBasedOnPurchasePrice ? "purchase price" : "appraised value"
+      } ($${newBasis.toLocaleString()}).`,
+    });
+  }
 
   // The header's LTV / LTC / LTARV were computed from the old figures, so refresh them with the new ones.
   await recalculateApprovedRatios(dealId);

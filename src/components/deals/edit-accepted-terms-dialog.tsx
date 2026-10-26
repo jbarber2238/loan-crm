@@ -100,6 +100,66 @@ export function EditAcceptedTermsDialog({
 
   const asIsBasisLabel = isHardMoneyDraw ? "LTC" : "LTV";
 
+  // On a loan sized by LTV (everything but fix-and-flip and new construction) the LTV is the agreed number,
+  // so changing what it's measured against moves the loan amount, not the LTV.
+  const [loanAmountStr, setLoanAmountStr] = useState(approvedLoanAmount !== null ? String(approvedLoanAmount) : String(termSheetFields.loanAmount ?? ""));
+  const [loanPatch, setLoanPatch] = useState<{ value: string; nonce: number } | null>(null);
+  const [ltvNote, setLtvNote] = useState<string | null>(null);
+  const purchaseBasisAmount = conservativeValueBasis(loanCategory, purchasePrice, estimatedAsIsValue);
+  const basisAmount = (onPurchase: boolean, appraisedStr: string): number | null =>
+    onPurchase ? purchaseBasisAmount : appraisedStr.trim() !== "" && Number(appraisedStr) > 0 ? Number(appraisedStr) : null;
+  // The LTV being held steady: what the loan amount is against its current basis, remembered so retyping the
+  // appraised value rescales from the same percentage instead of drifting.
+  const [heldLtv, setHeldLtv] = useState<number | null>(() => {
+    const loan = approvedLoanAmount ?? (Number(termSheetFields.loanAmount) || null);
+    const basis = ltvBasedOnPurchasePrice ? conservativeValueBasis(loanCategory, purchasePrice, estimatedAsIsValue) : appraisedValue;
+    return loan && basis ? loan / basis : null;
+  });
+
+  function pushLoanAmount(newLoan: number, ltv: number) {
+    const value = String(Math.round(newLoan));
+    setLoanAmountStr(value);
+    setLoanPatch((p) => ({ value, nonce: (p?.nonce ?? 0) + 1 }));
+    setLtvNote(`Loan amount set to ${money(Math.round(newLoan))} to keep the ${asIsBasisLabel} at ${(ltv * 100).toFixed(1)}%. You can still change it.`);
+  }
+
+  function chooseBasis(onPurchase: boolean) {
+    if (onPurchase === basedOnPurchasePrice) return;
+    const before = basisAmount(basedOnPurchasePrice, appraised);
+    const after = basisAmount(onPurchase, appraised);
+    const loan = Number(loanAmountStr);
+    setBasedOnPurchasePrice(onPurchase);
+    if (isHardMoneyDraw || !after) {
+      setLtvNote(null);
+      return;
+    }
+    const ltv = heldLtv ?? (loan > 0 && before ? loan / before : null);
+    if (ltv) {
+      setHeldLtv(ltv);
+      pushLoanAmount(ltv * after, ltv);
+    }
+  }
+
+  function changeAppraised(next: string) {
+    setAppraised(next);
+    if (isHardMoneyDraw || basedOnPurchasePrice) return;
+    const after = next.trim() !== "" && Number(next) > 0 ? Number(next) : null;
+    const loan = Number(loanAmountStr);
+    const ltv = heldLtv ?? (loan > 0 && after ? loan / after : null);
+    if (after && ltv) {
+      setHeldLtv(ltv);
+      pushLoanAmount(ltv * after, ltv);
+    }
+  }
+
+  // A hand-typed loan amount becomes the new LTV to hold.
+  function loanAmountTyped(v: string) {
+    setLoanAmountStr(v);
+    setLtvNote(null);
+    const basis = basisAmount(basedOnPurchasePrice, appraised);
+    if (Number(v) > 0 && basis) setHeldLtv(Number(v) / basis);
+  }
+
   // Same field defs the term sheet form itself uses, so this dialog renders
   // identically for every field the two share. Deal-level overrides (set by
   // editing here previously) win over the term sheet's original numbers,
@@ -160,6 +220,8 @@ export function EditAcceptedTermsDialog({
             category={loanCategory}
             purchasePrice={purchasePrice}
             estimatedAsIsValue={estimatedAsIsValue}
+            onLoanAmountChange={(v) => loanAmountTyped(v)}
+            loanAmountPatch={loanPatch}
           />
 
           <div className="space-y-3 rounded-lg border p-4">
@@ -191,7 +253,7 @@ export function EditAcceptedTermsDialog({
                       type="button"
                       role="radio"
                       aria-checked={selected}
-                      onClick={() => setBasedOnPurchasePrice(opt.purchase)}
+                      onClick={() => chooseBasis(opt.purchase)}
                       className={`rounded-lg border p-3 text-left text-sm transition-colors ${
                         selected ? "border-primary bg-primary/10" : "hover:bg-muted/50"
                       }`}
@@ -205,6 +267,7 @@ export function EditAcceptedTermsDialog({
                 })}
               </div>
               {basedOnPurchasePrice && <input type="hidden" name="ltvBasedOnPurchasePrice" value="on" />}
+              {ltvNote && <p className="text-xs text-green-700 dark:text-green-400">{ltvNote}</p>}
               {!basedOnPurchasePrice && appraised.trim() === "" && (
                 <p className="text-xs text-amber-600">There&apos;s no appraised value yet, so {asIsBasisLabel} will be blank until you enter one below.</p>
               )}
@@ -218,7 +281,7 @@ export function EditAcceptedTermsDialog({
                   name="appraisedValue"
                   type="number"
                   value={appraised}
-                  onChange={(e) => setAppraised(e.target.value)}
+                  onChange={(e) => changeAppraised(e.target.value)}
                   placeholder="Not in yet"
                 />
               </div>

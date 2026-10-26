@@ -130,6 +130,8 @@ export function TermSheetFieldInputs({
   purchasePrice = null,
   estimatedAsIsValue = null,
   mortgagePayoffAmount,
+  onLoanAmountChange,
+  loanAmountPatch = null,
 }: {
   fields: TermSheetField[];
   values?: Record<string, unknown>;
@@ -146,6 +148,10 @@ export function TermSheetFieldInputs({
   // deal yet) switches on the live net-proceeds readout and cap field on a
   // rate & term refinance; leaving it undefined hides both.
   mortgagePayoffAmount?: number | null;
+  // Lets a parent follow the loan amount as it's typed, and push a new one in (e.g. when the value the
+  // LTV is measured against changes and the loan amount should move with it). A new `nonce` applies the value once.
+  onLoanAmountChange?: (value: string, source: "user" | "patch") => void;
+  loanAmountPatch?: { value: string; nonce: number } | null;
 }) {
   // loanAmount, originationPoints, and originationFee are linked — editing
   // loan amount or points recalculates the fee live. Same relationship
@@ -180,8 +186,10 @@ export function TermSheetFieldInputs({
   const [underwritingFee, setUnderwritingFee] = useState(String(values.underwritingDocFee ?? ""));
   const [netProceedsCap, setNetProceedsCap] = useState(String(values.netProceedsCap ?? ""));
 
-  function handleLoanAmountChange(v: string) {
+  function handleLoanAmountChange(v: string, source: "user" | "patch" = "user") {
     setLoanAmount(v);
+    // Only hand-typed changes are reported; a pushed-in value is one the parent already knows.
+    if (source === "user") onLoanAmountChange?.(v, source);
     const computed = computeOriginationFee(v, points);
     if (computed) setFee(computed);
     if (hasRateBuydownPoints) {
@@ -192,6 +200,13 @@ export function TermSheetFieldInputs({
       const lenderComputed = computeRateBuydownFee(v, lenderPoints);
       if (lenderComputed) setLenderFee(lenderComputed);
     }
+  }
+
+  // Apply a loan amount pushed in by the parent, once per nonce.
+  const [appliedPatch, setAppliedPatch] = useState<number | null>(null);
+  if (loanAmountPatch && loanAmountPatch.nonce !== appliedPatch) {
+    setAppliedPatch(loanAmountPatch.nonce);
+    handleLoanAmountChange(loanAmountPatch.value, "patch");
   }
 
   function handleLenderPointsChange(v: string) {
