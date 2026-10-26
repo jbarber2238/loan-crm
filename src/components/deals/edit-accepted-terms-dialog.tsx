@@ -108,13 +108,23 @@ export function EditAcceptedTermsDialog({
   const purchaseBasisAmount = conservativeValueBasis(loanCategory, purchasePrice, estimatedAsIsValue);
   const basisAmount = (onPurchase: boolean, appraisedStr: string): number | null =>
     onPurchase ? purchaseBasisAmount : appraisedStr.trim() !== "" && Number(appraisedStr) > 0 ? Number(appraisedStr) : null;
-  // The LTV being held steady: what the loan amount is against its current basis, remembered so retyping the
+  // The LTV being held steady. Normally the one that was agreed on the term sheet (loan amount over the
+  // purchase-price basis it was quoted against), as long as the loan amount hasn't been renegotiated since.
+  // Otherwise whatever the saved loan amount is against the saved basis. Remembered so retyping the
   // appraised value rescales from the same percentage instead of drifting.
   const [heldLtv, setHeldLtv] = useState<number | null>(() => {
-    const loan = approvedLoanAmount ?? (Number(termSheetFields.loanAmount) || null);
-    const basis = ltvBasedOnPurchasePrice ? conservativeValueBasis(loanCategory, purchasePrice, estimatedAsIsValue) : appraisedValue;
+    const termSheetLoan = Number(termSheetFields.loanAmount) || null;
+    if (termSheetLoan && purchaseBasisAmount && (approvedLoanAmount === null || approvedLoanAmount === termSheetLoan)) {
+      return termSheetLoan / purchaseBasisAmount;
+    }
+    const loan = approvedLoanAmount ?? termSheetLoan;
+    const basis = ltvBasedOnPurchasePrice ? purchaseBasisAmount : appraisedValue;
     return loan && basis ? loan / basis : null;
   });
+  const appraisedNum = appraised.trim() !== "" && Number(appraised) > 0 ? Number(appraised) : null;
+  const currentBasis = basedOnPurchasePrice ? purchaseBasisAmount : appraisedNum;
+  const idealLoan = !isHardMoneyDraw && heldLtv && currentBasis ? Math.round(heldLtv * currentBasis) : null;
+  const loanOffLtv = idealLoan !== null && Math.abs(Number(loanAmountStr) - idealLoan) > 1 && Number(loanAmountStr) > 0;
 
   function pushLoanAmount(newLoan: number, ltv: number) {
     const value = String(Math.round(newLoan));
@@ -138,6 +148,10 @@ export function EditAcceptedTermsDialog({
       setHeldLtv(ltv);
       pushLoanAmount(ltv * after, ltv);
     }
+  }
+
+  function setLoanToHeldLtv() {
+    if (idealLoan !== null && heldLtv) pushLoanAmount(idealLoan, heldLtv);
   }
 
   function changeAppraised(next: string) {
@@ -218,8 +232,9 @@ export function EditAcceptedTermsDialog({
             fields={fieldDefs}
             values={values}
             category={loanCategory}
-            purchasePrice={purchasePrice}
-            estimatedAsIsValue={estimatedAsIsValue}
+            // The live LTV readout follows the basis chosen below: against the appraised value, that's the figure used.
+            purchasePrice={basedOnPurchasePrice ? purchasePrice : appraisedNum}
+            estimatedAsIsValue={basedOnPurchasePrice ? estimatedAsIsValue : appraisedNum}
             onLoanAmountChange={(v) => loanAmountTyped(v)}
             loanAmountPatch={loanPatch}
           />
@@ -268,6 +283,17 @@ export function EditAcceptedTermsDialog({
               </div>
               {basedOnPurchasePrice && <input type="hidden" name="ltvBasedOnPurchasePrice" value="on" />}
               {ltvNote && <p className="text-xs text-green-700 dark:text-green-400">{ltvNote}</p>}
+              {!ltvNote && loanOffLtv && idealLoan !== null && heldLtv && currentBasis && (
+                <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-900 dark:text-amber-200">
+                  <span>
+                    The loan amount is {money(Number(loanAmountStr))}, which is {((Number(loanAmountStr) / currentBasis) * 100).toFixed(1)}% of the{" "}
+                    {basedOnPurchasePrice ? "purchase price" : "appraised value"}. Your agreed {asIsBasisLabel} is {(heldLtv * 100).toFixed(1)}%.
+                  </span>
+                  <Button type="button" size="sm" variant="outline" onClick={setLoanToHeldLtv}>
+                    Set it to {money(idealLoan)}
+                  </Button>
+                </div>
+              )}
               {!basedOnPurchasePrice && appraised.trim() === "" && (
                 <p className="text-xs text-amber-600">There&apos;s no appraised value yet, so {asIsBasisLabel} will be blank until you enter one below.</p>
               )}
