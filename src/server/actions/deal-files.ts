@@ -7,6 +7,7 @@ import { dealFiles } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { fail } from "@/lib/action-result";
 import { DEAL_FILE_NOTE_MAX, isDealFileCategory, validateDealFileUpload } from "@/lib/deal-files";
+import { resolveStagedFiles } from "@/server/staged-uploads";
 
 function revalidateDeal(dealId: string) {
   revalidatePath(`/deals/${dealId}/loan-center`);
@@ -15,6 +16,7 @@ function revalidateDeal(dealId: string) {
 /** Saves one file on a deal with an optional note. Each upload is its own entry, so revisions pile up in order instead of replacing each other. */
 export async function uploadDealFile(dealId: string, category: string, formData: FormData) {
   const user = await requireUser();
+  await resolveStagedFiles(formData);
   if (!isDealFileCategory(category)) return fail("Unknown document type.");
   const file = formData.get("file");
   const note = String(formData.get("note") ?? "").trim();

@@ -1535,6 +1535,21 @@ export const closingSurveys = pgTable("closing_surveys", {
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 
+// Where a large file waits while it's being uploaded in pieces. Vercel refuses any single request over
+// about 4.5MB, so the browser sends big files a few MB at a time (see src/lib/stage-large-files.ts) and the
+// action that actually saves the file reassembles them. Rows are deleted as soon as they're used, and any
+// that were never claimed are swept after an hour.
+export const uploadChunks = pgTable(
+  "upload_chunks",
+  {
+    uploadId: text("upload_id").notNull(),
+    chunkIndex: integer("chunk_index").notNull(),
+    data: text("data").notNull(), // base64
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.uploadId, t.chunkIndex] })]
+);
+
 export const pricingRequests = pgTable("pricing_requests", {
   id: uuid("id").primaryKey().defaultRandom(),
   dealId: uuid("deal_id")

@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { stageLargeFiles } from "@/lib/stage-large-files";
+import { stageUploadChunk } from "@/server/actions/staged-upload";
 
 // The finish-line reward: once a need is accepted it drops out of the
 // interactive list entirely and becomes one calm, checked-off line — the
@@ -149,7 +151,7 @@ export function BorrowerUploadNeedRow({ token, need }: { token: string; need: Bo
     for (const file of Array.from(files)) formData.append("file", file);
     startTransition(async () => {
       try {
-        await uploadBorrowerDocument(token, need.id, formData);
+        await uploadBorrowerDocument(token, need.id, await stageLargeFiles(formData, stageUploadChunk, { borrowerToken: token }));
         setJustUploaded(true);
         router.refresh();
       } catch (err) {

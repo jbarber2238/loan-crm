@@ -12,6 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { TermSheetExtractionReview } from "@/components/deals/term-sheet-extraction-review";
 import { originationFeeSuggestion } from "@/lib/term-sheet-calculations";
+import { stageLargeFiles } from "@/lib/stage-large-files";
+import { stageUploadChunk } from "@/server/actions/staged-upload";
 
 interface ReplyAttachment {
   id: string;
@@ -70,7 +72,7 @@ export function ReplyImportView({
     const formData = new FormData(e.currentTarget);
     startSave(async () => {
       try {
-        await saveReply(formData);
+        await saveReply(await stageLargeFiles(formData, stageUploadChunk));
         toast.success("Reply saved");
         setEditingReply(false);
         router.refresh();

@@ -21,6 +21,8 @@ import { RoomMembersDialog } from "@/components/team-chat/room-members-dialog";
 import { useLoanCenterNav } from "@/components/deals/loan-center-nav-context";
 import { cn } from "@/lib/utils";
 import { GLOBAL_CHAT_CHANNEL, getRealtimeClient, roomChannelName } from "@/lib/realtime";
+import { stageLargeFiles } from "@/lib/stage-large-files";
+import { stageUploadChunk } from "@/server/actions/staged-upload";
 
 // Live updates come over Supabase Realtime; polling is only a safety net (and
 // the whole mechanism if Realtime isn't configured).
@@ -493,7 +495,7 @@ export function TeamChatPanel({
       form.set("audioTranscript", message.clip.transcript);
       form.set("audioSeconds", String(message.clip.seconds));
     }
-    await sendTeamMessage(roomId, form);
+    await sendTeamMessage(roomId, await stageLargeFiles(form, stageUploadChunk));
     broadcastChanged();
     await refresh();
   }

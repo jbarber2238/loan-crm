@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { stageLargeFiles } from "@/lib/stage-large-files";
+import { stageUploadChunk } from "@/server/actions/staged-upload";
 
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -48,7 +50,7 @@ export function DealFileUploadForm({
         const formData = new FormData(e.currentTarget);
         start(async () => {
           try {
-            const result = await uploadDealFile(dealId, category, formData);
+            const result = await uploadDealFile(dealId, category, await stageLargeFiles(formData, stageUploadChunk));
             if (isActionError(result)) {
               toast.error(result.error);
               return;

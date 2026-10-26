@@ -8,6 +8,8 @@ import { uploadLenderDocumentsWithAI, type AiFiledDocument } from "@/server/acti
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { stageLargeFiles } from "@/lib/stage-large-files";
+import { stageUploadChunk } from "@/server/actions/staged-upload";
 
 export function AiMatrixUpload({ lenderId }: { lenderId: string }) {
   const router = useRouter();
@@ -24,7 +26,7 @@ export function AiMatrixUpload({ lenderId }: { lenderId: string }) {
 
     startTransition(async () => {
       try {
-        const filed = await uploadLenderDocumentsWithAI(lenderId, formData);
+        const filed = await uploadLenderDocumentsWithAI(lenderId, await stageLargeFiles(formData, stageUploadChunk));
         setResults(filed);
         formRef.current?.reset();
         toast.success("Documents uploaded");

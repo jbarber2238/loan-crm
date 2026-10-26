@@ -9,11 +9,13 @@ import { recomputeNeedStatus, removeNeedIfHiddenAndEmpty } from "@/server/client
 import { shouldRestoreOnMove } from "@/lib/client-need-status";
 import { convertHeicIfNeeded } from "@/server/heic";
 import { addSingleCatalogNeedToDeal, addClientNeedToDeal } from "@/server/actions/client-needs";
+import { resolveStagedFiles } from "@/server/staged-uploads";
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
 
 export async function attachDocumentToClientNeed(dealId: string, needId: string, formData: FormData) {
   const user = await requireUser();
+  await resolveStagedFiles(formData);
   const files = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
   if (!files.length) {
     throw new Error("Choose at least one file to upload");

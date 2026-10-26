@@ -6,6 +6,7 @@ import { db } from "@/server/db/client";
 import { lenderCriteria, lenderCriteriaTiers, lenderDocuments, lenderWideCriteria } from "@/server/db/schema";
 import { requireAdmin } from "@/server/auth/guards";
 import { extractLenderCriteria, type ExtractedCriteria } from "@/server/ai/extract-lender-criteria";
+import { resolveStagedFiles } from "@/server/staged-uploads";
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB — plenty for rate sheets/matrices
 
@@ -198,6 +199,7 @@ async function insertLenderDocuments({
 
 export async function uploadLenderDocument(lenderId: string, formData: FormData) {
   const user = await requireAdmin();
+  await resolveStagedFiles(formData);
   const productId = formData.get("productId");
 
   await insertLenderDocuments({

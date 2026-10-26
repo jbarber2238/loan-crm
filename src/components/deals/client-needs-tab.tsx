@@ -66,6 +66,8 @@ import { RecipientLine } from "@/components/emails/recipient-line";
 import { SignaturePreview } from "@/components/emails/signature-preview";
 import { HtmlBodyEditor } from "@/components/emails/html-body-editor";
 import type { RecipientCandidate } from "@/lib/email-recipients";
+import { stageLargeFiles } from "@/lib/stage-large-files";
+import { stageUploadChunk } from "@/server/actions/staged-upload";
 
 export interface ClientNeedAnswer {
   id: string;
@@ -275,7 +277,7 @@ function AttachDocumentButton({ dealId, needId }: { dealId: string; needId: stri
     for (const file of Array.from(files)) formData.append("file", file);
     startTransition(async () => {
       try {
-        await attachDocumentToClientNeed(dealId, needId, formData);
+        await attachDocumentToClientNeed(dealId, needId, await stageLargeFiles(formData, stageUploadChunk));
         toast.success("Document uploaded");
         router.refresh();
       } catch (err) {

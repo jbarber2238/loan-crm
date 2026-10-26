@@ -40,6 +40,7 @@ import { toE164 } from "@/server/twilio-client";
 import { onDealStageChanged, onReferralCreated } from "@/server/partner/stage-events";
 import { syncConditionalClientNeeds } from "@/server/actions/client-needs";
 import { notifyAdminOfNewDeal, notifyBorrowerOfSubmission, notifyProcessorOfPaidDeal } from "@/server/deal-notifications";
+import { resolveStagedFiles } from "@/server/staged-uploads";
 
 const HARD_MONEY_DRAW_CATEGORIES = new Set(["fix_and_flip", "new_construction"]);
 
@@ -594,6 +595,7 @@ const MAX_APPRAISAL_FILE_SIZE = 15 * 1024 * 1024; // 15MB, matches the borrower-
 
 export async function uploadAppraisalDocument(dealId: string, formData: FormData) {
   await requireUser();
+  await resolveStagedFiles(formData);
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) throw new Error("Choose a file first");

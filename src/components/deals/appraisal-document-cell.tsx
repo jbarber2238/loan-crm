@@ -14,6 +14,8 @@ import {
   applyAppraisalExtraction,
 } from "@/server/actions/deals";
 import { extractAppraisalData, type AppraisalExtractionResult } from "@/server/ai/appraisal-extraction";
+import { stageLargeFiles } from "@/lib/stage-large-files";
+import { stageUploadChunk } from "@/server/actions/staged-upload";
 
 const HARD_MONEY_DRAW_CATEGORIES = new Set(["fix_and_flip", "new_construction"]);
 const DSCR_CATEGORIES = new Set(["dscr_purchase", "dscr_cash_out_refinance", "dscr_rate_term_refinance"]);
@@ -48,7 +50,7 @@ export function AppraisalDocumentCell({
     formData.set("file", file);
     startUpload(async () => {
       try {
-        await uploadAppraisalDocument(dealId, formData);
+        await uploadAppraisalDocument(dealId, await stageLargeFiles(formData, stageUploadChunk));
         toast.success("Appraisal uploaded");
         router.refresh();
       } catch (err) {

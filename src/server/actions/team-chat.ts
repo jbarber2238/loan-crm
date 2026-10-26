@@ -13,6 +13,7 @@ import {
 } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { roomAccess } from "@/server/team-chat-access";
+import { resolveStagedFiles } from "@/server/staged-uploads";
 
 // Internal-only: nothing in here touches the client texting tables.
 
@@ -150,6 +151,7 @@ const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
  */
 export async function sendTeamMessage(roomId: string, formData: FormData) {
   const { user } = await requireRoomAccess(roomId);
+  await resolveStagedFiles(formData);
   const text = String(formData.get("body") ?? "").trim();
   const parentId = String(formData.get("parentId") ?? "") || null;
   const files = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);

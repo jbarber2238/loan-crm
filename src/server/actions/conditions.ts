@@ -8,11 +8,13 @@ import { requireUser } from "@/server/auth/guards";
 import { autoAdvanceDeal } from "@/server/auto-stage-moves";
 import { extractConditions } from "@/server/ai/condition-extraction";
 import { addClientNeedToDeal } from "@/server/actions/client-needs";
+import { resolveStagedFiles } from "@/server/staged-uploads";
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
 
 export async function extractConditionsFromEmail(dealId: string, formData: FormData) {
   const user = await requireUser();
+  await resolveStagedFiles(formData);
   const emailText = formData.get("emailText");
   const uploadedFile = formData.get("file");
 

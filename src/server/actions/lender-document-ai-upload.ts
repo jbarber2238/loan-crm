@@ -8,6 +8,7 @@ import { extractLenderCriteria } from "@/server/ai/extract-lender-criteria";
 import { extractAndStoreCriteria, extractAndStoreLenderWideCriteria } from "@/server/actions/lender-documents";
 import { findOrCreateProduct } from "@/server/actions/lenders";
 import { LOAN_CATEGORIES, labelFor } from "@/lib/labels";
+import { resolveStagedFiles } from "@/server/staged-uploads";
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
 
@@ -32,6 +33,7 @@ export async function uploadLenderDocumentsWithAI(
   formData: FormData
 ): Promise<AiFiledDocument[]> {
   const user = await requireAdmin();
+  await resolveStagedFiles(formData);
 
   const files = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
   if (files.length === 0) {

@@ -12,6 +12,7 @@ import { convertHeicIfNeeded } from "@/server/heic";
 import { createSigningSessionUrl } from "@/server/pandadoc";
 import { parsePropertyAddress } from "@/lib/format";
 import { getCustomFormDefinition, syncedFieldsFor } from "@/lib/custom-need-forms/registry";
+import { resolveStagedFiles } from "@/server/staged-uploads";
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
 
@@ -167,6 +168,7 @@ export async function uploadBorrowerDocument(token: string, needId: string, form
     throw new Error("This item can't accept an upload right now");
   }
 
+  await resolveStagedFiles(formData);
   const files = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
   if (!files.length) throw new Error("Choose at least one file to upload");
   const tooLarge = files.find((f) => f.size > MAX_FILE_SIZE);

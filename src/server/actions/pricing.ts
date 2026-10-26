@@ -12,6 +12,7 @@ import { buildPricingEmail } from "@/server/pricing-templates";
 import { plainTextToHtmlAutoList } from "@/lib/email-html";
 import { advanceDealStage } from "@/server/actions/deals";
 import { notifyBorrowerOfRateShopping } from "@/server/deal-notifications";
+import { resolveStagedFiles } from "@/server/staged-uploads";
 
 export async function updateDealPricingNote(dealId: string, formData: FormData) {
   await requireUser();
@@ -194,6 +195,7 @@ const MAX_REPLY_ATTACHMENT_SIZE = 15 * 1024 * 1024; // 15MB
  */
 export async function saveManualPricingReply(dealId: string, requestId: string, formData: FormData) {
   await requireUser();
+  await resolveStagedFiles(formData);
 
   const bodyText = formData.get("replyBodyText");
   const files = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);

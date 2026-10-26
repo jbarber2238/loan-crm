@@ -17,6 +17,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { CollapsibleSection } from "@/components/email-templates/collapsible-section";
 import { CreateClientNeedFromConditionDialog } from "@/components/deals/create-client-need-from-condition-dialog";
+import { stageLargeFiles } from "@/lib/stage-large-files";
+import { stageUploadChunk } from "@/server/actions/staged-upload";
 
 export interface DealCondition {
   id: string;
@@ -111,7 +113,7 @@ export function ConditionsTab({ dealId, conditions }: { dealId: string; conditio
     const formData = new FormData(e.currentTarget);
     startTransition(async () => {
       try {
-        await extract(formData);
+        await extract(await stageLargeFiles(formData, stageUploadChunk));
         setEmailText("");
         setFileName(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
