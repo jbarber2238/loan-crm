@@ -1281,6 +1281,16 @@ export const dealClientNeeds = pgTable("deal_client_needs", {
   acceptedAt: timestamp("accepted_at", { mode: "date" }),
   acceptedByUserId: uuid("accepted_by_user_id").references(() => users.id),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  // Read-only Claude connector (src/server/mcp): who asked for this need,
+  // who owes it, and what it holds up. All nullable on purpose. null means
+  // "not recorded", and the connector then infers an answer from the sent-by
+  // user, the need's name and status, and the deal's stage (see
+  // src/server/mcp/needs.ts) and labels the inferred value as inferred.
+  requestedByUserId: uuid("requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  // borrower | processor | title | insurance | lender
+  responsibleParty: text("responsible_party"),
+  // underwriting | closing | none
+  blocks: text("blocks"),
   // The real, stable display order — assigned explicitly at insert time
   // (see addCatalogNeedsToDeal), never touched again. `createdAt` alone
   // isn't safe to sort by: every need in one batch insert (Auto Generate,
@@ -2430,3 +2440,75 @@ export const dealFilesRelations = relations(dealFiles, ({ one }) => ({
   deal: one(deals, { fields: [dealFiles.dealId], references: [deals.id] }),
   uploadedBy: one(users, { fields: [dealFiles.uploadedByUserId], references: [users.id] }),
 }));
+
+
+// ---------------------------------------------------------------------------
+// Read-only MCP connector (claude.ai custom connector): OAuth 2.1 plumbing and
+// the audit trail. Secrets (codes, tokens, client secrets) are stored only as
+// SHA-256 hashes.
+// ---------------------------------------------------------------------------
+
+export const mcpOauthClients = pgTable("mcp_oauth_clients", {
+  clientId: text("client_id").primaryKey(),
+  clientName: text("client_name").notNull(),
+  redirectUris: jsonb("redirect_uris").$type<string[]>().notNull(),
+  // "none" (public client + PKCE, what claude.ai uses) or "client_secret_post".
+  tokenEndpointAuthMethod: text("token_endpoint_auth_method").notNull().default("none"),
+  clientSecretHash: text("client_secret_hash"),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
+export const mcpOauthCodes = pgTable("mcp_oauth_codes", {
+  codeHash: text("code_hash").primaryKey(),
+  clientId: text("client_id")
+    .notNull()
+    .references(() => mcpOauthClients.clientId, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  redirectUri: text("redirect_uri").notNull(),
+  codeChallenge: text("code_challenge").notNull(),
+  resource: text("resource").notNull(),
+  scope: text("scope").notNull(),
+  expiresAt: timestamp("expires_at", { mode: "date", withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { mode: "date", withTimezone: true }),
+});
+
+// One row per authorized connection (a "grant"). Refreshing rotates the two
+// token hashes in place; revoking sets revokedAt, which kills both at once.
+export const mcpOauthTokens = pgTable("mcp_oauth_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  clientId: text("client_id")
+    .notNull()
+    .references(() => mcpOauthClients.clientId, { onDelete: "cascade" }),
+  accessTokenHash: text("access_token_hash").notNull().unique(),
+  refreshTokenHash: text("refresh_token_hash").notNull().unique(),
+  // The refresh token this grant held before the last rotation. Presenting it
+  // again means a copy leaked, so the whole grant is revoked.
+  previousRefreshTokenHash: text("previous_refresh_token_hash"),
+  resource: text("resource").notNull(),
+  scope: text("scope").notNull(),
+  accessExpiresAt: timestamp("access_expires_at", { mode: "date", withTimezone: true }).notNull(),
+  refreshExpiresAt: timestamp("refresh_expires_at", { mode: "date", withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  lastUsedAt: timestamp("last_used_at", { mode: "date", withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { mode: "date", withTimezone: true }),
+});
+
+// Every tools/call the connector receives, written BEFORE the tool runs.
+export const mcpAuditLog = pgTable("mcp_audit_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  grantId: uuid("grant_id"),
+  clientId: text("client_id"),
+  tool: text("tool").notNull(),
+  arguments: jsonb("arguments"),
+  // null until the call finishes; false for errors and rejected calls.
+  ok: boolean("ok"),
+  error: text("error"),
+  durationMs: integer("duration_ms"),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});

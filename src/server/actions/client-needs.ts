@@ -12,6 +12,7 @@ import {
   categoryClientNeeds,
   products,
 } from "@/server/db/schema";
+import { auth } from "@/server/auth";
 import { requireUser } from "@/server/auth/guards";
 import { fail } from "@/lib/action-result";
 import { createNotifications } from "@/server/notifications";
@@ -86,7 +87,10 @@ export async function createAndSendPandaDocForm(dealId: string, dealNeedId: stri
 async function addCatalogNeedsToDeal(
   dealId: string,
   catalogNeeds: CatalogNeedRow[],
-  dedupeByName = true
+  dedupeByName = true,
+  // Who asked for these needs. Null for automation (term-sheet acceptance,
+  // conditional re-sync), which the read-only Claude connector shows as "system".
+  requestedByUserId: string | null = null
 ): Promise<{ id: string; itemName: string }[]> {
   let toAdd = catalogNeeds;
   if (dedupeByName) {
@@ -124,6 +128,7 @@ async function addCatalogNeedsToDeal(
         templateFileSize: n.templateFileSize,
         pandadocTemplateUuid: n.pandadocTemplateUuid,
         customFormKey: n.customFormKey,
+        requestedByUserId,
         sortOrder: maxSortOrder + i + 1,
       }))
     )
@@ -145,7 +150,7 @@ export async function addSingleCatalogNeedToDeal(
 ): Promise<{ id: string; itemName: string } | null> {
   const catalogNeed = await db.query.clientNeeds.findFirst({ where: eq(clientNeeds.id, catalogNeedId) });
   if (!catalogNeed) return null;
-  const [created] = await addCatalogNeedsToDeal(dealId, [catalogNeed], false);
+  const [created] = await addCatalogNeedsToDeal(dealId, [catalogNeed], false, (await auth())?.user?.id ?? null);
   return created ?? null;
 }
 
@@ -225,7 +230,7 @@ export async function syncConditionalClientNeeds(dealId: string) {
 // requireUser()-gated and revalidating since it's called directly from a
 // client component instead of only from server-side acceptance logic.
 export async function autoGenerateClientNeedsForProduct(dealId: string, productId: string) {
-  await requireUser();
+  const user = await requireUser();
   const catalogNeeds = [
     ...(await resolveClientNeedsForProduct(productId)),
     ...(await conditionalNeedsForDeal(dealId)),
@@ -233,7 +238,7 @@ export async function autoGenerateClientNeedsForProduct(dealId: string, productI
   if (!catalogNeeds.length) {
     throw new Error("No client needs are set up for this loan category or lender yet.");
   }
-  const added = await addCatalogNeedsToDeal(dealId, catalogNeeds);
+  const added = await addCatalogNeedsToDeal(dealId, catalogNeeds, true, user.id);
   revalidatePath(`/deals/${dealId}/loan-center`);
   return { added: added.length, total: catalogNeeds.length };
 }
@@ -304,7 +309,7 @@ export async function reopenNonDocumentNeed(dealId: string, needId: string) {
 // snapshot (no live link back to the catalog), matching how term-sheet
 // acceptance already populates a deal's checklist from a product.
 export async function addCatalogItemsToDeal(dealId: string, formData: FormData) {
-  await requireUser();
+  const user = await requireUser();
   const ids = formData.getAll("clientNeedId").filter((v): v is string => typeof v === "string" && v.length > 0);
   if (!ids.length) return 0;
 
@@ -312,7 +317,7 @@ export async function addCatalogItemsToDeal(dealId: string, formData: FormData) 
   // Explicitly chosen by a processor — never dedupe by name here. Selecting
   // "Entity Docs - Operating Agreement" a second time (e.g. two entities on
   // one deal) must actually add a second one, not silently no-op.
-  const added = await addCatalogNeedsToDeal(dealId, selected, false);
+  const added = await addCatalogNeedsToDeal(dealId, selected, false, user.id);
   revalidatePath(`/deals/${dealId}/loan-center`);
   return added.length;
 }
@@ -327,7 +332,7 @@ export async function addClientNeedToDeal(dealId: string, formData: FormData): P
   const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId), columns: { productId: true } });
   const created = await createClientNeed(formData, { attachToProductId: deal?.productId ?? undefined });
   // Same reasoning as addCatalogItemsToDeal above — a deliberate, one-off add.
-  const [dealNeed] = await addCatalogNeedsToDeal(dealId, [created], false);
+  const [dealNeed] = await addCatalogNeedsToDeal(dealId, [created], false, (await auth())?.user?.id ?? null);
 
   revalidatePath(`/deals/${dealId}/loan-center`);
   if (formData.get("isStandard") === "on") revalidatePath("/client-needs");

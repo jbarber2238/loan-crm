@@ -11,6 +11,19 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "**": ["./node_modules/@napi-rs/canvas*/**"],
   },
+  async headers() {
+    return [
+      {
+        // The Claude connector's consent screen must never be framed (clickjacking the Approve button).
+        source: "/oauth/authorize",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+          { key: "Cache-Control", value: "no-store" },
+        ],
+      },
+    ];
+  },
   experimental: {
     serverActions: {
       // Default is 1MB, which a handful of PDFs blows through instantly.

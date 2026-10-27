@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ActionForm } from "@/components/forms/action-form";
 import { SubmitButton } from "@/components/forms/submit-button";
+import { McpConnectorCard } from "@/components/settings/mcp-connector-card";
 
 export default async function IntegrationsSettingsPage() {
   await requireAdmin();
@@ -138,6 +139,8 @@ export default async function IntegrationsSettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      <McpConnectorCard />
 
       <p className="text-sm text-muted-foreground">More integrations (e.g. SMS) will show up here as they&apos;re added.</p>
     </div>

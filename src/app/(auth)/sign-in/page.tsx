@@ -3,6 +3,7 @@ import { auth, signIn } from "@/server/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCompanyName } from "@/server/settings";
+import { safeCallbackPath } from "@/lib/safe-redirect";
 
 const ERROR_MESSAGES: Record<string, string> = {
   "not-invited":
@@ -15,11 +16,13 @@ export default async function SignInPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const { error } = await searchParams;
+  const { error, callbackUrl } = await searchParams;
+  // Where to go after signing in, e.g. back to the Claude connector's consent screen.
+  const returnTo = safeCallbackPath(callbackUrl) ?? "/pipeline";
   const errorMessage = typeof error === "string" ? ERROR_MESSAGES[error] : undefined;
   const session = await auth();
   if (session?.user) {
-    redirect("/pipeline");
+    redirect(returnTo);
   }
   const companyName = await getCompanyName();
 
@@ -39,7 +42,7 @@ export default async function SignInPage({
           <form
             action={async () => {
               "use server";
-              await signIn("google", { redirectTo: "/pipeline" });
+              await signIn("google", { redirectTo: returnTo });
             }}
           >
             <Button type="submit" className="w-full">
