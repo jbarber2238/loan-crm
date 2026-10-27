@@ -47,6 +47,13 @@ describe("tools over the protocol", () => {
     expect(summary.open_loans).toBe(3);
   });
 
+  it("accepts a loan number sent as a JSON number", async () => {
+    const { client } = await connect();
+    expect(parse(await client.callTool({ name: "get_loan", arguments: { loan_id: 1001 } })).loan_number).toBe(1001);
+    expect(parse(await client.callTool({ name: "list_outstanding_needs", arguments: { loan_id: 1001 } })).total).toBe(2);
+    expect(parse(await client.callTool({ name: "list_recent_activity", arguments: { since: "2026-10-20T00:00:00Z", loan_id: 1002 } })).items.length).toBeGreaterThan(0);
+  });
+
   it("turns bad input into a readable tool error, not a crash", async () => {
     const { client } = await connect();
     const unknownLoan = await client.callTool({ name: "get_loan", arguments: { loan_id: "9999" } });

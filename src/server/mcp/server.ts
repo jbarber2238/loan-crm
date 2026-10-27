@@ -16,7 +16,8 @@ const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: 
 
 const limit = z.number().int().min(1).max(100).optional().describe("Page size, 1-100 (default 25).");
 const cursor = z.string().max(200).optional().describe("The next_cursor from the previous page, to get the next page.");
-const loanId = z.string().min(1).max(64).describe("The loan's id (uuid) or its loan number, e.g. 1042 or #1042.");
+// Loan numbers are numbers, and some clients send them as JSON numbers, so accept both.
+const loanId = z.union([z.string().min(1).max(64), z.number().int().positive()]).describe("The loan's id (uuid) or its loan number, e.g. 1042 or #1042.");
 const assignedTo = z.string().min(1).max(120);
 
 function textResult(value: unknown) {
@@ -72,7 +73,7 @@ export function createMcpServer(run: Runner, now: () => Date = () => new Date())
       inputSchema: { loan_id: loanId },
       annotations: READ_ONLY,
     },
-    tool("get_loan", (data, args: { loan_id: string }) => getLoan(data, args, now()))
+    tool("get_loan", (data, args: { loan_id: string | number }) => getLoan(data, { loan_id: String(args.loan_id) }, now()))
   );
 
   server.registerTool(
@@ -90,8 +91,8 @@ export function createMcpServer(run: Runner, now: () => Date = () => new Date())
       },
       annotations: READ_ONLY,
     },
-    tool("list_outstanding_needs", (data, args: { loan_id?: string; older_than_hours?: number; assigned_to?: string; limit?: number; cursor?: string }) =>
-      listOutstandingNeeds(data, args, now())
+    tool("list_outstanding_needs", (data, args: { loan_id?: string | number; older_than_hours?: number; assigned_to?: string; limit?: number; cursor?: string }) =>
+      listOutstandingNeeds(data, { ...args, loan_id: args.loan_id === undefined ? undefined : String(args.loan_id) }, now())
     )
   );
 
@@ -109,7 +110,9 @@ export function createMcpServer(run: Runner, now: () => Date = () => new Date())
       },
       annotations: READ_ONLY,
     },
-    tool("list_recent_activity", (data, args: { since: string; loan_id?: string; limit?: number; cursor?: string }) => listRecentActivity(data, args, now()))
+    tool("list_recent_activity", (data, args: { since: string; loan_id?: string | number; limit?: number; cursor?: string }) =>
+      listRecentActivity(data, { ...args, loan_id: args.loan_id === undefined ? undefined : String(args.loan_id) }, now())
+    )
   );
 
   server.registerTool(
