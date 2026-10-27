@@ -4,13 +4,14 @@ import { PortalBrandingCard } from "@/components/settings/portal-branding-card";
 import { db } from "@/server/db/client";
 import { deals } from "@/server/db/schema";
 import { isNotNull } from "drizzle-orm";
-import { updateCompanyName, updateCompanyLogo, removeCompanyLogo, updateCompanyWireInstructions, removeCompanyWireInstructions, addResourceLink, updateResourceLink, deleteResourceLink, moveResourceLink } from "@/server/actions/settings";
+import { updateCompanyName, updateCompanyLogo, removeCompanyLogo, updateCompanyWireInstructions, removeCompanyWireInstructions, updateResourceLink, deleteResourceLink, moveResourceLink } from "@/server/actions/settings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ActionForm } from "@/components/forms/action-form";
 import { SubmitButton } from "@/components/forms/submit-button";
 import { ArrowDown, ArrowUp } from "lucide-react";
+import { AddResourceLinkForm } from "@/components/settings/add-resource-link-form";
 
 export default async function CompanySettingsPage() {
   await requireAdmin();
@@ -174,17 +175,7 @@ export default async function CompanySettingsPage() {
               </div>
             </div>
           ))}
-          <ActionForm action={addResourceLink} successMessage="Link added" className="grid gap-2 sm:grid-cols-[1fr_1.6fr_auto] sm:items-end">
-            <div className="space-y-1.5">
-              <Label htmlFor="resource-title-new">{resources.length ? "Add another: name" : "Name"}</Label>
-              <Input id="resource-title-new" name="title" placeholder="Wire verification checklist" maxLength={120} required />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="resource-url-new">Link</Label>
-              <Input id="resource-url-new" name="url" placeholder="https://docs.google.com/document/d/..." required />
-            </div>
-            <SubmitButton>Add link</SubmitButton>
-          </ActionForm>
+          <AddResourceLinkForm hasLinks={resources.length > 0} />
         </CardContent>
       </Card>
     </div>
