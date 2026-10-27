@@ -1,12 +1,13 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { eq, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
-import { companySettings } from "@/server/db/schema";
+import { companySettings, resourceLinks } from "@/server/db/schema";
 import { requireAdmin } from "@/server/auth/guards";
 import { computeLogoIsLight } from "@/server/logo-analysis";
 import { fail } from "@/lib/action-result";
+import { MAX_RESOURCE_TITLE_LENGTH, normalizeResourceUrl } from "@/lib/resource-links";
 
 export async function updateCompanyName(formData: FormData) {
   await requireAdmin();
@@ -163,4 +164,59 @@ export async function removeCompanyWireInstructions() {
     .where(eq(companySettings.id, "default"));
   revalidatePath("/settings/company");
   revalidatePath("/settings");
+}
+
+function readResourceFields(formData: FormData): { title: string; url: string } | { error: string } {
+  const title = String(formData.get("title") ?? "").trim();
+  if (!title) return fail("Give the link a name.");
+  if (title.length > MAX_RESOURCE_TITLE_LENGTH) return fail(`Keep the name under ${MAX_RESOURCE_TITLE_LENGTH} characters.`);
+  const url = normalizeResourceUrl(String(formData.get("url") ?? ""));
+  if (!url) return fail("That doesn't look like a web link. Paste the full link, like https://docs.google.com/...");
+  return { title, url };
+}
+
+function revalidateResources() {
+  revalidatePath("/settings/company");
+  revalidatePath("/settings");
+}
+
+/** Adds a pinned link to the end of the "Additional resources" list. */
+export async function addResourceLink(formData: FormData) {
+  await requireAdmin();
+  const fields = readResourceFields(formData);
+  if ("error" in fields) return fields;
+  const [{ top }] = await db.select({ top: max(resourceLinks.sortOrder) }).from(resourceLinks);
+  await db.insert(resourceLinks).values({ ...fields, sortOrder: (top ?? -1) + 1 });
+  revalidateResources();
+}
+
+export async function updateResourceLink(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  const fields = readResourceFields(formData);
+  if ("error" in fields) return fields;
+  await db.update(resourceLinks).set(fields).where(eq(resourceLinks.id, id));
+  revalidateResources();
+}
+
+export async function deleteResourceLink(formData: FormData) {
+  await requireAdmin();
+  await db.delete(resourceLinks).where(eq(resourceLinks.id, String(formData.get("id") ?? "")));
+  revalidateResources();
+}
+
+/** Swaps a link with its neighbour so the admin can arrange the list. */
+export async function moveResourceLink(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  const direction = formData.get("direction") === "up" ? -1 : 1;
+  const rows = await db.query.resourceLinks.findMany({ orderBy: (r, { asc }) => [asc(r.sortOrder), asc(r.createdAt)] });
+  const from = rows.findIndex((r) => r.id === id);
+  const to = from + direction;
+  if (from === -1 || to < 0 || to >= rows.length) return;
+  const reordered = [...rows];
+  [reordered[from], reordered[to]] = [reordered[to], reordered[from]];
+  // Renumber the whole list so ties from older rows can't make a swap a no-op.
+  await Promise.all(reordered.map((r, i) => db.update(resourceLinks).set({ sortOrder: i }).where(eq(resourceLinks.id, r.id))));
+  revalidateResources();
 }

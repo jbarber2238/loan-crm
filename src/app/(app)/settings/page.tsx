@@ -4,7 +4,7 @@ import { getMySoundPrefs } from "@/server/actions/notifications";
 import { NotificationSoundSettings } from "@/components/settings/notification-sound-settings";
 import { AppearanceCard } from "@/components/settings/appearance-card";
 import { getMyAppearance } from "@/server/actions/appearance";
-import { getTcpaOutboundWindow, getCompanyWireInstructions } from "@/server/settings";
+import { getTcpaOutboundWindow, getCompanyWireInstructions, getResourceLinks } from "@/server/settings";
 import { TCPA_ABSOLUTE_START, TCPA_ABSOLUTE_END } from "@/lib/tcpa";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -23,7 +23,7 @@ export default async function MyProfilePage() {
   const tcpaWindow = await getTcpaOutboundWindow();
   const soundPrefs = await getMySoundPrefs();
   const appearance = await getMyAppearance();
-  const wire = await getCompanyWireInstructions();
+  const [wire, resources] = await Promise.all([getCompanyWireInstructions(), getResourceLinks()]);
   const outboundMin = tcpaWindow?.start.slice(0, 5) ?? TCPA_ABSOLUTE_START;
   const outboundMax = tcpaWindow?.end.slice(0, 5) ?? TCPA_ABSOLUTE_END;
 
@@ -39,6 +39,24 @@ export default async function MyProfilePage() {
               {wire.fileName}
             </a>
             <p className="mt-1 text-xs text-muted-foreground">Open or download to send to title or a borrower.</p>
+          </CardContent>
+        </Card>
+      )}
+      {resources.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Additional resources</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+              {resources.map((r) => (
+                <li key={r.id}>
+                  <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium underline underline-offset-2">
+                    {r.title}
+                  </a>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       )}

@@ -120,6 +120,16 @@ export async function getCompanyWireInstructions(): Promise<{ fileName: string; 
   return row?.wireInstructionsFileName ? { fileName: row.wireInstructionsFileName, updatedAt: row.wireInstructionsUpdatedAt } : null;
 }
 
+export type ResourceLink = { id: string; title: string; url: string };
+
+/** The pinned team links in the order the admin arranged them. */
+export async function getResourceLinks(): Promise<ResourceLink[]> {
+  const rows = await db.query.resourceLinks.findMany({
+    orderBy: (r, { asc }) => [asc(r.sortOrder), asc(r.createdAt)],
+  });
+  return rows.map((r) => ({ id: r.id, title: r.title, url: r.url }));
+}
+
 export type PortalBranding = {
   headerColor: string | null;
   /** The progress color (progress bar and stage bar). */

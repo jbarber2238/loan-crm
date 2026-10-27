@@ -1,24 +1,26 @@
 import { requireAdmin } from "@/server/auth/guards";
-import { getCompanyName, getCompanyLogoFileName, getCompanyLogo, getCompanyWireInstructions, getPortalBranding } from "@/server/settings";
+import { getCompanyName, getCompanyLogoFileName, getCompanyLogo, getCompanyWireInstructions, getPortalBranding, getResourceLinks } from "@/server/settings";
 import { PortalBrandingCard } from "@/components/settings/portal-branding-card";
 import { db } from "@/server/db/client";
 import { deals } from "@/server/db/schema";
 import { isNotNull } from "drizzle-orm";
-import { updateCompanyName, updateCompanyLogo, removeCompanyLogo, updateCompanyWireInstructions, removeCompanyWireInstructions } from "@/server/actions/settings";
+import { updateCompanyName, updateCompanyLogo, removeCompanyLogo, updateCompanyWireInstructions, removeCompanyWireInstructions, addResourceLink, updateResourceLink, deleteResourceLink, moveResourceLink } from "@/server/actions/settings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ActionForm } from "@/components/forms/action-form";
 import { SubmitButton } from "@/components/forms/submit-button";
+import { ArrowDown, ArrowUp } from "lucide-react";
 
 export default async function CompanySettingsPage() {
   await requireAdmin();
   const companyName = await getCompanyName();
-  const [logoFileName, logo, wire, branding] = await Promise.all([
+  const [logoFileName, logo, wire, branding, resources] = await Promise.all([
     getCompanyLogoFileName(),
     getCompanyLogo(),
     getCompanyWireInstructions(),
     getPortalBranding(),
+    getResourceLinks(),
   ]);
   // "Open full portal" shows a real borrower link: the newest deal that has one.
   const sampleDeal = await db.query.deals.findFirst({
@@ -123,6 +125,65 @@ export default async function CompanySettingsPage() {
               <p className="text-xs text-muted-foreground">PDF or image, up to 15MB. Only admins can upload or change it.</p>
             </div>
             <SubmitButton>Save</SubmitButton>
+          </ActionForm>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Additional Resources</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Links your team can open from My Profile, such as a Google Drive document. You name each one; they click the name to open it. Make sure the Drive document is shared with your team.
+          </p>
+          {resources.map((r, i) => (
+            <div key={r.id} className="space-y-2 rounded-md border p-3">
+              <ActionForm action={updateResourceLink} successMessage="Link saved" className="grid gap-2 sm:grid-cols-[1fr_1.6fr_auto] sm:items-end">
+                <input type="hidden" name="id" value={r.id} />
+                <div className="space-y-1.5">
+                  <Label htmlFor={`resource-title-${r.id}`}>Name</Label>
+                  <Input id={`resource-title-${r.id}`} name="title" defaultValue={r.title} maxLength={120} required />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor={`resource-url-${r.id}`}>Link</Label>
+                  <Input id={`resource-url-${r.id}`} name="url" defaultValue={r.url} required />
+                </div>
+                <SubmitButton>Save</SubmitButton>
+              </ActionForm>
+              <div className="flex flex-wrap items-center gap-1">
+                <ActionForm action={moveResourceLink}>
+                  <input type="hidden" name="id" value={r.id} />
+                  <input type="hidden" name="direction" value="up" />
+                  <SubmitButton size="sm" variant="ghost" disabled={i === 0} aria-label={`Move ${r.title} up`}>
+                    <ArrowUp className="size-4" />
+                  </SubmitButton>
+                </ActionForm>
+                <ActionForm action={moveResourceLink}>
+                  <input type="hidden" name="id" value={r.id} />
+                  <input type="hidden" name="direction" value="down" />
+                  <SubmitButton size="sm" variant="ghost" disabled={i === resources.length - 1} aria-label={`Move ${r.title} down`}>
+                    <ArrowDown className="size-4" />
+                  </SubmitButton>
+                </ActionForm>
+                <ActionForm action={deleteResourceLink} successMessage="Link removed" confirmMessage={`Remove "${r.title}"? Your team won't see it on My Profile anymore.`} className="ml-auto">
+                  <input type="hidden" name="id" value={r.id} />
+                  <SubmitButton size="sm" variant="ghost">
+                    Remove
+                  </SubmitButton>
+                </ActionForm>
+              </div>
+            </div>
+          ))}
+          <ActionForm action={addResourceLink} successMessage="Link added" className="grid gap-2 sm:grid-cols-[1fr_1.6fr_auto] sm:items-end">
+            <div className="space-y-1.5">
+              <Label htmlFor="resource-title-new">{resources.length ? "Add another: name" : "Name"}</Label>
+              <Input id="resource-title-new" name="title" placeholder="Wire verification checklist" maxLength={120} required />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="resource-url-new">Link</Label>
+              <Input id="resource-url-new" name="url" placeholder="https://docs.google.com/document/d/..." required />
+            </div>
+            <SubmitButton>Add link</SubmitButton>
           </ActionForm>
         </CardContent>
       </Card>

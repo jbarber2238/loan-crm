@@ -2401,6 +2401,16 @@ export const dealAppraisalDocuments = pgTable("deal_appraisal_documents", {
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
 });
 
+// Links an admin pins for the whole team (Google Drive docs and the like), shown on My Profile
+// under "Additional resources". Managed from Settings > Company.
+export const resourceLinks = pgTable("resource_links", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  url: text("url").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
 export const dealFiles = pgTable("deal_files", {
   id: uuid("id").primaryKey().defaultRandom(),
   dealId: uuid("deal_id")
