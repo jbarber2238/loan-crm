@@ -195,7 +195,7 @@ export async function populateClientNeedsFromProduct(dealId: string, productId: 
 async function conditionalNeedsForDeal(dealId: string): Promise<CatalogNeedRow[]> {
   const deal = await db.query.deals.findFirst({
     where: eq(deals.id, dealId),
-    columns: { loanCategory: true, currentOccupancy: true, mortgagePayoffAmount: true },
+    columns: { loanCategory: true, currentOccupancy: true, mortgagePayoffAmount: true, propertyAlreadyOwned: true },
   });
   if (!deal) return [];
   const rules = activeRulesFor(deal);

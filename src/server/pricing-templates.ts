@@ -72,6 +72,10 @@ export async function buildPricingTemplateTokens(
       deal.propertyAlreadyOwned && deal.propertyPurchaseDate
         ? `\nDate property was purchased: ${dealTokens.purchaseDate}`
         : "",
+    // What's owed on a property or lot they already own. Blank when they don't own it or haven't said.
+    ownedDebtLine: deal.propertyAlreadyOwned && deal.mortgagePayoffAmount !== null
+      ? `\nCurrent debt on the ${deal.loanCategory === "new_construction" ? "land" : "property"}: ${Number(deal.mortgagePayoffAmount) > 0 ? money(deal.mortgagePayoffAmount) : "None, owned free and clear"}`
+      : "",
   };
 }
 

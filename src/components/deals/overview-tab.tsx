@@ -524,6 +524,31 @@ export function OverviewTab({ deal }: { deal: Deal }) {
                 {s.showConstructionLandOwnership ? "Already owns the land" : "Already owns the property"}
               </label>
             )}
+            {(s.showFixFlipOwnership || s.showConstructionLandOwnership) && (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="mortgagePayoffAmount">
+                    Current debt on the {s.showConstructionLandOwnership ? "land" : "property"} (if owned)
+                  </Label>
+                  <Input
+                    id="mortgagePayoffAmount"
+                    name="mortgagePayoffAmount"
+                    type="number"
+                    defaultValue={deal.mortgagePayoffAmount ?? ""}
+                  />
+                  <p className="text-xs text-muted-foreground">Enter 0 if it&apos;s owned free and clear.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="currentMonthlyMortgagePayment">Current monthly mortgage payment</Label>
+                  <Input
+                    id="currentMonthlyMortgagePayment"
+                    name="currentMonthlyMortgagePayment"
+                    type="number"
+                    defaultValue={deal.currentMonthlyMortgagePayment ?? ""}
+                  />
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div className="space-y-1.5">
                 <Label htmlFor="propertyPurchaseDate">

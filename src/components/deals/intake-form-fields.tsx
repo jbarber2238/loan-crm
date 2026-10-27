@@ -225,6 +225,13 @@ export function IntakeFormFields({
   const [category, setCategory] = useState(defaultCategory ?? "");
   const [fixFlipOwned, setFixFlipOwned] = useState(false);
   const [constructionOwnsLand, setConstructionOwnsLand] = useState(false);
+  // Fix & Flip / New Construction borrowers who already own it are asked what's owed on it. "none" is
+  // saved as a $0 payoff, so "free and clear" and "not answered" stay distinguishable.
+  const [ownedDebt, setOwnedDebt] = useState<"" | "none" | "debt">(() => {
+    const payoff = defaultValues?.mortgagePayoffAmount;
+    if (payoff === undefined || payoff === "") return "";
+    return Number(payoff) > 0 ? "debt" : "none";
+  });
   const [didCashOutRehab, setDidCashOutRehab] = useState(false);
   const [addressType, setAddressType] = useState<"address" | "parcel">("address");
   const [portfolioCount, setPortfolioCount] = useState<number | null>(null);
@@ -574,6 +581,61 @@ export function IntakeFormFields({
                     required
                   />
                   {hl("propertyPurchaseDate") && <ReviewNote />}
+                </div>
+              )}
+
+              {((s.showFixFlipOwnership && fixFlipOwned) || (s.showConstructionLandOwnership && constructionOwnsLand)) && (
+                <div className="space-y-4">
+                  <div className="max-w-xs space-y-1.5">
+                    <Label htmlFor="debtOnProperty">
+                      {s.showConstructionLandOwnership ? "Debt on the land" : "Debt on the property"}
+                      <Req />
+                    </Label>
+                    <Select
+                      name="debtOnProperty"
+                      value={ownedDebt}
+                      onValueChange={(v) => setOwnedDebt(v === "none" || v === "debt" ? v : "")}
+                      required
+                    >
+                      <SelectTrigger id="debtOnProperty" className="w-full">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Owned free and clear</SelectItem>
+                        <SelectItem value="debt">There&apos;s debt on it</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {ownedDebt === "none" && <input type="hidden" name="mortgagePayoffAmount" value="0" />}
+                  {ownedDebt === "debt" && (
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div className={cn("space-y-1.5", reviewFieldClass(hl("mortgagePayoffAmount")))}>
+                        <Label htmlFor="mortgagePayoffAmount">
+                          What&apos;s the current debt out on the {s.showConstructionLandOwnership ? "land" : "property"}?
+                          <Req />
+                        </Label>
+                        <Input
+                          id="mortgagePayoffAmount"
+                          name="mortgagePayoffAmount"
+                          type="number"
+                          min="0.01"
+                          step="any"
+                          defaultValue={Number(dv("mortgagePayoffAmount")) > 0 ? dv("mortgagePayoffAmount") : undefined}
+                          required
+                        />
+                        {hl("mortgagePayoffAmount") && <ReviewNote />}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="currentMonthlyMortgagePayment">Current Monthly Mortgage Payment (optional)</Label>
+                        <Input
+                          id="currentMonthlyMortgagePayment"
+                          name="currentMonthlyMortgagePayment"
+                          type="number"
+                          defaultValue={dv("currentMonthlyMortgagePayment")}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

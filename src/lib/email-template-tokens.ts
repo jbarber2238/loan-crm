@@ -140,6 +140,7 @@ export const PRICING_REQUEST_TOKENS: EmailTemplateToken[] = [
   { key: "purchaseOrRefinanceFlip", description: "\"Purchase\" or \"Refinance (delayed purchase)\"" },
   { key: "purchaseOrRefinanceConstruction", description: "\"Purchase\" or \"Refinance (already own land)\"" },
   { key: "ownedPurchaseDateLine", description: "A \"Date property was purchased: …\" line, only when they already own the property and the date is on file" },
+  { key: "ownedDebtLine", description: "A \"Current debt on the property: …\" line (the amount owed, or \"None, owned free and clear\"), only when they already own the property or land and have answered" },
 ];
 
 export const BORROWER_LIFECYCLE_TOKENS: EmailTemplateToken[] = [

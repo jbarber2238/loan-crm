@@ -7,17 +7,23 @@ export type AutoRule = "tenant_occupied_dscr" | "refi_with_payoff";
 const DSCR_CATEGORIES = new Set(["dscr_purchase", "dscr_cash_out_refinance", "dscr_rate_term_refinance"]);
 const REFI_CATEGORIES = new Set(["dscr_cash_out_refinance", "dscr_rate_term_refinance", "bridge_refinance"]);
 
+const HARD_MONEY_OWNED_CATEGORIES = new Set(["fix_and_flip", "new_construction"]);
+
 export function activeRulesFor(deal: {
   loanCategory: string;
   currentOccupancy: string | null;
   mortgagePayoffAmount: string | null;
+  propertyAlreadyOwned?: boolean | null;
 }): AutoRule[] {
   const rules: AutoRule[] = [];
   if (DSCR_CATEGORIES.has(deal.loanCategory) && deal.currentOccupancy === "tenant_occupied") {
     rules.push("tenant_occupied_dscr");
   }
   const payoff = deal.mortgagePayoffAmount === null ? NaN : Number(deal.mortgagePayoffAmount);
-  if (REFI_CATEGORIES.has(deal.loanCategory) && Number.isFinite(payoff) && payoff > 0) {
+  // A Fix & Flip / New Construction borrower who already owns the property or land and still owes on it is
+  // paying that debt off at closing, same as a refinance, so the payoff and mortgage statements apply too.
+  const owedOnOwnedDrawLoan = HARD_MONEY_OWNED_CATEGORIES.has(deal.loanCategory) && Boolean(deal.propertyAlreadyOwned);
+  if ((REFI_CATEGORIES.has(deal.loanCategory) || owedOnOwnedDrawLoan) && Number.isFinite(payoff) && payoff > 0) {
     rules.push("refi_with_payoff");
   }
   return rules;
