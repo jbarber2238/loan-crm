@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { CLIENT_NEEDS_REMINDER_INTERVAL_HOURS } from "@/lib/client-needs-reminders";
 import { db } from "@/server/db/client";
 import {
+  dealAppraisalDocuments,
   dealConversations,
   dealFollowers,
   dealNotes,
@@ -601,12 +602,16 @@ export async function uploadAppraisalDocument(dealId: string, formData: FormData
   if (!(file instanceof File) || file.size === 0) throw new Error("Choose a file first");
   if (file.size > MAX_APPRAISAL_FILE_SIZE) throw new Error(`${file.name} is too large (15MB max)`);
 
+  const data = Buffer.from(await file.arrayBuffer()).toString("base64");
+  await db
+    .insert(dealAppraisalDocuments)
+    .values({ dealId, data })
+    .onConflictDoUpdate({ target: dealAppraisalDocuments.dealId, set: { data, updatedAt: new Date() } });
   await db
     .update(deals)
     .set({
       appraisalDocumentFileName: file.name,
       appraisalDocumentMimeType: file.type || "application/octet-stream",
-      appraisalDocumentData: Buffer.from(await file.arrayBuffer()).toString("base64"),
       updatedAt: new Date(),
     })
     .where(eq(deals.id, dealId));
@@ -618,8 +623,9 @@ export async function deleteAppraisalDocument(dealId: string) {
   await requireUser();
   await db
     .update(deals)
-    .set({ appraisalDocumentFileName: null, appraisalDocumentMimeType: null, appraisalDocumentData: null })
+    .set({ appraisalDocumentFileName: null, appraisalDocumentMimeType: null })
     .where(eq(deals.id, dealId));
+  await db.delete(dealAppraisalDocuments).where(eq(dealAppraisalDocuments.dealId, dealId));
   revalidatePath(`/deals/${dealId}`);
 }
 

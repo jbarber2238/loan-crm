@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/server/db/client";
-import { deals } from "@/server/db/schema";
+import { dealAppraisalDocuments, deals } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { fileToContentBlock } from "@/server/ai/file-content-block";
 
@@ -35,14 +35,17 @@ export async function extractAppraisalData(dealId: string): Promise<AppraisalExt
 
   const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId) });
   if (!deal) throw new Error("Deal not found");
-  if (!deal.appraisalDocumentData || !deal.appraisalDocumentMimeType) {
+  const file = deal.appraisalDocumentMimeType
+    ? await db.query.dealAppraisalDocuments.findFirst({ where: eq(dealAppraisalDocuments.dealId, dealId), columns: { data: true } })
+    : null;
+  if (!file || !deal.appraisalDocumentMimeType) {
     throw new Error("Upload the appraisal report first.");
   }
 
   const block = fileToContentBlock({
     fileName: deal.appraisalDocumentFileName ?? "appraisal",
     mimeType: deal.appraisalDocumentMimeType,
-    dataBase64: deal.appraisalDocumentData,
+    dataBase64: file.data,
   });
   if (!block) throw new Error("Can't read this file — re-upload as a PDF or image.");
 

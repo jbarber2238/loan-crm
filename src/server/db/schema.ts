@@ -1007,13 +1007,13 @@ export const deals = pgTable("deals", {
   insuranceNotes: text("insurance_notes"),
   titleNotes: text("title_notes"),
   // The appraisal report itself, uploaded from the Key Dates tab — one slot
-  // per deal (a re-upload replaces it), stored the same base64-in-Postgres
-  // way as every other small applicant/lender file in this app. Feeds the
-  // AI scan that reads appraisedValue/appraisedArv (and, on a DSCR deal,
-  // market rent) straight off the report instead of retyping it by hand.
+  // per deal (a re-upload replaces it). Feeds the AI scan that reads
+  // appraisedValue/appraisedArv (and, on a DSCR deal, market rent) straight
+  // off the report instead of retyping it by hand. Only the name and type live
+  // here; the file's bytes are in dealAppraisalDocuments so that loading a deal
+  // (every page does) never drags a multi-MB PDF along with it.
   appraisalDocumentFileName: text("appraisal_document_file_name"),
   appraisalDocumentMimeType: text("appraisal_document_mime_type"),
-  appraisalDocumentData: text("appraisal_document_data"),
   // A note from the loan officer to the processor about anything unusual on
   // this file that changes how client needs should be requested. Shown at the
   // top of the Client Needs tab.
@@ -2391,6 +2391,16 @@ export const licenseRequiredStates = pgTable("license_required_states", {
 // insurance binder or title commitment (each with its own note, so every
 // version stays visible in the Key Dates audit trail) and miscellaneous
 // documents worth keeping. All of them also show on the Documents tab.
+// The appraisal report's bytes (base64), kept off the deals row on purpose: a deal is loaded on
+// nearly every page, and a 7MB PDF on that row made the pipeline slow enough to time out.
+export const dealAppraisalDocuments = pgTable("deal_appraisal_documents", {
+  dealId: uuid("deal_id")
+    .primaryKey()
+    .references(() => deals.id, { onDelete: "cascade" }),
+  data: text("data").notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
 export const dealFiles = pgTable("deal_files", {
   id: uuid("id").primaryKey().defaultRandom(),
   dealId: uuid("deal_id")

@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db/client";
-import { deals } from "@/server/db/schema";
+import { dealAppraisalDocuments, deals } from "@/server/db/schema";
 
 export async function GET(
   _request: Request,
@@ -15,14 +15,17 @@ export async function GET(
   const { id } = await params;
   const deal = await db.query.deals.findFirst({
     where: eq(deals.id, id),
-    columns: { appraisalDocumentFileName: true, appraisalDocumentMimeType: true, appraisalDocumentData: true },
+    columns: { appraisalDocumentFileName: true, appraisalDocumentMimeType: true },
   });
+  const file = deal?.appraisalDocumentMimeType
+    ? await db.query.dealAppraisalDocuments.findFirst({ where: eq(dealAppraisalDocuments.dealId, id), columns: { data: true } })
+    : null;
 
-  if (!deal?.appraisalDocumentData || !deal.appraisalDocumentMimeType) {
+  if (!deal || !file || !deal.appraisalDocumentMimeType) {
     return new Response("Not found", { status: 404 });
   }
 
-  const buffer = Buffer.from(deal.appraisalDocumentData, "base64");
+  const buffer = Buffer.from(file.data, "base64");
 
   return new Response(new Uint8Array(buffer), {
     headers: {
