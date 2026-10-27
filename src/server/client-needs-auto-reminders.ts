@@ -23,7 +23,7 @@ async function reminderCandidates(dealId: string) {
       eq(dealClientNeeds.status, "awaiting_docs"),
       isNull(dealClientNeeds.onHoldAt)
     ),
-    with: { documents: true },
+    with: { documents: { columns: { data: false } } },
   });
 }
 

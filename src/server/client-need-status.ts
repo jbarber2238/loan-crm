@@ -17,7 +17,7 @@ export { deriveNeedStatus } from "@/lib/client-need-status";
 export async function recomputeNeedStatus(needId: string, options: { reviveUnused?: boolean } = {}) {
   const need = await db.query.dealClientNeeds.findFirst({
     where: eq(dealClientNeeds.id, needId),
-    with: { documents: true },
+    with: { documents: { columns: { data: false } } },
   });
   if (!need) return;
   if (need.status === "unused" && !options.reviveUnused) return;

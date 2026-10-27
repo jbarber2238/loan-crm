@@ -50,7 +50,7 @@ export async function previewClientNeedsUpdateEmail(dealId: string, needIds: str
   // Needs on hold are never mentioned to the borrower, even if selected.
   const needs = await db.query.dealClientNeeds.findMany({
     where: and(eq(dealClientNeeds.dealId, dealId), inArray(dealClientNeeds.id, ids), isNull(dealClientNeeds.onHoldAt)),
-    with: { documents: true },
+    with: { documents: { columns: { data: false } } },
   });
   if (!needs.length) throw new Error("The selected client needs are on hold (or couldn't be found) — nothing to send.");
 
