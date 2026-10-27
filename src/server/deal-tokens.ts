@@ -42,9 +42,14 @@ function dateOrNA(date: Date | null, fallback: "Not provided" | "N/A" = "Not pro
   return date ? date.toLocaleDateString("en-US") : fallback;
 }
 
+// A calendar day is stored at UTC midnight, so read it back in UTC or it can land on the day before.
+function dayOrNA(date: Date | null, fallback: "Not provided" | "N/A" = "Not provided"): string {
+  return date ? date.toLocaleDateString("en-US", { timeZone: "UTC" }) : fallback;
+}
+
 function dateShort(date: Date | null): string {
   if (!date) return "N/A";
-  return `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getFullYear()).slice(2)}`;
+  return `${String(date.getUTCMonth() + 1).padStart(2, "0")}/${String(date.getUTCFullYear()).slice(2)}`;
 }
 
 function firstName(fullName: string): string {
@@ -108,7 +113,7 @@ export async function buildAllDealTokens(deal: Deal): Promise<Record<string, str
     unitCount: numOrNA(deal.unitCount),
     exitStrategyLabel: deal.exitStrategy ? labelFor(EXIT_STRATEGIES, deal.exitStrategy) : "Not provided",
     ownsLand: yesNo(deal.propertyAlreadyOwned),
-    purchaseDate: dateOrNA(deal.propertyPurchaseDate, "N/A"),
+    purchaseDate: dayOrNA(deal.propertyPurchaseDate, "N/A"),
     purchaseDateShort: dateShort(deal.propertyPurchaseDate),
     occupancyLabel: deal.currentOccupancy ? labelFor(OCCUPANCY_STATUSES, deal.currentOccupancy) : "Not provided",
     rentalStrategyLabel: deal.rentalStrategy ? labelFor(RENTAL_STRATEGIES, deal.rentalStrategy) : "Not provided",

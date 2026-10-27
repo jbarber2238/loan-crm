@@ -139,6 +139,7 @@ export const PRICING_REQUEST_TOKENS: EmailTemplateToken[] = [
   { key: "ltvOnPurchaseOrAsIs", description: "Loan amount and LTV% against purchase price/as-is value" },
   { key: "purchaseOrRefinanceFlip", description: "\"Purchase\" or \"Refinance (delayed purchase)\"" },
   { key: "purchaseOrRefinanceConstruction", description: "\"Purchase\" or \"Refinance (already own land)\"" },
+  { key: "ownedPurchaseDateLine", description: "A \"Date property was purchased: …\" line, only when they already own the property and the date is on file" },
 ];
 
 export const BORROWER_LIFECYCLE_TOKENS: EmailTemplateToken[] = [

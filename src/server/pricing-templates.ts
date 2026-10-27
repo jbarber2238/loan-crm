@@ -50,8 +50,9 @@ export async function buildPricingTemplateTokens(
   );
   const purchasePriceOrAsIs = valueBasisNum !== null ? String(valueBasisNum) : null;
 
+  const dealTokens = await buildAllDealTokens(deal);
   return {
-    ...(await buildAllDealTokens(deal)),
+    ...dealTokens,
     // The token is documented (and used by the other vendor emails) as the
     // rep's first name — "Hi Shilpa," not "Hi Shilpa Patel,".
     repName: repName.trim().split(/\s+/)[0] || repName,
@@ -66,6 +67,11 @@ export async function buildPricingTemplateTokens(
     ltvOnPurchaseOrAsIs: ltv(deal.loanAmountRequested, purchasePriceOrAsIs),
     purchaseOrRefinanceFlip: deal.propertyAlreadyOwned ? "Refinance (delayed purchase)" : "Purchase",
     purchaseOrRefinanceConstruction: deal.propertyAlreadyOwned ? "Refinance (already own land)" : "Purchase",
+    // Its own line only when they already own it, so a plain purchase doesn't get a "purchased: N/A".
+    ownedPurchaseDateLine:
+      deal.propertyAlreadyOwned && deal.propertyPurchaseDate
+        ? `\nDate property was purchased: ${dealTokens.purchaseDate}`
+        : "",
   };
 }
 
