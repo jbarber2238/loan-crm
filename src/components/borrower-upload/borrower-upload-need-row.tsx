@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { stageLargeFiles } from "@/lib/stage-large-files";
+import { batchFiles, describeSkipped, expandZipFiles } from "@/lib/zip-uploads";
 import { stageUploadChunk } from "@/server/actions/staged-upload";
 
 // The finish-line reward: once a need is accepted it drops out of the
@@ -142,21 +143,38 @@ export function BorrowerUploadNeedRow({ token, need }: { token: string; need: Bo
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [justUploaded, setJustUploaded] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+    const picked = e.target.files ? Array.from(e.target.files) : [];
+    if (picked.length === 0) return;
     setError(null);
-    const formData = new FormData();
-    for (const file of Array.from(files)) formData.append("file", file);
+    setNotice(null);
+    setJustUploaded(false);
     startTransition(async () => {
+      let sent = 0;
       try {
-        await uploadBorrowerDocument(token, need.id, await stageLargeFiles(formData, stageUploadChunk, { borrowerToken: token }));
+        // A zip is opened here in the browser, so each file inside is uploaded (and reviewed) on its own.
+        setProgress("Opening your files…");
+        const { files, skipped } = await expandZipFiles(picked);
+        if (files.length === 0) throw new Error(describeSkipped(skipped) || "There were no files to upload.");
+        for (const batch of batchFiles(files)) {
+          setProgress(files.length > batch.length ? `Uploading ${sent + 1}–${sent + batch.length} of ${files.length}…` : null);
+          const formData = new FormData();
+          for (const file of batch) formData.append("file", file);
+          await uploadBorrowerDocument(token, need.id, await stageLargeFiles(formData, stageUploadChunk, { borrowerToken: token }));
+          sent += batch.length;
+        }
         setJustUploaded(true);
+        if (skipped.length) setNotice(describeSkipped(skipped));
         router.refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Couldn't upload those files.");
+        const message = err instanceof Error ? err.message : "Couldn't upload those files.";
+        setError(sent > 0 ? `${message} (${sent} file${sent === 1 ? "" : "s"} did upload before this.)` : message);
+        if (sent > 0) router.refresh();
       } finally {
+        setProgress(null);
         if (inputRef.current) inputRef.current.value = "";
       }
     });
@@ -198,10 +216,11 @@ export function BorrowerUploadNeedRow({ token, need }: { token: string; need: Bo
           <div className="flex flex-wrap items-center gap-2 max-sm:flex-col max-sm:items-stretch">
             <input ref={inputRef} type="file" multiple className="hidden" onChange={handleChange} />
             <Button type="button" size="sm" variant="outline" className="bp-primary max-sm:h-11 max-sm:w-full" disabled={pending} onClick={() => inputRef.current?.click()}>
-              {pending ? "Uploading…" : "Upload file(s)"}
+              {pending ? (progress ?? "Uploading…") : "Upload file(s)"}
             </Button>
             {justUploaded && !pending && <span className="text-xs text-muted-foreground">Received, thank you!</span>}
           </div>
+          {notice && !pending && <p className="text-xs text-amber-600">{notice}</p>}
         </div>
       ) : need.needType === "questionnaire" ? (
         <QuestionnaireForm token={token} need={need} />

@@ -67,6 +67,7 @@ import { SignaturePreview } from "@/components/emails/signature-preview";
 import { HtmlBodyEditor } from "@/components/emails/html-body-editor";
 import type { RecipientCandidate } from "@/lib/email-recipients";
 import { stageLargeFiles } from "@/lib/stage-large-files";
+import { batchFiles, describeSkipped, expandZipFiles } from "@/lib/zip-uploads";
 import { stageUploadChunk } from "@/server/actions/staged-upload";
 
 export interface ClientNeedAnswer {
@@ -268,23 +269,36 @@ function AttachDocumentButton({ dealId, needId }: { dealId: string; needId: stri
   const inputRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<string | null>(null);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+    const picked = e.target.files ? Array.from(e.target.files) : [];
+    if (picked.length === 0) return;
     setError(null);
-    const formData = new FormData();
-    for (const file of Array.from(files)) formData.append("file", file);
     startTransition(async () => {
+      let sent = 0;
       try {
-        await attachDocumentToClientNeed(dealId, needId, await stageLargeFiles(formData, stageUploadChunk));
-        toast.success("Document uploaded");
+        // Zips are opened in the browser so every file inside is its own reviewable document.
+        setProgress("Opening files…");
+        const { files, skipped } = await expandZipFiles(picked);
+        if (files.length === 0) throw new Error(describeSkipped(skipped) || "There were no files to upload.");
+        for (const batch of batchFiles(files)) {
+          setProgress(files.length > batch.length ? `Uploading ${sent + 1}–${sent + batch.length} of ${files.length}…` : null);
+          const formData = new FormData();
+          for (const file of batch) formData.append("file", file);
+          await attachDocumentToClientNeed(dealId, needId, await stageLargeFiles(formData, stageUploadChunk));
+          sent += batch.length;
+        }
+        toast.success(files.length === 1 ? "Document uploaded" : `${files.length} documents uploaded`);
+        if (skipped.length) toast.warning(describeSkipped(skipped));
         router.refresh();
       } catch (err) {
         const message = err instanceof Error ? err.message : "Couldn't upload those files.";
         setError(message);
         toast.error(message);
+        if (sent > 0) router.refresh();
       } finally {
+        setProgress(null);
         if (inputRef.current) inputRef.current.value = "";
       }
     });
@@ -294,7 +308,7 @@ function AttachDocumentButton({ dealId, needId }: { dealId: string; needId: stri
     <div className="flex flex-col items-start gap-1">
       <input ref={inputRef} type="file" multiple className="hidden" onChange={handleChange} />
       <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => inputRef.current?.click()}>
-        {pending ? "Uploading…" : "Attach documents"}
+        {pending ? (progress ?? "Uploading…") : "Attach documents"}
       </Button>
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
