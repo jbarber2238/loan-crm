@@ -164,6 +164,7 @@ function PricingRequestCard({
           </div>
         ) : (
           <div
+            data-email-paper
             className="rounded-lg border bg-muted/20 p-4 text-sm [&_table]:my-2"
             dangerouslySetInnerHTML={{ __html: request.emailBody }}
           />

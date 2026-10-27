@@ -31,6 +31,9 @@ export default async function TransactionalPipelinePage() {
       fundingAmount: Number(row.fundingAmount),
       closingDate: row.closingDate ? row.closingDate.toISOString() : null,
       stage: row.stage,
+      borrowerName: row.borrowerName,
+      createdAt: row.createdAt.toISOString(),
+      stageChangedAt: row.stageChangedAt.toISOString(),
       sameDayFunding: row.sameDayFunding,
       leadValue: fees.brokerFee,
       totalFee: fees.totalFee,
@@ -52,7 +55,9 @@ export default async function TransactionalPipelinePage() {
         </div>
         <CopyTransactionalLinkButton />
       </div>
-      <PipelineTabs showLeads />
+      <div data-board-toolbar className="space-y-4">
+        <PipelineTabs showLeads />
+      </div>
       <TransactionalBoard loans={loans} />
     </div>
   );

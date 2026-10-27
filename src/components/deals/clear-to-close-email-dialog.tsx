@@ -113,6 +113,7 @@ function DialogBody({
           </dl>
           <div
             data-email-preview
+            data-email-paper
             className="max-h-[50vh] overflow-y-auto rounded-lg border bg-white p-4 text-[#1f2937]"
             dangerouslySetInnerHTML={{ __html: preview.html }}
           />

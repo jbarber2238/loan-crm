@@ -1011,18 +1011,44 @@ html.dark,
   order: 2;
 }
 
-/* ---- Email editors: edited on the dark ground (recipients still get the normal light email) ---- */
-.dark div[style*="font-family:Arial"] {
-  background-color: #0b0c0d;
-  border-radius: 12px;
-  padding: 14px 16px;
-  color: #f6f6f6 !important;
+/* ---- Email paper: every email is read and edited on white, like the deal cards on the board ---- */
+.dark [data-email-paper] {
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #0b0c0d;
+  --card: #ffffff;
+  --card-foreground: #0b0c0d;
+  --muted: #f6f6f6;
+  --muted-foreground: #605d5b;
+  --accent: #f6f6f6;
+  --accent-foreground: #0b0c0d;
+  --border: #e2dfdd;
+  background-color: #ffffff;
+  color: #0b0c0d;
+  border: 1px solid #e2dfdd;
+  border-radius: 16px;
 }
-.dark div[style*="font-family:Arial"] * {
-  color: inherit !important;
+.dark [data-email-paper] a {
+  color: #a33d03;
 }
-.dark div[style*="font-family:Arial"] a {
-  color: #fdb78f !important;
+
+/* The list of sent emails: the same white card as a pipeline card */
+.dark [data-slot="card"][data-email-row] {
+  --muted-foreground: #605d5b;
+  background-color: #ffffff;
+  color: #0b0c0d;
+  border: 1px solid #e2dfdd;
+  border-radius: 16px;
+  box-shadow: none;
+}
+.dark [data-slot="card"][data-email-row]:hover {
+  background-color: #ffffff;
+  border-color: #fa5f05;
+}
+.dark [data-email-row] [data-slot="badge"] {
+  background-color: #fff0e6;
+  color: #a33d03;
+  border-color: transparent;
 }
 
 /* ---- Client need rows ---- */

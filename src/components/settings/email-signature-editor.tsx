@@ -88,6 +88,7 @@ export function EmailSignatureEditor({ name, defaultValueHtml }: { name: string;
       </div>
       <div
         ref={editorRef}
+        data-email-paper
         contentEditable
         suppressContentEditableWarning
         onInput={syncFromEditor}

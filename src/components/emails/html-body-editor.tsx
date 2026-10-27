@@ -60,7 +60,7 @@ export function HtmlBodyEditor({
   }
 
   return (
-    <div className={cn("rounded-lg border bg-white shadow-sm", className)}>
+    <div data-email-paper className={cn("rounded-lg border bg-white shadow-sm", className)}>
       <div className="flex items-center gap-0.5 border-b px-2 py-1">
         <ToolbarButton onClick={() => exec("bold")} icon={Bold} label="Bold" />
         <ToolbarButton onClick={() => exec("italic")} icon={Italic} label="Italic" />

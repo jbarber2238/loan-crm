@@ -90,6 +90,7 @@ export function EmailLogTab({ entries }: { entries: EmailLogEntry[] }) {
         {filtered.map((entry) => (
           <Card
             key={entry.id}
+            data-email-row
             className="cursor-pointer transition-colors hover:bg-accent/50"
             onClick={() => setOpenEntry(entry)}
           >
@@ -140,6 +141,7 @@ export function EmailLogTab({ entries }: { entries: EmailLogEntry[] }) {
                 </DialogDescription>
               </DialogHeader>
               <div
+                data-email-paper
                 className="rounded-md border p-4 text-sm [&_a]:underline [&_img]:h-auto [&_img]:max-w-full"
                 dangerouslySetInnerHTML={{ __html: openEntry.bodyHtml }}
               />
