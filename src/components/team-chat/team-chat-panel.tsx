@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { ArrowUp, ChevronLeft, FileText, MessageSquare, Mic, Paperclip, SmilePlus, Square, X } from "lucide-react";
 import {
   getRoomState,
-  markRoomRead,
   sendTeamMessage,
   toggleTeamReaction,
   type ChatAttachment,
@@ -107,6 +106,17 @@ function Composer({
 
   function submit() {
     if (!canSend || voice.recording) return;
+    // A plain text message shows in the chat straight away (the panel adds it before the server answers),
+    // so clear the box now and put the words back only if the send fails. Files and voice clips still wait.
+    if (files.length === 0 && !clip) {
+      const sent = text.trim();
+      setText("");
+      onSend({ text: sent, files: [], clip: null }).catch((err) => {
+        setText((current) => current || sent);
+        toast.error(err instanceof Error ? err.message : "Couldn't send that");
+      });
+      return;
+    }
     startTransition(async () => {
       try {
         await onSend({ text: text.trim(), files, clip });
@@ -457,6 +467,8 @@ export function TeamChatPanel({
   const isPhone = useIsPhone();
   const box = useVisibleBox();
   const [state, setState] = useState<ChatRoomState | null>(null);
+  /** Messages I just sent that the server hasn't confirmed yet; shown right away so sending feels instant. */
+  const [pending, setPending] = useState<ChatMessage[]>([]);
   const [openThread, setOpenThread] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -470,13 +482,14 @@ export function TeamChatPanel({
 
   const refresh = useCallback(async () => {
     try {
-      const next = await getRoomState(roomId);
+      const visible = !document.hidden;
+      // One trip: the server marks the room read in the same call when someone is actually looking at it.
+      const next = await getRoomState(roomId, visible);
       setState(next);
-      if (!document.hidden) {
+      if (visible) {
         const unreadFromOthers = next.messages.some(
           (m) => m.userId !== next.currentUserId && new Date(m.createdAt) > lastReadSent.current
         );
-        await markRoomRead(roomId);
         if (unreadFromOthers) {
           lastReadSent.current = new Date();
           void channelRef.current?.send({ type: "broadcast", event: "changed", payload: {} });
@@ -529,24 +542,33 @@ export function TeamChatPanel({
     return () => clearInterval(t);
   }, []);
 
+  const messages = useMemo(() => {
+    const confirmed = state?.messages ?? [];
+    // Once the real copy has arrived (a poll can land before the send finishes), don't show the placeholder as well.
+    const waiting = pending.filter(
+      (p) => !confirmed.some((m) => m.userId === p.userId && m.body === p.body && new Date(m.createdAt).getTime() >= new Date(p.createdAt).getTime() - 5000)
+    );
+    return [...confirmed, ...waiting];
+  }, [state, pending]);
+
   const { topLevel, replies } = useMemo(() => {
     const top: ChatMessage[] = [];
     const rep = new Map<string, ChatMessage[]>();
-    for (const m of state?.messages ?? []) {
+    for (const m of messages) {
       if (m.parentId) rep.set(m.parentId, [...(rep.get(m.parentId) ?? []), m]);
       else top.push(m);
     }
     return { topLevel: top, replies: rep };
-  }, [state]);
+  }, [messages]);
 
   // Scroll to the newest message when new ones arrive.
   useEffect(() => {
-    const n = state?.messages.length ?? 0;
+    const n = messages.length;
     if (n !== lastCount.current) {
       lastCount.current = n;
       scrollToEnd(bottomRef.current);
     }
-  }, [state]);
+  }, [messages]);
 
   // On a phone the chat owns the screen: freeze the page behind it, and keep the newest message in view
   // when the keyboard opens or closes.
@@ -620,9 +642,32 @@ export function TeamChatPanel({
       form.set("audioTranscript", message.clip.transcript);
       form.set("audioSeconds", String(message.clip.seconds));
     }
-    await sendTeamMessage(roomId, await stageLargeFiles(form, stageUploadChunk));
-    broadcastChanged();
-    await refresh();
+    const tempId = `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    if (state && message.files.length === 0 && !message.clip) {
+      const mine = state.messages.find((m) => m.userId === state.currentUserId);
+      const name = mine?.authorName ?? state.readers.find((r) => r.userId === state.currentUserId)?.name ?? "You";
+      setPending((prev) => [
+        ...prev,
+        {
+          id: tempId,
+          userId: state.currentUserId,
+          authorName: name,
+          authorImage: mine?.authorImage ?? null,
+          body: message.text,
+          parentId,
+          createdAt: new Date().toISOString(),
+          attachments: [],
+          reactions: [],
+        },
+      ]);
+    }
+    try {
+      await sendTeamMessage(roomId, await stageLargeFiles(form, stageUploadChunk));
+      broadcastChanged();
+      await refresh();
+    } finally {
+      setPending((prev) => prev.filter((m) => m.id !== tempId));
+    }
   }
 
   function announceTyping() {

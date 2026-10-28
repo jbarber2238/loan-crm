@@ -1,6 +1,6 @@
 "use server";
 
-import { and, asc, desc, eq, gt, inArray, isNotNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import {
   deals,
@@ -112,8 +112,10 @@ export interface ChatRoomState {
   readers: { userId: string; name: string; lastReadAt: string }[];
 }
 
-export async function getRoomState(roomId: string): Promise<ChatRoomState> {
+/** `markRead` also records that the viewer has now seen the room, in the same trip (the chat's poll used to make a second call for it). */
+export async function getRoomState(roomId: string, markRead = false): Promise<ChatRoomState> {
   const { user } = await requireRoomAccess(roomId);
+  // Read the room as it was before this view marks it seen, so "Seen by" for other people is unaffected.
   const [messages, reads] = await Promise.all([
     db
       .select({
@@ -136,8 +138,9 @@ export async function getRoomState(roomId: string): Promise<ChatRoomState> {
       .where(eq(teamChatReads.roomId, roomId)),
   ]);
   const ids = messages.map((m) => m.id);
-  const atts = ids.length
-    ? await db
+  const [atts, reacts] = await Promise.all([
+    ids.length
+    ? db
         .select({
           id: teamChatAttachments.id,
           messageId: teamChatAttachments.messageId,
@@ -151,9 +154,9 @@ export async function getRoomState(roomId: string): Promise<ChatRoomState> {
         .from(teamChatAttachments)
         .where(inArray(teamChatAttachments.messageId, ids))
         .orderBy(asc(teamChatAttachments.createdAt))
-    : [];
-  const reacts = ids.length
-    ? await db
+    : [],
+    ids.length
+    ? db
         .select({
           messageId: teamChatReactions.messageId,
           userId: teamChatReactions.userId,
@@ -164,7 +167,9 @@ export async function getRoomState(roomId: string): Promise<ChatRoomState> {
         .innerJoin(users, eq(users.id, teamChatReactions.userId))
         .where(inArray(teamChatReactions.messageId, ids))
         .orderBy(asc(teamChatReactions.createdAt))
-    : [];
+    : [],
+    markRead ? upsertRead(roomId, user.id) : null,
+  ]).then(([a, r]) => [a, r] as const);
   const reactionsFor = (messageId: string): ChatReaction[] => {
     const byEmoji = new Map<string, ChatReaction>();
     for (const r of reacts) {
@@ -211,15 +216,19 @@ export async function toggleTeamReaction(roomId: string, messageId: string, emoj
   else await db.insert(teamChatReactions).values({ messageId, userId: user.id, emoji }).onConflictDoNothing();
 }
 
-export async function markRoomRead(roomId: string) {
-  const { user } = await requireRoomAccess(roomId);
+async function upsertRead(roomId: string, userId: string) {
   await db
     .insert(teamChatReads)
-    .values({ roomId, userId: user.id, lastReadAt: new Date() })
+    .values({ roomId, userId, lastReadAt: new Date() })
     .onConflictDoUpdate({
       target: [teamChatReads.roomId, teamChatReads.userId],
       set: { lastReadAt: new Date() },
     });
+}
+
+export async function markRoomRead(roomId: string) {
+  const { user } = await requireRoomAccess(roomId);
+  await upsertRead(roomId, user.id);
 }
 
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
@@ -249,32 +258,35 @@ export async function sendTeamMessage(roomId: string, formData: FormData) {
     .values({ roomId, userId: user.id, body: text, parentId })
     .returning({ id: teamChatMessages.id });
 
-  for (const f of files) {
-    await db.insert(teamChatAttachments).values({
-      messageId: message.id,
-      fileName: f.name || "file",
-      mimeType: f.type || "application/octet-stream",
-      fileSize: f.size,
-      data: Buffer.from(await f.arrayBuffer()).toString("base64"),
-      kind: "file",
-    });
-  }
-  if (audioFile) {
-    const seconds = Number(formData.get("audioSeconds"));
-    await db.insert(teamChatAttachments).values({
-      messageId: message.id,
-      fileName: audioFile.name || "Voice clip",
-      mimeType: audioFile.type || "audio/webm",
-      fileSize: audioFile.size,
-      data: Buffer.from(await audioFile.arrayBuffer()).toString("base64"),
-      kind: "audio",
-      durationSeconds: Number.isFinite(seconds) ? Math.round(seconds) : null,
-      transcript: String(formData.get("audioTranscript") ?? "").trim() || null,
-    });
-  }
-
-  await db.update(teamChatRooms).set({ lastMessageAt: new Date() }).where(eq(teamChatRooms.id, roomId));
-  await markRoomRead(roomId);
+  // The message is saved; everything else about it is independent, so do it together rather than one trip at a time.
+  const seconds = Number(formData.get("audioSeconds"));
+  await Promise.all([
+    ...files.map(async (f) =>
+      db.insert(teamChatAttachments).values({
+        messageId: message.id,
+        fileName: f.name || "file",
+        mimeType: f.type || "application/octet-stream",
+        fileSize: f.size,
+        data: Buffer.from(await f.arrayBuffer()).toString("base64"),
+        kind: "file",
+      })
+    ),
+    audioFile
+      ? (async () =>
+          db.insert(teamChatAttachments).values({
+            messageId: message.id,
+            fileName: audioFile.name || "Voice clip",
+            mimeType: audioFile.type || "audio/webm",
+            fileSize: audioFile.size,
+            data: Buffer.from(await audioFile.arrayBuffer()).toString("base64"),
+            kind: "audio",
+            durationSeconds: Number.isFinite(seconds) ? Math.round(seconds) : null,
+            transcript: String(formData.get("audioTranscript") ?? "").trim() || null,
+          }))()
+      : null,
+    db.update(teamChatRooms).set({ lastMessageAt: new Date() }).where(eq(teamChatRooms.id, roomId)),
+    upsertRead(roomId, user.id),
+  ]);
 }
 
 async function attachmentPreview(messageId: string): Promise<string> {
@@ -298,43 +310,59 @@ export interface ChatRoomSummary {
   canManage: boolean;
 }
 
-/** Every room the current user can see, newest activity first (General always included). */
+/**
+ * Every room the current user can see, newest activity first (General always included). Runs a fixed handful of
+ * queries however many rooms there are: this feeds the page, the unread badges and the new-message panel.
+ */
 export async function getChatRooms(onlyWithActivity = false): Promise<{ rooms: ChatRoomSummary[]; totalUnread: number }> {
   const user = await requireUser();
   await generalRoomId();
 
-  const rooms = await db
-    .select({
-      id: teamChatRooms.id,
-      kind: teamChatRooms.kind,
-      dealId: teamChatRooms.dealId,
-      lastMessageAt: teamChatRooms.lastMessageAt,
-      name: teamChatRooms.name,
-      createdByUserId: teamChatRooms.createdByUserId,
-      borrowerName: deals.borrowerName,
-      propertyAddress: deals.propertyAddress,
-    })
-    .from(teamChatRooms)
-    .leftJoin(deals, eq(deals.id, teamChatRooms.dealId))
-    .where(onlyWithActivity ? isNotNull(teamChatRooms.lastMessageAt) : undefined)
-    .orderBy(desc(sql`coalesce(${teamChatRooms.lastMessageAt}, ${teamChatRooms.createdAt})`));
-
-  // A direct message is titled with the other person, which differs per viewer.
-  const dmRows = await db
-    .select({ roomId: teamChatMembers.roomId, userId: teamChatMembers.userId, name: users.name })
-    .from(teamChatMembers)
-    .innerJoin(users, eq(users.id, teamChatMembers.userId))
-    .innerJoin(teamChatRooms, eq(teamChatRooms.id, teamChatMembers.roomId))
-    .where(eq(teamChatRooms.kind, "dm"));
+  const [rooms, myMemberships, dmRows] = await Promise.all([
+    db
+      .select({
+        id: teamChatRooms.id,
+        kind: teamChatRooms.kind,
+        dealId: teamChatRooms.dealId,
+        lastMessageAt: teamChatRooms.lastMessageAt,
+        name: teamChatRooms.name,
+        createdByUserId: teamChatRooms.createdByUserId,
+        borrowerName: deals.borrowerName,
+        propertyAddress: deals.propertyAddress,
+        loId: deals.assignedLoanOfficerId,
+        procId: deals.assignedProcessorId,
+        asstId: deals.assignedAssistantId,
+      })
+      .from(teamChatRooms)
+      .leftJoin(deals, eq(deals.id, teamChatRooms.dealId))
+      .where(onlyWithActivity ? isNotNull(teamChatRooms.lastMessageAt) : undefined)
+      .orderBy(desc(sql`coalesce(${teamChatRooms.lastMessageAt}, ${teamChatRooms.createdAt})`)),
+    db.select({ roomId: teamChatMembers.roomId }).from(teamChatMembers).where(eq(teamChatMembers.userId, user.id)),
+    // A direct message is titled with the other person, which differs per viewer.
+    db
+      .select({ roomId: teamChatMembers.roomId, userId: teamChatMembers.userId, name: users.name })
+      .from(teamChatMembers)
+      .innerJoin(users, eq(users.id, teamChatMembers.userId))
+      .innerJoin(teamChatRooms, eq(teamChatRooms.id, teamChatMembers.roomId))
+      .where(eq(teamChatRooms.kind, "dm")),
+  ]);
+  const memberOf = new Set(myMemberships.map((m) => m.roomId));
   const dmTitle = (roomId: string) =>
     dmRows.find((m) => m.roomId === roomId && m.userId !== user.id)?.name ?? "Direct message";
 
-  const summaries: ChatRoomSummary[] = [];
-  for (const r of rooms) {
-    const { allowed } = await roomAccess(r.id, user);
-    if (!allowed) continue;
-    const [last] = await db
-      .select({
+  // Same rules as roomAccess (team-chat-access.ts), decided in memory instead of two queries per room.
+  const visible = rooms.filter((r) => {
+    if (r.kind === "general") return true;
+    if (r.kind === "group" || r.kind === "dm") return memberOf.has(r.id);
+    return user.isAdmin || [r.loId, r.procId, r.asstId].includes(user.id) || memberOf.has(r.id);
+  });
+  if (visible.length === 0) return { rooms: [], totalUnread: 0 };
+  const ids = visible.map((r) => r.id);
+
+  const [lastRows, unreadRows] = await Promise.all([
+    db
+      .selectDistinctOn([teamChatMessages.roomId], {
+        roomId: teamChatMessages.roomId,
         id: teamChatMessages.id,
         body: teamChatMessages.body,
         createdAt: teamChatMessages.createdAt,
@@ -342,25 +370,36 @@ export async function getChatRooms(onlyWithActivity = false): Promise<{ rooms: C
       })
       .from(teamChatMessages)
       .innerJoin(users, eq(users.id, teamChatMessages.userId))
-      .where(eq(teamChatMessages.roomId, r.id))
-      .orderBy(desc(teamChatMessages.createdAt))
-      .limit(1);
-
-    const read = await db.query.teamChatReads.findFirst({
-      where: and(eq(teamChatReads.roomId, r.id), eq(teamChatReads.userId, user.id)),
-    });
-    const [{ n }] = await db
-      .select({ n: sql<number>`count(*)::int` })
+      .where(inArray(teamChatMessages.roomId, ids))
+      .orderBy(teamChatMessages.roomId, desc(teamChatMessages.createdAt)),
+    db
+      .select({ roomId: teamChatMessages.roomId, n: sql<number>`count(*)::int` })
       .from(teamChatMessages)
+      .leftJoin(
+        teamChatReads,
+        and(eq(teamChatReads.roomId, teamChatMessages.roomId), eq(teamChatReads.userId, user.id))
+      )
       .where(
         and(
-          eq(teamChatMessages.roomId, r.id),
+          inArray(teamChatMessages.roomId, ids),
           ne(teamChatMessages.userId, user.id),
-          read ? gt(teamChatMessages.createdAt, read.lastReadAt) : undefined
+          or(isNull(teamChatReads.lastReadAt), gt(teamChatMessages.createdAt, teamChatReads.lastReadAt))
         )
-      );
+      )
+      .groupBy(teamChatMessages.roomId),
+  ]);
+  const lastByRoom = new Map(lastRows.map((l) => [l.roomId, l]));
+  const unreadByRoom = new Map(unreadRows.map((u) => [u.roomId, u.n]));
+  // A file or voice-clip message has no text; only those need a second look for their preview.
+  const previews = new Map(
+    await Promise.all(
+      lastRows.filter((l) => !l.body).map(async (l) => [l.id, await attachmentPreview(l.id)] as const)
+    )
+  );
 
-    summaries.push({
+  const summaries: ChatRoomSummary[] = visible.map((r) => {
+    const last = lastByRoom.get(r.id);
+    return {
       roomId: r.id,
       kind: r.kind as "general" | "group" | "deal" | "dm",
       dealId: r.dealId,
@@ -375,14 +414,14 @@ export async function getChatRooms(onlyWithActivity = false): Promise<{ rooms: C
       lastMessage: last
         ? {
             authorName: last.authorName ?? "Someone",
-            body: last.body || (await attachmentPreview(last.id)),
+            body: last.body || (previews.get(last.id) ?? ""),
             createdAt: last.createdAt.toISOString(),
           }
         : null,
-      unread: n,
+      unread: unreadByRoom.get(r.id) ?? 0,
       canManage: canManageRoom(r, user),
-    });
-  }
+    };
+  });
   return { rooms: summaries, totalUnread: summaries.reduce((sum, r) => sum + r.unread, 0) };
 }
 
