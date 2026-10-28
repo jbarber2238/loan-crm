@@ -30,8 +30,8 @@ const TABS: TabItem[] = [
   { value: "email-log", label: "Email Log", short: "Emails", icon: Mail },
   { value: "notes", label: "Notes", short: "Notes", icon: StickyNote },
   { value: "documents", label: "Documents", short: "Docs", icon: FolderOpen },
-  { value: "communications", label: "Communications", short: "Texts", icon: MessageSquareText },
   { value: "team-chat", label: "Team Chat", short: "Chat", icon: MessageSquare },
+  { value: "communications", label: "Communications", short: "Texts", icon: MessageSquareText },
 ];
 
 // Four shortcuts live on the bar; the rest sit behind "More" (iOS tab bars top out at five).

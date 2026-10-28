@@ -61,8 +61,8 @@ export function AppSidebar({
     ...(user.isAdmin || user.baseRole === "processor"
       ? [{ href: "/client-needs", label: "Client Needs", icon: ClipboardList, exact: true }]
       : []),
-    { href: "/inbox", label: "Communications", icon: Inbox, exact: false },
     { href: "/team-chat", label: "Team Chat", icon: MessageSquare, exact: false },
+    { href: "/inbox", label: "Communications", icon: Inbox, exact: false },
     { href: "/directory", label: "Contacts Directory", icon: Users, exact: true },
     // A page inside the directory section, for admins only.
     ...(user.isAdmin ? [{ href: "/directory/reviews", label: "Client Reviews", icon: Star, exact: false, sub: true }] : []),
