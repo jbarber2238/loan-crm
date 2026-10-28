@@ -175,9 +175,19 @@ export function AddClientNeedToDealDialog({
           <TabsContent value="sign" className="pt-2">
             <form onSubmit={handleSignatureAdd} className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Upload a simple PDF, like a letter of explanation, that only needs the borrower&apos;s signature and date.
-                We add a signature page at the end and send it through PandaDoc. After this, use Send to Borrower to tell them it&apos;s ready.
+                Upload a simple PDF that only needs the borrower&apos;s signature and date, like a letter of explanation. We send it through PandaDoc.
+                After this, use Send to Borrower to tell them it&apos;s ready.
               </p>
+              <ul className="list-disc space-y-1 rounded-md border bg-muted/40 py-2.5 pr-3 pl-7 text-sm">
+                <li>
+                  <b>One signer only.</b> It goes to the borrower on this deal and no one else.
+                </li>
+                <li>
+                  <b>We add the signature page.</b> A page with a signature and date line is added at the end, so leave the signature and date
+                  off your PDF.
+                </li>
+                <li>Nothing else on the document can be filled in, such as initials, checkboxes or blanks. Save it as a PDF first if it&apos;s a Word file.</li>
+              </ul>
               <div className="space-y-1.5">
                 <Label htmlFor="sign-file">PDF to sign</Label>
                 <Input id="sign-file" name="file" type="file" accept="application/pdf,.pdf" required />
