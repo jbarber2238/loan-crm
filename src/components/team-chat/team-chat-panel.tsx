@@ -753,7 +753,8 @@ export function TeamChatPanel({
         </div>
       )}
       <div className="flex-1 space-y-4 overflow-y-auto p-4">{messageList}</div>
-      <div className="border-t p-3">{composerArea}</div>
+      {/* The floating pencil button sits in the bottom-right corner, so full-page chats keep Send clear of it. */}
+      <div className={cn("border-t p-3", !dock && "lg:pr-16")}>{composerArea}</div>
     </div>
   );
 }
