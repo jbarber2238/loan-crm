@@ -21,7 +21,8 @@ import { recomputeNeedStatus } from "@/server/client-need-status";
 import { copyQuestionsToNewNeeds } from "@/server/client-need-questions";
 import { createClientNeed } from "@/server/actions/client-need-catalog";
 import { activeRulesFor } from "@/server/client-need-rules";
-import { createDocumentFromTemplate, waitUntilDraft, sendDocumentSilently } from "@/server/pandadoc";
+import { createDocumentFromTemplate, createDocumentFromPdfFile, waitUntilDraft, sendDocumentSilently } from "@/server/pandadoc";
+import { addSignaturePage } from "@/server/pdf/signature-page";
 
 type CatalogNeedRow = {
   id: string;
@@ -68,6 +69,68 @@ export async function createAndSendPandaDocForm(dealId: string, dealNeedId: stri
     .update(dealClientNeeds)
     .set({ pandadocDocumentId: id, pandadocStatus: "document.sent" })
     .where(eq(dealClientNeeds.id, dealNeedId));
+}
+
+const MAX_SIGNATURE_PDF_BYTES = 10 * 1024 * 1024;
+
+/**
+ * A one-off document that just needs the borrower's signature and date (a letter of explanation, say): the
+ * processor uploads a PDF, we add a signature page, send it to PandaDoc and add it to the deal as a PandaDoc form
+ * need. From there it behaves like any other PandaDoc form: "Send to Borrower" tells the borrower, they sign from
+ * their upload page, and the signed PDF comes back through the PandaDoc webhook onto this need.
+ *
+ * The PandaDoc document is created BEFORE the need row, so a failure leaves nothing half-added on the deal.
+ */
+export async function addDocumentForSignatureToDeal(dealId: string, formData: FormData) {
+  const user = await requireUser();
+  const file = formData.get("file");
+  const itemName = String(formData.get("itemName") ?? "").trim();
+  if (!(file instanceof File) || file.size === 0) throw new Error("Choose a PDF to send for signature");
+  if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+    throw new Error("Only PDF files can be sent for signature. Save it as a PDF first.");
+  }
+  if (file.size > MAX_SIGNATURE_PDF_BYTES) throw new Error("That PDF is over the 10MB limit");
+
+  const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId) });
+  if (!deal) throw new Error("Deal not found");
+  if (!deal.borrowerEmail) throw new Error("This deal has no borrower email on file yet. Add one first.");
+  const name = itemName || file.name.replace(/\.pdf$/i, "");
+
+  let stamped: Uint8Array;
+  try {
+    stamped = await addSignaturePage(new Uint8Array(await file.arrayBuffer()), name);
+  } catch {
+    throw new Error("Couldn't read that PDF. If it's password-protected, remove the password and try again.");
+  }
+
+  const [firstName, ...rest] = deal.borrowerName.trim().split(/\s+/);
+  const { id } = await createDocumentFromPdfFile({
+    pdf: stamped,
+    fileName: file.name,
+    name: `${name} — ${deal.propertyAddress}`,
+    recipientEmail: deal.borrowerEmail,
+    recipientFirstName: firstName || deal.borrowerName,
+    recipientLastName: rest.join(" "),
+  });
+  await waitUntilDraft(id);
+  await sendDocumentSilently(id);
+
+  const [{ maxSortOrder } = { maxSortOrder: 0 }] = await db
+    .select({ maxSortOrder: sql<number>`coalesce(max(${dealClientNeeds.sortOrder}), 0)` })
+    .from(dealClientNeeds)
+    .where(eq(dealClientNeeds.dealId, dealId));
+  await db.insert(dealClientNeeds).values({
+    dealId,
+    itemName: name,
+    description: "Review and sign this document.",
+    needType: "pandadoc_form",
+    minFiles: 1,
+    pandadocDocumentId: id,
+    pandadocStatus: "document.sent",
+    sortOrder: maxSortOrder + 1,
+    requestedByUserId: user.id,
+  });
+  revalidatePath(`/deals/${dealId}/loan-center`);
 }
 
 // Shared by every "copy these catalog items onto a deal" entry point —

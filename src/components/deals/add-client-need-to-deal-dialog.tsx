@@ -3,10 +3,11 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { addCatalogItemsToDeal, addClientNeedToDeal } from "@/server/actions/client-needs";
+import { addCatalogItemsToDeal, addClientNeedToDeal, addDocumentForSignatureToDeal } from "@/server/actions/client-needs";
 import { ClientNeedForm } from "@/components/client-needs/client-need-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -45,6 +46,9 @@ export function AddClientNeedToDealDialog({
   const [customPending, startCustomTransition] = useTransition();
   const [customError, setCustomError] = useState<string | null>(null);
 
+  const [signPending, startSignTransition] = useTransition();
+  const [signError, setSignError] = useState<string | null>(null);
+
   const sorted = [...catalog].sort((a, b) => a.itemName.localeCompare(b.itemName));
 
   function handleSelectFromList(e: React.FormEvent<HTMLFormElement>) {
@@ -81,6 +85,24 @@ export function AddClientNeedToDealDialog({
     });
   }
 
+  function handleSignatureAdd(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSignError(null);
+    const formData = new FormData(e.currentTarget);
+    startSignTransition(async () => {
+      try {
+        await addDocumentForSignatureToDeal(dealId, formData);
+        onOpenChange(false);
+        toast.success("Added. Use Send to Borrower to let them know it's ready to sign.");
+        router.refresh();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Couldn't send that document.";
+        setSignError(message);
+        toast.error(message);
+      }
+    });
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
@@ -92,6 +114,7 @@ export function AddClientNeedToDealDialog({
           <TabsList>
             <TabsTrigger value="list">Select from List</TabsTrigger>
             <TabsTrigger value="custom">Custom Need</TabsTrigger>
+            <TabsTrigger value="sign">Document to Sign</TabsTrigger>
           </TabsList>
 
           <TabsContent value="list" className="space-y-3 pt-2">
@@ -148,6 +171,26 @@ export function AddClientNeedToDealDialog({
               pending={customPending}
               error={customError}
             />
+          </TabsContent>
+          <TabsContent value="sign" className="pt-2">
+            <form onSubmit={handleSignatureAdd} className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Upload a simple PDF, like a letter of explanation, that only needs the borrower&apos;s signature and date.
+                We add a signature page at the end and send it through PandaDoc. After this, use Send to Borrower to tell them it&apos;s ready.
+              </p>
+              <div className="space-y-1.5">
+                <Label htmlFor="sign-file">PDF to sign</Label>
+                <Input id="sign-file" name="file" type="file" accept="application/pdf,.pdf" required />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="sign-name">Name shown to the borrower (optional)</Label>
+                <Input id="sign-name" name="itemName" placeholder="e.g. Letter of Explanation" />
+              </div>
+              {signError && <p className="text-sm text-destructive">{signError}</p>}
+              <Button type="submit" className="w-full" disabled={signPending}>
+                {signPending ? "Sending to PandaDoc…" : "Add and send to PandaDoc"}
+              </Button>
+            </form>
           </TabsContent>
         </Tabs>
       </DialogContent>

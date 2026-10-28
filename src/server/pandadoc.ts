@@ -155,6 +155,53 @@ export async function createDocumentFromPdfUrl({
 }
 
 /**
+ * Creates a document from PDF bytes we hold (a processor's one-off upload with our signature page added) by
+ * uploading the file straight to PandaDoc, rather than handing it a public URL to fetch. Same "Client" recipient
+ * and field-tag behavior as createDocumentFromPdfUrl.
+ */
+export async function createDocumentFromPdfFile({
+  pdf,
+  fileName,
+  name,
+  recipientEmail,
+  recipientFirstName,
+  recipientLastName,
+}: {
+  pdf: Uint8Array;
+  fileName: string;
+  name: string;
+  recipientEmail: string;
+  recipientFirstName: string;
+  recipientLastName: string;
+}): Promise<CreateDocumentResult> {
+  const form = new FormData();
+  form.append("file", new Blob([new Uint8Array(pdf)], { type: "application/pdf" }), fileName);
+  form.append(
+    "data",
+    JSON.stringify({
+      name,
+      recipients: [
+        {
+          email: recipientEmail,
+          first_name: recipientFirstName,
+          last_name: recipientLastName,
+          role: "Client",
+          signing_order: 1,
+        },
+      ],
+    })
+  );
+  // No JSON Content-Type here: fetch sets the multipart boundary itself.
+  const res = await fetch(`${BASE_URL}/documents`, {
+    method: "POST",
+    headers: { Authorization: `API-Key ${await apiKey()}` },
+    body: form,
+  });
+  if (!res.ok) throw new PandaDocApiError(res.status, await res.text().catch(() => ""));
+  return res.json();
+}
+
+/**
  * Document creation is async on PandaDoc's side (it starts as
  * "document.uploaded" while the template is processed) — this polls until
  * it reaches "document.draft" and is ready to send, or gives up.
