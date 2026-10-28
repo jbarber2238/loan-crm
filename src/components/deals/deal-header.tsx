@@ -53,6 +53,13 @@ function StageReasonBanner({ deal }: { deal: DealDetail }) {
  */
 const HEADER_DETAIL = "max-lg:group-data-[open=false]/hdr:hidden";
 
+/**
+ * On the Communications and Team Chat tabs the header shrinks to the address, borrower contact line and
+ * loan officer line so the conversation gets the screen. The Loan Center tab shell stamps the active tab
+ * on <html data-loan-tab>; this marker hides a piece of the header for those two tabs.
+ */
+const COMM_HIDE = "[html[data-loan-tab=communications]_&]:hidden [html[data-loan-tab=team-chat]_&]:hidden";
+
 export async function DealHeader({ deal }: { deal: DealDetail }) {
   const s = sectionsFor(deal.loanCategory);
   const currentUser = await requireUser();
@@ -135,7 +142,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
             {deal.assignedProcessor && ` · Processor: ${deal.assignedProcessor.name}`}
           </p>
           {currentUser.baseRole === "processor" && (
-            <div className={`mt-1.5 ${HEADER_DETAIL}`}>
+            <div className={`mt-1.5 ${HEADER_DETAIL} ${COMM_HIDE}`}>
               <IntroButtons dealId={deal.id} />
             </div>
           )}
@@ -158,7 +165,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
                 const ltarv = arv ? (loanAmount / arv) * 100 : null;
                 const ltc = totalProjectCost ? (loanAmount / totalProjectCost) * 100 : null;
                 return (
-                  <p className={`text-xs text-muted-foreground ${HEADER_DETAIL} theme-light-only`}>
+                  <p className={`text-xs text-muted-foreground ${HEADER_DETAIL} ${COMM_HIDE} theme-light-only`}>
                     Requested loan amount: ${loanAmount.toLocaleString()}
                     {ltarv !== null && ` · LTARV: ${ltarv.toFixed(1)}%`}
                     {ltc !== null && ` · LTC: ${ltc.toFixed(1)}%`}
@@ -174,7 +181,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
               );
               const requestedLtv = basis ? (loanAmount / basis) * 100 : null;
               return (
-                <p className={`text-xs text-muted-foreground ${HEADER_DETAIL} theme-light-only`}>
+                <p className={`text-xs text-muted-foreground ${HEADER_DETAIL} ${COMM_HIDE} theme-light-only`}>
                   Requested loan amount: ${loanAmount.toLocaleString()}
                   {requestedLtv !== null && ` · Requested LTV: ${requestedLtv.toFixed(1)}%`}
                   {tail}
@@ -183,7 +190,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
             })()
           )}
         </div>
-        <div className={`flex max-w-full flex-wrap items-center gap-2 ${HEADER_DETAIL}`}>
+        <div className={`flex max-w-full flex-wrap items-center gap-2 ${HEADER_DETAIL} ${COMM_HIDE}`}>
           {deal.loanCategory === "new_construction" && <CloneDealDialog dealId={deal.id} />}
           {CONVERTIBLE_TO_DSCR_REFI_CATEGORIES.has(deal.loanCategory) && (
             <DscrConversionLinkDialog dealId={deal.id} />
@@ -200,16 +207,18 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
       </div>
 
       {showStats && (
-        <dl className={`theme-dark-only !flex flex-wrap gap-x-9 gap-y-3 border-y border-[rgba(246,246,246,.08)] py-3.5 ${HEADER_DETAIL}`}>
-          {stats.map((st) => (
-            <div key={st.k} className="flex flex-col gap-0.5">
-              <dt className="text-xs leading-4 font-medium text-[rgba(246,246,246,.72)]">{st.k}</dt>
-              <dd className="m-0 text-base leading-[22px] font-bold tabular-nums">{st.v}</dd>
-            </div>
-          ))}
-        </dl>
+        <div className={COMM_HIDE}>
+          <dl className={`theme-dark-only !flex flex-wrap gap-x-9 gap-y-3 border-y border-[rgba(246,246,246,.08)] py-3.5 ${HEADER_DETAIL}`}>
+            {stats.map((st) => (
+              <div key={st.k} className="flex flex-col gap-0.5">
+                <dt className="text-xs leading-4 font-medium text-[rgba(246,246,246,.72)]">{st.k}</dt>
+                <dd className="m-0 text-base leading-[22px] font-bold tabular-nums">{st.v}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
       )}
-      <div className={`flex flex-col gap-3 ${HEADER_DETAIL}`}>
+      <div className={`flex flex-col gap-3 ${HEADER_DETAIL} ${COMM_HIDE}`}>
       <PipelineStepper stage={deal.stage} pausedFromStage={deal.pausedFromStage} />
       <StageReasonBanner deal={deal} />
 

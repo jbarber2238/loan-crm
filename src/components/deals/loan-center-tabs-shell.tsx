@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import {
   CalendarDays,
   ClipboardList,
@@ -59,6 +59,14 @@ export function LoanCenterTabsShell({ initialTab, children }: { initialTab?: str
     window.addEventListener(OPEN_TEXT_THREAD_EVENT, onOpenThread);
     return () => window.removeEventListener(OPEN_TEXT_THREAD_EVENT, onOpenThread);
   }, []);
+
+  // The deal header (a server component above this) trims itself on the conversation tabs; it keys off this.
+  useLayoutEffect(() => {
+    document.documentElement.dataset.loanTab = tab;
+    return () => {
+      delete document.documentElement.dataset.loanTab;
+    };
+  }, [tab]);
 
   // Lets the floating chat button sit above the bar instead of behind it.
   useEffect(() => {
