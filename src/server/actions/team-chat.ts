@@ -7,6 +7,7 @@ import {
   teamChatAttachments,
   teamChatMembers,
   teamChatMessages,
+  teamChatReactions,
   teamChatReads,
   teamChatRooms,
   users,
@@ -14,6 +15,7 @@ import {
 import { requireUser } from "@/server/auth/guards";
 import { roomAccess } from "@/server/team-chat-access";
 import { resolveStagedFiles } from "@/server/staged-uploads";
+import { ALLOWED_REACTIONS } from "@/lib/chat-reactions";
 
 // Internal-only: nothing in here touches the client texting tables.
 
@@ -59,6 +61,13 @@ export interface ChatAttachment {
   transcript: string | null;
 }
 
+export interface ChatReaction {
+  emoji: string;
+  userIds: string[];
+  /** First names, for the hover text. */
+  names: string[];
+}
+
 export interface ChatMessage {
   id: string;
   userId: string;
@@ -68,6 +77,7 @@ export interface ChatMessage {
   parentId: string | null;
   createdAt: string;
   attachments: ChatAttachment[];
+  reactions: ChatReaction[];
 }
 
 export interface ChatRoomState {
@@ -117,6 +127,30 @@ export async function getRoomState(roomId: string): Promise<ChatRoomState> {
         .where(inArray(teamChatAttachments.messageId, ids))
         .orderBy(asc(teamChatAttachments.createdAt))
     : [];
+  const reacts = ids.length
+    ? await db
+        .select({
+          messageId: teamChatReactions.messageId,
+          userId: teamChatReactions.userId,
+          emoji: teamChatReactions.emoji,
+          name: users.name,
+        })
+        .from(teamChatReactions)
+        .innerJoin(users, eq(users.id, teamChatReactions.userId))
+        .where(inArray(teamChatReactions.messageId, ids))
+        .orderBy(asc(teamChatReactions.createdAt))
+    : [];
+  const reactionsFor = (messageId: string): ChatReaction[] => {
+    const byEmoji = new Map<string, ChatReaction>();
+    for (const r of reacts) {
+      if (r.messageId !== messageId) continue;
+      const entry = byEmoji.get(r.emoji) ?? { emoji: r.emoji, userIds: [], names: [] };
+      entry.userIds.push(r.userId);
+      entry.names.push((r.name ?? "Someone").split(" ")[0]);
+      byEmoji.set(r.emoji, entry);
+    }
+    return [...byEmoji.values()];
+  };
   return {
     currentUserId: user.id,
     messages: messages.map((m) => ({
@@ -126,9 +160,30 @@ export async function getRoomState(roomId: string): Promise<ChatRoomState> {
       attachments: atts
         .filter((a) => a.messageId === m.id)
         .map((a) => ({ ...a, kind: a.kind as "file" | "audio" })),
+      reactions: reactionsFor(m.id),
     })),
     readers: reads.map((r) => ({ userId: r.userId, name: r.name ?? "Someone", lastReadAt: r.lastReadAt.toISOString() })),
   };
+}
+
+/** Adds my reaction to a message, or takes it back if I'd already left that one. */
+export async function toggleTeamReaction(roomId: string, messageId: string, emoji: string) {
+  const { user } = await requireRoomAccess(roomId);
+  if (!ALLOWED_REACTIONS.has(emoji)) throw new Error("That reaction isn't available");
+  const message = await db.query.teamChatMessages.findFirst({
+    where: and(eq(teamChatMessages.id, messageId), eq(teamChatMessages.roomId, roomId)),
+    columns: { id: true },
+  });
+  if (!message) throw new Error("Message not found");
+
+  const mine = and(
+    eq(teamChatReactions.messageId, messageId),
+    eq(teamChatReactions.userId, user.id),
+    eq(teamChatReactions.emoji, emoji)
+  );
+  const existing = await db.query.teamChatReactions.findFirst({ where: mine });
+  if (existing) await db.delete(teamChatReactions).where(mine);
+  else await db.insert(teamChatReactions).values({ messageId, userId: user.id, emoji }).onConflictDoNothing();
 }
 
 export async function markRoomRead(roomId: string) {

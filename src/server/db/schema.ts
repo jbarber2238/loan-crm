@@ -2254,6 +2254,22 @@ export const teamChatMembers = pgTable(
   (t) => [primaryKey({ columns: [t.roomId, t.userId] })]
 );
 
+// One emoji reaction per person per emoji per message (tap again to take it back).
+export const teamChatReactions = pgTable(
+  "team_chat_reactions",
+  {
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => teamChatMessages.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    emoji: text("emoji").notNull(),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.messageId, t.userId, t.emoji] })]
+);
+
 // Files and voice clips attached to a team chat message. Stored base64 in
 // the row like every other upload in this app. `kind` is "audio" for a
 // recorded voice clip (with the on-device speech-to-text `transcript`).

@@ -4,22 +4,26 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowUp, ChevronLeft, FileText, MessageSquare, Mic, Paperclip, Square, X } from "lucide-react";
+import { ArrowUp, ChevronLeft, FileText, MessageSquare, Mic, Paperclip, SmilePlus, Square, X } from "lucide-react";
 import {
   getRoomState,
   markRoomRead,
   sendTeamMessage,
+  toggleTeamReaction,
   type ChatAttachment,
   type ChatMessage,
+  type ChatReaction,
   type ChatRoomState,
 } from "@/server/actions/team-chat";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { useVoiceRecorder, type VoiceClip } from "@/components/messaging/use-voice-recorder";
 import { RoomMembersDialog } from "@/components/team-chat/room-members-dialog";
 import { useLoanCenterNav } from "@/components/deals/loan-center-nav-context";
 import { cn } from "@/lib/utils";
+import { QUICK_REACTIONS, REACTION_GROUPS } from "@/lib/chat-reactions";
 import { GLOBAL_CHAT_CHANNEL, getRealtimeClient, roomChannelName } from "@/lib/realtime";
 import { stageLargeFiles } from "@/lib/stage-large-files";
 import { stageUploadChunk } from "@/server/actions/staged-upload";
@@ -29,6 +33,11 @@ import { stageUploadChunk } from "@/server/actions/staged-upload";
 const POLL_LIVE_MS = 30_000;
 const POLL_FALLBACK_MS = 4_000;
 const TYPING_TTL_MS = 4_000;
+
+// Desktop fill-the-screen sizing (see fillViewport): the sticky top bar is 56px, plus a little air.
+const FIT_TOP_GAP_PX = 68;
+const FIT_BOTTOM_GAP_PX = 16;
+const FIT_MIN_PX = 360;
 
 
 // ---- Phone: the chat takes the whole screen, like Messenger -------------------------------------
@@ -286,6 +295,105 @@ function Attachments({ items }: { items: ChatAttachment[] }) {
   );
 }
 
+/** The reaction list after I tap `emoji` — same result the server will land on, shown immediately. */
+function withToggledReaction(reactions: ChatReaction[], emoji: string, userId: string, name: string): ChatReaction[] {
+  const existing = reactions.find((r) => r.emoji === emoji);
+  if (!existing) return [...reactions, { emoji, userIds: [userId], names: [name] }];
+  const i = existing.userIds.indexOf(userId);
+  if (i === -1) {
+    return reactions.map((r) => (r === existing ? { ...r, userIds: [...r.userIds, userId], names: [...r.names, name] } : r));
+  }
+  const userIds = existing.userIds.filter((_, n) => n !== i);
+  if (userIds.length === 0) return reactions.filter((r) => r !== existing);
+  return reactions.map((r) => (r === existing ? { ...r, userIds, names: r.names.filter((_, n) => n !== i) } : r));
+}
+
+function ReactionPicker({ onPick }: { onPick: (emoji: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const pick = (emoji: string) => {
+    setOpen(false);
+    onPick(emoji);
+  };
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          title="Add a reaction"
+          aria-label="Add a reaction"
+          className="flex size-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <SmilePlus className="size-4" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-72 space-y-2 p-2">
+        <div className="flex justify-between">
+          {QUICK_REACTIONS.map((e) => (
+            <button key={e} type="button" onClick={() => pick(e)} className="flex size-9 items-center justify-center rounded-md text-xl hover:bg-muted">
+              {e}
+            </button>
+          ))}
+        </div>
+        <div className="max-h-56 space-y-2 overflow-y-auto border-t pt-2">
+          {REACTION_GROUPS.map((g) => (
+            <div key={g.label}>
+              <p className="px-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{g.label}</p>
+              <div className="grid grid-cols-6 gap-0.5">
+                {g.emojis.map((e) => (
+                  <button key={e} type="button" onClick={() => pick(e)} className="flex size-9 items-center justify-center rounded-md text-xl hover:bg-muted">
+                    {e}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** Reaction chips for one message, the add-reaction button, and whatever else belongs on that line (Reply). */
+function ReactionBar({
+  m,
+  me,
+  onReact,
+  end,
+  children,
+}: {
+  m: ChatMessage;
+  me: string;
+  onReact: (messageId: string, emoji: string) => void;
+  /** Right-align (my own bubbles on a phone). */
+  end?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className={cn("flex flex-wrap items-center gap-1", end && "justify-end")}>
+      {m.reactions.map((r) => {
+        const mine = r.userIds.includes(me);
+        return (
+          <button
+            key={r.emoji}
+            type="button"
+            title={r.names.join(", ")}
+            onClick={() => onReact(m.id, r.emoji)}
+            className={cn(
+              "flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs leading-none hover:bg-muted",
+              mine && "border-primary/50 bg-primary/10"
+            )}
+          >
+            <span className="text-sm">{r.emoji}</span>
+            <span className="tabular-nums">{r.userIds.length}</span>
+          </button>
+        );
+      })}
+      <ReactionPicker onPick={(e) => onReact(m.id, e)} />
+      {children}
+    </div>
+  );
+}
+
 function MessageRow({ m, mine, compact, bubble }: { m: ChatMessage; mine: boolean; compact?: boolean; bubble?: boolean }) {
   if (bubble) {
     return (
@@ -342,6 +450,7 @@ export function TeamChatPanel({
   showMembers = true,
   phoneTitle = "Team chat",
   backHref,
+  fillViewport = false,
 }: {
   roomId: string;
   heightClass?: string;
@@ -350,6 +459,8 @@ export function TeamChatPanel({
   phoneTitle?: string;
   /** Where the phone's back arrow goes; inside the Loan Center it returns to that page's first section instead. */
   backHref?: string;
+  /** Desktop: scroll the chat into place and size it to the rest of the screen, so the message box is always in view. */
+  fillViewport?: boolean;
 }) {
   const router = useRouter();
   const loanCenter = useLoanCenterNav();
@@ -358,6 +469,8 @@ export function TeamChatPanel({
   const [state, setState] = useState<ChatRoomState | null>(null);
   const [openThread, setOpenThread] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [fitHeight, setFitHeight] = useState<number | null>(null);
   const lastCount = useRef(0);
 
   const [typing, setTyping] = useState<Record<string, { name: string; until: number }>>({});
@@ -461,6 +574,53 @@ export function TeamChatPanel({
     if (isPhone) bottomRef.current?.scrollIntoView({ block: "end" });
   }, [isPhone, box.height]);
 
+  // Desktop fill: size the chat to the screen below the tab bar, then (once the page has grown to that height)
+  // bring the tab bar up under the sticky top bar. Never less than FIT_MIN_PX; follows the window on resize.
+  const tabAnchor = useCallback(() => {
+    const el = rootRef.current;
+    if (!el) return null;
+    return el.closest('[role="tabpanel"]')?.parentElement?.querySelector('[role="tablist"]') ?? el;
+  }, []);
+  useEffect(() => {
+    if (!fillViewport || isPhone) return;
+    const el = rootRef.current;
+    const anchor = tabAnchor();
+    if (!el || !anchor) return;
+    const belowAnchor = el.getBoundingClientRect().top - anchor.getBoundingClientRect().top;
+    setFitHeight(Math.max(FIT_MIN_PX, Math.floor(window.innerHeight - FIT_TOP_GAP_PX - belowAnchor - FIT_BOTTOM_GAP_PX)));
+    const onResize = () =>
+      setFitHeight(Math.max(FIT_MIN_PX, Math.floor(window.innerHeight - el.getBoundingClientRect().top - FIT_BOTTOM_GAP_PX)));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [fillViewport, isPhone, tabAnchor]);
+  const didScrollIntoPlace = useRef(false);
+  useEffect(() => {
+    if (!fitHeight || didScrollIntoPlace.current) return;
+    didScrollIntoPlace.current = true;
+    const anchor = tabAnchor();
+    if (anchor) window.scrollBy({ top: anchor.getBoundingClientRect().top - FIT_TOP_GAP_PX, behavior: "instant" });
+  }, [fitHeight, tabAnchor]);
+
+  function react(messageId: string, emoji: string) {
+    if (!state) return;
+    const me = state.readers.find((r) => r.userId === state.currentUserId)?.name.split(" ")[0] ?? "You";
+    setState({
+      ...state,
+      messages: state.messages.map((m) =>
+        m.id === messageId ? { ...m, reactions: withToggledReaction(m.reactions, emoji, state.currentUserId, me) } : m
+      ),
+    });
+    toggleTeamReaction(roomId, messageId, emoji)
+      .then(() => {
+        broadcastChanged();
+        return refresh();
+      })
+      .catch((err) => {
+        toast.error(err instanceof Error ? err.message : "Couldn't add that reaction");
+        void refresh();
+      });
+  }
+
   const typingNames = Object.values(typing).map((t) => t.name.split(" ")[0]);
 
   // "Seen by": everyone else whose read marker is at/after my latest top-level message.
@@ -532,17 +692,24 @@ export function TeamChatPanel({
           <div key={m.id} className="space-y-2">
             <MessageRow m={m} mine={mine} bubble={isPhone} />
             <div className={cn(isPhone ? (mine ? "pr-1 text-right" : "pl-9") : "pl-10")}>
-              <button
-                type="button"
-                className="text-xs text-primary hover:underline"
-                onClick={() => setOpenThread(isOpen ? null : m.id)}
-              >
-                {thread.length > 0 ? `${thread.length} ${thread.length === 1 ? "reply" : "replies"}` : "Reply"}
-              </button>
+              <ReactionBar m={m} me={state.currentUserId} onReact={react} end={isPhone && mine}>
+                <button
+                  type="button"
+                  className="px-1 text-xs text-primary hover:underline"
+                  onClick={() => setOpenThread(isOpen ? null : m.id)}
+                >
+                  {thread.length > 0 ? `${thread.length} ${thread.length === 1 ? "reply" : "replies"}` : "Reply"}
+                </button>
+              </ReactionBar>
               {(isOpen || thread.length > 0) && (
                 <div className={cn("mt-2 space-y-2 border-l-2 pl-3 text-left", isPhone && mine && "ml-auto max-w-[85%]")}>
                   {thread.map((r) => (
-                    <MessageRow key={r.id} m={r} mine={r.userId === state.currentUserId} compact bubble={isPhone} />
+                    <div key={r.id} className="space-y-1">
+                      <MessageRow m={r} mine={r.userId === state.currentUserId} compact bubble={isPhone} />
+                      <div className={cn(isPhone ? (r.userId === state.currentUserId ? "pr-1" : "pl-9") : "pl-8")}>
+                        <ReactionBar m={r} me={state.currentUserId} onReact={react} end={isPhone && r.userId === state.currentUserId} />
+                      </div>
+                    </div>
                   ))}
                   {isOpen && <Composer placeholder="Reply in thread…" autoFocus phone={isPhone} onSend={(msg) => send(msg, m.id)} onTyping={announceTyping} />}
                 </div>
@@ -609,7 +776,11 @@ export function TeamChatPanel({
   }
 
   return (
-    <div className={cn("flex flex-col rounded-md border", heightClass)}>
+    <div
+      ref={rootRef}
+      className={cn("flex flex-col rounded-md border", fillViewport && fitHeight ? "" : heightClass)}
+      style={fillViewport && fitHeight ? { height: fitHeight } : undefined}
+    >
       {showMembers && (
         <div className="flex justify-end border-b px-3 py-2">
           <RoomMembersDialog roomId={roomId} />
