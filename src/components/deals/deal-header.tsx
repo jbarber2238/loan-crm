@@ -12,6 +12,7 @@ import { CloneDealDialog } from "@/components/deals/clone-deal-dialog";
 import { DscrConversionLinkDialog } from "@/components/deals/dscr-conversion-link-dialog";
 import { PipelineStepper } from "@/components/deals/pipeline-stepper";
 import { AcceptedTermsHeader } from "@/components/deals/accepted-terms-header";
+import { AcceptedTermsCollapse } from "@/components/deals/accepted-terms-collapse";
 import { ProcessingFeeInvoiceStatus } from "@/components/deals/processing-fee-invoice-status";
 import { PartnerPayoutBanner } from "@/components/deals/partner-payout-banner";
 import { LicenseFlagBanner } from "@/components/deals/license-flag-banner";
@@ -87,6 +88,14 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
   }
   if (deal.estimatedClosingDate) stats.push({ k: "Est. closing", v: deal.estimatedClosingDate.toLocaleDateString() });
   const showStats = !(deal.lenderId && deal.lender);
+  // One-line recap shown on the collapsed Loan Center toggle.
+  const acceptedTermsSummary = [
+    deal.lender?.name,
+    deal.approvedLoanAmount ? `$${Number(deal.approvedLoanAmount).toLocaleString()}` : null,
+    deal.finalRate ? `${Number(deal.finalRate)}%` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <DealHeaderShell>
@@ -217,6 +226,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
       )}
 
       {deal.lenderId && deal.lender && (
+        <AcceptedTermsCollapse summary={acceptedTermsSummary}>
         <AcceptedTermsHeader
           dealId={deal.id}
           dealStage={deal.stage}
@@ -257,6 +267,7 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
           applicationSubmissionMethod={deal.lender.applicationSubmissionMethod}
           brokerPortalUrl={deal.lender.brokerPortalUrl}
         />
+        </AcceptedTermsCollapse>
       )}
       </div>
     </DealHeaderShell>
