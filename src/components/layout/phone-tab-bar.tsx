@@ -3,7 +3,8 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, ClipboardList, Columns3, Inbox, Landmark, Plus } from "lucide-react";
+import { BarChart3, ClipboardList, Columns3, Inbox, Landmark, MessageSquare, Plus } from "lucide-react";
+import { useTeamDock } from "@/components/team-chat/team-dock-context";
 import { cn } from "@/lib/utils";
 
 /**
@@ -13,6 +14,7 @@ import { cn } from "@/lib/utils";
  */
 export function PhoneTabBar({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
+  const { unread: teamUnread } = useTeamDock();
   const hidden = pathname.startsWith("/deals/") && pathname !== "/deals/new";
 
   // Lets the floating chat button sit above the bar instead of behind it.
@@ -34,12 +36,13 @@ export function PhoneTabBar({ isAdmin }: { isAdmin: boolean }) {
     null,
     { href: "/lenders", label: "Lenders", icon: Landmark },
     { href: "/inbox", label: "Inbox", icon: Inbox },
+    { href: "/team-chat", label: "Chat", icon: MessageSquare },
   ];
 
   return (
     <nav
       aria-label="Main"
-      className="theme-dark-only fixed inset-x-0 bottom-0 z-30 !grid grid-cols-5 items-end border-t border-[rgba(246,246,246,.08)] bg-[#0b0c0d] pb-[max(env(safe-area-inset-bottom),0.875rem)] lg:!hidden"
+      className="theme-dark-only fixed inset-x-0 bottom-0 z-30 !grid grid-cols-6 items-end border-t border-[rgba(246,246,246,.08)] bg-[#0b0c0d] pb-[max(env(safe-area-inset-bottom),0.875rem)] lg:!hidden"
     >
       {items.map((item) =>
         item === null ? (
@@ -61,7 +64,14 @@ export function PhoneTabBar({ isAdmin }: { isAdmin: boolean }) {
               pathname.startsWith(item.href) ? "text-[#fa5f05]" : "text-[rgba(246,246,246,.72)]"
             )}
           >
-            <item.icon className="size-[22px]" />
+            <span className="relative">
+              <item.icon className="size-[22px]" />
+              {item.href === "/team-chat" && teamUnread > 0 && (
+                <span className="absolute -top-1.5 -right-2.5 rounded-full bg-[#fa5f05] px-1 text-[9px] leading-[14px] font-bold text-[#0b0c0d]">
+                  {teamUnread}
+                </span>
+              )}
+            </span>
             {item.label}
           </Link>
         )
