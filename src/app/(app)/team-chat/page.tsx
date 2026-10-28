@@ -24,7 +24,7 @@ export default async function TeamChatPage({ searchParams }: { searchParams: Pro
         <h1 className="text-xl font-semibold">Team Chat</h1>
         <p className="text-sm text-muted-foreground">Internal only. Borrowers never see anything here.</p>
       </div>
-      <div className="grid gap-4 md:grid-cols-[280px_1fr]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-[280px_minmax(0,1fr)]">
         <div className={cn("space-y-2", room && "hidden md:block")}>
         <NewChatDialog currentUserId={me.id} />
         <ul className="space-y-1">

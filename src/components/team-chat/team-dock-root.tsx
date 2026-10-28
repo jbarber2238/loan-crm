@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TeamDockWindow } from "@/components/team-chat/team-dock-window";
@@ -14,8 +14,9 @@ import { useTeamUnread } from "@/components/team-chat/use-team-unread";
  * The pencil carries the unread count for every internal room.
  */
 export function TeamDockRoot({ currentUserId }: { currentUserId: string }) {
-  const { windows, closeRoom, minimizeRoom, restoreRoom } = useTeamDock();
+  const { windows, closeRoom, minimizeRoom, restoreRoom, setUnread } = useTeamDock();
   const { unread, rooms } = useTeamUnread();
+  useEffect(() => setUnread(unread), [unread, setUnread]);
   const [composeOpen, setComposeOpen] = useState(false);
 
   const expanded = windows.filter((w) => !w.minimized);

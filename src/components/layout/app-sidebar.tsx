@@ -16,6 +16,7 @@ import {
   FileSignature,
   Layers,
   Inbox,
+  MessageSquare,
   Users,
   Star,
 } from "lucide-react";
@@ -24,6 +25,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useMobileNav } from "@/components/layout/mobile-nav";
+import { useTeamDock } from "@/components/team-chat/team-dock-context";
 import { cn } from "@/lib/utils";
 
 interface SidebarUser {
@@ -49,6 +51,7 @@ export function AppSidebar({
   logo: { src: string; isLight: boolean } | null;
 }) {
   const pathname = usePathname();
+  const { unread: teamUnread } = useTeamDock();
 
   const mainLinks = [
     { href: "/pipeline", label: "Pipeline", icon: LayoutDashboard, exact: true },
@@ -59,6 +62,7 @@ export function AppSidebar({
       ? [{ href: "/client-needs", label: "Client Needs", icon: ClipboardList, exact: true }]
       : []),
     { href: "/inbox", label: "Communications", icon: Inbox, exact: false },
+    { href: "/team-chat", label: "Team Chat", icon: MessageSquare, exact: false },
     { href: "/directory", label: "Contacts Directory", icon: Users, exact: true },
     // A page inside the directory section, for admins only.
     ...(user.isAdmin ? [{ href: "/directory/reviews", label: "Client Reviews", icon: Star, exact: false, sub: true }] : []),
@@ -156,6 +160,11 @@ export function AppSidebar({
               >
                 <Icon className={cn("size-4", "sub" in link && link.sub && "size-3.5")} />
                 {link.label}
+                {link.href === "/team-chat" && teamUnread > 0 && (
+                  <span className="ml-auto rounded-full bg-primary px-1.5 text-[10px] leading-4 font-semibold text-primary-foreground">
+                    {teamUnread}
+                  </span>
+                )}
               </Link>
             );
           })

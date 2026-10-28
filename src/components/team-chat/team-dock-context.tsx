@@ -18,6 +18,9 @@ interface TeamDockContextValue {
   closeRoom: (roomId: string) => void;
   minimizeRoom: (roomId: string) => void;
   restoreRoom: (roomId: string) => void;
+  /** Unread count across every internal room, published by the dock so other parts of the page (the menu) can badge it. */
+  unread: number;
+  setUnread: (n: number) => void;
 }
 
 const TeamDockContext = createContext<TeamDockContextValue | null>(null);
@@ -29,6 +32,7 @@ const TeamDockContext = createContext<TeamDockContextValue | null>(null);
  */
 export function TeamDockProvider({ children }: { children: ReactNode }) {
   const [windows, setWindows] = useState<TeamDockWindow[]>([]);
+  const [unread, setUnread] = useState(0);
 
   const openRoom = useCallback((w: OpenRoomInput) => {
     setWindows((prev) =>
@@ -47,7 +51,7 @@ export function TeamDockProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  return <TeamDockContext.Provider value={{ windows, openRoom, closeRoom, minimizeRoom, restoreRoom }}>{children}</TeamDockContext.Provider>;
+  return <TeamDockContext.Provider value={{ windows, openRoom, closeRoom, minimizeRoom, restoreRoom, unread, setUnread }}>{children}</TeamDockContext.Provider>;
 }
 
 export function useTeamDock() {
