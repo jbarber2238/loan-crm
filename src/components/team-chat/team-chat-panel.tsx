@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowUp, ChevronLeft, FileText, MessageSquare, Mic, Paperclip, SmilePlus, Square, X } from "lucide-react";
 import {
+  editTeamMessage,
   getRoomState,
   sendTeamMessage,
   toggleTeamReaction,
@@ -374,6 +375,7 @@ function ReactionBar({
   me,
   onReact,
   end,
+  onEdit,
   children,
 }: {
   m: ChatMessage;
@@ -381,6 +383,8 @@ function ReactionBar({
   onReact: (messageId: string, emoji: string) => void;
   /** Right-align (my own bubbles on a phone). */
   end?: boolean;
+  /** Given for my own messages with text: shows an Edit button. */
+  onEdit?: () => void;
   children?: React.ReactNode;
 }) {
   return (
@@ -405,11 +409,71 @@ function ReactionBar({
       })}
       <ReactionPicker onPick={(e) => onReact(m.id, e)} />
       {children}
+      {onEdit && (
+        <button type="button" className="px-1 text-xs text-muted-foreground hover:text-foreground hover:underline" onClick={onEdit}>
+          Edit
+        </button>
+      )}
     </div>
   );
 }
 
-function MessageRow({ m, mine, compact, bubble }: { m: ChatMessage; mine: boolean; compact?: boolean; bubble?: boolean }) {
+/** Replaces a message's text while its author is changing it: Enter saves, Escape cancels. */
+function InlineEditor({ initial, onSave, onCancel }: { initial: string; onSave: (text: string) => void; onCancel: () => void }) {
+  const [text, setText] = useState(initial);
+  const save = () => {
+    if (text.trim()) onSave(text);
+  };
+  return (
+    <div className="mt-1 w-full space-y-1.5">
+      <Textarea
+        value={text}
+        autoFocus
+        rows={2}
+        aria-label="Edit message"
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            save();
+          } else if (e.key === "Escape") {
+            onCancel();
+          }
+        }}
+        className="min-h-16 resize-none text-sm"
+      />
+      <div className="flex items-center gap-2 text-xs">
+        <Button type="button" size="xs" disabled={!text.trim()} onClick={save}>
+          Save
+        </Button>
+        <Button type="button" size="xs" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+        <span className="text-muted-foreground">Enter to save, Esc to cancel</span>
+      </div>
+    </div>
+  );
+}
+
+function MessageRow({
+  m,
+  mine,
+  compact,
+  bubble,
+  editing,
+  onSaveEdit,
+  onCancelEdit,
+}: {
+  m: ChatMessage;
+  mine: boolean;
+  compact?: boolean;
+  bubble?: boolean;
+  editing?: boolean;
+  onSaveEdit?: (text: string) => void;
+  onCancelEdit?: () => void;
+}) {
+  const edited = m.editedAt ? " · edited" : "";
+  const editor = editing && onSaveEdit && onCancelEdit ? <InlineEditor initial={m.body} onSave={onSaveEdit} onCancel={onCancelEdit} /> : null;
   if (bubble) {
     return (
       <div className={cn("flex items-end gap-2", mine && "flex-row-reverse")}>
@@ -421,7 +485,8 @@ function MessageRow({ m, mine, compact, bubble }: { m: ChatMessage; mine: boolea
         )}
         <div className={cn("flex min-w-0 max-w-[80%] flex-col", mine ? "items-end" : "items-start")}>
           {!mine && <p className="mb-0.5 px-1 text-[11px] text-muted-foreground">{m.authorName}</p>}
-          {m.body && (
+          {editor ??
+            (m.body && (
             <p
               className={cn(
                 "rounded-2xl px-3.5 py-2 text-[15px] whitespace-pre-wrap break-words",
@@ -430,10 +495,13 @@ function MessageRow({ m, mine, compact, bubble }: { m: ChatMessage; mine: boolea
             >
               {linkify(m.body)}
             </p>
-          )}
+          ))}
           <VideoPreview text={m.body} />
           <Attachments items={m.attachments} />
-          <p className="mt-0.5 px-1 text-[10px] text-muted-foreground">{timeLabel(m.createdAt)}</p>
+          <p className="mt-0.5 px-1 text-[10px] text-muted-foreground">
+            {timeLabel(m.createdAt)}
+            {edited}
+          </p>
         </div>
       </div>
     );
@@ -447,8 +515,9 @@ function MessageRow({ m, mine, compact, bubble }: { m: ChatMessage; mine: boolea
       <div className="min-w-0 flex-1">
         <p className="text-xs text-muted-foreground">
           <span className="font-medium text-foreground">{mine ? "You" : m.authorName}</span> · {timeLabel(m.createdAt)}
+          {edited}
         </p>
-        {m.body && <p className="text-sm whitespace-pre-wrap break-words">{linkify(m.body)}</p>}
+        {editor ?? (m.body && <p className="text-sm whitespace-pre-wrap break-words">{linkify(m.body)}</p>)}
         <VideoPreview text={m.body} />
         <Attachments items={m.attachments} />
       </div>
@@ -493,6 +562,7 @@ export function TeamChatPanel({
   /** Messages I just sent that the server hasn't confirmed yet; shown right away so sending feels instant. */
   const [pending, setPending] = useState<ChatMessage[]>([]);
   const [openThread, setOpenThread] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const lastCount = useRef(0);
@@ -631,6 +701,26 @@ export function TeamChatPanel({
       });
   }
 
+  function saveEdit(m: ChatMessage, text: string) {
+    const next = text.trim();
+    setEditingId(null);
+    if (!state || !next || next === m.body) return;
+    // Show the new text straight away; the refresh after the server answers replaces it with the saved copy.
+    setState({
+      ...state,
+      messages: state.messages.map((x) => (x.id === m.id ? { ...x, body: next, editedAt: new Date().toISOString() } : x)),
+    });
+    editTeamMessage(roomId, m.id, next)
+      .then(() => {
+        broadcastChanged();
+        return refresh();
+      })
+      .catch((err) => {
+        toast.error(err instanceof Error ? err.message : "Couldn't save that edit");
+        void refresh();
+      });
+  }
+
   const typingNames = Object.values(typing).map((t) => t.name.split(" ")[0]);
 
   // "Seen by": everyone else whose read marker is at/after my latest top-level message.
@@ -679,6 +769,7 @@ export function TeamChatPanel({
           body: message.text,
           parentId,
           createdAt: new Date().toISOString(),
+          editedAt: null,
           attachments: [],
           reactions: [],
         },
@@ -724,9 +815,22 @@ export function TeamChatPanel({
         const mine = m.userId === state.currentUserId;
         return (
           <div key={m.id} className="space-y-2">
-            <MessageRow m={m} mine={mine} bubble={isPhone} />
+            <MessageRow
+              m={m}
+              mine={mine}
+              bubble={isPhone}
+              editing={editingId === m.id}
+              onSaveEdit={(text) => saveEdit(m, text)}
+              onCancelEdit={() => setEditingId(null)}
+            />
             <div className={cn(isPhone ? (mine ? "pr-1 text-right" : "pl-9") : "pl-10")}>
-              <ReactionBar m={m} me={state.currentUserId} onReact={react} end={isPhone && mine}>
+              <ReactionBar
+                m={m}
+                me={state.currentUserId}
+                onReact={react}
+                end={isPhone && mine}
+                onEdit={mine && m.body && !m.id.startsWith("pending-") ? () => setEditingId(m.id) : undefined}
+              >
                 <button
                   type="button"
                   className="px-1 text-xs text-primary hover:underline"
@@ -739,9 +843,23 @@ export function TeamChatPanel({
                 <div className={cn("mt-2 space-y-2 border-l-2 pl-3 text-left", isPhone && mine && "ml-auto max-w-[85%]")}>
                   {thread.map((r) => (
                     <div key={r.id} className="space-y-1">
-                      <MessageRow m={r} mine={r.userId === state.currentUserId} compact bubble={isPhone} />
+                      <MessageRow
+                        m={r}
+                        mine={r.userId === state.currentUserId}
+                        compact
+                        bubble={isPhone}
+                        editing={editingId === r.id}
+                        onSaveEdit={(text) => saveEdit(r, text)}
+                        onCancelEdit={() => setEditingId(null)}
+                      />
                       <div className={cn(isPhone ? (r.userId === state.currentUserId ? "pr-1" : "pl-9") : "pl-8")}>
-                        <ReactionBar m={r} me={state.currentUserId} onReact={react} end={isPhone && r.userId === state.currentUserId} />
+                        <ReactionBar
+                          m={r}
+                          me={state.currentUserId}
+                          onReact={react}
+                          end={isPhone && r.userId === state.currentUserId}
+                          onEdit={r.userId === state.currentUserId && r.body && !r.id.startsWith("pending-") ? () => setEditingId(r.id) : undefined}
+                        />
                       </div>
                     </div>
                   ))}

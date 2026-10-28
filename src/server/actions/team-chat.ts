@@ -101,6 +101,8 @@ export interface ChatMessage {
   body: string;
   parentId: string | null;
   createdAt: string;
+  /** When the author last changed the text, or null if it's as first sent. */
+  editedAt: string | null;
   attachments: ChatAttachment[];
   reactions: ChatReaction[];
 }
@@ -126,6 +128,7 @@ export async function getRoomState(roomId: string, markRead = false): Promise<Ch
         body: teamChatMessages.body,
         parentId: teamChatMessages.parentId,
         createdAt: teamChatMessages.createdAt,
+        editedAt: teamChatMessages.editedAt,
       })
       .from(teamChatMessages)
       .innerJoin(users, eq(users.id, teamChatMessages.userId))
@@ -187,6 +190,7 @@ export async function getRoomState(roomId: string, markRead = false): Promise<Ch
       ...m,
       authorName: m.authorName ?? "Someone",
       createdAt: m.createdAt.toISOString(),
+      editedAt: m.editedAt ? m.editedAt.toISOString() : null,
       attachments: atts
         .filter((a) => a.messageId === m.id)
         .map((a) => ({ ...a, kind: a.kind as "file" | "audio" })),
@@ -194,6 +198,22 @@ export async function getRoomState(roomId: string, markRead = false): Promise<Ch
     })),
     readers: reads.map((r) => ({ userId: r.userId, name: r.name ?? "Someone", lastReadAt: r.lastReadAt.toISOString() })),
   };
+}
+
+/** Changes the text of one of my own messages and marks it edited. Nobody else's message can be edited, by anyone. */
+export async function editTeamMessage(roomId: string, messageId: string, newText: string) {
+  const { user } = await requireRoomAccess(roomId);
+  const text = newText.trim();
+  if (!text) throw new Error("A message can't be empty");
+  if (text.length > 4000) throw new Error("That message is too long");
+  const message = await db.query.teamChatMessages.findFirst({
+    where: and(eq(teamChatMessages.id, messageId), eq(teamChatMessages.roomId, roomId)),
+    columns: { id: true, userId: true, body: true },
+  });
+  if (!message) throw new Error("Message not found");
+  if (message.userId !== user.id) throw new Error("You can only edit your own messages");
+  if (message.body === text) return;
+  await db.update(teamChatMessages).set({ body: text, editedAt: new Date() }).where(eq(teamChatMessages.id, messageId));
 }
 
 /** Adds my reaction to a message, or takes it back if I'd already left that one. */

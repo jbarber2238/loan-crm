@@ -2218,6 +2218,8 @@ export const teamChatMessages = pgTable("team_chat_messages", {
   body: text("body").notNull(),
   parentId: uuid("parent_id"),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  // Set when the author changes the text after sending; the chat shows "edited" beside the time.
+  editedAt: timestamp("edited_at", { mode: "date", withTimezone: true }),
 });
 
 // Each person's "read up to here" marker per room — drives unread counts
