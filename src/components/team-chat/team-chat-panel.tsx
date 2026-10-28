@@ -581,8 +581,10 @@ export function TeamChatPanel({
     if (!el) return null;
     return el.closest('[role="tabpanel"]')?.parentElement?.querySelector('[role="tablist"]') ?? el;
   }, []);
+  // `loaded` matters: until the first fetch lands the panel is a "Loading chat…" placeholder with no ref to measure.
+  const loaded = state !== null;
   useEffect(() => {
-    if (!fillViewport || isPhone) return;
+    if (!fillViewport || isPhone || !loaded) return;
     const el = rootRef.current;
     const anchor = tabAnchor();
     if (!el || !anchor) return;
@@ -592,7 +594,7 @@ export function TeamChatPanel({
       setFitHeight(Math.max(FIT_MIN_PX, Math.floor(window.innerHeight - el.getBoundingClientRect().top - FIT_BOTTOM_GAP_PX)));
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [fillViewport, isPhone, tabAnchor]);
+  }, [fillViewport, isPhone, loaded, tabAnchor]);
   const didScrollIntoPlace = useRef(false);
   useEffect(() => {
     if (!fitHeight || didScrollIntoPlace.current) return;
