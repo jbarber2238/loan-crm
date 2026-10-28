@@ -351,7 +351,7 @@ export function AcceptedTermsHeader({
     <div className="space-y-2 border-t pt-2">
       <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-start">
         {isHardMoneyDraw ? (
-          <div data-tiles className="grid w-full items-start grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-7 lg:w-auto lg:flex-1">
+          <div data-tiles data-draw className="grid w-full items-start grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-7 lg:w-auto lg:flex-1">
             <GroupLabel title="Loan Terms" first />
             <Field label="Lender" value={lenderName} />
             <Field label="Loan Amount" value={money(approvedLoanAmount)} />
