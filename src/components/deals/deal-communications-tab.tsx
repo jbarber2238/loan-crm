@@ -107,9 +107,9 @@ export function DealCommunicationsTab({ dealId, propertyAddress }: { dealId: str
       <div
         ref={rootRef}
         style={fitHeight ? { height: fitHeight } : undefined}
-        className={cn("grid gap-3 lg:grid-cols-[260px_1fr]", !fitHeight && "h-[calc(100dvh-14rem)] min-h-[420px]")}
+        className={cn("grid gap-3 lg:grid-cols-[1fr_260px]", !fitHeight && "h-[calc(100dvh-14rem)] min-h-[420px]")}
       >
-        <ul className={cn("min-h-0 space-y-1 overflow-y-auto", showThread && "max-lg:hidden")}>
+        <ul className={cn("min-h-0 space-y-1 overflow-y-auto lg:order-2", showThread && "max-lg:hidden")}>
           {threads.map((t) => (
             <li key={t.key}>
               <button
