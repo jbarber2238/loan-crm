@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { Bell, MessageCircle } from "lucide-react";
+import { Bell, MessageSquareText } from "lucide-react";
 import {
   getMySoundPrefs,
   getUnreadNotificationSummary,
@@ -11,12 +11,12 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/server/actions/notifications";
-import { getChatRooms, type ChatRoomSummary } from "@/server/actions/team-chat";
+import { getTextsMenu, type TextsMenuItem } from "@/server/actions/messages";
+import { useOpenTextThread } from "@/components/messaging/chat-dock-context";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MobileNavButton } from "@/components/layout/mobile-nav";
 import { playSound } from "@/lib/notification-sound";
 import { cn } from "@/lib/utils";
-import { GLOBAL_CHAT_CHANNEL, getRealtimeClient } from "@/lib/realtime";
 
 function CountBubble({ n }: { n: number }) {
   if (n <= 0) return null;
@@ -156,96 +156,92 @@ function NotificationsMenu() {
   );
 }
 
-function roomHref(r: ChatRoomSummary): string {
-  return r.kind === "deal" && r.dealId ? `/deals/${r.dealId}/loan-center?tab=team-chat` : `/team-chat?room=${r.roomId}`;
-}
-
-function TeamChatMenu() {
+function TextsMenu() {
   const pathname = usePathname();
+  const openThread = useOpenTextThread();
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
-  const [rooms, setRooms] = useState<ChatRoomSummary[]>([]);
+  const [items, setItems] = useState<TextsMenuItem[]>([]);
 
   const prevUnread = useRef<number | null>(null);
   const load = useCallback(
     () =>
-      Promise.all([getChatRooms(true), getMySoundPrefs()])
+      Promise.all([getTextsMenu(), getMySoundPrefs()])
         .then(([r, prefs]) => {
-          if (prevUnread.current !== null && r.totalUnread > prevUnread.current && prefs.soundChat) playSound("chat");
+          if (prevUnread.current !== null && r.totalUnread > prevUnread.current && prefs.soundTexts) playSound("text");
           prevUnread.current = r.totalUnread;
           setUnread(r.totalUnread);
-          setRooms(r.rooms);
+          setItems(r.items);
         })
         .catch(() => {}),
     []
   );
+  // Client texts arrive by webhook, not Realtime, so this one polls.
   useEffect(() => {
-    load();
-    const t = setInterval(load, 20_000);
-    // Instant refresh whenever anyone sends a team message.
-    const rt = getRealtimeClient();
-    const channel = rt?.channel(GLOBAL_CHAT_CHANNEL).on("broadcast", { event: "changed" }, () => void load()).subscribe();
-    return () => {
-      clearInterval(t);
-      if (rt && channel) void rt.removeChannel(channel);
-    };
+    void load();
+    const t = setInterval(load, 8_000);
+    return () => clearInterval(t);
   }, [load, pathname]);
 
   return (
     <Popover open={open} onOpenChange={(v) => { setOpen(v); if (v) load(); }}>
-      <IconButton label="Team chat" count={unread}>
-        <MessageCircle className="size-5" />
+      <IconButton label="Texts" count={unread}>
+        <MessageSquareText className="size-5" />
       </IconButton>
       <PopoverContent align="end" className="w-[calc(100vw-1.5rem)] p-0 sm:w-96">
         <div className="flex items-center justify-between border-b px-4 py-3">
-          <p className="text-sm font-semibold">Team Chat</p>
-          <p className="text-xs text-muted-foreground">Internal only</p>
+          <p className="text-sm font-semibold">Texts</p>
+          <p className="text-xs text-muted-foreground">Borrowers and deal contacts</p>
         </div>
         <ul className="max-h-96 divide-y overflow-y-auto">
-          {rooms.length === 0 && <li className="p-4 text-sm text-muted-foreground">No team messages yet.</li>}
-          {rooms.map((r) => (
-            <li key={r.roomId}>
-              <Link
-                href={roomHref(r)}
-                onClick={() => setOpen(false)}
-                className={cn("flex items-start gap-2.5 px-4 py-3 hover:bg-muted/50", r.unread > 0 && "bg-primary/5")}
+          {items.length === 0 && <li className="p-4 text-sm text-muted-foreground">No texts yet.</li>}
+          {items.map((i) => (
+            <li key={i.conversationId}>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  openThread(i.conversationId, i.dealId);
+                }}
+                className={cn("flex w-full items-start gap-2.5 px-4 py-3 text-left hover:bg-muted/50", i.unread > 0 && "bg-primary/5")}
               >
                 <span className="min-w-0 flex-1">
-                  <span className={cn("block truncate text-sm", r.unread > 0 && "font-semibold")}>{r.title}</span>
-                  {r.lastMessage && (
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {r.unread > 0 ? "New message · " : ""}
-                      {r.lastMessage.authorName.split(" ")[0]}: {r.lastMessage.body}
-                    </span>
+                  <span className={cn("block truncate text-sm", i.unread > 0 && "font-semibold")}>{i.title}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{i.subtitle}</span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {i.direction === "outbound" ? "You: " : ""}
+                    {i.preview}
+                  </span>
+                </span>
+                <span className="flex shrink-0 flex-col items-end gap-1">
+                  <span className="text-[11px] text-muted-foreground">{timeAgo(i.at)}</span>
+                  {i.unread > 0 && (
+                    <span className="rounded-full bg-primary px-1.5 text-[10px] leading-4 font-semibold text-primary-foreground">{i.unread}</span>
                   )}
                 </span>
-                <span className="flex shrink-0 flex-col items-end gap-1 text-xs text-muted-foreground">
-                  {r.lastMessage && timeAgo(r.lastMessage.createdAt)}
-                  {r.unread > 0 && <span className="size-2 rounded-full bg-primary" />}
-                </span>
-              </Link>
+              </button>
             </li>
           ))}
         </ul>
         <Link
-          href="/team-chat"
+          href="/inbox"
           onClick={() => setOpen(false)}
           className="block border-t px-4 py-2.5 text-center text-sm text-primary hover:bg-muted/50"
         >
-          Open Team Chat
+          Open Communications
         </Link>
       </PopoverContent>
     </Popover>
   );
 }
 
-/** Top-right bar: team chat (internal) and notifications — kept apart from client texting in Communications. */
+/** Top-right bar: outside texts (borrowers, deal contacts) and notifications. Internal team chat lives in the floating pencil. */
 export function TopBar() {
   return (
     <div className="sticky top-0 z-10 flex h-14 items-center justify-between gap-2 border-b bg-background/90 px-3 backdrop-blur sm:px-4 md:px-6">
       <MobileNavButton />
       <div className="ml-auto flex items-center gap-2">
-        <TeamChatMenu />
+        <TextsMenu />
         <NotificationsMenu />
       </div>
     </div>

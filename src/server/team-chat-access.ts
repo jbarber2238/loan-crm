@@ -2,8 +2,8 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { deals, teamChatMembers, teamChatRooms } from "@/server/db/schema";
 
-// Access rules: General is open to every active user; a group chat is its
-// members only; a deal chat is that deal's loan officer, processor, assistant
+// Access rules: General is open to every active user; a group chat or a
+// direct message is its members only; a deal chat is that deal's loan officer, processor, assistant
 // and admins, plus anyone explicitly added (e.g. a covering processor).
 export async function roomAccess(roomId: string, user: { id: string; isAdmin: boolean }) {
   const [room] = await db
@@ -25,7 +25,7 @@ export async function roomAccess(roomId: string, user: { id: string; isAdmin: bo
   const member = await db.query.teamChatMembers.findFirst({
     where: and(eq(teamChatMembers.roomId, roomId), eq(teamChatMembers.userId, user.id)),
   });
-  if (room.kind === "group") return { room, allowed: Boolean(member) };
+  if (room.kind === "group" || room.kind === "dm") return { room, allowed: Boolean(member) };
   const onDeal = [room.loId, room.procId, room.asstId].includes(user.id);
   return { room, allowed: user.isAdmin || onDeal || Boolean(member) };
 }

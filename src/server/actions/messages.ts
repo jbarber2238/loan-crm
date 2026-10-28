@@ -1,6 +1,6 @@
 "use server";
 
-import { and, desc, eq, ilike, inArray, isNull, or } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import {
@@ -454,4 +454,200 @@ export async function getAllContacts(): Promise<DirectoryContact[]> {
   }
 
   return [...byPhone.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// ---------------------------------------------------------------------------
+// Outside texting inside the app's own surfaces: the header's Texts menu and
+// each deal's Communications tab. Both read the same shared conversations the
+// Communications page does; nothing here is a second copy of any thread.
+// ---------------------------------------------------------------------------
+
+export interface DealTextThread {
+  key: string;
+  name: string;
+  role: ContactType;
+  phone: string;
+  /** Null until the first text or call with this person — opening it creates the thread. */
+  conversationId: string | null;
+  lastMessage: { body: string; direction: "inbound" | "outbound"; createdAt: string } | null;
+  unread: number;
+}
+
+async function unreadCountsFor(conversationIds: string[]): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (conversationIds.length === 0) return counts;
+  const [texts, calls] = await Promise.all([
+    db
+      .select({ conversationId: dealMessages.conversationId, n: sql<number>`count(*)::int` })
+      .from(dealMessages)
+      .where(and(inArray(dealMessages.conversationId, conversationIds), eq(dealMessages.direction, "inbound"), isNull(dealMessages.readAt)))
+      .groupBy(dealMessages.conversationId),
+    db
+      .select({ conversationId: dealCallLogs.conversationId, n: sql<number>`count(*)::int` })
+      .from(dealCallLogs)
+      .where(and(inArray(dealCallLogs.conversationId, conversationIds), eq(dealCallLogs.direction, "inbound"), isNull(dealCallLogs.reviewedAt)))
+      .groupBy(dealCallLogs.conversationId),
+  ]);
+  for (const r of [...texts, ...calls]) counts.set(r.conversationId, (counts.get(r.conversationId) ?? 0) + r.n);
+  return counts;
+}
+
+/** Everyone on this deal that you can text (borrower, title, insurance, plus anyone else already texted about it), with where each thread stands. */
+export async function getDealTextThreads(dealId: string): Promise<DealTextThread[]> {
+  await requireUser();
+  const deal = await db.query.deals.findFirst({
+    where: eq(deals.id, dealId),
+    columns: {
+      borrowerName: true,
+      borrowerPhone: true,
+      titleCompanyAgentName: true,
+      titleAgentPhone: true,
+      insuranceAgentName: true,
+      insuranceAgentPhone: true,
+    },
+  });
+  if (!deal) throw new Error("Deal not found");
+
+  const people: { name: string; role: ContactType; phone: string }[] = [];
+  if (deal.borrowerPhone) people.push({ name: deal.borrowerName, role: "Borrower", phone: toE164(deal.borrowerPhone) });
+  if (deal.titleAgentPhone) people.push({ name: deal.titleCompanyAgentName ?? "Title agent", role: "Title", phone: toE164(deal.titleAgentPhone) });
+  if (deal.insuranceAgentPhone) {
+    people.push({ name: deal.insuranceAgentName ?? "Insurance agent", role: "Insurance", phone: toE164(deal.insuranceAgentPhone) });
+  }
+
+  const known = new Set(people.map((p) => p.phone));
+  const [byPhone, attached] = await Promise.all([
+    people.length
+      ? db.query.dealConversations.findMany({ where: inArray(dealConversations.primaryPhone, people.map((p) => p.phone)) })
+      : Promise.resolve([]),
+    db.query.dealConversations.findMany({ where: eq(dealConversations.dealId, dealId) }),
+  ]);
+  const others = attached.filter((c) => !known.has(c.primaryPhone));
+  for (const c of others) people.push({ name: c.primaryPhone, role: "Other", phone: c.primaryPhone });
+
+  const conversations = new Map([...byPhone, ...others].map((c) => [c.primaryPhone, c]));
+  const ids = [...conversations.values()].map((c) => c.id);
+  const [unread, lastMessages] = await Promise.all([
+    unreadCountsFor(ids),
+    ids.length
+      ? db
+          .selectDistinctOn([dealMessages.conversationId], {
+            conversationId: dealMessages.conversationId,
+            body: dealMessages.body,
+            direction: dealMessages.direction,
+            createdAt: dealMessages.createdAt,
+          })
+          .from(dealMessages)
+          .where(inArray(dealMessages.conversationId, ids))
+          .orderBy(dealMessages.conversationId, desc(dealMessages.createdAt))
+      : Promise.resolve([]),
+  ]);
+  const lastBy = new Map(lastMessages.map((m) => [m.conversationId, m]));
+
+  return people.map((p) => {
+    const conversation = conversations.get(p.phone) ?? null;
+    const last = conversation ? lastBy.get(conversation.id) : undefined;
+    return {
+      key: `${p.role}-${p.phone}`,
+      name: p.name,
+      role: p.role,
+      phone: p.phone,
+      conversationId: conversation?.id ?? null,
+      lastMessage: last ? { body: last.body, direction: last.direction, createdAt: last.createdAt.toISOString() } : null,
+      unread: conversation ? (unread.get(conversation.id) ?? 0) : 0,
+    };
+  });
+}
+
+export interface TextsMenuItem {
+  conversationId: string;
+  dealId: string | null;
+  /** The property when the thread belongs to a deal, otherwise the contact. */
+  title: string;
+  /** Who it's with. */
+  subtitle: string;
+  preview: string;
+  direction: "inbound" | "outbound" | null;
+  at: string;
+  unread: number;
+}
+
+/** The header's Texts menu: the most recent outside conversations, each labeled by property, with unread counts. */
+export async function getTextsMenu(): Promise<{ items: TextsMenuItem[]; totalUnread: number }> {
+  await requireUser();
+  const conversations = await db.query.dealConversations.findMany({
+    orderBy: desc(dealConversations.lastMessageAt),
+    limit: 40,
+  });
+  const ids = conversations.map((c) => c.id);
+  const phones = conversations.map((c) => c.primaryPhone);
+  const dealIds = conversations.map((c) => c.dealId).filter((x): x is string => Boolean(x));
+
+  const [unread, lastMessages, byPhone, byId] = await Promise.all([
+    unreadCountsFor(ids),
+    ids.length
+      ? db
+          .selectDistinctOn([dealMessages.conversationId], {
+            conversationId: dealMessages.conversationId,
+            body: dealMessages.body,
+            direction: dealMessages.direction,
+          })
+          .from(dealMessages)
+          .where(inArray(dealMessages.conversationId, ids))
+          .orderBy(dealMessages.conversationId, desc(dealMessages.createdAt))
+      : Promise.resolve([]),
+    phones.length
+      ? db.query.deals.findMany({
+          where: and(
+            isNull(deals.deletedAt),
+            or(inArray(deals.borrowerPhone, phones), inArray(deals.titleAgentPhone, phones), inArray(deals.insuranceAgentPhone, phones))
+          ),
+          columns: {
+            id: true,
+            borrowerName: true,
+            borrowerPhone: true,
+            propertyAddress: true,
+            titleAgentPhone: true,
+            titleCompanyAgentName: true,
+            insuranceAgentPhone: true,
+            insuranceAgentName: true,
+          },
+          orderBy: (d, { desc: descD }) => descD(d.createdAt),
+        })
+      : Promise.resolve([]),
+    dealIds.length
+      ? db.query.deals.findMany({ where: inArray(deals.id, dealIds), columns: { id: true, propertyAddress: true } })
+      : Promise.resolve([]),
+  ]);
+  const lastBy = new Map(lastMessages.map((m) => [m.conversationId, m]));
+  const addressById = new Map(byId.map((d) => [d.id, d.propertyAddress]));
+
+  const items: TextsMenuItem[] = [];
+  for (const c of conversations) {
+    const last = lastBy.get(c.id);
+    if (!last && !unread.get(c.id)) continue; // never texted: nothing to show yet
+    const borrowerDeal = byPhone.find((d) => d.borrowerPhone && toE164(d.borrowerPhone) === c.primaryPhone);
+    const titleDeal = byPhone.find((d) => d.titleAgentPhone && toE164(d.titleAgentPhone) === c.primaryPhone);
+    const insuranceDeal = byPhone.find((d) => d.insuranceAgentPhone && toE164(d.insuranceAgentPhone) === c.primaryPhone);
+    const deal = borrowerDeal ?? titleDeal ?? insuranceDeal;
+    const dealId = c.dealId ?? deal?.id ?? null;
+    const who = borrowerDeal
+      ? `${borrowerDeal.borrowerName} · Borrower`
+      : titleDeal
+        ? `${titleDeal.titleCompanyAgentName ?? "Title agent"} · Title`
+        : insuranceDeal
+          ? `${insuranceDeal.insuranceAgentName ?? "Insurance agent"} · Insurance`
+          : c.primaryPhone;
+    items.push({
+      conversationId: c.id,
+      dealId,
+      title: (c.dealId ? addressById.get(c.dealId) : undefined) ?? deal?.propertyAddress ?? "Not on a deal yet",
+      subtitle: who,
+      preview: last?.body ?? "Call or voicemail",
+      direction: last?.direction ?? null,
+      at: c.lastMessageAt.toISOString(),
+      unread: unread.get(c.id) ?? 0,
+    });
+  }
+  return { items: items.slice(0, 20), totalUnread: items.reduce((n, i) => n + i.unread, 0) };
 }

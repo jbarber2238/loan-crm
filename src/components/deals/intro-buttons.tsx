@@ -69,6 +69,7 @@ export function IntroButtons({ dealId }: { dealId: string }) {
           contactPhone: prepared.contactPhone,
           contactType: "Borrower",
           initialBody: prepared.body,
+          dealId,
         });
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Couldn't open the intro text");

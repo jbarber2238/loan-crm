@@ -8,6 +8,7 @@ import {
   ListChecks,
   Mail,
   MessageSquare,
+  MessageSquareText,
   MoreHorizontal,
   StickyNote,
   Users,
@@ -16,6 +17,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { LoanCenterNavContext } from "@/components/deals/loan-center-nav-context";
+import { OPEN_TEXT_THREAD_EVENT, type OpenTextThreadDetail } from "@/components/messaging/chat-dock-context";
 import { cn } from "@/lib/utils";
 
 type TabItem = { value: string; label: string; short: string; icon: LucideIcon };
@@ -28,6 +30,7 @@ const TABS: TabItem[] = [
   { value: "email-log", label: "Email Log", short: "Emails", icon: Mail },
   { value: "notes", label: "Notes", short: "Notes", icon: StickyNote },
   { value: "documents", label: "Documents", short: "Docs", icon: FolderOpen },
+  { value: "communications", label: "Communications", short: "Texts", icon: MessageSquareText },
   { value: "team-chat", label: "Team Chat", short: "Chat", icon: MessageSquare },
 ];
 
@@ -44,6 +47,18 @@ const MORE = TABS.filter((t) => !BAR_VALUES.includes(t.value));
 export function LoanCenterTabsShell({ initialTab, children }: { initialTab?: string; children: React.ReactNode }) {
   const [tab, setTab] = useState(initialTab && TABS.some((t) => t.value === initialTab) ? initialTab : "client-needs");
   const [moreOpen, setMoreOpen] = useState(false);
+  const [focusThreadId, setFocusThreadId] = useState<string | null>(null);
+
+  // "Text this person" clicked elsewhere on this loan: show Communications with that thread open.
+  useEffect(() => {
+    function onOpenThread(e: Event) {
+      setFocusThreadId((e as CustomEvent<OpenTextThreadDetail>).detail.conversationId);
+      setTab("communications");
+      window.scrollTo({ top: 0 });
+    }
+    window.addEventListener(OPEN_TEXT_THREAD_EVENT, onOpenThread);
+    return () => window.removeEventListener(OPEN_TEXT_THREAD_EVENT, onOpenThread);
+  }, []);
 
   // Lets the floating chat button sit above the bar instead of behind it.
   useEffect(() => {
@@ -62,7 +77,7 @@ export function LoanCenterTabsShell({ initialTab, children }: { initialTab?: str
   const moreActive = MORE.some((t) => t.value === tab);
 
   return (
-    <LoanCenterNavContext.Provider value={{ goToTab: select }}>
+    <LoanCenterNavContext.Provider value={{ goToTab: select, focusThreadId }}>
     <Tabs value={tab} onValueChange={select} className="pb-28 lg:pb-0">
       <TabsList className="max-w-full justify-start overflow-x-auto max-lg:hidden [&>button]:shrink-0">
         {TABS.map((t) => (

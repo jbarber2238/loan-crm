@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { ChevronLeft, Minus, X, Phone as PhoneIcon, UserPlus } from "lucide-react";
+import { X, Phone as PhoneIcon, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,7 +16,7 @@ import {
   type ContactSearchResult,
 } from "@/server/actions/messages";
 import { initiateConversationCall } from "@/server/actions/calls";
-import type { DockWindow } from "@/components/messaging/chat-dock-context";
+import { takeTextDraft, type DockWindow } from "@/components/messaging/chat-dock-context";
 
 interface Message {
   id: string;
@@ -45,22 +45,15 @@ function timeLabel(d: Date | string) {
   return new Date(d).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-export function ChatWindowPanel({
-  dockWindow,
-  onClose,
-  onMinimize,
-}: {
-  dockWindow: DockWindow;
-  onClose: () => void;
-  onMinimize: () => void;
-}) {
+/** One outside text thread: messages and calls, the reply box, and extra recipients. Fills whatever box it's placed in. */
+export function ChatWindowPanel({ dockWindow }: { dockWindow: DockWindow }) {
   const [isPending, startTransition] = useTransition();
   const [messages, setMessages] = useState<Message[]>([]);
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [addingParticipant, setAddingParticipant] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [body, setBody] = useState(dockWindow.initialBody ?? "");
+  const [body, setBody] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   async function refresh() {
@@ -90,6 +83,15 @@ export function ChatWindowPanel({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     refresh();
     void markConversationRead(dockWindow.conversationId);
+    const opener = takeTextDraft(dockWindow.conversationId) || dockWindow.initialBody || "";
+    if (opener) setBody((current) => current || opener);
+    // New texts arrive by webhook, not push, so look again every few seconds while the thread is open.
+    const timer = setInterval(() => {
+      if (document.hidden) return;
+      void refresh();
+      void markConversationRead(dockWindow.conversationId);
+    }, 5000);
+    return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dockWindow.conversationId]);
 
@@ -136,11 +138,8 @@ export function ChatWindowPanel({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex h-dvh w-screen flex-col bg-popover sm:static sm:z-auto sm:h-[min(420px,70vh)] sm:w-80 sm:rounded-t-lg sm:border sm:border-b-0 sm:shadow-xl">
-      <div className="flex items-center justify-between border-b bg-muted px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:rounded-t-lg sm:pt-2">
-        <Button type="button" variant="ghost" size="icon" onClick={onMinimize} aria-label="Back" className="-ml-1 mr-1 shrink-0 sm:hidden">
-          <ChevronLeft className="size-5" />
-        </Button>
+    <div className="flex h-full min-h-0 flex-col rounded-md border bg-card">
+      <div className="flex items-center justify-between border-b bg-muted px-3 py-2">
         <div className="min-w-0 flex-1">
           <p className="truncate text-base font-semibold sm:text-sm">{dockWindow.contactName}</p>
           <p className="truncate text-xs text-muted-foreground">
@@ -160,12 +159,6 @@ export function ChatWindowPanel({
           </Button>
           <Button type="button" variant="ghost" size="icon-sm" onClick={handleCall} title="Call" aria-label="Call">
             <PhoneIcon className="size-3.5" />
-          </Button>
-          <Button type="button" variant="ghost" size="icon-sm" onClick={onMinimize} title="Minimize" aria-label="Minimize" className="max-sm:hidden">
-            <Minus className="size-3.5" />
-          </Button>
-          <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} title="Close" aria-label="Close">
-            <X className="size-3.5" />
           </Button>
         </div>
       </div>
@@ -201,7 +194,7 @@ export function ChatWindowPanel({
         />
       )}
 
-      <div className="flex-1 space-y-2 overflow-y-auto p-3 max-sm:space-y-3">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3 max-sm:space-y-3">
         {!loaded && <p className="text-center text-xs text-muted-foreground">Loading…</p>}
         {loaded && timeline.length === 0 && (
           <p className="text-center text-xs text-muted-foreground">No messages or calls yet.</p>
@@ -230,7 +223,7 @@ export function ChatWindowPanel({
         <div ref={bottomRef} />
       </div>
 
-      <form onSubmit={handleSend} className="flex items-end gap-2 border-t p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+      <form onSubmit={handleSend} className="flex items-end gap-2 border-t p-2">
         <Textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
@@ -241,7 +234,7 @@ export function ChatWindowPanel({
             }
           }}
           rows={2}
-          placeholder="Type a message…"
+          placeholder={`Text ${dockWindow.contactName.split(" ")[0]}…`}
           className="min-h-0 resize-none text-base sm:text-sm"
         />
         <Button type="submit" size="sm" className="max-sm:h-10 max-sm:px-4" disabled={isPending || !body.trim()}>

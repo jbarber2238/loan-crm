@@ -23,6 +23,8 @@ import { useVoiceRecorder, type VoiceClip } from "@/components/messaging/use-voi
 import { RoomMembersDialog } from "@/components/team-chat/room-members-dialog";
 import { useLoanCenterNav } from "@/components/deals/loan-center-nav-context";
 import { cn } from "@/lib/utils";
+import { useFillViewport } from "@/lib/use-fill-viewport";
+import { useIsPhone } from "@/lib/use-is-phone";
 import { QUICK_REACTIONS, REACTION_GROUPS } from "@/lib/chat-reactions";
 import { GLOBAL_CHAT_CHANNEL, getRealtimeClient, roomChannelName } from "@/lib/realtime";
 import { stageLargeFiles } from "@/lib/stage-large-files";
@@ -34,27 +36,8 @@ const POLL_LIVE_MS = 30_000;
 const POLL_FALLBACK_MS = 4_000;
 const TYPING_TTL_MS = 4_000;
 
-// Desktop fill-the-screen sizing (see fillViewport): the sticky top bar is 56px, plus a little air.
-const FIT_TOP_GAP_PX = 68;
-const FIT_BOTTOM_GAP_PX = 16;
-const FIT_MIN_PX = 360;
-
 
 // ---- Phone: the chat takes the whole screen, like Messenger -------------------------------------
-
-function subscribePhone(callback: () => void) {
-  const mq = window.matchMedia("(max-width: 1023px)");
-  mq.addEventListener("change", callback);
-  return () => mq.removeEventListener("change", callback);
-}
-/** True below the laptop breakpoint. */
-function useIsPhone(): boolean {
-  return useSyncExternalStore(
-    subscribePhone,
-    () => window.matchMedia("(max-width: 1023px)").matches,
-    () => false
-  );
-}
 
 function subscribeViewport(callback: () => void) {
   const vv = window.visualViewport;
@@ -451,6 +434,8 @@ export function TeamChatPanel({
   phoneTitle = "Team chat",
   backHref,
   fillViewport = false,
+  dock = false,
+  onBack,
 }: {
   roomId: string;
   heightClass?: string;
@@ -461,6 +446,10 @@ export function TeamChatPanel({
   backHref?: string;
   /** Desktop: scroll the chat into place and size it to the rest of the screen, so the message box is always in view. */
   fillViewport?: boolean;
+  /** Inside a floating window: fills the window, with no frame of its own. */
+  dock?: boolean;
+  /** Phone back arrow, when the chat is a floating window rather than a page. */
+  onBack?: () => void;
 }) {
   const router = useRouter();
   const loanCenter = useLoanCenterNav();
@@ -470,7 +459,6 @@ export function TeamChatPanel({
   const [openThread, setOpenThread] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const [fitHeight, setFitHeight] = useState<number | null>(null);
   const lastCount = useRef(0);
 
   const [typing, setTyping] = useState<Record<string, { name: string; until: number }>>({});
@@ -574,34 +562,8 @@ export function TeamChatPanel({
     if (isPhone) bottomRef.current?.scrollIntoView({ block: "end" });
   }, [isPhone, box.height]);
 
-  // Desktop fill: size the chat to the screen below the tab bar, then (once the page has grown to that height)
-  // bring the tab bar up under the sticky top bar. Never less than FIT_MIN_PX; follows the window on resize.
-  const tabAnchor = useCallback(() => {
-    const el = rootRef.current;
-    if (!el) return null;
-    return el.closest('[role="tabpanel"]')?.parentElement?.querySelector('[role="tablist"]') ?? el;
-  }, []);
-  // `loaded` matters: until the first fetch lands the panel is a "Loading chat…" placeholder with no ref to measure.
-  const loaded = state !== null;
-  useEffect(() => {
-    if (!fillViewport || isPhone || !loaded) return;
-    const el = rootRef.current;
-    const anchor = tabAnchor();
-    if (!el || !anchor) return;
-    const belowAnchor = el.getBoundingClientRect().top - anchor.getBoundingClientRect().top;
-    setFitHeight(Math.max(FIT_MIN_PX, Math.floor(window.innerHeight - FIT_TOP_GAP_PX - belowAnchor - FIT_BOTTOM_GAP_PX)));
-    const onResize = () =>
-      setFitHeight(Math.max(FIT_MIN_PX, Math.floor(window.innerHeight - el.getBoundingClientRect().top - FIT_BOTTOM_GAP_PX)));
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [fillViewport, isPhone, loaded, tabAnchor]);
-  const didScrollIntoPlace = useRef(false);
-  useEffect(() => {
-    if (!fitHeight || didScrollIntoPlace.current) return;
-    didScrollIntoPlace.current = true;
-    const anchor = tabAnchor();
-    if (anchor) window.scrollBy({ top: anchor.getBoundingClientRect().top - FIT_TOP_GAP_PX, behavior: "instant" });
-  }, [fitHeight, tabAnchor]);
+  // Desktop fill: see useFillViewport. `loaded` matters: until the first fetch lands this is a placeholder with nothing to measure.
+  const fitHeight = useFillViewport(rootRef, fillViewport && !isPhone, state !== null);
 
   function react(messageId: string, emoji: string) {
     if (!state) return;
@@ -670,10 +632,11 @@ export function TeamChatPanel({
     void channelRef.current?.send({ type: "broadcast", event: "typing", payload: { userId: state.currentUserId, name: me } });
   }
 
-  if (!state && !isPhone) return <div className={cn("flex items-center justify-center text-sm text-muted-foreground", heightClass)}>Loading chat…</div>;
+  if (!state && !isPhone) return <div className={cn("flex items-center justify-center text-sm text-muted-foreground", dock ? "h-full" : heightClass)}>Loading chat…</div>;
 
   const goBack = () => {
-    if (loanCenter) loanCenter.goToTab("client-needs");
+    if (onBack) onBack();
+    else if (loanCenter) loanCenter.goToTab("client-needs");
     else if (backHref) router.push(backHref);
     else router.back();
   };
@@ -735,7 +698,7 @@ export function TeamChatPanel({
         </p>
       )}
       <Composer
-        placeholder={isPhone ? "Message the team" : "Message the team (internal only — clients never see this)"}
+        placeholder={isPhone ? "Message the team" : dock ? "Message" : "Message the team (internal only — clients never see this)"}
         phone={isPhone}
         onSend={(msg) => send(msg)}
         onTyping={announceTyping}
@@ -754,7 +717,7 @@ export function TeamChatPanel({
         style={box.height > 0 ? { top: box.top, height: box.height } : { top: 0, bottom: 0 }}
       >
         <div className="flex shrink-0 items-center gap-1 border-b px-2 py-2">
-          {backHref && !loanCenter ? (
+          {backHref && !loanCenter && !onBack ? (
             <Link href={backHref} aria-label="Back" className="flex size-10 items-center justify-center rounded-full hover:bg-muted">
               <ChevronLeft className="size-6" />
             </Link>
@@ -780,10 +743,10 @@ export function TeamChatPanel({
   return (
     <div
       ref={rootRef}
-      className={cn("flex flex-col rounded-md border", fillViewport && fitHeight ? "" : heightClass)}
+      className={cn("flex flex-col", dock ? "h-full" : cn("rounded-md border", fillViewport && fitHeight ? "" : heightClass))}
       style={fillViewport && fitHeight ? { height: fitHeight } : undefined}
     >
-      {showMembers && (
+      {showMembers && !dock && (
         <div className="flex justify-end border-b px-3 py-2">
           <RoomMembersDialog roomId={roomId} />
         </div>

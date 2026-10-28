@@ -14,7 +14,7 @@ export default async function TeamChatPage({ searchParams }: { searchParams: Pro
   // General first, then deal chats that have had any activity.
   const list = [
     ...rooms.filter((r) => r.kind === "general"),
-    ...rooms.filter((r) => r.kind === "group"),
+    ...rooms.filter((r) => r.kind === "group" || r.kind === "dm"),
     ...rooms.filter((r) => r.kind === "deal" && r.lastMessage),
   ];
 
@@ -52,6 +52,7 @@ export default async function TeamChatPage({ searchParams }: { searchParams: Pro
                 )}
                 {r.kind === "deal" && r.dealId && <span className="block text-[11px] text-muted-foreground">Deal chat</span>}
                 {r.kind === "group" && <span className="block text-[11px] text-muted-foreground">Group chat</span>}
+                {r.kind === "dm" && <span className="block text-[11px] text-muted-foreground">Direct message</span>}
               </Link>
             </li>
           ))}
@@ -74,7 +75,7 @@ export default async function TeamChatPage({ searchParams }: { searchParams: Pro
           <TeamChatPanel
             key={activeId}
             roomId={activeId}
-            showMembers={active?.kind !== "general"}
+            showMembers={active?.kind !== "general" && active?.kind !== "dm"}
             phoneTitle={active?.title ?? "General"}
             backHref="/team-chat"
             heightClass="h-[calc(100dvh-13rem)] min-h-[360px] md:h-[calc(100vh-14rem)] md:min-h-[420px]"

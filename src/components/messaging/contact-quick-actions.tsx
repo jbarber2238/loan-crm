@@ -11,9 +11,9 @@ import { useChatDock } from "@/components/messaging/chat-dock-context";
 /**
  * The call + text icon pair meant to sit next to any phone number in the
  * app — a lender rep, a referral partner, a deal's insurance/title agent,
- * not just borrowers. Text opens the floating chat dock in place; call
- * rings the dock's shared conversation directly (no need to open the
- * window first) since there's nothing to type for a call.
+ * not just borrowers. Text opens that conversation in the deal's
+ * Communications tab; call rings the shared conversation directly (no need
+ * to open the thread first) since there's nothing to type for a call.
  */
 export function ContactQuickActions({
   phone,
@@ -41,6 +41,7 @@ export function ContactQuickActions({
           contactPhone: prepared.phone,
           contactType,
           initialBody: prepared.initialBody,
+          dealId,
         });
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Couldn't open messages");

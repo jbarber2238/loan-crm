@@ -2,7 +2,8 @@ import { db } from "@/server/db/client";
 import { getAllConversations } from "@/server/actions/messages";
 import { CommunicationsView } from "@/components/inbox/communications-view";
 
-export default async function CommunicationsPage() {
+export default async function CommunicationsPage({ searchParams }: { searchParams: Promise<{ c?: string }> }) {
+  const { c } = await searchParams;
   const [conversations, allDeals] = await Promise.all([
     getAllConversations(),
     db.query.deals.findMany({
@@ -13,7 +14,7 @@ export default async function CommunicationsPage() {
 
   return (
     <div className="h-[calc(100vh-5.5rem)] md:h-[calc(100vh-6.5rem)]">
-      <CommunicationsView conversations={conversations} allDeals={allDeals} />
+      <CommunicationsView conversations={conversations} allDeals={allDeals} initialConversationId={c} />
     </div>
   );
 }

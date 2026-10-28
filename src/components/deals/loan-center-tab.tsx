@@ -1,3 +1,4 @@
+import { DealCommunicationsTab } from "@/components/deals/deal-communications-tab";
 import { DocumentsTab } from "@/components/deals/documents-tab";
 import type { DealDocumentRow } from "@/server/actions/client-need-documents";
 import { TabsContent } from "@/components/ui/tabs";
@@ -250,6 +251,10 @@ export function LoanCenterTab({
             }))}
             catalog={clientNeedsCatalog}
           />
+        </TabsContent>
+
+        <TabsContent value="communications">
+          <DealCommunicationsTab dealId={dealId} />
         </TabsContent>
 
         <TabsContent value="team-chat">{teamChat}</TabsContent>

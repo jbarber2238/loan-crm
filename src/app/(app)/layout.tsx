@@ -5,7 +5,8 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { getCompanyName, getCompanyLogo } from "@/server/settings";
 import { TopBar } from "@/components/layout/top-bar";
 import { ChatDockProvider } from "@/components/messaging/chat-dock-context";
-import { ChatDockRoot } from "@/components/messaging/chat-dock-root";
+import { TeamDockProvider } from "@/components/team-chat/team-dock-context";
+import { TeamDockRoot } from "@/components/team-chat/team-dock-root";
 import { MobileNavProvider } from "@/components/layout/mobile-nav";
 import { getMyAppearance } from "@/server/actions/appearance";
 import { ThemeSync } from "@/components/appearance/theme-sync";
@@ -49,6 +50,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
 
   return (
     <ChatDockProvider>
+      <TeamDockProvider>
       <MobileNavProvider>
       <ThemeSync theme={appearance.theme} />
       {!appearance.welcomeSeen && <DarkModeWelcome firstName={firstName} />}
@@ -61,7 +63,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       </div>
       </MobileNavProvider>
       <PhoneTabBar isAdmin={session.user.isAdmin} />
-      <ChatDockRoot />
+      <TeamDockRoot currentUserId={session.user.id} />
+      </TeamDockProvider>
     </ChatDockProvider>
   );
 }

@@ -264,7 +264,7 @@ async function attachmentPreview(messageId: string): Promise<string> {
 
 export interface ChatRoomSummary {
   roomId: string;
-  kind: "general" | "group" | "deal";
+  kind: "general" | "group" | "deal" | "dm";
   dealId: string | null;
   title: string;
   lastMessage: { authorName: string; body: string; createdAt: string } | null;
@@ -290,6 +290,16 @@ export async function getChatRooms(onlyWithActivity = false): Promise<{ rooms: C
     .leftJoin(deals, eq(deals.id, teamChatRooms.dealId))
     .where(onlyWithActivity ? isNotNull(teamChatRooms.lastMessageAt) : undefined)
     .orderBy(desc(sql`coalesce(${teamChatRooms.lastMessageAt}, ${teamChatRooms.createdAt})`));
+
+  // A direct message is titled with the other person, which differs per viewer.
+  const dmRows = await db
+    .select({ roomId: teamChatMembers.roomId, userId: teamChatMembers.userId, name: users.name })
+    .from(teamChatMembers)
+    .innerJoin(users, eq(users.id, teamChatMembers.userId))
+    .innerJoin(teamChatRooms, eq(teamChatRooms.id, teamChatMembers.roomId))
+    .where(eq(teamChatRooms.kind, "dm"));
+  const dmTitle = (roomId: string) =>
+    dmRows.find((m) => m.roomId === roomId && m.userId !== user.id)?.name ?? "Direct message";
 
   const summaries: ChatRoomSummary[] = [];
   for (const r of rooms) {
@@ -324,14 +334,16 @@ export async function getChatRooms(onlyWithActivity = false): Promise<{ rooms: C
 
     summaries.push({
       roomId: r.id,
-      kind: r.kind as "general" | "group" | "deal",
+      kind: r.kind as "general" | "group" | "deal" | "dm",
       dealId: r.dealId,
       title:
         r.kind === "general"
           ? "General"
-          : r.kind === "group"
-            ? (r.name ?? "Group chat")
-            : `${r.borrowerName} · ${r.propertyAddress}`,
+          : r.kind === "dm"
+            ? dmTitle(r.id)
+            : r.kind === "group"
+              ? (r.name ?? "Group chat")
+              : `${r.borrowerName} · ${r.propertyAddress}`,
       lastMessage: last
         ? {
             authorName: last.authorName ?? "Someone",
@@ -369,6 +381,45 @@ export async function createGroupChat(name: string, memberIds: string[]): Promis
     .returning({ id: teamChatRooms.id });
   await db.insert(teamChatMembers).values(ids.map((id) => ({ roomId: room.id, userId: id, addedByUserId: user.id })));
   return room.id;
+}
+
+/**
+ * Starts a chat from the "new message" box: one person opens (or reuses) your direct message with them,
+ * several people make a group. Returns the room to open.
+ */
+export async function startTeamConversation(memberIds: string[], name?: string): Promise<{ roomId: string; title: string }> {
+  const user = await requireUser();
+  const others = [...new Set(memberIds)].filter((id) => id !== user.id);
+  if (others.length === 0) throw new Error("Pick at least one person");
+  const people = await db.query.users.findMany({ where: and(inArray(users.id, others), eq(users.active, true)) });
+  if (people.length !== others.length) throw new Error("One of those people isn't available");
+
+  if (others.length === 1) {
+    const [other] = people;
+    const mine = await db
+      .select({ roomId: teamChatMembers.roomId })
+      .from(teamChatMembers)
+      .innerJoin(teamChatRooms, eq(teamChatRooms.id, teamChatMembers.roomId))
+      .where(and(eq(teamChatRooms.kind, "dm"), eq(teamChatMembers.userId, user.id)));
+    if (mine.length) {
+      const [shared] = await db
+        .select({ roomId: teamChatMembers.roomId })
+        .from(teamChatMembers)
+        .where(and(inArray(teamChatMembers.roomId, mine.map((m) => m.roomId)), eq(teamChatMembers.userId, other.id)))
+        .limit(1);
+      if (shared) return { roomId: shared.roomId, title: other.name ?? "Direct message" };
+    }
+    const [room] = await db
+      .insert(teamChatRooms)
+      .values({ kind: "dm", createdByUserId: user.id })
+      .returning({ id: teamChatRooms.id });
+    await db.insert(teamChatMembers).values([user.id, other.id].map((id) => ({ roomId: room.id, userId: id, addedByUserId: user.id })));
+    return { roomId: room.id, title: other.name ?? "Direct message" };
+  }
+
+  const title = name?.trim() || people.map((p) => (p.name ?? "Someone").split(" ")[0]).join(", ");
+  const roomId = await createGroupChat(title, others);
+  return { roomId, title };
 }
 
 export interface ChatMember {
@@ -415,6 +466,7 @@ export async function getRoomMembers(roomId: string): Promise<{ kind: string; me
 export async function addRoomMember(roomId: string, userId: string) {
   const { user, room } = await requireRoomAccess(roomId);
   if (room.kind === "general") throw new Error("Everyone is already in General");
+  if (room.kind === "dm") throw new Error("Start a group chat to add more people");
   await db.insert(teamChatMembers).values({ roomId, userId, addedByUserId: user.id }).onConflictDoNothing();
 }
 

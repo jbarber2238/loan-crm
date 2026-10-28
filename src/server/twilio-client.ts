@@ -51,6 +51,14 @@ export interface SendSmsResult {
   from: string;
 }
 
+/**
+ * Numbers in the reserved fictional 555-0xxx range (what the test contacts use) never reach Twilio:
+ * no real text goes out, no carrier error comes back.
+ */
+export function isFictionalNumber(e164: string): boolean {
+  return /^\+1\d{3}5550\d{3}$/.test(e164);
+}
+
 /** Sends one SMS from the shared company number. Throws TwilioNotConfiguredError if Settings → Phone isn't set up yet. */
 export async function sendSms({
   to,
@@ -61,6 +69,7 @@ export async function sendSms({
   body: string;
   statusCallbackUrl?: string;
 }): Promise<SendSmsResult> {
+  if (isFictionalNumber(to)) return { sid: `mock-${crypto.randomUUID()}`, status: "delivered", from: "+15555550000" };
   const { client, phoneNumber } = await twilioClient();
   const message = await client.messages.create({
     to,

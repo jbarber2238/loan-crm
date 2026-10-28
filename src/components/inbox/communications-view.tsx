@@ -80,15 +80,19 @@ function DealPill({ deal }: { deal: ContactDealSummary }) {
 export function CommunicationsView({
   conversations,
   allDeals,
+  initialConversationId,
 }: {
   conversations: ConversationSummary[];
   allDeals: DealOption[];
+  /** Open this thread first (arriving from the header's Texts menu). */
+  initialConversationId?: string;
 }) {
+  const opening = conversations.some((c) => c.id === initialConversationId) ? (initialConversationId ?? null) : null;
   const [tab, setTab] = useState<"messages" | "dial">("messages");
-  const [selectedId, setSelectedId] = useState<string | null>(conversations[0]?.id ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(opening ?? conversations[0]?.id ?? null);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   // On phones the list and the open thread take turns filling the screen.
-  const [showThread, setShowThread] = useState(false);
+  const [showThread, setShowThread] = useState(opening !== null);
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
 
