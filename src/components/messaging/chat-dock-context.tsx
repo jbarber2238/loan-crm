@@ -13,6 +13,8 @@ export interface DockWindow {
   contactPhone: string;
   contactType: ContactType;
   initialBody?: string;
+  /** The deal's address. When set, it leads the thread header and the contact sits underneath. */
+  dealAddress?: string;
 }
 
 type OpenChatInput = DockWindow & {

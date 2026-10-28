@@ -35,11 +35,20 @@ export function useFillViewport(ref: RefObject<HTMLElement | null>, enabled: boo
     return () => window.removeEventListener("resize", onResize);
   }, [enabled, ready, ref, tabAnchor]);
 
+  // Scroll the section's tab bar up under the top bar so the panel's bottom edge lands on the window's. The page
+  // may not have grown to its new height yet (the browser clamps an early scroll), so keep nudging until it's there.
   useEffect(() => {
     if (!height || scrolled.current) return;
     scrolled.current = true;
-    const anchor = tabAnchor();
-    if (anchor) window.scrollBy({ top: anchor.getBoundingClientRect().top - TOP_GAP_PX, behavior: "instant" });
+    let frame = 0;
+    const step = () => {
+      const anchor = tabAnchor();
+      if (!anchor) return;
+      const delta = anchor.getBoundingClientRect().top - TOP_GAP_PX;
+      if (Math.abs(delta) > 1) window.scrollBy({ top: delta, behavior: "instant" });
+      if (Math.abs(delta) > 1 && ++frame < 90) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
   }, [height, tabAnchor]);
 
   return height;

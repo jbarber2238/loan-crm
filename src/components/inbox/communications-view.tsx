@@ -20,6 +20,7 @@ import {
 import { initiateConversationCall, manualDialCall } from "@/server/actions/calls";
 import { STAGES, labelFor } from "@/lib/labels";
 import { cn } from "@/lib/utils";
+import { scrollToEnd } from "@/lib/scroll-to-end";
 
 interface ConversationSummary {
   id: string;
@@ -95,6 +96,8 @@ export function CommunicationsView({
   const [showThread, setShowThread] = useState(opening !== null);
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
+  // A conversation on a deal leads with the property; the person goes underneath.
+  const addressFor = (dealId: string | null) => (dealId ? allDeals.find((d) => d.id === dealId)?.propertyAddress : undefined);
 
   return (
     <div className="flex h-full flex-col">
@@ -150,9 +153,12 @@ export function CommunicationsView({
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className={cn("truncate text-sm", isUnread ? "font-semibold" : "font-medium")}>{c.displayName}</p>
+                    <p className={cn("truncate text-sm", isUnread ? "font-semibold" : "font-medium")}>
+                      {addressFor(c.dealId) ?? c.displayName}
+                    </p>
                     {isUnread && <span className="size-2 shrink-0 rounded-full bg-blue-500" />}
                   </div>
+                  {addressFor(c.dealId) && <p className="truncate text-xs text-muted-foreground">{c.displayName}</p>}
                   <p className={cn("truncate text-xs", isUnread ? "text-foreground" : "text-muted-foreground")}>{preview}</p>
                 </button>
               );
@@ -167,7 +173,7 @@ export function CommunicationsView({
               >
                 <ChevronLeft className="size-4" /> All conversations
               </button>
-              <ThreadPane key={selected.id} conversation={selected} />
+              <ThreadPane key={selected.id} conversation={selected} dealAddress={addressFor(selected.dealId)} />
             </div>
           ) : (
             <div className="hidden flex-1 items-center justify-center text-sm text-muted-foreground md:flex">
@@ -186,7 +192,7 @@ export function CommunicationsView({
   );
 }
 
-function ThreadPane({ conversation }: { conversation: ConversationSummary }) {
+function ThreadPane({ conversation, dealAddress }: { conversation: ConversationSummary; dealAddress?: string }) {
   const [isPending, startTransition] = useTransition();
   const [messages, setMessages] = useState<Message[]>([]);
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
@@ -209,7 +215,7 @@ function ThreadPane({ conversation }: { conversation: ConversationSummary }) {
   }, [conversation.id]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
+    scrollToEnd(bottomRef.current);
   }, [messages.length, callLogs.length]);
 
   const timeline: TimelineItem[] = [
@@ -251,8 +257,11 @@ function ThreadPane({ conversation }: { conversation: ConversationSummary }) {
     <div className="flex min-h-0 flex-1 flex-col rounded-md border">
       <div className="flex items-center justify-between border-b px-4 py-2.5">
         <div>
-          <p className="font-semibold">{conversation.displayName}</p>
-          <p className="text-xs text-muted-foreground">{conversation.primaryPhone}</p>
+          <p className="font-semibold">{dealAddress ?? conversation.displayName}</p>
+          <p className="text-xs text-muted-foreground">
+            {dealAddress ? `${conversation.displayName} · ` : ""}
+            {conversation.primaryPhone}
+          </p>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={handleCall} disabled={isPending}>
           <PhoneIcon className="size-4" />

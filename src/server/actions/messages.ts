@@ -12,6 +12,7 @@ import {
   lenderReps,
   referralAffiliates,
   otherContacts,
+  dealFollowers,
 } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { sendSms, toE164 } from "@/server/twilio-client";
@@ -252,24 +253,25 @@ async function sendToConversation(conversationId: string, body: string, sentByUs
   if (!conversation) throw new Error("Conversation not found");
 
   const recipients = [conversation.primaryPhone, ...conversation.participants.map((p) => p.phone)];
-  const statusCallbackUrl = `${baseUrl()}/api/webhooks/twilio-sms-status`;
-
-  for (const rawTo of recipients) {
-    const to = toE164(rawTo);
-    const result = await sendSms({ to, body, statusCallbackUrl });
-    await db.insert(dealMessages).values({
-      conversationId,
-      direction: "outbound",
-      body,
-      fromNumber: result.from,
-      toNumber: to,
-      sentByUserId,
-      twilioSid: result.sid,
-      status: result.status,
-    });
-  }
+  for (const to of recipients) await sendTextToPhone(conversationId, to, body, sentByUserId);
 
   await db.update(dealConversations).set({ lastMessageAt: new Date() }).where(eq(dealConversations.id, conversationId));
+}
+
+/** One text to one number, recorded in the conversation it belongs to. */
+async function sendTextToPhone(conversationId: string, rawTo: string, body: string, sentByUserId: string) {
+  const to = toE164(rawTo);
+  const result = await sendSms({ to, body, statusCallbackUrl: `${baseUrl()}/api/webhooks/twilio-sms-status` });
+  await db.insert(dealMessages).values({
+    conversationId,
+    direction: "outbound",
+    body,
+    fromNumber: result.from,
+    toNumber: to,
+    sentByUserId,
+    twilioSid: result.sid,
+    status: result.status,
+  });
 }
 
 /** Adds an ad-hoc extra recipient (a co-signer, a spouse) to one conversation — not a permanent deal field, see the plan doc. */
@@ -492,9 +494,8 @@ async function unreadCountsFor(conversationIds: string[]): Promise<Map<string, n
   return counts;
 }
 
-/** Everyone on this deal that you can text (borrower, title, insurance, plus anyone else already texted about it), with where each thread stands. */
-export async function getDealTextThreads(dealId: string): Promise<DealTextThread[]> {
-  await requireUser();
+/** Everyone with a phone number on this deal: borrower, title, insurance and followers. */
+async function loadDealPeople(dealId: string): Promise<{ name: string; role: ContactType; phone: string }[]> {
   const deal = await db.query.deals.findFirst({
     where: eq(deals.id, dealId),
     columns: {
@@ -507,6 +508,7 @@ export async function getDealTextThreads(dealId: string): Promise<DealTextThread
     },
   });
   if (!deal) throw new Error("Deal not found");
+  const followers = await db.query.dealFollowers.findMany({ where: eq(dealFollowers.dealId, dealId), orderBy: dealFollowers.createdAt });
 
   const people: { name: string; role: ContactType; phone: string }[] = [];
   if (deal.borrowerPhone) people.push({ name: deal.borrowerName, role: "Borrower", phone: toE164(deal.borrowerPhone) });
@@ -514,6 +516,18 @@ export async function getDealTextThreads(dealId: string): Promise<DealTextThread
   if (deal.insuranceAgentPhone) {
     people.push({ name: deal.insuranceAgentName ?? "Insurance agent", role: "Insurance", phone: toE164(deal.insuranceAgentPhone) });
   }
+  for (const f of followers) {
+    if (!f.phone) continue;
+    const phone = toE164(f.phone);
+    if (!people.some((p) => p.phone === phone)) people.push({ name: f.name, role: "Referral Partner", phone });
+  }
+  return people;
+}
+
+/** Everyone on this deal that you can text (borrower, title, insurance, followers, plus anyone else already texted about it), with where each thread stands. */
+export async function getDealTextThreads(dealId: string): Promise<DealTextThread[]> {
+  await requireUser();
+  const people = await loadDealPeople(dealId);
 
   const known = new Set(people.map((p) => p.phone));
   const [byPhone, attached] = await Promise.all([
@@ -650,4 +664,42 @@ export async function getTextsMenu(): Promise<{ items: TextsMenuItem[]; totalUnr
     });
   }
   return { items: items.slice(0, 20), totalUnread: items.reduce((n, i) => n + i.unread, 0) };
+}
+
+
+export interface DealUpdateResult {
+  sent: number;
+  failed: { name: string; error: string }[];
+}
+
+/**
+ * One message to several people on a deal. This is NOT a group text: each person gets their own text, can't see who
+ * else got it, and replies to them land in their own thread.
+ */
+export async function sendDealUpdate(dealId: string, phones: string[], body: string): Promise<DealUpdateResult> {
+  const user = await requireUser();
+  const text = body.trim();
+  if (!text) throw new Error("Message can't be empty");
+
+  // Only people who are actually on this deal can be texted from here.
+  const people = await loadDealPeople(dealId);
+  const wanted = new Set(phones.map((p) => toE164(p)));
+  const recipients = people.filter((p) => wanted.has(p.phone));
+  if (recipients.length === 0) throw new Error("Pick at least one person");
+
+  const failed: DealUpdateResult["failed"] = [];
+  let sent = 0;
+  for (const person of recipients) {
+    try {
+      const conversation = await getOrCreateConversationForPhone(person.phone, dealId);
+      await sendTextToPhone(conversation.id, person.phone, text, user.id);
+      await db.update(dealConversations).set({ lastMessageAt: new Date() }).where(eq(dealConversations.id, conversation.id));
+      sent++;
+    } catch (err) {
+      failed.push({ name: person.name, error: err instanceof Error ? err.message : "Couldn't send" });
+    }
+  }
+
+  revalidatePath("/inbox");
+  return { sent, failed };
 }

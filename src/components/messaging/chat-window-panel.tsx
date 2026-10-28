@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { X, Phone as PhoneIcon, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { scrollToEnd } from "@/lib/scroll-to-end";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -96,7 +97,7 @@ export function ChatWindowPanel({ dockWindow }: { dockWindow: DockWindow }) {
   }, [dockWindow.conversationId]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
+    scrollToEnd(bottomRef.current);
   }, [messages.length, callLogs.length]);
 
   const timeline: TimelineItem[] = [
@@ -141,8 +142,9 @@ export function ChatWindowPanel({ dockWindow }: { dockWindow: DockWindow }) {
     <div className="flex h-full min-h-0 flex-col rounded-md border bg-card">
       <div className="flex items-center justify-between border-b bg-muted px-3 py-2">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-semibold sm:text-sm">{dockWindow.contactName}</p>
+          <p className="truncate text-base font-semibold sm:text-sm">{dockWindow.dealAddress ?? dockWindow.contactName}</p>
           <p className="truncate text-xs text-muted-foreground">
+            {dockWindow.dealAddress ? `${dockWindow.contactName} · ` : ""}
             {dockWindow.contactType} · {dockWindow.contactPhone}
           </p>
         </div>

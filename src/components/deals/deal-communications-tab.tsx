@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ChevronLeft, MessageSquareText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatWindowPanel } from "@/components/messaging/chat-window-panel";
+import { DealUpdateDialog } from "@/components/deals/deal-update-dialog";
 import { useLoanCenterNav } from "@/components/deals/loan-center-nav-context";
 import { getDealTextThreads, prepareContactConversation, type DealTextThread } from "@/server/actions/messages";
 import { useFillViewport } from "@/lib/use-fill-viewport";
@@ -24,7 +25,7 @@ function timeAgo(iso: string): string {
  * Texts and calls with the outside people on this loan: the borrower first, then title, insurance and
  * anyone else already texted about it. Internal talk lives in Team Chat, a separate tab.
  */
-export function DealCommunicationsTab({ dealId }: { dealId: string }) {
+export function DealCommunicationsTab({ dealId, propertyAddress }: { dealId: string; propertyAddress: string }) {
   const searchParams = useSearchParams();
   const nav = useLoanCenterNav();
   const isPhone = useIsPhone();
@@ -97,9 +98,12 @@ export function DealCommunicationsTab({ dealId }: { dealId: string }) {
 
   return (
     <div className="space-y-2">
-      <p className="text-sm text-muted-foreground">
-        Texts and calls with the borrower and deal contacts. These go to their phones; the team talks in Team Chat.
-      </p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          Texts and calls with the borrower and deal contacts. These go to their phones; the team talks in Team Chat.
+        </p>
+        {threads.length > 1 && <DealUpdateDialog dealId={dealId} people={threads.filter((t) => t.role !== "Other")} />}
+      </div>
       <div
         ref={rootRef}
         style={fitHeight ? { height: fitHeight } : undefined}
@@ -153,6 +157,7 @@ export function DealCommunicationsTab({ dealId }: { dealId: string }) {
                   contactPhone: selected.phone,
                   contactType: selected.role,
                   initialBody: conversation.opener,
+                  dealAddress: propertyAddress,
                 }}
               />
             ) : (

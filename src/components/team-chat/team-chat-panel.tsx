@@ -23,6 +23,7 @@ import { useVoiceRecorder, type VoiceClip } from "@/components/messaging/use-voi
 import { RoomMembersDialog } from "@/components/team-chat/room-members-dialog";
 import { useLoanCenterNav } from "@/components/deals/loan-center-nav-context";
 import { cn } from "@/lib/utils";
+import { scrollToEnd } from "@/lib/scroll-to-end";
 import { useFillViewport } from "@/lib/use-fill-viewport";
 import { useIsPhone } from "@/lib/use-is-phone";
 import { QUICK_REACTIONS, REACTION_GROUPS } from "@/lib/chat-reactions";
@@ -543,7 +544,7 @@ export function TeamChatPanel({
     const n = state?.messages.length ?? 0;
     if (n !== lastCount.current) {
       lastCount.current = n;
-      bottomRef.current?.scrollIntoView({ block: "end" });
+      scrollToEnd(bottomRef.current);
     }
   }, [state]);
 
@@ -559,7 +560,7 @@ export function TeamChatPanel({
     };
   }, [isPhone]);
   useEffect(() => {
-    if (isPhone) bottomRef.current?.scrollIntoView({ block: "end" });
+    if (isPhone) scrollToEnd(bottomRef.current);
   }, [isPhone, box.height]);
 
   // Desktop fill: see useFillViewport. `loaded` matters: until the first fetch lands this is a placeholder with nothing to measure.
