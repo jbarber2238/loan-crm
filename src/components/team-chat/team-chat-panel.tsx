@@ -18,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
+import { findVideoEmbed, linkify } from "@/lib/linkify";
 import { useVoiceRecorder, type VoiceClip } from "@/components/messaging/use-voice-recorder";
 import { RoomMembersDialog } from "@/components/team-chat/room-members-dialog";
 import { useLoanCenterNav } from "@/components/deals/loan-center-nav-context";
@@ -243,6 +244,26 @@ function Composer({
   );
 }
 
+/** A Loom, YouTube or Vimeo link in a message plays right under it, so nobody has to leave the chat to watch. */
+function VideoPreview({ text }: { text: string }) {
+  const video = text ? findVideoEmbed(text) : null;
+  if (!video) return null;
+  return (
+    <div className="mt-1.5 w-full max-w-sm">
+      <div className="aspect-video overflow-hidden rounded-lg border bg-black">
+        <iframe
+          src={video.src}
+          title={`${video.provider} video`}
+          loading="lazy"
+          allowFullScreen
+          sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"
+          className="size-full border-0"
+        />
+      </div>
+    </div>
+  );
+}
+
 function Attachments({ items }: { items: ChatAttachment[] }) {
   if (items.length === 0) return null;
   return (
@@ -407,9 +428,10 @@ function MessageRow({ m, mine, compact, bubble }: { m: ChatMessage; mine: boolea
                 mine ? "bg-primary text-primary-foreground" : "bg-muted"
               )}
             >
-              {m.body}
+              {linkify(m.body)}
             </p>
           )}
+          <VideoPreview text={m.body} />
           <Attachments items={m.attachments} />
           <p className="mt-0.5 px-1 text-[10px] text-muted-foreground">{timeLabel(m.createdAt)}</p>
         </div>
@@ -426,7 +448,8 @@ function MessageRow({ m, mine, compact, bubble }: { m: ChatMessage; mine: boolea
         <p className="text-xs text-muted-foreground">
           <span className="font-medium text-foreground">{mine ? "You" : m.authorName}</span> · {timeLabel(m.createdAt)}
         </p>
-        {m.body && <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>}
+        {m.body && <p className="text-sm whitespace-pre-wrap break-words">{linkify(m.body)}</p>}
+        <VideoPreview text={m.body} />
         <Attachments items={m.attachments} />
       </div>
     </div>
