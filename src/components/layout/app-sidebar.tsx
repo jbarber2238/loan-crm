@@ -64,8 +64,7 @@ export function AppSidebar({
     { href: "/team-chat", label: "Team Chat", icon: MessageSquare, exact: false },
     { href: "/inbox", label: "Communications", icon: Inbox, exact: false },
     { href: "/directory", label: "Contacts Directory", icon: Users, exact: true },
-    // A page inside the directory section, for admins only.
-    ...(user.isAdmin ? [{ href: "/directory/reviews", label: "Client Reviews", icon: Star, exact: false, sub: true }] : []),
+    ...(user.isAdmin ? [{ href: "/directory/reviews", label: "Client Reviews", icon: Star, exact: false }] : []),
   ];
 
   // "/deals/new" is a static route (the staff new-deal form), not a deal id —
@@ -154,11 +153,10 @@ export function AppSidebar({
                 data-active={active ? "true" : undefined}
                 className={cn(
                   "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
-                  "sub" in link && link.sub && "ml-4 py-1.5 text-[13px]",
                   active ? "bg-white/10 text-white" : "text-zinc-400 hover:bg-white/5 hover:text-white"
                 )}
               >
-                <Icon className={cn("size-4", "sub" in link && link.sub && "size-3.5")} />
+                <Icon className="size-4" />
                 {link.label}
                 {link.href === "/team-chat" && teamUnread > 0 && (
                   <span className="ml-auto rounded-full bg-primary px-1.5 text-[10px] leading-4 font-semibold text-primary-foreground">
