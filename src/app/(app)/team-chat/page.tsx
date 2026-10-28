@@ -1,16 +1,18 @@
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getChatRooms, getGeneralRoomId } from "@/server/actions/team-chat";
+import { getChatRooms, getGeneralRoomId, getOtherGroupChats } from "@/server/actions/team-chat";
 import { requireUser } from "@/server/auth/guards";
 import { NewChatDialog } from "@/components/team-chat/new-chat-dialog";
 import { TeamChatPanel } from "@/components/team-chat/team-chat-panel";
+import { RoomActions } from "@/components/team-chat/room-actions";
+import { RoomMembersDialog } from "@/components/team-chat/room-members-dialog";
 import { cn } from "@/lib/utils";
 
 export default async function TeamChatPage({ searchParams }: { searchParams: Promise<{ room?: string }> }) {
   const { room } = await searchParams;
   const me = await requireUser();
-  const [{ rooms }, generalId] = await Promise.all([getChatRooms(), getGeneralRoomId()]);
+  const [{ rooms }, generalId, otherGroups] = await Promise.all([getChatRooms(), getGeneralRoomId(), getOtherGroupChats()]);
   const activeId = rooms.some((r) => r.roomId === room) ? room! : generalId;
   const active = rooms.find((r) => r.roomId === activeId);
   // Three groupings: loans (a chat started under a deal, once it has had any activity), named group chats
@@ -75,6 +77,29 @@ export default async function TeamChatPage({ searchParams }: { searchParams: Pro
               )}
             </section>
           ))}
+          {otherGroups.length > 0 && (
+            <section className="space-y-1.5">
+              <h2 className="px-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Other group chats (admin)</h2>
+              <p className="px-1 text-xs text-muted-foreground">Group chats you aren&apos;t in. You can manage them, but not read them.</p>
+              <ul className="space-y-1">
+                {otherGroups.map((g) => (
+                  <li key={g.roomId} className="space-y-2 rounded-md border px-3 py-2 text-sm">
+                    <div>
+                      <p className="truncate font-medium">{g.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {g.memberNames.join(", ") || "No members"}
+                        {g.createdByName ? ` · started by ${g.createdByName}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <RoomActions roomId={g.roomId} name={g.name} kind="group" canRename canDelete />
+                      <RoomMembersDialog roomId={g.roomId} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
         <div className={cn("space-y-2", !room && "hidden md:block")}>
           <div className="flex items-center justify-between">
@@ -84,6 +109,17 @@ export default async function TeamChatPage({ searchParams }: { searchParams: Pro
               </Link>
               <h2 className="text-sm font-semibold">{active ? displayTitle(active) : "General"}</h2>
             </div>
+            {active && (active.kind === "group" || active.kind === "dm") && active.canManage && (
+              <div className="flex items-center gap-1.5">
+                <RoomActions
+                  roomId={active.roomId}
+                  name={displayTitle(active)}
+                  kind={active.kind}
+                  canRename={active.kind === "group"}
+                  canDelete
+                />
+              </div>
+            )}
             {active?.kind === "deal" && active.dealId && (
               <Button asChild size="sm" variant="outline">
                 <Link href={`/deals/${active.dealId}`}>

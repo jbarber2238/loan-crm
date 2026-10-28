@@ -26,6 +26,31 @@ async function requireRoomAccess(roomId: string) {
   return { user, room };
 }
 
+/** Like requireRoomAccess, but an admin may also manage the members of any group chat without being in it. */
+async function requireMembersAccess(roomId: string) {
+  const user = await requireUser();
+  const { room, allowed } = await roomAccess(roomId, user);
+  if (!room || !(allowed || (user.isAdmin && room.kind === "group"))) throw new Error("You don't have access to this chat");
+  return { user, room };
+}
+
+/**
+ * Who may rename or delete a chat. Group chats: an admin or whoever created it. Direct messages: whoever
+ * started it. General and deal chats are never renamed or deleted here (a deal chat belongs to its loan).
+ */
+function canManageRoom(room: { kind: string; createdByUserId: string | null }, user: { id: string; isAdmin: boolean }) {
+  if (room.kind === "group") return user.isAdmin || room.createdByUserId === user.id;
+  if (room.kind === "dm") return room.createdByUserId === user.id;
+  return false;
+}
+
+async function requireManageRoom(roomId: string) {
+  const user = await requireUser();
+  const room = await db.query.teamChatRooms.findFirst({ where: eq(teamChatRooms.id, roomId) });
+  if (!room || !canManageRoom(room, user)) throw new Error("You can't change this chat");
+  return { user, room };
+}
+
 
 async function generalRoomId(): Promise<string> {
   const existing = await db.query.teamChatRooms.findFirst({ where: eq(teamChatRooms.kind, "general") });
@@ -269,6 +294,8 @@ export interface ChatRoomSummary {
   title: string;
   lastMessage: { authorName: string; body: string; createdAt: string } | null;
   unread: number;
+  /** Whether the current user may rename or delete it (see canManageRoom). */
+  canManage: boolean;
 }
 
 /** Every room the current user can see, newest activity first (General always included). */
@@ -283,6 +310,7 @@ export async function getChatRooms(onlyWithActivity = false): Promise<{ rooms: C
       dealId: teamChatRooms.dealId,
       lastMessageAt: teamChatRooms.lastMessageAt,
       name: teamChatRooms.name,
+      createdByUserId: teamChatRooms.createdByUserId,
       borrowerName: deals.borrowerName,
       propertyAddress: deals.propertyAddress,
     })
@@ -352,6 +380,7 @@ export async function getChatRooms(onlyWithActivity = false): Promise<{ rooms: C
           }
         : null,
       unread: n,
+      canManage: canManageRoom(r, user),
     });
   }
   return { rooms: summaries, totalUnread: summaries.reduce((sum, r) => sum + r.unread, 0) };
@@ -432,7 +461,7 @@ export interface ChatMember {
 }
 
 export async function getRoomMembers(roomId: string): Promise<{ kind: string; members: ChatMember[] }> {
-  const { room } = await requireRoomAccess(roomId);
+  const { room } = await requireMembersAccess(roomId);
   if (room.kind === "general") return { kind: "general", members: [] };
 
   const explicit = await db
@@ -464,15 +493,66 @@ export async function getRoomMembers(roomId: string): Promise<{ kind: string; me
 }
 
 export async function addRoomMember(roomId: string, userId: string) {
-  const { user, room } = await requireRoomAccess(roomId);
+  const { user, room } = await requireMembersAccess(roomId);
   if (room.kind === "general") throw new Error("Everyone is already in General");
   if (room.kind === "dm") throw new Error("Start a group chat to add more people");
   await db.insert(teamChatMembers).values({ roomId, userId, addedByUserId: user.id }).onConflictDoNothing();
 }
 
 export async function removeRoomMember(roomId: string, userId: string) {
-  const { room } = await requireRoomAccess(roomId);
+  const { room } = await requireMembersAccess(roomId);
   if (room.kind === "general") throw new Error("Everyone is in General");
   if (userId === room.createdByUserId) throw new Error("The person who created this chat can't be removed");
   await db.delete(teamChatMembers).where(and(eq(teamChatMembers.roomId, roomId), eq(teamChatMembers.userId, userId)));
+}
+
+export async function renameGroupChat(roomId: string, name: string) {
+  const { room } = await requireManageRoom(roomId);
+  if (room.kind !== "group") throw new Error("Only group chats can be renamed");
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Give the chat a name");
+  await db.update(teamChatRooms).set({ name: trimmed }).where(eq(teamChatRooms.id, roomId));
+}
+
+/** Deletes a group chat or direct message with everything in it (messages, files, reactions). */
+export async function deleteTeamChat(roomId: string) {
+  await requireManageRoom(roomId);
+  await db.delete(teamChatRooms).where(eq(teamChatRooms.id, roomId));
+}
+
+export interface ManageableGroupChat {
+  roomId: string;
+  name: string;
+  createdByName: string | null;
+  memberNames: string[];
+  lastMessageAt: string | null;
+}
+
+/** Admin only: group chats the admin isn't in, so they can be renamed, re-membered or deleted. Contents stay private. */
+export async function getOtherGroupChats(): Promise<ManageableGroupChat[]> {
+  const user = await requireUser();
+  if (!user.isAdmin) return [];
+  const mine = await db.select({ roomId: teamChatMembers.roomId }).from(teamChatMembers).where(eq(teamChatMembers.userId, user.id));
+  const mineIds = new Set(mine.map((m) => m.roomId));
+  const groups = await db.query.teamChatRooms.findMany({
+    where: eq(teamChatRooms.kind, "group"),
+    orderBy: desc(sql`coalesce(${teamChatRooms.lastMessageAt}, ${teamChatRooms.createdAt})`),
+  });
+  const others = groups.filter((g) => !mineIds.has(g.id));
+  if (others.length === 0) return [];
+  const members = await db
+    .select({ roomId: teamChatMembers.roomId, name: users.name })
+    .from(teamChatMembers)
+    .innerJoin(users, eq(users.id, teamChatMembers.userId))
+    .where(inArray(teamChatMembers.roomId, others.map((g) => g.id)));
+  const creators = await db.query.users.findMany({
+    where: inArray(users.id, others.map((g) => g.createdByUserId).filter((x): x is string => Boolean(x))),
+  });
+  return others.map((g) => ({
+    roomId: g.id,
+    name: g.name ?? "Group chat",
+    createdByName: creators.find((c) => c.id === g.createdByUserId)?.name ?? null,
+    memberNames: members.filter((m) => m.roomId === g.id).map((m) => m.name ?? "Someone"),
+    lastMessageAt: g.lastMessageAt ? g.lastMessageAt.toISOString() : null,
+  }));
 }
