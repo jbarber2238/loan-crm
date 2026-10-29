@@ -10,7 +10,11 @@ export const dynamic = "force-dynamic";
 
 export default async function EmailCampaignsPage() {
   await requireAdmin();
-  const [groups, campaigns, stats, people] = await Promise.all([getMarketingOverview(), loadCampaigns(), loadCampaignStats(), loadAllPeople()]);
+  // In steps, not all at once: each of these fans out into several queries, and together they used up the
+  // database's connection pool, so the page hung until it timed out.
+  const groups = await getMarketingOverview();
+  const people = await loadAllPeople();
+  const [campaigns, stats] = await Promise.all([loadCampaigns(), loadCampaignStats()]);
   const options = audienceOptions(people);
   return (
     <div className="space-y-8">
