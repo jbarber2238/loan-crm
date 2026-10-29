@@ -7,6 +7,10 @@ export const SESSION_HOUR_ET = 12;
 export const SIGNUP_CUTOFF_HOUR_ET = 11;
 export const SESSION_MINUTES = 30;
 export const MORNING_REMINDER_HOUR_ET = 9;
+/** "We go live in 1 hour": 11:00 AM ET. */
+export const HOUR_BEFORE_REMINDER_ET = { hour: 11, minute: 0 };
+/** "Starting in 10 minutes": 11:50 AM ET. */
+export const FINAL_REMINDER_ET = { hour: 11, minute: 50 };
 export const HEADCOUNT_HOUR_ET = 8;
 export const FOLLOWUP_HOUR_ET = 15;
 export const ROLL_FORWARD_HOUR_ET = 9;
@@ -116,6 +120,11 @@ export function latestSessionDayBefore(now: Date, afterMinutes: number, maxDaysB
 /** True once it is `hour`:00 Eastern on `day` or any later moment. */
 export function isAtOrAfterEt(now: Date, day: string, hour: number): boolean {
   return now.getTime() >= etToUtc(day, hour).getTime();
+}
+
+/** True once it is `hour`:`minute` Eastern on `day` or any later moment. */
+export function isAtOrAfterEtTime(now: Date, day: string, time: { hour: number; minute: number }): boolean {
+  return now.getTime() >= etToUtc(day, time.hour, time.minute).getTime();
 }
 
 // ---- calendar entries --------------------------------------------------------

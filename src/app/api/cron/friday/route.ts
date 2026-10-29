@@ -1,6 +1,6 @@
 import { runFridayJobs } from "@/server/friday";
 
-// Every 15 minutes: the Friday headcount and reminder, attendance from Zoom
+// Every 5 minutes (so the 11:50 AM reminder lands on time): the Friday headcount and reminders, attendance from Zoom
 // after the session, the 3 PM follow-up, the +3-day nudge, and Saturday's
 // rebook. Each email is claimed in friday_sends, so repeated runs never double-send.
 export async function GET(request: Request) {

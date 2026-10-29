@@ -1,4 +1,4 @@
-// The starting wording of the six Friday emails. They're copied into
+// The starting wording of the Friday emails. They're copied into
 // Settings → Email Templates once; after that, edit them there.
 
 export interface FridayTemplateDefault {
@@ -36,6 +36,31 @@ Quick reminder: See It, Send It, Get Paid goes live at 12:00 PM ET today.
 
 It's 30 minutes, and you'll leave knowing exactly what to send me and how you get paid. See you there.
 
+Justin`,
+  },
+  {
+    key: "friday_reminder_1h",
+    name: "Friday Zoom — 1 hour before (Friday 11:00 AM ET)",
+    subject: "We go live in 1 hour",
+    body: `Hey {{firstName}},
+
+See It, Send It, Get Paid starts at 12:00 PM ET, one hour from now. Grab lunch, then jump on.
+
+{{joinButton}}
+
+Justin`,
+  },
+  {
+    key: "friday_reminder_10m",
+    name: "Friday Zoom — 10 minutes before (Friday 11:50 AM ET)",
+    subject: "Starting in 10 minutes",
+    body: `Hey {{firstName}},
+
+We start in 10 minutes. Tap the button to get in.
+
+{{joinButton}}
+
+See you in there,
 Justin`,
   },
   {

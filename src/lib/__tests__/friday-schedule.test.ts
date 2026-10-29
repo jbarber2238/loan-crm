@@ -5,7 +5,10 @@ import {
   etDay,
   etToUtc,
   formatSession,
+  FINAL_REMINDER_ET,
+  HOUR_BEFORE_REMINDER_ET,
   isAtOrAfterEt,
+  isAtOrAfterEtTime,
   latestSessionDayBefore,
   nextSessionDay,
   sessionStart,
@@ -76,5 +79,25 @@ describe("calendar file", () => {
     expect(ics).toContain("DTSTART:20261023T160000Z");
     expect(ics).toContain("DTEND:20261023T163000Z");
     expect(ics).toContain("LOCATION:https://zoom.us/j/1");
+  });
+});
+
+describe("Friday reminder times", () => {
+  it("are 11:00 and 11:50 AM Eastern, an hour and ten minutes before the noon start", () => {
+    // 2026-10-30 is a Friday, still EDT (UTC-4).
+    expect(etToUtc("2026-10-30", HOUR_BEFORE_REMINDER_ET.hour, HOUR_BEFORE_REMINDER_ET.minute).toISOString()).toBe("2026-10-30T15:00:00.000Z");
+    expect(etToUtc("2026-10-30", FINAL_REMINDER_ET.hour, FINAL_REMINDER_ET.minute).toISOString()).toBe("2026-10-30T15:50:00.000Z");
+    expect(sessionStart("2026-10-30").getTime() - etToUtc("2026-10-30", 11, 50).getTime()).toBe(10 * 60 * 1000);
+  });
+
+  it("are due only once the minute is reached", () => {
+    expect(isAtOrAfterEtTime(at("2026-10-30T15:49:00Z"), "2026-10-30", FINAL_REMINDER_ET)).toBe(false);
+    expect(isAtOrAfterEtTime(at("2026-10-30T15:50:00Z"), "2026-10-30", FINAL_REMINDER_ET)).toBe(true);
+    expect(isAtOrAfterEtTime(at("2026-10-30T14:59:00Z"), "2026-10-30", HOUR_BEFORE_REMINDER_ET)).toBe(false);
+  });
+
+  it("keep the same ET clock time after DST ends", () => {
+    // 2026-11-06 is EST (UTC-5).
+    expect(etToUtc("2026-11-06", 11, 50).toISOString()).toBe("2026-11-06T16:50:00.000Z");
   });
 });

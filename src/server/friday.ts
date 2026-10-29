@@ -13,8 +13,10 @@ import { leadMarketingEmailFooter } from "@/lib/lead-email-footer";
 import { htmlButton, plainTextToHtmlWithBlocks } from "@/lib/email-html";
 import { afterAttended, afterNoShow, splitByAttendance, undoNoShow } from "@/lib/friday-sequence";
 import {
+  FINAL_REMINDER_ET,
   FOLLOWUP_HOUR_ET,
   HEADCOUNT_HOUR_ET,
+  HOUR_BEFORE_REMINDER_ET,
   MORNING_REMINDER_HOUR_ET,
   ROLL_FORWARD_HOUR_ET,
   addDays,
@@ -24,6 +26,7 @@ import {
   formatSession,
   googleCalendarUrl,
   isAtOrAfterEt,
+  isAtOrAfterEtTime,
   latestSessionDayBefore,
   nextSessionDay,
 } from "@/lib/friday-schedule";
@@ -31,7 +34,7 @@ import { toE164 } from "@/server/twilio-client";
 import { FRIDAY_CONSENT_TEXT, FRIDAY_ROLES } from "@/lib/friday-constants";
 
 type Lead = typeof leads.$inferSelect;
-export type FridayEmailKind = "confirmation" | "reminder" | "rollforward" | "followup" | "nudge" | "welcome";
+export type FridayEmailKind = "confirmation" | "reminder" | "reminder_1h" | "reminder_10m" | "rollforward" | "followup" | "nudge" | "welcome";
 
 export const CHEAT_SHEET_URL = "https://mannalendingco.com/send-it-cheat-sheet.pdf";
 export { FRIDAY_CONSENT_TEXT, FRIDAY_ROLES };
@@ -39,6 +42,8 @@ export { FRIDAY_CONSENT_TEXT, FRIDAY_ROLES };
 const TEMPLATE_KEY: Record<FridayEmailKind, string> = {
   confirmation: "friday_confirmation",
   reminder: "friday_morning_reminder",
+  reminder_1h: "friday_reminder_1h",
+  reminder_10m: "friday_reminder_10m",
   rollforward: "friday_rollforward",
   followup: "friday_followup",
   nudge: "friday_nudge",
@@ -357,11 +362,21 @@ export async function runFridayJobs(now: Date = new Date()): Promise<FridayJobRe
     }
   }
 
-  // 9 AM Friday: "we're live at noon."
-  if (isFridayToday && isAtOrAfterEt(now, today, MORNING_REMINDER_HOUR_ET) && !isAtOrAfterEt(now, today, 12)) {
-    const registrants = await db.query.leads.findMany({ where: and(eq(leads.fridayBookedSessionDate, today), eq(leads.fridayStatus, "registered")) });
-    for (const lead of registrants) {
-      if ((await sequenceEligible(lead)) && (await sendFridayEmail(lead, "reminder", today, { sessionDay: today }))) result.reminders++;
+  // Friday reminders: 9 AM "we're live at noon", 11:00 "live in 1 hour", 11:50 "starting in 10 minutes".
+  // Each goes out once per person and stops at noon.
+  if (isFridayToday && !isAtOrAfterEt(now, today, 12)) {
+    const due: FridayEmailKind[] = [];
+    if (isAtOrAfterEt(now, today, MORNING_REMINDER_HOUR_ET)) due.push("reminder");
+    if (isAtOrAfterEtTime(now, today, HOUR_BEFORE_REMINDER_ET)) due.push("reminder_1h");
+    if (isAtOrAfterEtTime(now, today, FINAL_REMINDER_ET)) due.push("reminder_10m");
+    if (due.length > 0) {
+      const registrants = await db.query.leads.findMany({ where: and(eq(leads.fridayBookedSessionDate, today), eq(leads.fridayStatus, "registered")) });
+      for (const lead of registrants) {
+        if (!(await sequenceEligible(lead))) continue;
+        // Someone who signed up after an earlier reminder's time only gets the latest one that's due, not a pile of catch-up emails.
+        const kind = due[due.length - 1];
+        if (await sendFridayEmail(lead, kind, today, { sessionDay: today })) result.reminders++;
+      }
     }
   }
 

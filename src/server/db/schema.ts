@@ -2400,7 +2400,7 @@ export const fridaySends = pgTable(
     leadId: uuid("lead_id")
       .notNull()
       .references(() => leads.id, { onDelete: "cascade" }),
-    kind: text("kind").notNull(), // confirmation | reminder | rollforward | followup | nudge | welcome
+    kind: text("kind").notNull(), // confirmation | reminder | reminder_1h | reminder_10m | rollforward | followup | nudge | welcome
     sessionKey: text("session_key").notNull(), // the session date, or "once"
     sentAt: timestamp("sent_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
   },
