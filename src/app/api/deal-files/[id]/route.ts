@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db/client";
 import { dealFiles } from "@/server/db/schema";
+import { contentDisposition } from "@/lib/content-disposition";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -15,7 +16,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   return new Response(new Uint8Array(Buffer.from(file.data, "base64")), {
     headers: {
       "Content-Type": file.mimeType,
-      "Content-Disposition": `inline; filename="${file.fileName.replace(/"/g, "")}"`,
+      "Content-Disposition": contentDisposition("inline", file.fileName),
       "Cache-Control": "private, max-age=60",
     },
   });

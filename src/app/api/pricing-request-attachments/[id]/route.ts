@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db/client";
 import { pricingRequestReplyAttachments } from "@/server/db/schema";
+import { contentDisposition } from "@/lib/content-disposition";
 
 export async function GET(
   _request: Request,
@@ -26,7 +27,7 @@ export async function GET(
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": attachment.mimeType,
-      "Content-Disposition": `inline; filename="${attachment.fileName.replace(/"/g, "")}"`,
+      "Content-Disposition": contentDisposition("inline", attachment.fileName),
       "Cache-Control": "private, max-age=60",
     },
   });

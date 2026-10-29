@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db/client";
 import { dealAppraisalDocuments, deals } from "@/server/db/schema";
+import { contentDisposition } from "@/lib/content-disposition";
 
 export async function GET(
   _request: Request,
@@ -30,7 +31,7 @@ export async function GET(
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": deal.appraisalDocumentMimeType,
-      "Content-Disposition": `inline; filename="${(deal.appraisalDocumentFileName ?? "appraisal").replace(/"/g, "")}"`,
+      "Content-Disposition": contentDisposition("inline", (deal.appraisalDocumentFileName ?? "appraisal")),
       "Cache-Control": "private, max-age=60",
     },
   });

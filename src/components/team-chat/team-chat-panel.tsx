@@ -148,13 +148,7 @@ function Composer({
       {(files.length > 0 || clip) && (
         <div className="flex flex-wrap gap-2">
           {files.map((f, i) => (
-            <span key={`${f.name}-${i}`} className="flex items-center gap-1.5 rounded-md border bg-muted/40 px-2 py-1 text-xs">
-              <Paperclip className="size-3" />
-              <span className="max-w-40 truncate">{f.name}</span>
-              <button type="button" aria-label={`Remove ${f.name}`} onClick={() => setFiles(files.filter((_, n) => n !== i))}>
-                <X className="size-3" />
-              </button>
-            </span>
+            <PendingFile key={`${f.name}-${i}`} file={f} onRemove={() => setFiles(files.filter((_, n) => n !== i))} />
           ))}
           {clip && (
             <div className="w-full space-y-1 rounded-md border bg-muted/40 p-2 text-xs">
@@ -222,7 +216,8 @@ function Composer({
               submit();
             }
           }}
-          className={cn("min-h-9 resize-none", phone && "max-h-32 min-h-10 rounded-3xl px-4 py-2")}
+          // The box grows with what's typed, up to a cap; past that the text scrolls inside it, so Send never leaves the screen.
+          className={cn("max-h-40 min-h-9 resize-none overflow-y-auto", phone && "max-h-32 min-h-10 rounded-3xl px-4 py-2")}
         />
         {phone ? (
           <Button
@@ -242,6 +237,38 @@ function Composer({
         )}
       </div>
     </div>
+  );
+}
+
+/** A file waiting to be sent: a picture shows as a thumbnail you can check before it goes, anything else by name. */
+function PendingFile({ file, onRemove }: { file: File; onRemove: () => void }) {
+  const isImage = file.type.startsWith("image/");
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isImage) return;
+    let cancelled = false;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (!cancelled && typeof reader.result === "string") setUrl(reader.result);
+    };
+    reader.readAsDataURL(file);
+    return () => {
+      cancelled = true;
+    };
+  }, [file, isImage]);
+  return (
+    <span className="flex max-w-full items-center gap-2 rounded-md border bg-muted/40 p-1.5 text-xs">
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="" className="size-14 rounded object-cover" />
+      ) : (
+        <Paperclip className="size-3 shrink-0" />
+      )}
+      <span className="max-w-40 truncate">{file.name}</span>
+      <button type="button" aria-label={`Remove ${file.name}`} onClick={onRemove}>
+        <X className="size-3" />
+      </button>
+    </span>
   );
 }
 

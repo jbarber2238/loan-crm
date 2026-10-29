@@ -3,6 +3,7 @@ import { inArray } from "drizzle-orm";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db/client";
 import { dealClientNeedDocuments, dealFiles } from "@/server/db/schema";
+import { contentDisposition } from "@/lib/content-disposition";
 
 /**
  * Bundles the given document ids into one zip — used by the Documents tab's
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
   return new Response(new Uint8Array(zipBuffer), {
     headers: {
       "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="${zipName.replace(/[".]/g, "")}.zip"`,
+      "Content-Disposition": contentDisposition("attachment", `${zipName.replace(/[".]/g, "")}.zip`),
       "Cache-Control": "no-store",
     },
   });

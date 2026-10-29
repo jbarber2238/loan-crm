@@ -12,6 +12,17 @@ function encodeHeaderValue(value: string): string {
   return `=?UTF-8?B?${Buffer.from(value, "utf-8").toString("base64")}?=`;
 }
 
+// An attachment's name as a header parameter. A name with characters outside plain ASCII (a Mac screenshot's
+// special space, an accent) goes as an ASCII fallback plus the real name in RFC 2231 form, so it survives intact.
+export function attachmentNameParam(param: "name" | "filename", fileName: string): string {
+  const clean = fileName.replace(/[\r\n]/g, " ").replace(/"/g, "");
+  if (/^[\x20-\x7E]*$/.test(clean)) return `${param}="${clean}"`;
+  const spaced = clean.replace(/[\u00a0\u2000-\u200b\u202f\u205f\u3000]/g, " ");
+  const ascii = spaced.replace(/[^\x20-\x7E]/g, "_");
+  const encoded = encodeURIComponent(spaced).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `${param}="${ascii}"; ${param}*=UTF-8''${encoded}`;
+}
+
 export interface GmailAttachment {
   fileName: string;
   mimeType: string;
@@ -82,9 +93,9 @@ export function encodeMessage({
     encodeBodyBase64(body),
     ...attachments.flatMap((a) => [
       `--${boundary}`,
-      `Content-Type: ${a.mimeType}; name="${a.fileName}"`,
+      `Content-Type: ${a.mimeType}; ${attachmentNameParam("name", a.fileName)}`,
       "Content-Transfer-Encoding: base64",
-      `Content-Disposition: attachment; filename="${a.fileName}"`,
+      `Content-Disposition: attachment; ${attachmentNameParam("filename", a.fileName)}`,
       "",
       wrapBase64(a.data),
     ]),

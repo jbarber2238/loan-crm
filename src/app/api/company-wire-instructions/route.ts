@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db/client";
 import { companySettings } from "@/server/db/schema";
+import { contentDisposition } from "@/lib/content-disposition";
 
 // Signed-in staff only (it holds bank details), unlike the public company logo.
 export async function GET() {
@@ -17,7 +18,7 @@ export async function GET() {
   return new Response(new Uint8Array(Buffer.from(row.wireInstructionsData, "base64")), {
     headers: {
       "Content-Type": row.wireInstructionsMimeType ?? "application/octet-stream",
-      "Content-Disposition": `inline; filename="${(row.wireInstructionsFileName ?? "wire-instructions").replace(/"/g, "")}"`,
+      "Content-Disposition": contentDisposition("inline", (row.wireInstructionsFileName ?? "wire-instructions")),
       "Cache-Control": "private, no-store",
     },
   });

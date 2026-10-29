@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { dealClientNeeds } from "@/server/db/schema";
+import { contentDisposition } from "@/lib/content-disposition";
 
 // No auth check — this is reachable from the token-gated borrower-upload
 // page, which never has a session. Safe because it only ever serves a
@@ -24,7 +25,7 @@ export async function GET(
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": need.templateFileMimeType,
-      "Content-Disposition": `inline; filename="${need.templateFileName.replace(/"/g, "")}"`,
+      "Content-Disposition": contentDisposition("inline", need.templateFileName),
       "Cache-Control": "private, max-age=60",
     },
   });

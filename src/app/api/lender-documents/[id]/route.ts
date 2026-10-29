@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db/client";
 import { lenderDocuments } from "@/server/db/schema";
+import { contentDisposition } from "@/lib/content-disposition";
 
 export async function GET(
   _request: Request,
@@ -26,7 +27,7 @@ export async function GET(
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": doc.mimeType,
-      "Content-Disposition": `inline; filename="${doc.fileName.replace(/"/g, "")}"`,
+      "Content-Disposition": contentDisposition("inline", doc.fileName),
       "Cache-Control": "private, max-age=60",
     },
   });

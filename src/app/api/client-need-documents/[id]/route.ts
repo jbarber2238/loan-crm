@@ -3,6 +3,7 @@ import convert from "heic-convert";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db/client";
 import { dealClientNeedDocuments } from "@/server/db/schema";
+import { contentDisposition } from "@/lib/content-disposition";
 
 const HEIC_TYPES = new Set(["image/heic", "image/heif"]);
 
@@ -43,7 +44,7 @@ export async function GET(
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": mimeType,
-      "Content-Disposition": `inline; filename="${doc.fileName.replace(/"/g, "")}"`,
+      "Content-Disposition": contentDisposition("inline", doc.fileName),
       "Cache-Control": "private, max-age=60",
     },
   });
