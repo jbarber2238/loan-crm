@@ -2,6 +2,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { deals, teamChatMembers, teamChatRooms, users } from "@/server/db/schema";
 import { pushToUsers } from "@/server/push";
+import { gifInMessage } from "@/lib/chat-gif";
 
 /**
  * Pushes a new team-chat message to the people it's meant for: the other members of a direct or group chat, the
@@ -39,7 +40,7 @@ export async function pushChatMessage(input: { roomId: string; senderId: string;
 
     const who = input.senderName.trim() || "Someone";
     const title = room.kind === "dm" ? who : room.kind === "group" ? `${who} in ${room.name ?? "a group chat"}` : room.kind === "deal" ? `${who} · ${room.borrower ?? "a deal"}` : `${who} in General`;
-    const body = input.text.trim() ? input.text.trim().slice(0, 140) : input.attachment === "voice" ? "Sent a voice clip" : input.attachment === "file" ? "Sent a file" : "";
+    const body = gifInMessage(input.text) ? "Sent a GIF" : input.text.trim() ? input.text.trim().slice(0, 140) : input.attachment === "voice" ? "Sent a voice clip" : input.attachment === "file" ? "Sent a file" : "";
     await pushToUsers(recipients, {
       title,
       body,

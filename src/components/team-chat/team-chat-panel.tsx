@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowUp, ChevronLeft, FileText, MessageSquare, Mic, Paperclip, SmilePlus, Square, X } from "lucide-react";
+import { ArrowUp, ChevronLeft, FileText, MessageSquare, Mic, Paperclip, Smile, SmilePlus, Square, X } from "lucide-react";
 import {
   editTeamMessage,
   getRoomState,
@@ -20,6 +20,8 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { findVideoEmbed, linkify } from "@/lib/linkify";
+import { EMOJI_GROUPS, RECENT_EMOJI_KEY, insertAtSelection, withRecentEmoji } from "@/lib/chat-emoji";
+import { gifInMessage } from "@/lib/chat-gif";
 import { useVoiceRecorder, type VoiceClip } from "@/components/messaging/use-voice-recorder";
 import { RoomMembersDialog } from "@/components/team-chat/room-members-dialog";
 import { useLoanCenterNav } from "@/components/deals/loan-center-nav-context";
@@ -83,6 +85,158 @@ function formatDuration(totalSeconds: number): string {
   return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, "0")}`;
 }
 
+function readRecentEmoji(): string[] {
+  try {
+    const raw: unknown = JSON.parse(localStorage.getItem(RECENT_EMOJI_KEY) ?? "[]");
+    return Array.isArray(raw) ? raw.filter((e): e is string => typeof e === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+/** The smiley next to the paperclip: pick an emoji and it lands in the message where the cursor is. */
+function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [recent, setRecent] = useState<string[]>([]);
+  function pick(emoji: string) {
+    const next = withRecentEmoji(recent, emoji);
+    setRecent(next);
+    try {
+      localStorage.setItem(RECENT_EMOJI_KEY, JSON.stringify(next));
+    } catch {
+      // Private windows can refuse storage; recents just aren't remembered.
+    }
+    onPick(emoji);
+  }
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        if (next) setRecent(readRecentEmoji());
+        setOpen(next);
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button type="button" size="icon-sm" variant="ghost" title="Add an emoji" aria-label="Add an emoji">
+          <Smile className="size-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 p-2">
+        <div className="max-h-64 space-y-2 overflow-y-auto">
+          {recent.length > 0 && (
+            <div>
+              <p className="px-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Recent</p>
+              <div className="grid grid-cols-8 gap-0.5">
+                {recent.map((e) => (
+                  <button key={e} type="button" onClick={() => pick(e)} className="flex size-9 items-center justify-center rounded-md text-xl hover:bg-muted">
+                    {e}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {EMOJI_GROUPS.map((g) => (
+            <div key={g.label}>
+              <p className="px-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{g.label}</p>
+              <div className="grid grid-cols-8 gap-0.5">
+                {g.emojis.map((e) => (
+                  <button key={e} type="button" onClick={() => pick(e)} className="flex size-9 items-center justify-center rounded-md text-xl hover:bg-muted">
+                    {e}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+interface GifResult {
+  id: string;
+  title: string;
+  preview: string;
+  send: string;
+}
+
+/** A GIF library from Giphy: trending to start, search as you type. Picking one sends it straight away. */
+function GifPicker({ onPick }: { onPick: (url: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [gifs, setGifs] = useState<GifResult[]>([]);
+  const [status, setStatus] = useState<"loading" | "ready" | "not-set-up" | "error">("loading");
+
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    // Wait for a pause in typing so each letter doesn't become its own search.
+    const timer = setTimeout(async () => {
+      setStatus("loading");
+      try {
+        const res = await fetch(`/api/team-chat/gifs?q=${encodeURIComponent(query.trim())}`, { signal: controller.signal });
+        const data = (await res.json()) as { configured: boolean; gifs: GifResult[]; error?: string };
+        setGifs(data.gifs);
+        setStatus(!data.configured ? "not-set-up" : data.error ? "error" : "ready");
+      } catch (err) {
+        if (!(err instanceof DOMException && err.name === "AbortError")) setStatus("error");
+      }
+    }, query ? 300 : 0);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [open, query]);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button type="button" size="icon-sm" variant="ghost" title="Send a GIF" aria-label="Send a GIF" className="text-[10px] font-bold tracking-tight">
+          GIF
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 space-y-2 p-2">
+        {status === "not-set-up" ? (
+          <p className="p-2 text-sm text-muted-foreground">GIFs aren&apos;t turned on yet. An admin needs to add a free Giphy key to the CRM.</p>
+        ) : (
+          <>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search GIFs"
+              aria-label="Search GIFs"
+              className="h-8 w-full rounded-md border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring"
+            />
+            <div className="max-h-64 overflow-y-auto">
+              {status === "loading" && gifs.length === 0 && <p className="p-2 text-sm text-muted-foreground">Loading…</p>}
+              {status === "error" && <p className="p-2 text-sm text-muted-foreground">Couldn&apos;t load GIFs right now. Try again in a minute.</p>}
+              {status === "ready" && gifs.length === 0 && <p className="p-2 text-sm text-muted-foreground">No GIFs found for that.</p>}
+              <div className="grid grid-cols-2 gap-1">
+                {gifs.map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    title={g.title}
+                    onClick={() => {
+                      setOpen(false);
+                      onPick(g.send);
+                    }}
+                    className="overflow-hidden rounded-md bg-muted hover:ring-2 hover:ring-ring"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={g.preview} alt={g.title} loading="lazy" className="h-24 w-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="text-center text-[10px] text-muted-foreground">Powered by GIPHY</p>
+          </>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function Composer({
   placeholder,
   onSend,
@@ -102,6 +256,7 @@ function Composer({
   const [clip, setClip] = useState<VoiceClip | null>(null);
   const [pending, startTransition] = useTransition();
   const fileInput = useRef<HTMLInputElement>(null);
+  const textBox = useRef<HTMLTextAreaElement>(null);
   const voice = useVoiceRecorder();
 
   const canSend = Boolean(text.trim() || files.length || clip);
@@ -129,6 +284,22 @@ function Composer({
         toast.error(err instanceof Error ? err.message : "Couldn't send that");
       }
     });
+  }
+
+  function insertEmoji(emoji: string) {
+    const box = textBox.current;
+    const at = insertAtSelection(text, box?.selectionStart ?? text.length, box?.selectionEnd ?? text.length, emoji);
+    setText(at.text);
+    onTyping?.();
+    // Put the cursor right after the emoji once React has rewritten the box.
+    requestAnimationFrame(() => {
+      box?.focus();
+      box?.setSelectionRange(at.cursor, at.cursor);
+    });
+  }
+
+  function sendGif(url: string) {
+    onSend({ text: url, files: [], clip: null }).catch((err) => toast.error(err instanceof Error ? err.message : "Couldn't send that GIF"));
   }
 
   async function toggleRecording() {
@@ -200,7 +371,10 @@ function Composer({
         >
           {voice.recording ? <Square className="size-4" /> : <Mic className="size-4" />}
         </Button>
+        <EmojiPicker onPick={insertEmoji} />
+        <GifPicker onPick={sendGif} />
         <Textarea
+          ref={textBox}
           value={text}
           rows={1}
           autoFocus={autoFocus}
@@ -289,6 +463,18 @@ function VideoPreview({ text }: { text: string }) {
         />
       </div>
     </div>
+  );
+}
+
+/** A message that is just a GIF address shows the picture, not the web address. */
+function GifPreview({ text }: { text: string }) {
+  const url = gifInMessage(text);
+  if (!url) return null;
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="mt-1 block">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={url} alt="GIF" loading="lazy" className="max-h-52 max-w-[16rem] rounded-lg border object-contain" />
+    </a>
   );
 }
 
@@ -513,7 +699,7 @@ function MessageRow({
         <div className={cn("flex min-w-0 max-w-[80%] flex-col", mine ? "items-end" : "items-start")}>
           {!mine && <p className="mb-0.5 px-1 text-[11px] text-muted-foreground">{m.authorName}</p>}
           {editor ??
-            (m.body && (
+            (m.body && !gifInMessage(m.body) && (
             <p
               className={cn(
                 "rounded-2xl px-3.5 py-2 text-[15px] whitespace-pre-wrap break-words",
@@ -524,6 +710,7 @@ function MessageRow({
             </p>
           ))}
           <VideoPreview text={m.body} />
+          <GifPreview text={m.body} />
           <Attachments items={m.attachments} />
           <p className="mt-0.5 px-1 text-[10px] text-muted-foreground">
             {timeLabel(m.createdAt)}
@@ -544,8 +731,9 @@ function MessageRow({
           <span className="font-medium text-foreground">{mine ? "You" : m.authorName}</span> · {timeLabel(m.createdAt)}
           {edited}
         </p>
-        {editor ?? (m.body && <p className="text-sm whitespace-pre-wrap break-words">{linkify(m.body)}</p>)}
+        {editor ?? (m.body && !gifInMessage(m.body) && <p className="text-sm whitespace-pre-wrap break-words">{linkify(m.body)}</p>)}
         <VideoPreview text={m.body} />
+        <GifPreview text={m.body} />
         <Attachments items={m.attachments} />
       </div>
     </div>
