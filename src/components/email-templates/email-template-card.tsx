@@ -35,9 +35,9 @@ export interface EmailTemplateRow {
   active: boolean;
 }
 
-export function EmailTemplateCard({ template }: { template: EmailTemplateRow }) {
+export function EmailTemplateCard({ template, defaultOpen = false }: { template: EmailTemplateRow; defaultOpen?: boolean }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [triggerStage, setTriggerStage] = useState(template.triggerStage ?? "none");

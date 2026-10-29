@@ -2407,6 +2407,18 @@ export const fridaySends = pgTable(
   (t) => [unique("friday_sends_unique").on(t.leadId, t.kind, t.sessionKey)]
 );
 
+// Saved send times for timed emails, set on the Marketing Email page. One row per
+// email template key; a missing row means "use the built-in default". Only the
+// columns that email uses are filled in (a clock time, or a delay in days).
+export const emailSchedules = pgTable("email_schedules", {
+  templateKey: text("template_key").primaryKey(),
+  sendHour: integer("send_hour"),
+  sendMinute: integer("send_minute"),
+  delayDays: integer("delay_days"),
+  updatedByUserId: uuid("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
 // States where closing a deal requires a license this company doesn't hold. A
 // deal whose property is in one of these gets flagged everywhere it appears.
 export const licenseRequiredStates = pgTable("license_required_states", {

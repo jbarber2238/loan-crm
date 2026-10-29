@@ -19,6 +19,7 @@ import { escapeHtml } from "@/lib/email-html";
 
 function revalidatePartnerViews() {
   revalidatePath("/settings/referrals");
+  revalidatePath("/marketing");
 }
 
 // ---- Invite -----------------------------------------------------------------

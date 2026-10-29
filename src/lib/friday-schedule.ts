@@ -122,6 +122,109 @@ export function isAtOrAfterEt(now: Date, day: string, hour: number): boolean {
   return now.getTime() >= etToUtc(day, hour).getTime();
 }
 
+// ---- editable send times -----------------------------------------------------
+
+export interface ClockTime {
+  hour: number;
+  minute: number;
+}
+
+/** When each timed Friday email goes out (Eastern). Saved overrides live in the email_schedules table. */
+export interface FridayTimes {
+  morningReminder: ClockTime;
+  hourBefore: ClockTime;
+  tenMinutes: ClockTime;
+  /** The Saturday rebook for no-shows, on the day after the session. */
+  rollForward: ClockTime;
+  /** The "thanks for joining" email, after the session. */
+  followUp: ClockTime;
+  /** Days after the follow-up before the one nudge. */
+  nudgeDelayDays: number;
+}
+
+export const DEFAULT_FRIDAY_TIMES: FridayTimes = {
+  morningReminder: { hour: MORNING_REMINDER_HOUR_ET, minute: 0 },
+  hourBefore: HOUR_BEFORE_REMINDER_ET,
+  tenMinutes: FINAL_REMINDER_ET,
+  rollForward: { hour: ROLL_FORWARD_HOUR_ET, minute: 0 },
+  followUp: { hour: FOLLOWUP_HOUR_ET, minute: 0 },
+  nudgeDelayDays: 3,
+};
+
+/** The saved-override key for each timed email. */
+export const FRIDAY_SCHEDULE_KEYS = {
+  morningReminder: "friday_morning_reminder",
+  hourBefore: "friday_reminder_1h",
+  tenMinutes: "friday_reminder_10m",
+  rollForward: "friday_rollforward",
+  followUp: "friday_followup",
+  nudge: "friday_nudge",
+} as const;
+
+export interface ScheduleOverride {
+  templateKey: string;
+  sendHour: number | null;
+  sendMinute: number | null;
+  delayDays: number | null;
+}
+
+/** The defaults with any saved overrides applied. Bad saved values are ignored rather than trusted. */
+export function resolveFridayTimes(overrides: ScheduleOverride[]): FridayTimes {
+  const times: FridayTimes = {
+    morningReminder: { ...DEFAULT_FRIDAY_TIMES.morningReminder },
+    hourBefore: { ...DEFAULT_FRIDAY_TIMES.hourBefore },
+    tenMinutes: { ...DEFAULT_FRIDAY_TIMES.tenMinutes },
+    rollForward: { ...DEFAULT_FRIDAY_TIMES.rollForward },
+    followUp: { ...DEFAULT_FRIDAY_TIMES.followUp },
+    nudgeDelayDays: DEFAULT_FRIDAY_TIMES.nudgeDelayDays,
+  };
+  const clocks: [string, ClockTime][] = [
+    [FRIDAY_SCHEDULE_KEYS.morningReminder, times.morningReminder],
+    [FRIDAY_SCHEDULE_KEYS.hourBefore, times.hourBefore],
+    [FRIDAY_SCHEDULE_KEYS.tenMinutes, times.tenMinutes],
+    [FRIDAY_SCHEDULE_KEYS.rollForward, times.rollForward],
+    [FRIDAY_SCHEDULE_KEYS.followUp, times.followUp],
+  ];
+  for (const o of overrides) {
+    const clock = clocks.find(([key]) => key === o.templateKey)?.[1];
+    if (clock && o.sendHour !== null && o.sendMinute !== null && validateFridayTime(o.templateKey, o.sendHour, o.sendMinute) === null) {
+      clock.hour = o.sendHour;
+      clock.minute = o.sendMinute;
+    }
+    if (o.templateKey === FRIDAY_SCHEDULE_KEYS.nudge && o.delayDays !== null && validateNudgeDelay(o.delayDays) === null) times.nudgeDelayDays = o.delayDays;
+  }
+  return times;
+}
+
+/** Why a send time can't be used, or null when it's fine. Reminders must come before the noon start; the follow-up after attendance is known. */
+export function validateFridayTime(key: string, hour: number, minute: number): string | null {
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) return "Pick a real time.";
+  const minutes = hour * 60 + minute;
+  switch (key) {
+    case FRIDAY_SCHEDULE_KEYS.morningReminder:
+    case FRIDAY_SCHEDULE_KEYS.hourBefore:
+    case FRIDAY_SCHEDULE_KEYS.tenMinutes:
+      return minutes < SESSION_HOUR_ET * 60 ? null : "Reminders have to go out before the 12:00 PM start.";
+    case FRIDAY_SCHEDULE_KEYS.followUp:
+      // Attendance is pulled from Zoom 45 minutes after the start; the follow-up goes to people marked attended.
+      return minutes >= SESSION_HOUR_ET * 60 + 60 ? null : "The follow-up goes after the session, 1:00 PM or later.";
+    case FRIDAY_SCHEDULE_KEYS.rollForward:
+      return hour >= 6 && hour <= 20 ? null : "Pick a time between 6:00 AM and 8:59 PM.";
+    default:
+      return "That email doesn't have a send time.";
+  }
+}
+
+export function validateNudgeDelay(days: number): string | null {
+  return Number.isInteger(days) && days >= 1 && days <= 10 ? null : "Enter a whole number of days from 1 to 10.";
+}
+
+/** "9:00 AM" */
+export function formatClock({ hour, minute }: ClockTime): string {
+  const h = hour % 12 === 0 ? 12 : hour % 12;
+  return `${h}:${pad(minute)} ${hour < 12 ? "AM" : "PM"}`;
+}
+
 /** True once it is `hour`:`minute` Eastern on `day` or any later moment. */
 export function isAtOrAfterEtTime(now: Date, day: string, time: { hour: number; minute: number }): boolean {
   return now.getTime() >= etToUtc(day, time.hour, time.minute).getTime();
