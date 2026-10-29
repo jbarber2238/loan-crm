@@ -10,6 +10,8 @@ import { sender } from "@/server/friday";
 import { getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
 import { loadAllPeople } from "@/server/marketing-audience";
+import { loadSetupIssues } from "@/server/marketing-setup";
+import { raiseAlertOnce } from "@/server/send-limits";
 import { runCampaignChat } from "@/server/ai/campaign-builder";
 import { marketingEmailFooter } from "@/lib/lead-email-footer";
 import { audienceMembers, audienceOptions, isEmailable } from "@/lib/marketing-audience";
@@ -119,6 +121,13 @@ export async function startCampaign(id: string | null, raw: CampaignDraft, chat:
   const first = firstRunAt(draft.schedule, now);
   await db.update(marketingCampaigns).set({ status: "active", nextRunAt: first, updatedAt: now }).where(eq(marketingCampaigns.id, saved.id));
   const members = audienceMembers(draft.audienceKey, await loadAllPeople()) ?? [];
+  // The first time anything is started, remind about the setup that was put off (once, ever).
+  const from = await sender();
+  const issues = await loadSetupIssues(from?.email);
+  await raiseAlertOnce("setup_reminder", {
+    title: "You started your first campaign: more setup to do",
+    body: `${issues.length ? `${issues.join(", ")} ${issues.length === 1 ? "needs" : "need"} fixing so your emails don't land in spam. ` : ""}Bounces also aren't tracked automatically yet; an email service would do that. Open the Email Log tab to see exactly what to fix, and ask me to walk you through it.`,
+  });
   refresh();
   return { ok: true, id: saved.id, startsAt: (first ?? now).toISOString(), recipients: members.filter(isEmailable).length };
 }

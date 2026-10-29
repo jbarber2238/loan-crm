@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
+import { ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -29,27 +30,91 @@ function lastSent(iso: string | null): string {
   return `Last sent ${new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(iso))} ET`;
 }
 
-export function MarketingEmailPanel({ groups }: { groups: MarketingGroupView[] }) {
+/**
+ * Everything on the Email Campaigns tab, each part collapsed under its heading. Expand all and Collapse all at the
+ * top, so a long sequence (the Friday Zoom has eight emails) doesn't have to be scrolled through to reach the next.
+ */
+export function MarketingEmailPanel({ groups, campaignsCount, campaigns }: { groups: MarketingGroupView[]; campaignsCount: number; campaigns: ReactNode }) {
+  const ids = ["mine", ...groups.map((g) => g.id)];
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const toggle = (id: string) =>
+    setOpen((o) => {
+      const n = new Set(o);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" variant="outline" onClick={() => setOpen(new Set(ids))} disabled={open.size === ids.length}>
+          Expand all
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => setOpen(new Set())} disabled={open.size === 0}>
+          Collapse all
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          {open.size} of {ids.length} open
+        </span>
+      </div>
+
+      <section className="rounded-lg border">
+        <SectionHeader
+          open={open.has("mine")}
+          onToggle={() => toggle("mine")}
+          title="Your campaigns"
+          detail={`${campaignsCount} ${campaignsCount === 1 ? "campaign" : "campaigns"}`}
+          summary="Emails you built in the Email Builder: where each one stands, who got it and who clicked."
+        />
+        {open.has("mine") && <div className="border-t p-4">{campaigns}</div>}
+      </section>
+
+      <p className="max-w-3xl pt-2 text-sm text-muted-foreground">
+        Automatic emails: who gets each one, when it goes out, and whether it&apos;s on. Switch an email off to stop it, change a time to move it, or open the wording to edit it. All times are Eastern.
+      </p>
+
       {groups.map((group) => (
         <section key={group.id} className="rounded-lg border">
-          <header className="space-y-1 border-b p-4">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-base font-semibold">{group.title}</h2>
-              {group.sentLast30Days !== null && <span className="text-xs text-muted-foreground">{group.sentLast30Days} sent in the last 30 days</span>}
-            </div>
-            <p className="max-w-3xl text-sm text-muted-foreground">{group.summary}</p>
-            {group.partner && <PartnerSchedule reminderDays={group.partner.reminderDays} expiresDays={group.partner.expiresDays} />}
-          </header>
-          <ul className="divide-y">
-            {group.rows.map((row) => (
-              <EmailRow key={row.email.templateKey} row={row} />
-            ))}
-          </ul>
+          <SectionHeader
+            open={open.has(group.id)}
+            onToggle={() => toggle(group.id)}
+            title={group.title}
+            detail={`${group.rows.length} emails${group.sentLast30Days !== null ? ` · ${group.sentLast30Days} sent in the last 30 days` : ""}`}
+            summary={group.summary}
+          />
+          {open.has(group.id) && (
+            <>
+              {group.partner && (
+                <div className="border-t p-4 pb-2">
+                  <PartnerSchedule reminderDays={group.partner.reminderDays} expiresDays={group.partner.expiresDays} />
+                </div>
+              )}
+              <ul className="divide-y border-t">
+                {group.rows.map((row) => (
+                  <EmailRow key={row.email.templateKey} row={row} />
+                ))}
+              </ul>
+            </>
+          )}
         </section>
       ))}
     </div>
+  );
+}
+
+function SectionHeader({ open, onToggle, title, detail, summary }: { open: boolean; onToggle: () => void; title: string; detail: string; summary: string }) {
+  return (
+    <button type="button" onClick={onToggle} aria-expanded={open} className="flex w-full items-start gap-2 p-4 text-left hover:bg-muted/30">
+      <ChevronRight className={`mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`} />
+      <span className="min-w-0 flex-1 space-y-1">
+        <span className="flex flex-wrap items-baseline justify-between gap-2">
+          <span className="text-base font-semibold">{title}</span>
+          <span className="text-xs text-muted-foreground">{detail}</span>
+        </span>
+        <span className="block max-w-3xl text-sm text-muted-foreground">{summary}</span>
+      </span>
+    </button>
   );
 }
 

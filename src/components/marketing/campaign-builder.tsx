@@ -50,6 +50,7 @@ export function CampaignBuilder({
   signatureHtml,
   aiReady,
   cap,
+  setupIssues,
 }: {
   campaignId: string | null;
   status: string;
@@ -60,6 +61,7 @@ export function CampaignBuilder({
   signatureHtml: string;
   aiReady: boolean;
   cap: SendLimitsInput | null;
+  setupIssues: string[];
 }) {
   const router = useRouter();
   const [id, setId] = useState(initialId);
@@ -189,6 +191,15 @@ export function CampaignBuilder({
 
   return (
     <div className="max-w-4xl space-y-6">
+      {setupIssues.length > 0 && (
+        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+          <strong>Setup still to do before sending campaigns:</strong> {setupIssues.join(", ")} {setupIssues.length === 1 ? "needs" : "need"} fixing, or your emails are likely to land in spam. Bounces also have to be
+          marked by hand until we connect an email service.{" "}
+          <Link href="/marketing/email-log" className="underline">
+            See what to fix
+          </Link>
+        </p>
+      )}
       {live && (
         <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
           This campaign is <strong>{status}</strong>. Changes you save apply to emails that haven&apos;t gone out yet.{" "}
@@ -436,6 +447,11 @@ export function CampaignBuilder({
             {cap && audience && (
               <li>
                 Your daily Gmail limit: {cap.used24h} of {cap.dailyLimit} used in the last 24 hours. {projectSend(cap, audience.eligible).message}
+              </li>
+            )}
+            {setupIssues.length > 0 && (
+              <li className="text-amber-700 dark:text-amber-400">
+                Heads up: {setupIssues.join(", ")} {setupIssues.length === 1 ? "isn't" : "aren't"} set up right yet, so these emails may go to spam. You can start anyway, or fix it first (Email Log tab).
               </li>
             )}
             <li>Campaigns send only between 7 AM and 8 PM Eastern, and each email re-checks that the person is still on the list.</li>
