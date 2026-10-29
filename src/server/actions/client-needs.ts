@@ -313,6 +313,9 @@ export async function autoGenerateClientNeedsForProduct(dealId: string, productI
 // path a processor uses afterward, or when there's no client need at all).
 const KEY_CONTACT_FIELD_MAP: Record<string, Record<string, string>> = {
   "Title Info": {
+    "Title Company": "titleCompanyName",
+    "Agent Name": "titleCompanyAgentName",
+    // The older single question, still on deals sent before it was split in two.
     "Title Company / Agent Name": "titleCompanyAgentName",
     "Title Agent Email": "titleAgentEmail",
     "Title Agent Phone Number": "titleAgentPhone",
