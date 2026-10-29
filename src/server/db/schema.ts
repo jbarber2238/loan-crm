@@ -2423,6 +2423,30 @@ export const dealCarryoverDismissals = pgTable(
   (t) => [primaryKey({ columns: [t.dealId, t.userId] })]
 );
 
+// Tags on marketing contacts, added by hand or by a campaign ("webinar oct 30"). The derived tags
+// (funnel, role, Friday status...) are worked out live and never stored here.
+export const leadTags = pgTable(
+  "lead_tags",
+  {
+    leadId: uuid("lead_id")
+      .notNull()
+      .references(() => leads.id, { onDelete: "cascade" }),
+    tag: text("tag").notNull(),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.leadId, t.tag] })]
+);
+
+// A named, saved set of filters on the Audiences page ("Friday attendees who aren't partners yet").
+export const marketingAudiences = pgTable("marketing_audiences", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  filters: jsonb("filters").notNull(),
+  createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
 // Saved send times for timed emails, set on the Marketing Email page. One row per
 // email template key; a missing row means "use the built-in default". Only the
 // columns that email uses are filled in (a clock time, or a delay in days).
