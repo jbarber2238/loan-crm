@@ -50,7 +50,8 @@ export const TEMPLATE_KEY: Record<FridayEmailKind, string> = {
 
 // ---- who sends, who is already a partner ----------------------------------------
 
-async function sender() {
+/** Who campaign and sequence emails come from: the first active loan officer, else the first admin. */
+export async function sender() {
   const lo = await db.query.users.findFirst({
     where: and(eq(users.baseRole, "loan_officer"), eq(users.active, true)),
     orderBy: (u, { asc }) => asc(u.createdAt),

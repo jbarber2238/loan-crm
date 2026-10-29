@@ -6,7 +6,7 @@ export default async function MarketingLayout({ children }: { children: React.Re
   return (
     <div className="space-y-5">
       <div className="space-y-3">
-        <h1 className="text-xl font-semibold">Marketing Email</h1>
+        <h1 className="text-xl font-semibold">Marketing</h1>
         <MarketingTabs />
       </div>
       {children}

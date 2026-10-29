@@ -2447,6 +2447,108 @@ export const marketingAudiences = pgTable("marketing_audiences", {
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
 });
 
+// Marketing consent and manually added people, keyed by lower-case email. A person who is a lead,
+// borrower or partner keeps their own record; this overlay is where staff record that they agreed to
+// marketing (or opted out), and where people added by hand live. See src/server/marketing-audience.ts.
+export const marketingContacts = pgTable("marketing_contacts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull().unique(),
+  name: text("name").notNull().default(""),
+  phone: text("phone").notNull().default(""),
+  marketingConsent: boolean("marketing_consent").notNull().default(false),
+  consentSource: text("consent_source"), // staff | follow_up | manual
+  consentNote: text("consent_note"),
+  consentAt: timestamp("consent_at", { mode: "date", withTimezone: true }),
+  unsubscribedAt: timestamp("unsubscribed_at", { mode: "date", withTimezone: true }),
+  unsubscribeSource: text("unsubscribe_source"), // link | staff
+  addedManually: boolean("added_manually").notNull().default(false),
+  createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
+// Tags on people (any kind), added by hand or by a campaign ("campaign: oct webinar", "clicked: ...").
+// The derived tags (funnel, role, borrower status...) are worked out live and never stored here.
+export const marketingContactTags = pgTable(
+  "marketing_contact_tags",
+  {
+    email: text("email").notNull(),
+    tag: text("tag").notNull(),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.email, t.tag] })]
+);
+
+// A marketing email campaign built in the Email Builder: the wording, who it goes to and when.
+export const marketingCampaigns = pgTable("marketing_campaigns", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  subject: text("subject").notNull().default(""),
+  body: text("body").notNull().default(""),
+  audienceKey: text("audience_key").notNull().default("all"),
+  funnel: text("funnel"), // friday_zoom | calculator | partner | apply | null
+  tagRecipients: text("tag_recipients"),
+  schedule: jsonb("schedule").notNull().default({ mode: "draft" }),
+  skipPreviousRecipients: boolean("skip_previous_recipients").notNull().default(true),
+  status: text("status").notNull().default("draft"), // draft | active | paused | completed
+  nextRunAt: timestamp("next_run_at", { mode: "date", withTimezone: true }),
+  lastRunAt: timestamp("last_run_at", { mode: "date", withTimezone: true }),
+  runCount: integer("run_count").notNull().default(0),
+  chat: jsonb("chat"),
+  createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
+// One row per person per campaign run. The unique key is what makes a send happen exactly once.
+export const marketingCampaignSends = pgTable(
+  "marketing_campaign_sends",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    campaignId: uuid("campaign_id")
+      .notNull()
+      .references(() => marketingCampaigns.id, { onDelete: "cascade" }),
+    runKey: text("run_key").notNull(),
+    email: text("email").notNull(),
+    contactName: text("contact_name"),
+    status: text("status").notNull().default("queued"), // queued | sending | sent | failed | skipped
+    error: text("error"),
+    queuedAt: timestamp("queued_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+    sentAt: timestamp("sent_at", { mode: "date", withTimezone: true }),
+    clickedAt: timestamp("clicked_at", { mode: "date", withTimezone: true }),
+  },
+  (t) => [unique("marketing_campaign_sends_unique").on(t.campaignId, t.runKey, t.email)]
+);
+
+// People Justin follows up with personally: a reminder schedule, whether they approved marketing.
+export const followUpContacts = pgTable("follow_up_contacts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  email: text("email"),
+  phone: text("phone"),
+  marketingOk: boolean("marketing_ok").notNull().default(false),
+  notes: text("notes"),
+  cadence: text("cadence").notNull().default("smart"), // smart | weekly | biweekly | monthly | quarterly
+  nextFollowUpAt: timestamp("next_follow_up_at", { mode: "date", withTimezone: true }),
+  lastFollowedUpAt: timestamp("last_followed_up_at", { mode: "date", withTimezone: true }),
+  remindedAt: timestamp("reminded_at", { mode: "date", withTimezone: true }),
+  touchCount: integer("touch_count").notNull().default(0),
+  status: text("status").notNull().default("active"), // active | stopped
+  ownerUserId: uuid("owner_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
+export const followUpTouches = pgTable("follow_up_touches", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  contactId: uuid("contact_id")
+    .notNull()
+    .references(() => followUpContacts.id, { onDelete: "cascade" }),
+  channel: text("channel").notNull().default("call"),
+  note: text("note"),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
 // Saved send times for timed emails, set on the Marketing Email page. One row per
 // email template key; a missing row means "use the built-in default". Only the
 // columns that email uses are filled in (a clock time, or a delay in days).

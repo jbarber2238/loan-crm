@@ -1,16 +1,19 @@
-import { getEligibilitySummary, loadEligiblePeople, loadSavedAudiences } from "@/server/marketing-audience";
+import { requireAdmin } from "@/server/auth/guards";
+import { loadAllPeople } from "@/server/marketing-audience";
+import { audienceOptions } from "@/lib/marketing-audience";
 import { AudienceExplorer } from "@/components/marketing/audience-explorer";
 
-export default async function AudiencesPage() {
-  const people = await loadEligiblePeople();
-  const [summary, saved] = await Promise.all([getEligibilitySummary(people.length), loadSavedAudiences()]);
+export default async function AudiencesPage({ searchParams }: { searchParams: Promise<{ audience?: string }> }) {
+  await requireAdmin();
+  const { audience } = await searchParams;
+  const people = await loadAllPeople();
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <p className="max-w-3xl text-sm text-muted-foreground">
-        Pick exactly who a campaign goes to. Only people who agreed to marketing emails and haven&apos;t unsubscribed can ever appear here. Every person carries tags:
-        some are worked out for you (where they came from, their role, Friday attendance, partner status) and some you add yourself.
+        Pick a list to see exactly who is on it. Only people who agreed to marketing emails (and haven&apos;t unsubscribed) can be emailed. Borrowers and partners show up here too: record who has told you
+        they&apos;re OK with it and they join the list.
       </p>
-      <AudienceExplorer people={people} summary={summary} saved={saved} />
+      <AudienceExplorer people={people} options={audienceOptions(people)} initialKey={audience ?? "all"} />
     </div>
   );
 }

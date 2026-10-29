@@ -2,17 +2,19 @@
 
 import { useState, useTransition } from "react";
 import { unsubscribeLeadFromMarketing } from "@/server/actions/leads";
+import { unsubscribeContactFromMarketing } from "@/server/actions/marketing-unsubscribe";
 
 const TEAL = "#143D4A";
 const BASALT = "#1E1E1E";
 
-export function UnsubscribeButton({ leadId }: { leadId: string }) {
+export function UnsubscribeButton({ leadId, contactId }: { leadId?: string; contactId?: string }) {
   const [pending, startTransition] = useTransition();
   const [done, setDone] = useState(false);
 
   function handleClick() {
     startTransition(async () => {
-      await unsubscribeLeadFromMarketing(leadId);
+      if (contactId) await unsubscribeContactFromMarketing(contactId);
+      else if (leadId) await unsubscribeLeadFromMarketing(leadId);
       setDone(true);
     });
   }

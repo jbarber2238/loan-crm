@@ -13,7 +13,7 @@ import { DEFAULT_EXPIRES_DAYS, DEFAULT_REMINDER_DAYS } from "@/lib/partner-invit
 type Result = { ok: true } | { error: string };
 
 function refresh() {
-  revalidatePath("/marketing");
+  revalidatePath("/marketing/campaigns");
   revalidatePath("/settings/email-templates");
 }
 

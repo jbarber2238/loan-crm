@@ -10,7 +10,11 @@ import { COMPANY_MAILING_ADDRESS, UNSUBSCRIBE_URL } from "@/lib/lead-constants";
  * same way and CAN-SPAM's stricter marketing-email rules don't bite.
  */
 export function leadMarketingEmailFooter(leadId: string): string {
-  const unsubscribeUrl = UNSUBSCRIBE_URL(leadId);
+  return marketingEmailFooter(UNSUBSCRIBE_URL(leadId));
+}
+
+/** The same footer for any recipient: the link decides whose opt-out it records. */
+export function marketingEmailFooter(unsubscribeUrl: string): string {
   return `
     <div style="margin-top:32px; padding-top:16px; border-top:1px solid #e5e7eb; font-size:11px; line-height:1.6; color:#9ca3af;">
       <p style="margin:0 0 4px;">${escapeHtml(COMPANY_MAILING_ADDRESS)}</p>

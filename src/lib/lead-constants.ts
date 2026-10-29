@@ -21,3 +21,6 @@ export const COMPANY_MAILING_ADDRESS = "1813 Hawthorne Ave., Saint Joseph, MI 49
 /** Public unsubscribe page for a lead's marketing emails — see unsubscribeLeadFromMarketing. */
 export const UNSUBSCRIBE_PATH = (leadId: string) => `/unsubscribe/${leadId}`;
 export const UNSUBSCRIBE_URL = (leadId: string) => `https://mannalendingco.com${UNSUBSCRIBE_PATH(leadId)}`;
+
+/** Public unsubscribe page for anyone who isn't a lead (borrowers, partners, people added by hand): keyed by their marketing contact id. */
+export const CONTACT_UNSUBSCRIBE_URL = (contactId: string) => `https://mannalendingco.com/unsubscribe/contact/${contactId}`;

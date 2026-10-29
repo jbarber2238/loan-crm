@@ -1,19 +1,59 @@
+import { eq } from "drizzle-orm";
+import { db } from "@/server/db/client";
+import { marketingCampaigns } from "@/server/db/schema";
 import { requireAdmin } from "@/server/auth/guards";
-import { getMarketingOverview } from "@/server/marketing-email";
-import { MarketingEmailPanel } from "@/components/marketing/marketing-email-panel";
+import { loadAllPeople } from "@/server/marketing-audience";
+import { sender } from "@/server/friday";
+import { getCompanyLogoHtml } from "@/server/settings";
+import { getUserEmailSignatureHtml } from "@/server/users";
+import { CampaignBuilder } from "@/components/marketing/campaign-builder";
+import { audienceOptions } from "@/lib/marketing-audience";
+import { parseSchedule } from "@/lib/campaign-schedule";
+import { EMPTY_DRAFT, type CampaignDraft, type ChatMessage } from "@/lib/campaign-draft";
 
-export default async function MarketingEmailPage() {
+export const dynamic = "force-dynamic";
+
+function readChat(raw: unknown): ChatMessage[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((m) =>
+    m && typeof m === "object" && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" ? [{ role: m.role as ChatMessage["role"], content: m.content }] : []
+  );
+}
+
+export default async function EmailBuilderPage({ searchParams }: { searchParams: Promise<{ c?: string }> }) {
   await requireAdmin();
-  const groups = await getMarketingOverview();
+  const { c } = await searchParams;
+  const uuid = c && /^[0-9a-f-]{36}$/i.test(c) ? c : null;
+  const [people, row, from, logoHtml] = await Promise.all([
+    loadAllPeople(),
+    uuid ? db.query.marketingCampaigns.findFirst({ where: eq(marketingCampaigns.id, uuid) }) : Promise.resolve(undefined),
+    sender(),
+    getCompanyLogoHtml(),
+  ]);
+  const signatureHtml = from ? await getUserEmailSignatureHtml(from.id) : "";
+  const draft: CampaignDraft = row
+    ? {
+        name: row.name,
+        subject: row.subject,
+        body: row.body,
+        audienceKey: row.audienceKey,
+        funnel: row.funnel,
+        tagRecipients: row.tagRecipients,
+        schedule: parseSchedule(row.schedule) ?? { mode: "draft" },
+        skipPreviousRecipients: row.skipPreviousRecipients,
+      }
+    : EMPTY_DRAFT;
   return (
-    <div className="space-y-5">
-      <div>
-        <p className="max-w-3xl text-sm text-muted-foreground">
-          Every automated email in one place: who gets it, when it goes out, and whether it&apos;s on. Switch an email off to stop it, change a time to move it,
-          or open the wording to edit it. All times are Eastern.
-        </p>
-      </div>
-      <MarketingEmailPanel groups={groups} />
-    </div>
+    <CampaignBuilder
+      key={row?.id ?? "new"}
+      campaignId={row?.id ?? null}
+      status={row?.status ?? "new"}
+      initialDraft={draft}
+      initialChat={readChat(row?.chat)}
+      audiences={audienceOptions(people)}
+      logoHtml={logoHtml}
+      signatureHtml={signatureHtml}
+      aiReady={Boolean(process.env.ANTHROPIC_API_KEY)}
+    />
   );
 }

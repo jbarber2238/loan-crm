@@ -1,113 +1,131 @@
 import { describe, expect, it } from "vitest";
 import {
-  EMPTY_FILTERS,
   allTags,
-  applyFilters,
-  countBy,
+  audienceMembers,
+  audienceOptions,
+  consentState,
   deriveTags,
-  describeFilters,
-  isEligible,
+  isEmailable,
   normalizeTag,
-  type AudienceFilters,
+  peopleToCsv,
+  tagAudienceKey,
   type AudiencePerson,
 } from "@/lib/marketing-audience";
 
 const person = (over: Partial<AudiencePerson> = {}): AudiencePerson => ({
-  id: "1",
+  key: "terry@example.com",
   name: "Terry Geier",
   email: "terry@example.com",
   phone: "555",
-  source: "friday_zoom",
-  role: "Investor",
-  status: "new",
-  fridayStatus: "registered",
+  consent: "agreed",
+  consentNote: "Agreed on the Friday Zoom form",
+  consentSource: null,
+  contactId: null,
+  isLead: false,
+  source: null,
+  role: null,
+  leadStatus: null,
+  fridayStatus: null,
   fridayEmailOnly: false,
   monthlyList: false,
   usedCalculator: false,
   downloadedExcel: false,
   becameDeal: false,
+  closedDeals: 0,
+  openDeals: 0,
+  loanTypes: [],
+  latestDealStage: null,
   partner: null,
+  addedManually: false,
   joinedAt: "2026-10-20T14:00:00.000Z",
   manualTags: [],
   ...over,
 });
-const f = (over: Partial<AudienceFilters>): AudienceFilters => ({ ...EMPTY_FILTERS, ...over });
 
-describe("isEligible", () => {
-  it("needs recorded consent, no unsubscribe and an email", () => {
-    expect(isEligible({ marketingConsent: true, unsubscribedAt: null, email: "a@b.com" })).toBe(true);
-    expect(isEligible({ marketingConsent: false, unsubscribedAt: null, email: "a@b.com" })).toBe(false);
-    expect(isEligible({ marketingConsent: true, unsubscribedAt: new Date(), email: "a@b.com" })).toBe(false);
-    expect(isEligible({ marketingConsent: true, unsubscribedAt: null, email: " " })).toBe(false);
+describe("consentState", () => {
+  const base = { leadConsent: false, leadUnsubscribed: false, contactConsent: false, contactUnsubscribed: false };
+  it("agreed in either place counts", () => {
+    expect(consentState({ ...base, leadConsent: true })).toBe("agreed");
+    expect(consentState({ ...base, contactConsent: true })).toBe("agreed");
+    expect(consentState(base)).toBe("not_agreed");
+  });
+  it("an opt-out anywhere wins over any agreement", () => {
+    expect(consentState({ ...base, leadConsent: true, contactUnsubscribed: true })).toBe("unsubscribed");
+    expect(consentState({ ...base, contactConsent: true, leadUnsubscribed: true })).toBe("unsubscribed");
+  });
+});
+
+describe("isEmailable", () => {
+  it("needs agreement and an address", () => {
+    expect(isEmailable(person())).toBe(true);
+    expect(isEmailable(person({ consent: "not_agreed" }))).toBe(false);
+    expect(isEmailable(person({ consent: "unsubscribed" }))).toBe(false);
+    expect(isEmailable(person({ email: " " }))).toBe(false);
   });
 });
 
 describe("tags", () => {
-  it("are worked out from what we know, and manual tags are added after", () => {
-    const p = person({ fridayStatus: "attended", partner: "signed", usedCalculator: true, manualTags: ["webinar-oct-30"] });
-    const tags = allTags(p);
-    expect(tags).toContain("Funnel: Friday Zoom");
-    expect(tags).toContain("Role: Investor");
-    expect(tags).toContain("Friday: Attended");
-    expect(tags).toContain("Partner: Signed");
-    expect(tags).toContain("Used calculator");
-    expect(tags[tags.length - 1]).toBe("webinar-oct-30");
-    expect(deriveTags(p)).not.toContain("webinar-oct-30");
+  it("tags a borrower who closed, with their loan type and latest stage", () => {
+    const tags = deriveTags(person({ closedDeals: 2, openDeals: 1, loanTypes: ["fix_and_flip"], latestDealStage: "closed" }));
+    expect(tags).toContain("Borrower: Closed");
+    expect(tags).not.toContain("Borrower: Not closed yet");
+    expect(tags).toContain("Loan: Fix and Flip");
+    expect(tags).toContain("Deal stage: Closed");
   });
-  it("only tag what's true", () => {
-    expect(deriveTags(person({ role: null, fridayStatus: null }))).toEqual(["Funnel: Friday Zoom", "Lead: New"]);
+  it("tags a borrower who submitted but hasn't closed", () => {
+    expect(deriveTags(person({ openDeals: 1, latestDealStage: "lost" }))).toEqual(expect.arrayContaining(["Borrower: Not closed yet", "Deal stage: Lost"]));
+  });
+  it("marks leads by funnel and people added by hand", () => {
+    expect(deriveTags(person({ isLead: true, source: "friday_zoom", fridayStatus: "attended" }))).toEqual(expect.arrayContaining(["Funnel: Friday Zoom", "Friday: Attended"]));
+    expect(deriveTags(person({ addedManually: true, consentSource: "follow_up" }))).toEqual(expect.arrayContaining(["Added by hand", "Agreed in a follow-up"]));
+  });
+  it("combines derived and manual tags", () => {
+    expect(allTags(person({ manualTags: ["oct webinar"] }))).toContain("oct webinar");
   });
 });
 
-describe("filters", () => {
-  const people = [
-    person({ id: "a", name: "Ann", email: "ann@x.com", fridayStatus: "attended", partner: "signed" }),
-    person({ id: "b", name: "Bob", email: "bob@x.com", fridayStatus: "no_show", role: "Builder", joinedAt: "2026-09-01T00:00:00.000Z" }),
-    person({ id: "c", name: "Cy", email: "cy@y.com", source: "max_allowable_offer_calculator", fridayStatus: null, role: null, status: "hot", usedCalculator: true, becameDeal: true }),
-  ];
-  const ids = (x: AudiencePerson[]) => x.map((p) => p.id);
+describe("audiences", () => {
+  const closed = person({ key: "a@x.com", email: "a@x.com", closedDeals: 1 });
+  const open = person({ key: "b@x.com", email: "b@x.com", openDeals: 2, consent: "not_agreed" });
+  const friday = person({ key: "c@x.com", email: "c@x.com", isLead: true, source: "friday_zoom", fridayStatus: "attended", manualTags: ["oct webinar"] });
+  const people = [closed, open, friday];
 
-  it("no filters means everyone", () => expect(ids(applyFilters(people, EMPTY_FILTERS))).toEqual(["a", "b", "c"]));
-  it("any choice within a group matches", () => expect(ids(applyFilters(people, f({ friday: ["attended", "no_show"] })))).toEqual(["a", "b"]));
-  it("every group has to match", () => expect(ids(applyFilters(people, f({ friday: ["attended", "no_show"], roles: ["Builder"] })))).toEqual(["b"]));
-  it("filters by funnel", () => expect(ids(applyFilters(people, f({ sources: ["max_allowable_offer_calculator"] })))).toEqual(["c"]));
-  it("filters partners and deals", () => {
-    expect(ids(applyFilters(people, f({ partner: "signed" })))).toEqual(["a"]);
-    expect(ids(applyFilters(people, f({ partner: "not_signed" })))).toEqual(["b", "c"]);
-    expect(ids(applyFilters(people, f({ becameDeal: "yes" })))).toEqual(["c"]);
-    expect(ids(applyFilters(people, f({ becameDeal: "no" })))).toEqual(["a", "b"]);
+  it("splits borrowers into closed and not closed", () => {
+    expect(audienceMembers("borrowers_closed", people)?.map((p) => p.key)).toEqual(["a@x.com"]);
+    expect(audienceMembers("borrowers_open", people)?.map((p) => p.key)).toEqual(["b@x.com"]);
+    expect(audienceMembers("borrowers_all", people)).toHaveLength(2);
   });
-  it("filters by tag, derived or manual, ignoring case", () => {
-    const tagged = [...people.slice(0, 2), person({ id: "d", manualTags: ["oct webinar"] })];
-    expect(ids(applyFilters(tagged, f({ tags: ["Oct Webinar"] })))).toEqual(["d"]);
-    expect(ids(applyFilters(tagged, f({ tags: ["friday: no-show"] })))).toEqual(["b"]);
+  it("resolves tag audiences, ignoring case", () => {
+    expect(audienceMembers(tagAudienceKey("Oct Webinar"), people)?.map((p) => p.key)).toEqual(["c@x.com"]);
   });
-  it("filters by join date, inclusive", () => {
-    expect(ids(applyFilters(people, f({ joinedFrom: "2026-10-01" })))).toEqual(["a", "c"]);
-    expect(ids(applyFilters(people, f({ joinedTo: "2026-09-01" })))).toEqual(["b"]);
+  it("returns null for a list that doesn't exist", () => {
+    expect(audienceMembers("nope", people)).toBeNull();
   });
-  it("searches name and email", () => {
-    expect(ids(applyFilters(people, f({ search: "y.com" })))).toEqual(["c"]);
-    expect(ids(applyFilters(people, f({ search: " ANN " })))).toEqual(["a"]);
+  it("counts only people who agreed as reachable, and reports who hasn't", () => {
+    const options = audienceOptions(people);
+    const openOption = options.find((o) => o.key === "borrowers_open")!;
+    expect(openOption.eligible).toBe(0);
+    expect(openOption.notAgreed).toBe(1);
+    expect(options.find((o) => o.key === "all")!.eligible).toBe(2);
+    expect(options.some((o) => o.key === "tag:oct webinar")).toBe(true);
   });
 });
 
 describe("normalizeTag", () => {
-  it("cleans up tags typed by hand", () => {
-    expect(normalizeTag("  Webinar  Oct-30 ")).toBe("webinar oct-30");
+  it("lower-cases and tidies, and rejects the unusable", () => {
+    expect(normalizeTag("  Oct   Webinar ")).toBe("oct webinar");
+    expect(normalizeTag("campaign: x")).toBe("campaign: x");
     expect(normalizeTag("a")).toBeNull();
     expect(normalizeTag("<script>")).toBeNull();
-    expect(normalizeTag("x".repeat(41))).toBeNull();
   });
 });
 
-describe("describeFilters and countBy", () => {
-  it("summarizes a saved audience in words", () => {
-    expect(describeFilters(EMPTY_FILTERS)).toBe("Everyone eligible");
-    expect(describeFilters(f({ sources: ["friday_zoom"], friday: ["attended"], partner: "not_signed" }))).toBe("Friday Zoom · Friday attended · not signed partners");
-  });
-  it("counts values most common first", () => {
-    const out = countBy([person({ role: "A" }), person({ role: "B" }), person({ role: "B" }), person({ role: null })], (p) => p.role);
-    expect(out).toEqual([{ value: "B", count: 2 }, { value: "A", count: 1 }]);
+describe("peopleToCsv", () => {
+  it("quotes cells and defuses spreadsheet formulas", () => {
+    const csv = peopleToCsv([person({ name: '=HYPERLINK("x")', phone: "1,2" })]);
+    const row = csv.split("\r\n")[1];
+    expect(row.startsWith(`"'=HYPERLINK(""x"")"`)).toBe(true);
+    expect(row).toContain('"1,2"');
+    expect(csv.split("\r\n")[0]).toBe("Name,Email,Phone,Marketing,Tags");
   });
 });
