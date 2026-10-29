@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateEstimatedCashToClose, isOwnedPropertyDrawLoan, landCostBasis } from "@/lib/term-sheet-calculations";
+import { calculateEstimatedCashToClose, isOwnedPropertyDrawLoan, landCostBasis, ltcBasisLabel } from "@/lib/term-sheet-calculations";
 
 describe("isOwnedPropertyDrawLoan", () => {
   it("only applies to draw loans on property the borrower already owns", () => {
@@ -45,5 +45,13 @@ describe("cash to close on an owned-land construction loan", () => {
   it("still charges the down payment when the property is being bought", () => {
     // $19,750 down + $12,732.50 fees + $2,129 paid prior
     expect(calculateEstimatedCashToClose({ ...inputs, propertyAlreadyOwned: false })).toBeCloseTo(34611.5, 2);
+  });
+});
+
+describe("ltcBasisLabel", () => {
+  const fmt = (n: number | null) => `$${n}`;
+  it("says land for ground-up and property for fix-and-flip", () => {
+    expect(ltcBasisLabel("new_construction", 207000, fmt)).toBe("LTC (land at $207000 est. value)");
+    expect(ltcBasisLabel("fix_and_flip", 207000, fmt)).toBe("LTC (property at $207000 est. value)");
   });
 });

@@ -11,6 +11,7 @@ import {
   estimatedReservesRequired,
   isOwnedPropertyDrawLoan,
   landCostBasis,
+  ltcBasisLabel,
   maxLoanAmountForNetProceedsCap,
   originationFeeSuggestion,
   ratioMetricsFor,
@@ -361,7 +362,7 @@ export function TermSheetPdf({
               {ratios.map((r) => (
                 <Row
                   key={r.label}
-                  label={r.label === "LTC" && landBasis.usesStatedValue ? `LTC (land at ${money(landBasis.value)} est. value)` : r.label}
+                  label={r.label === "LTC" && landBasis.usesStatedValue ? ltcBasisLabel(loanCategory, landBasis.value, money) : r.label}
                   value={r.valuePct !== null ? `${r.valuePct.toFixed(1)}%` : "—"}
                   compact
                 />

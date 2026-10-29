@@ -253,6 +253,12 @@ export function landCostBasis({
   return { value: purchasePrice, usesStatedValue: false };
 }
 
+/** The label for the LTC row when it's measured against a stated value: "land" for ground-up, "property" for a fix-and-flip. */
+export function ltcBasisLabel(loanCategory: string, value: number | null, format: (n: number | null) => string): string {
+  const noun = loanCategory === "new_construction" ? "land" : "property";
+  return `LTC (${noun} at ${format(value)} est. value)`;
+}
+
 export function calculateLtv(loanAmount: number, valueBasis: number | null): number | null {
   if (!valueBasis) return null;
   return (loanAmount / valueBasis) * 100;
