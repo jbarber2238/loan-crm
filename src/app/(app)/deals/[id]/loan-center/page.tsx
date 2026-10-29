@@ -76,7 +76,7 @@ export default async function DealLoanCenterPage({
   const noteAuthor = deal.clientNeedsNoteUpdatedByUserId ? allUsers.find((u) => u.id === deal.clientNeedsNoteUpdatedByUserId) : null;
   const loanOfficers = allUsers.filter((u) => u.baseRole === "loan_officer");
   const processors = allUsers.filter((u) => u.baseRole === "processor");
-  const entityDocOffer = (await planEntityDocCarryOver(id))?.offer ?? null;
+  const entityDocOffer = (await planEntityDocCarryOver(id, { viewerUserId: user.id }))?.offer ?? null;
   const assistants = allUsers.filter((u) => u.baseRole === "loan_officer_assistant");
 
   return (

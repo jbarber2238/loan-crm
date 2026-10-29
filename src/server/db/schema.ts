@@ -2407,6 +2407,22 @@ export const fridaySends = pgTable(
   (t) => [unique("friday_sends_unique").on(t.leadId, t.kind, t.sessionKey)]
 );
 
+// "No thanks" on the bring-over-documents prompt, remembered per person: each staff member keeps
+// seeing the prompt on a deal until they individually dismiss it.
+export const dealCarryoverDismissals = pgTable(
+  "deal_carryover_dismissals",
+  {
+    dealId: uuid("deal_id")
+      .notNull()
+      .references(() => deals.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    dismissedAt: timestamp("dismissed_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.dealId, t.userId] })]
+);
+
 // Saved send times for timed emails, set on the Marketing Email page. One row per
 // email template key; a missing row means "use the built-in default". Only the
 // columns that email uses are filled in (a clock time, or a delay in days).

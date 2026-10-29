@@ -6,20 +6,20 @@ import { toast } from "sonner";
 import { AlertTriangle, FileCheck2 } from "lucide-react";
 import { copyEntityDocsFromPriorDeal, declineEntityDocCarryOver } from "@/server/actions/entity-doc-carryover";
 import { isActionError } from "@/lib/action-result";
-import type { EntityDocKind, EntityDocOffer } from "@/lib/entity-doc-carryover";
+import type { EntityDocOffer } from "@/lib/entity-doc-carryover";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 /**
  * Shown the first time a repeat borrower's deal is opened after the processing fee is paid. If the email
  * matches too it goes straight to the document list; if only the name and entity match it first asks
- * whether this is the same borrower. Closing it without answering leaves the question for next time.
+ * whether this is the same borrower. "No thanks" is remembered for that person only, so every other user still sees this until they answer too. Closing it without answering leaves the question for next time.
  */
 export function EntityDocCarryOverDialog({ dealId, offer }: { dealId: string; offer: EntityDocOffer }) {
   const router = useRouter();
   const [open, setOpen] = useState(true);
   const [confirmed, setConfirmed] = useState(offer.emailMatches);
-  const [picked, setPicked] = useState<Set<EntityDocKind>>(new Set(offer.items.filter((i) => i.group === "entity").map((i) => i.kind)));
+  const [picked, setPicked] = useState<Set<string>>(new Set(offer.items.filter((i) => i.group === "entity").map((i) => i.key)));
   const [pending, startTransition] = useTransition();
   const { prior } = offer;
   const entityItems = offer.items.filter((i) => i.group === "entity");
@@ -46,11 +46,11 @@ export function EntityDocCarryOverDialog({ dealId, offer }: { dealId: string; of
     });
   }
 
-  function toggle(kind: EntityDocKind) {
+  function toggle(key: string) {
     setPicked((prev) => {
       const next = new Set(prev);
-      if (next.has(kind)) next.delete(kind);
-      else next.add(kind);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
@@ -122,19 +122,19 @@ function ItemList({
   toggle,
 }: {
   items: EntityDocOffer["items"];
-  picked: Set<EntityDocKind>;
-  toggle: (kind: EntityDocKind) => void;
+  picked: Set<string>;
+  toggle: (key: string) => void;
 }) {
   return (
     <ul className="space-y-2">
       {items.map((item) => (
-        <li key={item.kind}>
+        <li key={item.key}>
           <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm">
             <input
               type="checkbox"
               className="mt-0.5 size-5 shrink-0 accent-primary"
-              checked={picked.has(item.kind)}
-              onChange={() => toggle(item.kind)}
+              checked={picked.has(item.key)}
+              onChange={() => toggle(item.key)}
             />
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-1.5 font-medium">

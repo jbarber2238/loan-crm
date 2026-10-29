@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ENTITY_DOC_KINDS, compareBorrowers, entityDocKindOf, normalizeName } from "../entity-doc-carryover";
+import { ENTITY_DOC_KINDS, carryOverKey, compareBorrowers, entityDocKindOf, normalizeName } from "../entity-doc-carryover";
 
 describe("normalizeName", () => {
   it("ignores case, punctuation and spacing", () => {
@@ -67,5 +67,17 @@ describe("compareBorrowers", () => {
   });
   it("no entity name on file is never a match", () => {
     expect(compareBorrowers({ ...a, borrowerEntityName: null }, { ...a, borrowerEntityName: null }).same).toBe(false);
+  });
+});
+
+describe("carryOverKey", () => {
+  it("uses the document kind for known documents", () => {
+    expect(carryOverKey("Entity Docs - EIN")).toBe("ein");
+    expect(carryOverKey("REO Schedule")).toBe("reo_schedule");
+  });
+  it("uses the need's own name for everything else, ignoring case and punctuation", () => {
+    expect(carryOverKey("Bank Statements")).toBe(carryOverKey("bank  statements"));
+    expect(carryOverKey("Bank Statements")).toBe("need:bankstatements");
+    expect(carryOverKey("Bank Statements")).not.toBe(carryOverKey("ACH Statements"));
   });
 });

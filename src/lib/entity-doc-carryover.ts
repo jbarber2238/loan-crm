@@ -76,6 +76,14 @@ export const ENTITY_DOC_KINDS: CarryOverKindDef[] = [
   },
 ];
 
+/**
+ * What identifies one offered item: the document kind for the known ones, otherwise the need's own name
+ * (so "Bank Statements" on the earlier deal lines up with "bank statements" on this one).
+ */
+export function carryOverKey(needName: string): string {
+  return entityDocKindOf(needName) ?? `need:${normalizeName(needName)}`;
+}
+
 /** Which kind of entity document a client need is, if any. */
 export function entityDocKindOf(needName: string): EntityDocKind | null {
   return ENTITY_DOC_KINDS.find((k) => k.matches(needName))?.kind ?? null;
@@ -110,5 +118,15 @@ export interface EntityDocOffer {
   prior: { id: string; loanNumber: number; address: string; borrowerName: string; borrowerEmail: string | null };
   /** False means the email on the earlier deal differs, so staff confirm it's the same person first. */
   emailMatches: boolean;
-  items: { kind: EntityDocKind; label: string; fileCount: number; needsReview: boolean; group: "entity" | "optional"; note?: string }[];
+  items: OfferItem[];
+}
+
+export interface OfferItem {
+  /** The kind for known documents, `need:<name>` for everything else. */
+  key: string;
+  label: string;
+  fileCount: number;
+  needsReview: boolean;
+  group: "entity" | "optional";
+  note?: string;
 }
