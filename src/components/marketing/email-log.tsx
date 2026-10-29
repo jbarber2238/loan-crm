@@ -87,7 +87,7 @@ function SendingLimits({ cap, limits, history, senderEmail }: { cap: CapView; li
   const [form, setForm] = useState({ accountType: limits.accountType as string, dailyLimit: limits.dailyLimit, campaignDailyMax: limits.campaignDailyMax, minDaysBetween: limits.minDaysBetween });
   const level = LEVEL_TEXT[cap.level];
   const fill = Math.min(100, cap.pct);
-  const peak = Math.max(cap.dailyLimit * 0.25, ...history.map((d) => d.total));
+  const peak = Math.max(10, ...history.map((d) => d.total));
   const type = ACCOUNT_TYPES.find((t) => t.value === form.accountType);
 
   return (
