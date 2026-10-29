@@ -34,7 +34,8 @@ export default async function EmailCampaignsPage() {
             nextRunAt: c.nextRunAt?.toISOString() ?? null,
             lastRunAt: c.lastRunAt?.toISOString() ?? null,
             runCount: c.runCount,
-            stats: stats.get(c.id) ?? { queued: 0, sent: 0, failed: 0, skipped: 0, clicked: 0 },
+            pauseReason: c.pauseReason,
+            stats: stats.get(c.id) ?? { queued: 0, sent: 0, failed: 0, skipped: 0, clicked: 0, bounced: 0, unsubscribed: 0 },
           }))}
         />
       </section>

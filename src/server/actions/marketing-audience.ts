@@ -1,9 +1,10 @@
 "use server";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
-import { marketingContactTags, marketingContacts } from "@/server/db/schema";
+import { marketingCampaignSends, marketingContactTags, marketingContacts } from "@/server/db/schema";
+import { checkCampaignHealth } from "@/server/marketing-campaigns";
 import { recordAgreedConsent } from "@/server/marketing-consent";
 import { requireAdmin } from "@/server/auth/guards";
 import { loadAllPeople } from "@/server/marketing-audience";
@@ -125,4 +126,45 @@ export async function deleteManualContact(email: string): Promise<Result> {
   await db.delete(marketingContacts).where(eq(marketingContacts.email, key));
   refresh();
   return { ok: true };
+}
+
+/** Records that an email to these addresses bounced. They're kept off every campaign from now on, and the campaign that last emailed them counts the bounce. */
+export async function markBounced(emails: string[]): Promise<Result<{ count: number }>> {
+  const user = await requireAdmin();
+  const people = await findPeople(emails);
+  if (people.length === 0) return { error: "Nobody selected." };
+  const now = new Date();
+  const campaignIds = new Set<string>();
+  for (const p of people) {
+    await db
+      .insert(marketingContacts)
+      .values({ email: p.key, name: p.name, phone: p.phone, bouncedAt: now, createdByUserId: user.id })
+      .onConflictDoUpdate({ target: marketingContacts.email, set: { bouncedAt: now } });
+    const [last] = await db
+      .select({ id: marketingCampaignSends.id, campaignId: marketingCampaignSends.campaignId })
+      .from(marketingCampaignSends)
+      .where(and(eq(marketingCampaignSends.email, p.key), eq(marketingCampaignSends.status, "sent"), isNull(marketingCampaignSends.bouncedAt)))
+      .orderBy(desc(marketingCampaignSends.sentAt))
+      .limit(1);
+    if (last) {
+      await db.update(marketingCampaignSends).set({ bouncedAt: now }).where(eq(marketingCampaignSends.id, last.id));
+      campaignIds.add(last.campaignId);
+    }
+  }
+  // A pile of bounces pauses the campaign that caused them, and tells you.
+  for (const id of campaignIds) await checkCampaignHealth(id);
+  refresh();
+  revalidatePath("/marketing/email-log");
+  return { ok: true, count: people.length };
+}
+
+/** Undoes a bounce mark, for an address that was fixed or marked by mistake. */
+export async function clearBounced(emails: string[]): Promise<Result<{ count: number }>> {
+  await requireAdmin();
+  const people = await findPeople(emails);
+  if (people.length === 0) return { error: "Nobody selected." };
+  await db.update(marketingContacts).set({ bouncedAt: null }).where(inArray(marketingContacts.email, people.map((p) => p.key)));
+  refresh();
+  revalidatePath("/marketing/email-log");
+  return { ok: true, count: people.length };
 }

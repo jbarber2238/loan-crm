@@ -10,14 +10,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SELECT_CLASS } from "@/components/marketing/form-classes";
-import { addContact, deleteManualContact, markAgreed, removeFromMarketing, removeTag, tagPeople } from "@/server/actions/marketing-audience";
+import { addContact, clearBounced, deleteManualContact, markAgreed, markBounced, removeFromMarketing, removeTag, tagPeople } from "@/server/actions/marketing-audience";
 import { audienceMembers, deriveTags, peopleToCsv, type AudienceOption, type AudiencePerson, type ConsentState } from "@/lib/marketing-audience";
 import { cn } from "@/lib/utils";
 
 const MAX_ROWS = 300;
 
 type View = ConsentState;
-const VIEW_LABEL: Record<View, string> = { agreed: "On the list", not_agreed: "Haven't agreed yet", unsubscribed: "Unsubscribed" };
+const VIEW_LABEL: Record<View, string> = { agreed: "On the list", not_agreed: "Haven't agreed yet", unsubscribed: "Unsubscribed", bounced: "Bounced" };
 
 function download(filename: string, text: string) {
   const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
@@ -44,7 +44,7 @@ export function AudienceExplorer({ people, options, initialKey }: { people: Audi
   const option = options.find((o) => o.key === key)!;
   const members = useMemo(() => audienceMembers(key, people) ?? [], [key, people]);
   const counts = useMemo(() => {
-    const c: Record<View, number> = { agreed: 0, not_agreed: 0, unsubscribed: 0 };
+    const c: Record<View, number> = { agreed: 0, not_agreed: 0, unsubscribed: 0, bounced: 0 };
     for (const p of members) c[p.consent]++;
     return c;
   }, [members]);
@@ -179,18 +179,48 @@ export function AudienceExplorer({ people, options, initialKey }: { people: Audi
               </Button>
             )}
             {activeView === "agreed" && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() =>
+                    run(
+                      () => removeFromMarketing(picked.map((p) => p.key)),
+                      (r) => `Took ${r.count} off the marketing list`
+                    )
+                  }
+                >
+                  Remove from marketing
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() =>
+                    run(
+                      () => markBounced(picked.map((p) => p.key)),
+                      (r) => `Marked ${r.count} as bounced. They won't be emailed again.`
+                    )
+                  }
+                >
+                  Mark as bounced
+                </Button>
+              </>
+            )}
+            {activeView === "bounced" && (
               <Button
                 size="sm"
                 variant="outline"
                 disabled={pending}
                 onClick={() =>
                   run(
-                    () => removeFromMarketing(picked.map((p) => p.key)),
-                    (r) => `Took ${r.count} off the marketing list`
+                    () => clearBounced(picked.map((p) => p.key)),
+                    (r) => `Cleared the bounce on ${r.count}`
                   )
                 }
               >
-                Remove from marketing
+                Not bounced after all
               </Button>
             )}
             <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
@@ -308,6 +338,7 @@ export function AudienceExplorer({ people, options, initialKey }: { people: Audi
                     </Button>
                   )}
                   {p.consent === "unsubscribed" && <Badge variant="destructive">Unsubscribed</Badge>}
+                  {p.consent === "bounced" && <Badge variant="warning">Bounced</Badge>}
                   {p.addedManually && p.consent !== "unsubscribed" && (
                     <button
                       type="button"

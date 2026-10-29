@@ -4,6 +4,7 @@ import { marketingCampaigns } from "@/server/db/schema";
 import { requireAdmin } from "@/server/auth/guards";
 import { loadAllPeople } from "@/server/marketing-audience";
 import { sender } from "@/server/friday";
+import { loadCapSnapshot } from "@/server/send-limits";
 import { getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
 import { CampaignBuilder } from "@/components/marketing/campaign-builder";
@@ -31,6 +32,7 @@ export default async function EmailBuilderPage({ searchParams }: { searchParams:
     getCompanyLogoHtml(),
   ]);
   const signatureHtml = from ? await getUserEmailSignatureHtml(from.id) : "";
+  const snapshot = from ? await loadCapSnapshot(from.id) : null;
   const draft: CampaignDraft = row
     ? {
         name: row.name,
@@ -54,6 +56,7 @@ export default async function EmailBuilderPage({ searchParams }: { searchParams:
       logoHtml={logoHtml}
       signatureHtml={signatureHtml}
       aiReady={Boolean(process.env.ANTHROPIC_API_KEY)}
+      cap={snapshot ? { used24h: snapshot.used24h, dailyLimit: snapshot.dailyLimit, campaignUsed24h: snapshot.campaignUsed24h, campaignDailyMax: snapshot.campaignDailyMax } : null}
     />
   );
 }

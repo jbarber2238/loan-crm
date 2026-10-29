@@ -2461,6 +2461,8 @@ export const marketingContacts = pgTable("marketing_contacts", {
   consentAt: timestamp("consent_at", { mode: "date", withTimezone: true }),
   unsubscribedAt: timestamp("unsubscribed_at", { mode: "date", withTimezone: true }),
   unsubscribeSource: text("unsubscribe_source"), // link | staff
+  // Marked when an email to this address bounced; they're kept off every campaign after that.
+  bouncedAt: timestamp("bounced_at", { mode: "date", withTimezone: true }),
   addedManually: boolean("added_manually").notNull().default(false),
   createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
@@ -2494,6 +2496,8 @@ export const marketingCampaigns = pgTable("marketing_campaigns", {
   nextRunAt: timestamp("next_run_at", { mode: "date", withTimezone: true }),
   lastRunAt: timestamp("last_run_at", { mode: "date", withTimezone: true }),
   runCount: integer("run_count").notNull().default(0),
+  // Why a campaign stopped by itself (a bounce or unsubscribe rate over the limit, an audience that disappeared).
+  pauseReason: text("pause_reason"),
   chat: jsonb("chat"),
   createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
@@ -2516,9 +2520,28 @@ export const marketingCampaignSends = pgTable(
     queuedAt: timestamp("queued_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
     sentAt: timestamp("sent_at", { mode: "date", withTimezone: true }),
     clickedAt: timestamp("clicked_at", { mode: "date", withTimezone: true }),
+    bouncedAt: timestamp("bounced_at", { mode: "date", withTimezone: true }),
+    unsubscribedAt: timestamp("unsubscribed_at", { mode: "date", withTimezone: true }),
   },
   (t) => [unique("marketing_campaign_sends_unique").on(t.campaignId, t.runKey, t.email)]
 );
+
+// One row of settings for marketing sends: how many emails the Gmail account may send a day, how many of those
+// campaigns may use, and how long to leave someone alone between campaign emails.
+export const marketingSettings = pgTable("marketing_settings", {
+  id: text("id").primaryKey().default("default"),
+  accountType: text("account_type").notNull().default("workspace"), // free | workspace | custom
+  dailyLimit: integer("daily_limit").notNull().default(2000),
+  campaignDailyMax: integer("campaign_daily_max").notNull().default(200),
+  minDaysBetween: integer("min_days_between").notNull().default(3),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
+// Marks an alert as already raised so the same warning isn't repeated all day (key includes the date).
+export const marketingAlertLog = pgTable("marketing_alert_log", {
+  key: text("key").primaryKey(),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
 
 // People Justin follows up with personally: a reminder schedule, whether they approved marketing.
 export const followUpContacts = pgTable("follow_up_contacts", {

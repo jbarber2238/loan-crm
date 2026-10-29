@@ -32,7 +32,7 @@ export async function loadAllPeople(): Promise<AudiencePerson[]> {
   ]);
 
   const people = new Map<string, AudiencePerson>();
-  const consentInputs = new Map<string, { leadConsent: boolean; leadUnsubscribed: boolean; contactConsent: boolean; contactUnsubscribed: boolean }>();
+  const consentInputs = new Map<string, { leadConsent: boolean; leadUnsubscribed: boolean; contactConsent: boolean; contactUnsubscribed: boolean; contactBounced: boolean }>();
   const leadNotes = new Map<string, string>();
 
   const ensure = (rawEmail: string, name: string, phone: string, joined: Date): AudiencePerson | null => {
@@ -69,7 +69,7 @@ export async function loadAllPeople(): Promise<AudiencePerson[]> {
         manualTags: [],
       };
       people.set(key, p);
-      consentInputs.set(key, { leadConsent: false, leadUnsubscribed: false, contactConsent: false, contactUnsubscribed: false });
+      consentInputs.set(key, { leadConsent: false, leadUnsubscribed: false, contactConsent: false, contactUnsubscribed: false, contactBounced: false });
     }
     if (!p.name.trim() && name.trim()) p.name = name.trim();
     if (!p.phone.trim() && phone.trim()) p.phone = phone.trim();
@@ -124,6 +124,7 @@ export async function loadAllPeople(): Promise<AudiencePerson[]> {
     const input = consentInputs.get(p.key)!;
     input.contactConsent = c.marketingConsent;
     input.contactUnsubscribed = c.unsubscribedAt !== null;
+    input.contactBounced = c.bouncedAt !== null;
     if (c.marketingConsent) {
       p.consentSource = c.consentSource;
       const when = c.consentAt ? ` on ${dayText(c.consentAt)}` : "";

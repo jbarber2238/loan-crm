@@ -53,6 +53,7 @@ export function encodeMessage({
   body,
   html,
   attachments,
+  extraHeaders,
 }: {
   from: string;
   to: string;
@@ -62,6 +63,8 @@ export function encodeMessage({
   body: string;
   html?: boolean;
   attachments?: GmailAttachment[];
+  /** Whole header lines to add (e.g. List-Unsubscribe). Only ever built by our own code, never from user input. */
+  extraHeaders?: string[];
 }) {
   const headers = [
     `From: ${from}`,
@@ -70,6 +73,7 @@ export function encodeMessage({
     replyTo ? `Reply-To: ${replyTo}` : null,
     `Subject: ${encodeHeaderValue(subject)}`,
     "MIME-Version: 1.0",
+    ...(extraHeaders ?? []),
   ].filter((line): line is string => line !== null);
 
   if (!attachments?.length) {

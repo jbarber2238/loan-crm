@@ -4,7 +4,7 @@
 
 import { LOAN_CATEGORIES, STAGES } from "@/lib/labels";
 
-export type ConsentState = "agreed" | "not_agreed" | "unsubscribed";
+export type ConsentState = "agreed" | "not_agreed" | "unsubscribed" | "bounced";
 
 export interface AudiencePerson {
   /** Lower-case email: the one thing that makes someone the same person across leads, borrowers and partners. */
@@ -48,8 +48,10 @@ export interface AudiencePerson {
 }
 
 /** The consent rule: someone is mailable only when they agreed (anywhere) and no opt-out exists (anywhere). */
-export function consentState(a: { leadConsent: boolean; leadUnsubscribed: boolean; contactConsent: boolean; contactUnsubscribed: boolean }): ConsentState {
+export function consentState(a: { leadConsent: boolean; leadUnsubscribed: boolean; contactConsent: boolean; contactUnsubscribed: boolean; contactBounced?: boolean }): ConsentState {
   if (a.leadUnsubscribed || a.contactUnsubscribed) return "unsubscribed";
+  // An address that bounced is never mailed again, whatever they agreed to, so it doesn't keep hurting the sender's reputation.
+  if (a.contactBounced) return "bounced";
   return a.leadConsent || a.contactConsent ? "agreed" : "not_agreed";
 }
 
@@ -217,7 +219,7 @@ function csvCell(v: string): string {
   return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
-const CONSENT_LABEL: Record<ConsentState, string> = { agreed: "Agreed", not_agreed: "Not agreed", unsubscribed: "Unsubscribed" };
+const CONSENT_LABEL: Record<ConsentState, string> = { agreed: "Agreed", not_agreed: "Not agreed", unsubscribed: "Unsubscribed", bounced: "Bounced" };
 
 export function peopleToCsv(people: AudiencePerson[]): string {
   const header = ["Name", "Email", "Phone", "Marketing", "Tags"];

@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { marketingCampaignSends, marketingCampaigns, marketingContactTags } from "@/server/db/schema";
 import { sendGmailAs } from "@/server/gmail/send";
@@ -11,6 +11,9 @@ import { audienceMembers, isEmailable, normalizeTag } from "@/lib/marketing-audi
 import { campaignTags, renderCampaign } from "@/lib/campaign-email";
 import { nextRunAfter, parseSchedule } from "@/lib/campaign-schedule";
 import { CONTACT_UNSUBSCRIBE_URL } from "@/lib/lead-constants";
+import { etDay, etParts } from "@/lib/friday-schedule";
+import { campaignHealth, capStatus, WARN_FRACTION, type CampaignCounts } from "@/lib/send-limits";
+import { getMarketingLimits, raiseAlertOnce, sentLast24h } from "@/server/send-limits";
 import { marketingEmailFooter } from "@/lib/lead-email-footer";
 
 export type Campaign = typeof marketingCampaigns.$inferSelect;
@@ -48,6 +51,17 @@ async function queueRun(c: Campaign, now: Date): Promise<number> {
     const done = new Set(before.map((r) => r.email));
     recipients = recipients.filter((p) => !done.has(p.key));
   }
+  // Nobody gets two campaign emails too close together, whatever the campaigns.
+  const { minDaysBetween } = await getMarketingLimits();
+  if (minDaysBetween > 0 && recipients.length > 0) {
+    const since = new Date(now.getTime() - minDaysBetween * 86_400_000);
+    const recent = await db
+      .select({ email: marketingCampaignSends.email })
+      .from(marketingCampaignSends)
+      .where(and(eq(marketingCampaignSends.status, "sent"), gte(marketingCampaignSends.sentAt, since)));
+    const tooSoon = new Set(recent.map((r) => r.email));
+    recipients = recipients.filter((p) => !tooSoon.has(p.key));
+  }
   if (recipients.length === 0) return 0;
   const runKey = c.nextRunAt.toISOString();
   await db
@@ -62,26 +76,52 @@ async function addTag(email: string, tag: string) {
   if (t) await db.insert(marketingContactTags).values({ email, tag: t }).onConflictDoNothing();
 }
 
-/** Sends queued emails, a few at a time, re-checking consent right before each one. */
-async function processQueue(): Promise<{ sent: number; skipped: number; failed: number }> {
-  const out = { sent: 0, skipped: 0, failed: 0 };
+/** Campaign emails only go out in the daytime (Eastern), never in the middle of the night. */
+function inSendWindow(now: Date): boolean {
+  const h = etParts(now).hour;
+  return h >= 7 && h < 20;
+}
+
+/** Sends queued emails, a few at a time, re-checking consent right before each one and stopping at the daily limits. */
+async function processQueue(now = new Date()): Promise<{ sent: number; skipped: number; failed: number; held?: string }> {
+  const out: { sent: number; skipped: number; failed: number; held?: string } = { sent: 0, skipped: 0, failed: 0 };
   const started = Date.now();
+  const [waiting] = await db
+    .select({ n: sql<number>`count(*)`.mapWith(Number) })
+    .from(marketingCampaignSends)
+    .innerJoin(marketingCampaigns, eq(marketingCampaigns.id, marketingCampaignSends.campaignId))
+    .where(and(eq(marketingCampaignSends.status, "queued"), inArray(marketingCampaigns.status, ["active", "completed"])));
+  if (waiting.n === 0) return out;
+  if (!inSendWindow(now)) return { ...out, held: "outside sending hours" };
+
+  const from = await sender();
+  if (!from) return out;
+  const [limits, used] = await Promise.all([getMarketingLimits(), sentLast24h(from.id, now)]);
+  let room = capStatus({ used24h: used.total, dailyLimit: limits.dailyLimit, campaignUsed24h: used.campaign, campaignDailyMax: limits.campaignDailyMax }).campaignRoom;
+  if (room <= 0) {
+    const day = etDay(now);
+    await raiseAlertOnce(`cap_hold:${day}`, {
+      title: "Campaign emails are waiting on your daily limit",
+      body: `${waiting.n} campaign emails are queued, but today's room is used up (${used.total} of ${limits.dailyLimit} sent in 24 hours, ${used.campaign} of your ${limits.campaignDailyMax} campaign maximum). They'll go out automatically as room frees up.`,
+    });
+    return { ...out, held: "daily limit reached" };
+  }
+
   const candidates = await db
     .select({ send: marketingCampaignSends, campaign: marketingCampaigns })
     .from(marketingCampaignSends)
     .innerJoin(marketingCampaigns, eq(marketingCampaigns.id, marketingCampaignSends.campaignId))
     .where(and(eq(marketingCampaignSends.status, "queued"), inArray(marketingCampaigns.status, ["active", "completed"])))
     .orderBy(asc(marketingCampaignSends.queuedAt))
-    .limit(SENDS_PER_RUN);
+    .limit(Math.min(SENDS_PER_RUN, room));
   if (candidates.length === 0) return out;
 
-  const [from, people, logoHtml] = await Promise.all([sender(), loadAllPeople(), getCompanyLogoHtml()]);
-  if (!from) return out;
+  const [people, logoHtml] = await Promise.all([loadAllPeople(), getCompanyLogoHtml()]);
   const byEmail = new Map(people.map((p) => [p.key, p]));
   const signatureHtml = await getUserEmailSignatureHtml(from.id);
 
   for (const { send, campaign } of candidates) {
-    if (Date.now() - started > TIME_BUDGET_MS) break;
+    if (Date.now() - started > TIME_BUDGET_MS || room <= 0) break;
     const [claim] = await db
       .update(marketingCampaignSends)
       .set({ status: "sending" })
@@ -104,7 +144,9 @@ async function processQueue(): Promise<{ sent: number; skipped: number; failed: 
         body: logoHtml + rendered.html + signatureHtml + marketingEmailFooter(CONTACT_UNSUBSCRIBE_URL(contactId)),
         html: true,
         category: "marketing_campaign",
+        extraHeaders: listUnsubscribeHeaders(contactId, from.email),
       });
+      room--;
       await db.update(marketingCampaignSends).set({ status: "sent", sentAt: new Date() }).where(eq(marketingCampaignSends.id, send.id));
       await addTag(person.key, campaignTags(campaign.name, campaign.tagRecipients).sent);
       out.sent++;
@@ -117,7 +159,58 @@ async function processQueue(): Promise<{ sent: number; skipped: number; failed: 
       out.failed++;
     }
   }
+
+  // Warn once a day when the account is getting close to Gmail's limit, before it becomes a problem.
+  const after = used.total + out.sent;
+  if (after >= limits.dailyLimit * WARN_FRACTION) {
+    await raiseAlertOnce(`cap_warn:${etDay(now)}`, {
+      title: "You're using most of your daily Gmail sending limit",
+      body: `${after} of ${limits.dailyLimit} emails sent in the last 24 hours. Campaigns stop at ${Math.floor(limits.dailyLimit * 0.9)} so everyday email keeps working.`,
+    });
+  }
+  for (const id of new Set(candidates.map((c) => c.campaign.id))) await checkCampaignHealth(id);
   return out;
+}
+
+/** The one-click unsubscribe headers mail apps turn into their own "Unsubscribe" button (and Gmail expects from bulk senders). */
+function listUnsubscribeHeaders(contactId: string, fromEmail: string): string[] {
+  const url = `${appUrl()}/api/marketing/unsubscribe/${contactId}`;
+  return [`List-Unsubscribe: <${url}>, <mailto:${fromEmail}?subject=unsubscribe>`, "List-Unsubscribe-Post: List-Unsubscribe=One-Click"];
+}
+
+/** Counts for one campaign's health. */
+async function countsFor(campaignId: string): Promise<CampaignCounts> {
+  const [r] = await db
+    .select({
+      sent: sql<number>`count(*) filter (where ${marketingCampaignSends.status} = 'sent')`.mapWith(Number),
+      failed: sql<number>`count(*) filter (where ${marketingCampaignSends.status} = 'failed')`.mapWith(Number),
+      bounced: sql<number>`count(*) filter (where ${marketingCampaignSends.bouncedAt} is not null)`.mapWith(Number),
+      unsubscribed: sql<number>`count(*) filter (where ${marketingCampaignSends.unsubscribedAt} is not null)`.mapWith(Number),
+      clicked: sql<number>`count(*) filter (where ${marketingCampaignSends.clickedAt} is not null)`.mapWith(Number),
+    })
+    .from(marketingCampaignSends)
+    .where(eq(marketingCampaignSends.campaignId, campaignId));
+  return r;
+}
+
+/**
+ * Looks at a campaign's bounces, failures and unsubscribes. A bad rate pauses the campaign (so it can't keep hurting
+ * the sender's reputation) and alerts you; a worrying one just alerts you.
+ */
+export async function checkCampaignHealth(campaignId: string): Promise<void> {
+  const campaign = await db.query.marketingCampaigns.findFirst({ where: eq(marketingCampaigns.id, campaignId) });
+  if (!campaign) return;
+  const health = campaignHealth(await countsFor(campaignId));
+  if (health.level === "ok") return;
+  const href = "/marketing/email-log";
+  if (health.level === "pause") {
+    if (campaign.status === "active") {
+      await db.update(marketingCampaigns).set({ status: "paused", pauseReason: health.reasons.join("; "), updatedAt: new Date() }).where(eq(marketingCampaigns.id, campaignId));
+    }
+    await raiseAlertOnce(`health_pause:${campaignId}`, { title: `“${campaign.name}” was paused`, body: `${health.reasons.join("; ")}. I stopped it so it doesn't hurt your sending reputation. Review the list, then resume it from Email Campaigns.`, href });
+  } else {
+    await raiseAlertOnce(`health_watch:${campaignId}:${etDay(new Date())}`, { title: `Watch “${campaign.name}”`, body: `${health.reasons.join("; ")}.`, href });
+  }
 }
 
 /** Called every few minutes: starts any campaign run that's due, then works through the queue. */
@@ -137,6 +230,8 @@ export interface CampaignStats {
   failed: number;
   skipped: number;
   clicked: number;
+  bounced: number;
+  unsubscribed: number;
 }
 
 export async function loadCampaignStats(): Promise<Map<string, CampaignStats>> {
@@ -148,6 +243,8 @@ export async function loadCampaignStats(): Promise<Map<string, CampaignStats>> {
       failed: sql<number>`count(*) filter (where ${marketingCampaignSends.status} = 'failed')`.mapWith(Number),
       skipped: sql<number>`count(*) filter (where ${marketingCampaignSends.status} = 'skipped')`.mapWith(Number),
       clicked: sql<number>`count(*) filter (where ${marketingCampaignSends.clickedAt} is not null)`.mapWith(Number),
+      bounced: sql<number>`count(*) filter (where ${marketingCampaignSends.bouncedAt} is not null)`.mapWith(Number),
+      unsubscribed: sql<number>`count(*) filter (where ${marketingCampaignSends.unsubscribedAt} is not null)`.mapWith(Number),
     })
     .from(marketingCampaignSends)
     .groupBy(marketingCampaignSends.campaignId);

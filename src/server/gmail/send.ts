@@ -43,6 +43,7 @@ export async function sendGmailAs(
     body: string;
     html?: boolean;
     attachments?: GmailAttachment[];
+    extraHeaders?: string[];
     /** Which deal this email belongs to, for the deal's Email Log tab — omit for a send that isn't about any one deal (a staff invite, an affiliate invite). */
     dealId?: string | null;
     /** A key from EMAIL_LOG_CATEGORY_LABELS (src/lib/email-log-categories.ts) — every call site should pass a real one; falls back to "other" only as a safety net. */

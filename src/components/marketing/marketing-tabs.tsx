@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const TABS = [
   { href: "/marketing", label: "Email Builder", exact: true },
   { href: "/marketing/campaigns", label: "Email Campaigns", exact: false },
+  { href: "/marketing/email-log", label: "Email Log", exact: false },
   { href: "/marketing/audiences", label: "Audiences", exact: false },
   { href: "/marketing/follow-ups", label: "Follow Up Assistant", exact: false },
 ];

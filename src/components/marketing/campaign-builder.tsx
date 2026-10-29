@@ -18,6 +18,7 @@ import { describeSchedule } from "@/lib/campaign-schedule";
 import { draftGaps, type CampaignDraft, type ChatMessage } from "@/lib/campaign-draft";
 import { marketingEmailFooter } from "@/lib/lead-email-footer";
 import type { AudienceOption } from "@/lib/marketing-audience";
+import { projectSend, type SendLimitsInput } from "@/lib/send-limits";
 
 type UiMessage = ChatMessage & { changes?: string[] };
 
@@ -48,6 +49,7 @@ export function CampaignBuilder({
   logoHtml,
   signatureHtml,
   aiReady,
+  cap,
 }: {
   campaignId: string | null;
   status: string;
@@ -57,6 +59,7 @@ export function CampaignBuilder({
   logoHtml: string;
   signatureHtml: string;
   aiReady: boolean;
+  cap: SendLimitsInput | null;
 }) {
   const router = useRouter();
   const [id, setId] = useState(initialId);
@@ -430,6 +433,12 @@ export function CampaignBuilder({
             </li>
             <li>{describeSchedule(draft.schedule)}.</li>
             {draft.schedule.mode === "once" && draft.schedule.now && <li>The first emails go out within about 5 minutes, a few at a time.</li>}
+            {cap && audience && (
+              <li>
+                Your daily Gmail limit: {cap.used24h} of {cap.dailyLimit} used in the last 24 hours. {projectSend(cap, audience.eligible).message}
+              </li>
+            )}
+            <li>Campaigns send only between 7 AM and 8 PM Eastern, and each email re-checks that the person is still on the list.</li>
             <li>Everyone who gets it is tagged “{tags.sent}”.</li>
           </ul>
           <DialogFooter>

@@ -20,6 +20,7 @@ export interface CampaignRow {
   nextRunAt: string | null;
   lastRunAt: string | null;
   runCount: number;
+  pauseReason: string | null;
   stats: CampaignStats;
 }
 
@@ -105,9 +106,12 @@ export function CampaignList({ campaigns }: { campaigns: CampaignRow[] }) {
               {c.status === "active" && c.nextRunAt && ` · next send ${when(c.nextRunAt)} ET`}
               {c.lastRunAt && ` · last run ${when(c.lastRunAt)} ET`}
             </p>
+            {c.pauseReason && c.status === "paused" && <p className="text-sm text-amber-600 dark:text-amber-400">Stopped automatically: {c.pauseReason}.</p>}
             {(stats.sent > 0 || stats.queued > 0 || stats.failed > 0) && (
               <p className="text-sm tabular-nums">
                 <strong>{stats.sent}</strong> sent · <strong>{stats.clicked}</strong> clicked
+                {stats.bounced > 0 && ` · ${stats.bounced} bounced`}
+                {stats.unsubscribed > 0 && ` · ${stats.unsubscribed} unsubscribed`}
                 {stats.queued > 0 && ` · ${stats.queued} waiting to send`}
                 {stats.skipped > 0 && ` · ${stats.skipped} skipped (no longer on the list)`}
                 {stats.failed > 0 && <span className="text-destructive"> · {stats.failed} failed</span>}
