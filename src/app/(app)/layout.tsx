@@ -12,6 +12,7 @@ import { getMyAppearance } from "@/server/actions/appearance";
 import { ThemeSync } from "@/components/appearance/theme-sync";
 import { DarkModeWelcome } from "@/components/appearance/dark-mode-welcome";
 import { PhoneTabBar } from "@/components/layout/phone-tab-bar";
+import { AttentionSync } from "@/components/layout/attention-sync";
 
 // The staff app only (not the public site): lets "Add to Home Screen" on an iPhone or iPad
 // install it like an app, with its own name, icon and no browser bar.
@@ -62,6 +63,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         </main>
       </div>
       </MobileNavProvider>
+      <AttentionSync />
       <PhoneTabBar isAdmin={session.user.isAdmin} />
       <TeamDockRoot currentUserId={session.user.id} />
       </TeamDockProvider>

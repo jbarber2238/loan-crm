@@ -14,6 +14,7 @@ import {
 } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { roomAccess } from "@/server/team-chat-access";
+import { pushChatMessage } from "@/server/chat-push";
 import { resolveStagedFiles } from "@/server/staged-uploads";
 import { ALLOWED_REACTIONS } from "@/lib/chat-reactions";
 
@@ -307,6 +308,7 @@ export async function sendTeamMessage(roomId: string, formData: FormData) {
     db.update(teamChatRooms).set({ lastMessageAt: new Date() }).where(eq(teamChatRooms.id, roomId)),
     upsertRead(roomId, user.id),
   ]);
+  await pushChatMessage({ roomId, senderId: user.id, senderName: user.name ?? "", text, attachment: audioFile ? "voice" : files.length ? "file" : null });
 }
 
 async function attachmentPreview(messageId: string): Promise<string> {

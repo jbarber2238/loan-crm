@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { User, Building2, Users, Handshake, Plug, Phone, Mail, Trash2, ShieldCheck, type LucideIcon } from "lucide-react";
+import { Bell, User, Building2, Users, Handshake, Plug, Phone, Mail, Trash2, ShieldCheck, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -20,7 +20,13 @@ interface NavGroup {
 // Grouped by what you're doing, not by when each tab was added. The routes
 // themselves are unchanged, so every existing link and bookmark still works.
 export const SETTINGS_GROUPS: NavGroup[] = [
-  { title: "Account", items: [{ href: "/settings", label: "My Profile", icon: User }] },
+  {
+    title: "Account",
+    items: [
+      { href: "/settings", label: "My Profile", icon: User },
+      { href: "/settings/notifications", label: "Notifications", icon: Bell },
+    ],
+  },
   {
     title: "Company",
     items: [

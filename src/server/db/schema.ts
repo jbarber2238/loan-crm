@@ -2526,6 +2526,41 @@ export const marketingCampaignSends = pgTable(
   (t) => [unique("marketing_campaign_sends_unique").on(t.campaignId, t.runKey, t.email)]
 );
 
+// A browser or installed home-screen app that agreed to receive push notifications for a user.
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  lastUsedAt: timestamp("last_used_at", { mode: "date", withTimezone: true }),
+});
+
+// Which kinds of notification a person wants pushed. A missing row means "use the default for that kind".
+export const notificationPreferences = pgTable(
+  "notification_preferences",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    category: text("category").notNull(),
+    push: boolean("push").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.category] })]
+);
+
+// The server's Web Push signing keys (VAPID), made once on first use so no environment setup is needed.
+export const pushKeys = pgTable("push_keys", {
+  id: text("id").primaryKey().default("default"),
+  publicKey: text("public_key").notNull(),
+  privateKey: text("private_key").notNull(),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
 // One row of settings for marketing sends: how many emails the Gmail account may send a day, how many of those
 // campaigns may use, and how long to leave someone alone between campaign emails.
 export const marketingSettings = pgTable("marketing_settings", {
