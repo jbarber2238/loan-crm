@@ -1,5 +1,8 @@
-/** The largest single file a borrower can upload through their link. */
-export const BORROWER_MAX_FILE_BYTES = 15 * 1024 * 1024;
+/**
+ * The largest single document (borrower link or staff) that can be uploaded to a client need. Scanned bank statements
+ * run past 15MB. Large files are sent in 3MB pieces, which the server accepts up to about 40MB (see staged-upload.ts).
+ */
+export const BORROWER_MAX_FILE_BYTES = 30 * 1024 * 1024;
 
 /** What the person sees when something unexpected breaks on our side (the real reason is hidden in production). */
 export const UPLOAD_FALLBACK_MESSAGE =

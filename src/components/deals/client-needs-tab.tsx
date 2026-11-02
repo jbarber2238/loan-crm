@@ -68,6 +68,7 @@ import { HtmlBodyEditor } from "@/components/emails/html-body-editor";
 import type { RecipientCandidate } from "@/lib/email-recipients";
 import { stageLargeFiles } from "@/lib/stage-large-files";
 import { batchFiles, describeSkipped, expandZipFiles } from "@/lib/zip-uploads";
+import { BORROWER_MAX_FILE_BYTES, formatMb, readableUploadError } from "@/lib/upload-limits";
 import { stageUploadChunk } from "@/server/actions/staged-upload";
 
 export interface ClientNeedAnswer {
@@ -282,6 +283,8 @@ function AttachDocumentButton({ dealId, needId }: { dealId: string; needId: stri
         setProgress("Opening files…");
         const { files, skipped } = await expandZipFiles(picked);
         if (files.length === 0) throw new Error(describeSkipped(skipped) || "There were no files to upload.");
+        const tooBig = files.find((f) => f.size > BORROWER_MAX_FILE_BYTES);
+        if (tooBig) throw new Error(`${tooBig.name} is ${formatMb(tooBig.size)}, over the ${formatMb(BORROWER_MAX_FILE_BYTES)} limit.`);
         for (const batch of batchFiles(files)) {
           setProgress(files.length > batch.length ? `Uploading ${sent + 1}–${sent + batch.length} of ${files.length}…` : null);
           const formData = new FormData();
@@ -293,7 +296,7 @@ function AttachDocumentButton({ dealId, needId }: { dealId: string; needId: stri
         if (skipped.length) toast.warning(describeSkipped(skipped));
         router.refresh();
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Couldn't upload those files.";
+        const message = readableUploadError(err);
         setError(message);
         toast.error(message);
         if (sent > 0) router.refresh();

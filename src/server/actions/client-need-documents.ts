@@ -10,8 +10,9 @@ import { shouldRestoreOnMove } from "@/lib/client-need-status";
 import { convertHeicIfNeeded } from "@/server/heic";
 import { addSingleCatalogNeedToDeal, addClientNeedToDeal } from "@/server/actions/client-needs";
 import { resolveStagedFiles } from "@/server/staged-uploads";
+import { BORROWER_MAX_FILE_BYTES, formatMb } from "@/lib/upload-limits";
 
-const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
+const MAX_FILE_SIZE = BORROWER_MAX_FILE_BYTES;
 
 export async function attachDocumentToClientNeed(dealId: string, needId: string, formData: FormData) {
   const user = await requireUser();
@@ -22,7 +23,7 @@ export async function attachDocumentToClientNeed(dealId: string, needId: string,
   }
   const tooLarge = files.find((f) => f.size > MAX_FILE_SIZE);
   if (tooLarge) {
-    throw new Error(`${tooLarge.name} is too large (15MB max)`);
+    throw new Error(`${tooLarge.name} is too large (${formatMb(MAX_FILE_SIZE)} max)`);
   }
 
   for (const file of files) {

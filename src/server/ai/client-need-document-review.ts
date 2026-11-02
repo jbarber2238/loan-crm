@@ -192,6 +192,8 @@ interface ReviewNeedResult {
   factsExtracted: boolean;
 }
 
+const AI_REVIEW_MAX_REQUEST_CHARS = 28 * 1024 * 1024;
+
 /** Reviews every (supported) document in a need together, in one call, so the model has cross-document context — e.g. whether two bank statements together cover the requested period. */
 async function reviewNeed(
   documents: { id: string; fileName: string; mimeType: string; data: string }[],
@@ -209,10 +211,19 @@ async function reviewNeed(
 
   const supported: { id: string; fileName: string; block: Anthropic.ContentBlockParam }[] = [];
   const skipped: { id: string; error: string }[] = [];
+  // The API refuses a request over about 32MB, and these documents travel base64-encoded together in one call.
+  // Leave a margin for the prompt, and skip (with a reason) whatever would push it over rather than fail the review.
+  let requestChars = 0;
   for (const doc of documents) {
     const block = fileToContentBlock(doc);
-    if (block) supported.push({ id: doc.id, fileName: doc.fileName, block });
-    else skipped.push({ id: doc.id, error: "Unsupported file type for AI review." });
+    if (!block) {
+      skipped.push({ id: doc.id, error: "Unsupported file type for AI review." });
+    } else if (requestChars + doc.data.length > AI_REVIEW_MAX_REQUEST_CHARS) {
+      skipped.push({ id: doc.id, error: "Too large for AI review along with this need's other documents — review it by eye." });
+    } else {
+      requestChars += doc.data.length;
+      supported.push({ id: doc.id, fileName: doc.fileName, block });
+    }
   }
   if (!supported.length) return { reviewedIds: [], skipped, totalFlags: 0, factsExtracted: false };
 

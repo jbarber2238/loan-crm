@@ -1,10 +1,12 @@
+import { BORROWER_MAX_FILE_BYTES, formatMb } from "@/lib/upload-limits";
+
 // Borrowers often send a folder of photos or statements as one .zip. A zip can't be reviewed (the
 // viewer can't open it) and a big one blows past the per-file limit, so the browser opens it before
 // anything is sent: every file inside becomes its own upload, and the existing chunked staging
 // (stage-large-files.ts) carries each one. Nothing about the zip itself ever reaches the server.
 
 /** Same per-file cap the upload actions enforce. */
-export const MAX_UPLOAD_FILE_BYTES = 15 * 1024 * 1024;
+export const MAX_UPLOAD_FILE_BYTES = BORROWER_MAX_FILE_BYTES;
 /** A zip this big can't be opened safely in a browser tab. */
 const MAX_ZIP_BYTES = 400 * 1024 * 1024;
 /** Everything inside one pick, added together. */
@@ -14,6 +16,8 @@ const MAX_EXTRACTED_FILES = 500;
 const MAX_ZIP_DEPTH = 3;
 /** Files sent per server call, so no single request has to do all of a big zip's work. */
 export const UPLOAD_BATCH_SIZE = 8;
+/** ...and no more than this many bytes, since the server holds a whole call's files in memory at once. */
+export const UPLOAD_BATCH_MAX_BYTES = 40 * 1024 * 1024;
 
 const MIME_BY_EXTENSION: Record<string, string> = {
   jpg: "image/jpeg",
@@ -55,7 +59,7 @@ function isJunkPath(path: string): boolean {
 
 export interface ExpandedUpload {
   files: File[];
-  /** Plain-language reasons some files didn't make it ("IMG_1.jpg in 09.05.26.zip is over 15MB"). */
+  /** Plain-language reasons some files didn't make it ("IMG_1.jpg in 09.05.26.zip is over 30 MB"). */
   skipped: string[];
   /** How many of the picked files were zips that got opened. */
   zipsOpened: number;
@@ -131,7 +135,7 @@ async function expandOne(zip: File, depth: number, out: ExpandedUpload, budget: 
       continue;
     }
     if (blob.size > MAX_UPLOAD_FILE_BYTES) {
-      out.skipped.push(`${shortName} in ${zip.name} is over 15MB`);
+      out.skipped.push(`${shortName} in ${zip.name} is over ${formatMb(MAX_UPLOAD_FILE_BYTES)}`);
       continue;
     }
     out.files.push(extracted);
@@ -139,9 +143,21 @@ async function expandOne(zip: File, depth: number, out: ExpandedUpload, budget: 
 }
 
 /** Splits a list into groups small enough that each server call stays quick. */
-export function batchFiles(files: File[], size = UPLOAD_BATCH_SIZE): File[][] {
+export function batchFiles(files: File[], size = UPLOAD_BATCH_SIZE, maxBytes = UPLOAD_BATCH_MAX_BYTES): File[][] {
   const batches: File[][] = [];
-  for (let i = 0; i < files.length; i += size) batches.push(files.slice(i, i + size));
+  let current: File[] = [];
+  let bytes = 0;
+  for (const file of files) {
+    // Start a new group when this file would overfill the current one, so a few large files don't all land in one call.
+    if (current.length > 0 && (current.length >= size || bytes + file.size > maxBytes)) {
+      batches.push(current);
+      current = [];
+      bytes = 0;
+    }
+    current.push(file);
+    bytes += file.size;
+  }
+  if (current.length > 0) batches.push(current);
   return batches;
 }
 
