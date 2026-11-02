@@ -5,13 +5,14 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { Bell, MessageSquareText } from "lucide-react";
 import {
-  getMySoundPrefs,
   getUnreadNotificationSummary,
   listMyNotifications,
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/server/actions/notifications";
 import { getTextsMenu, type TextsMenuItem } from "@/server/actions/messages";
+import { getSoundPrefsCached } from "@/lib/sound-prefs-client";
+import { useVisibleInterval } from "@/lib/use-visible-interval";
 import { useOpenTextThread } from "@/components/messaging/chat-dock-context";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MobileNavButton } from "@/components/layout/mobile-nav";
@@ -64,7 +65,7 @@ function NotificationsMenu() {
   const prevCount = useRef<{ total: number; texts: number } | null>(null);
   const loadCount = useCallback(
     () =>
-      Promise.all([getUnreadNotificationSummary(), getMySoundPrefs()])
+      Promise.all([getUnreadNotificationSummary(), getSoundPrefsCached()])
         .then(([summary, prefs]) => {
           // Sound only when something NEW arrives after the first load; a
           // client text gets its own sound, everything else the chime.
@@ -84,9 +85,8 @@ function NotificationsMenu() {
   );
   useEffect(() => {
     loadCount();
-    const t = setInterval(loadCount, 30_000);
-    return () => clearInterval(t);
   }, [loadCount, pathname]);
+  useVisibleInterval(loadCount, 30_000);
 
   useEffect(() => {
     if (open) listMyNotifications(12).then(setItems).catch(() => {});
@@ -166,7 +166,7 @@ function TextsMenu() {
   const prevUnread = useRef<number | null>(null);
   const load = useCallback(
     () =>
-      Promise.all([getTextsMenu(), getMySoundPrefs()])
+      Promise.all([getTextsMenu(), getSoundPrefsCached()])
         .then(([r, prefs]) => {
           if (prevUnread.current !== null && r.totalUnread > prevUnread.current && prefs.soundTexts) playSound("text");
           prevUnread.current = r.totalUnread;
@@ -179,9 +179,8 @@ function TextsMenu() {
   // Client texts arrive by webhook, not Realtime, so this one polls.
   useEffect(() => {
     void load();
-    const t = setInterval(load, 8_000);
-    return () => clearInterval(t);
   }, [load, pathname]);
+  useVisibleInterval(load, 10_000);
 
   return (
     <Popover open={open} onOpenChange={(v) => { setOpen(v); if (v) load(); }}>

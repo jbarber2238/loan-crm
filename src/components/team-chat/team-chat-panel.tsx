@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { scrollToEnd } from "@/lib/scroll-to-end";
 import { useFillViewport } from "@/lib/use-fill-viewport";
 import { useIsPhone } from "@/lib/use-is-phone";
+import { useVisibleInterval } from "@/lib/use-visible-interval";
 import { QUICK_REACTIONS, REACTION_GROUPS } from "@/lib/chat-reactions";
 import { GLOBAL_CHAT_CHANNEL, getRealtimeClient, roomChannelName } from "@/lib/realtime";
 import { stageLargeFiles } from "@/lib/stage-large-files";
@@ -934,12 +935,10 @@ export function TeamChatPanel({
       }
       void refresh();
     }, 0);
-    const timer = setInterval(refresh, live ? POLL_LIVE_MS : POLL_FALLBACK_MS);
-    return () => {
-      clearTimeout(first);
-      clearInterval(timer);
-    };
-  }, [refresh, live, roomId]);
+    return () => clearTimeout(first);
+  }, [refresh, roomId]);
+  // Not while the tab is in the background; it catches up the moment you come back.
+  useVisibleInterval(refresh, live ? POLL_LIVE_MS : POLL_FALLBACK_MS);
 
   // Expire stale typing indicators.
   useEffect(() => {

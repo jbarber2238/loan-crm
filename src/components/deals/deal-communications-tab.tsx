@@ -11,6 +11,7 @@ import { useLoanCenterNav } from "@/components/deals/loan-center-nav-context";
 import { getDealTextThreads, prepareContactConversation, type DealTextThread } from "@/server/actions/messages";
 import { useFillViewport } from "@/lib/use-fill-viewport";
 import { useIsPhone } from "@/lib/use-is-phone";
+import { useVisibleInterval } from "@/lib/use-visible-interval";
 import { cn } from "@/lib/utils";
 
 function timeAgo(iso: string): string {
@@ -50,12 +51,9 @@ export function DealCommunicationsTab({ dealId, propertyAddress }: { dealId: str
 
   useEffect(() => {
     const first = setTimeout(load, 0);
-    const t = setInterval(load, 10_000);
-    return () => {
-      clearTimeout(first);
-      clearInterval(t);
-    };
+    return () => clearTimeout(first);
   }, [load]);
+  useVisibleInterval(load, 12_000);
 
   // Which thread is open: the one we were sent to, else the first with something unread, else the borrower.
   useEffect(() => {

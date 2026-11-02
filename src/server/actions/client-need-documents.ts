@@ -201,7 +201,10 @@ export async function renameClientNeedDocument(
   const trimmed = fileName.trim();
   if (!trimmed) throw new Error("File name can't be empty");
 
-  const doc = await db.query.dealClientNeedDocuments.findFirst({ where: eq(dealClientNeedDocuments.id, documentId) });
+  const doc = await db.query.dealClientNeedDocuments.findFirst({
+    where: eq(dealClientNeedDocuments.id, documentId),
+    columns: { fileName: true },
+  });
   if (!doc) throw new Error("Document not found");
 
   // Processors are renaming for a naming convention, not re-typing
@@ -247,6 +250,8 @@ export async function getDealDocumentsForDocumentsTab(dealId: string): Promise<{
         d.clientNeedId,
         db.select({ id: dealClientNeeds.id }).from(dealClientNeeds).where(eqD(dealClientNeeds.dealId, dealId))
       ),
+    // Never the file bytes: this runs on every Loan Center load, and a deal's documents can be tens of MB of base64.
+    columns: { id: true, fileName: true, clientNeedId: true, rejectionNote: true, reviewStatus: true, createdAt: true },
     with: { clientNeed: { columns: { itemName: true, status: true } } },
     orderBy: (d, { desc }) => desc(d.createdAt),
   });

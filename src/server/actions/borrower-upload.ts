@@ -66,6 +66,7 @@ export async function getDealForBorrowerUpload(token: string) {
       isNull(dealClientNeeds.onHoldAt),
       ne(dealClientNeeds.status, "unused")
     ),
+    columns: { templateFileData: false },
     with: {
       documents: { columns: { reviewStatus: true, rejectionNote: true } },
       answers: {

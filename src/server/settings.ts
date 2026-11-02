@@ -5,9 +5,15 @@ import { derivePortalTheme, normalizeHex } from "@/lib/brand-colors";
 
 export const DEFAULT_COMPANY_NAME = "[Your Company]";
 
+// The settings row also holds the logo and wire-instructions files as base64. Everything that reads it on an
+// ordinary request (the root layout reads the company name on every page) leaves those out; only the routes that
+// serve the files read them.
+const NO_FILE_BYTES = { logoData: false, wireInstructionsData: false } as const;
+
 export async function getCompanyName(): Promise<string> {
   const row = await db.query.companySettings.findFirst({
     where: eq(companySettings.id, "default"),
+    columns: NO_FILE_BYTES,
   });
   return row?.name ?? DEFAULT_COMPANY_NAME;
 }
@@ -16,6 +22,7 @@ export async function getCompanyName(): Promise<string> {
 export async function getCompanyLogoFileName(): Promise<string | null> {
   const row = await db.query.companySettings.findFirst({
     where: eq(companySettings.id, "default"),
+    columns: NO_FILE_BYTES,
   });
   return row?.logoFileName ?? null;
 }
@@ -33,8 +40,9 @@ export async function getCompanyLogoFileName(): Promise<string | null> {
 export async function getCompanyLogoHtml(): Promise<string> {
   const row = await db.query.companySettings.findFirst({
     where: eq(companySettings.id, "default"),
+    columns: NO_FILE_BYTES,
   });
-  if (!row?.logoData) return "";
+  if (!row?.logoFileName) return "";
   // An email client can only load a public address — never localhost, which is
   // what an unset APP_URL (e.g. a test email sent from a dev machine) would give.
   const configured = process.env.APP_URL;
@@ -55,14 +63,16 @@ export async function getCompanyLogoHtml(): Promise<string> {
 export async function getCompanyLogo(): Promise<{ src: string; isLight: boolean } | null> {
   const row = await db.query.companySettings.findFirst({
     where: eq(companySettings.id, "default"),
+    columns: NO_FILE_BYTES,
   });
-  if (!row?.logoData) return null;
+  if (!row?.logoFileName) return null;
   return { src: `/api/company-logo?v=${row.updatedAt.getTime()}`, isLight: row.logoIsLight };
 }
 
 export async function getPandaDocApiKey(): Promise<string | null> {
   const row = await db.query.companySettings.findFirst({
     where: eq(companySettings.id, "default"),
+    columns: NO_FILE_BYTES,
   });
   return row?.pandadocApiKey ?? null;
 }
@@ -70,6 +80,7 @@ export async function getPandaDocApiKey(): Promise<string | null> {
 export async function getPandaDocWebhookSharedKey(): Promise<string | null> {
   const row = await db.query.companySettings.findFirst({
     where: eq(companySettings.id, "default"),
+    columns: NO_FILE_BYTES,
   });
   return row?.pandadocWebhookSharedKey ?? null;
 }
@@ -77,6 +88,7 @@ export async function getPandaDocWebhookSharedKey(): Promise<string | null> {
 export async function getStripeSecretKey(): Promise<string | null> {
   const row = await db.query.companySettings.findFirst({
     where: eq(companySettings.id, "default"),
+    columns: NO_FILE_BYTES,
   });
   return row?.stripeSecretKey ?? null;
 }
@@ -84,6 +96,7 @@ export async function getStripeSecretKey(): Promise<string | null> {
 export async function getStripeWebhookSecret(): Promise<string | null> {
   const row = await db.query.companySettings.findFirst({
     where: eq(companySettings.id, "default"),
+    columns: NO_FILE_BYTES,
   });
   return row?.stripeWebhookSecret ?? null;
 }
@@ -97,6 +110,7 @@ export interface TwilioSettings {
 export async function getTwilioSettings(): Promise<TwilioSettings | null> {
   const row = await db.query.companySettings.findFirst({
     where: eq(companySettings.id, "default"),
+    columns: NO_FILE_BYTES,
   });
   if (!row?.twilioAccountSid || !row.twilioAuthToken || !row.twilioPhoneNumber) return null;
   return { accountSid: row.twilioAccountSid, authToken: row.twilioAuthToken, phoneNumber: row.twilioPhoneNumber };
@@ -106,6 +120,7 @@ export async function getTwilioSettings(): Promise<TwilioSettings | null> {
 export async function getTcpaOutboundWindow(): Promise<{ start: string; end: string } | null> {
   const row = await db.query.companySettings.findFirst({
     where: eq(companySettings.id, "default"),
+    columns: NO_FILE_BYTES,
   });
   if (!row?.tcpaOutboundStart || !row.tcpaOutboundEnd) return null;
   return { start: row.tcpaOutboundStart, end: row.tcpaOutboundEnd };

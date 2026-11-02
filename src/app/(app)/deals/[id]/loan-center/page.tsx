@@ -41,6 +41,8 @@ export default async function DealLoanCenterPage({
       // but deliberately excluded from this active list — see
       // markClientNeedUnused.
       where: (dcn, { eq, and, ne }) => and(eq(dcn.dealId, id), ne(dcn.status, "unused")),
+      // Never the template file bytes: they ride along in the page payload for every need on every load.
+      columns: { templateFileData: false },
       with: {
         documents: {
           columns: {

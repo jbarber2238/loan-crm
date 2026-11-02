@@ -897,7 +897,7 @@ export async function buildDashboardData(range: DashboardRange): Promise<Dashboa
   const [dealsData, allLenders, settingsRow] = await Promise.all([
     fetchDeals(),
     db.query.lenders.findMany(),
-    db.query.companySettings.findFirst({ where: eq(companySettings.id, "default") }),
+    db.query.companySettings.findFirst({ where: eq(companySettings.id, "default"), columns: { logoData: false, wireInstructionsData: false } }),
   ]);
   const lenderNames = new Map(allLenders.map((l) => [l.id, l.name]));
 
