@@ -3,9 +3,8 @@ import { db } from "@/server/db/client";
 import { transactionalLoans } from "@/server/db/schema";
 import { ARCHIVE_AFTER_DAYS_IN_STAGE, DELETED_DEAL_PURGE_AFTER_DAYS } from "@/lib/deal-pipeline";
 
-// Same "runs lazily on page load" convention as the deals pipeline
-// (src/server/deal-stage-automation.ts): there's no scheduler, so anyone
-// opening the transactional board triggers these before it queries.
+// Run every 10 minutes by /api/cron/deal-maintenance, alongside the deals pipeline's own sweeps
+// (src/server/deal-stage-automation.ts), instead of on every board view.
 
 /** Closed/Lost requests untouched for 30 days come off the board (still on file, restorable). */
 export async function autoArchiveStaleTransactionalLoans() {

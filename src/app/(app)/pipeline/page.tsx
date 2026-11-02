@@ -2,7 +2,6 @@ import { and, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { deals } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
-import { expireStaleFollowUps, autoArchiveStaleDeals, purgeExpiredDeletedDeals } from "@/server/deal-stage-automation";
 import Link from "next/link";
 import { licenseFlagsFor } from "@/server/licensing";
 import { KanbanBoard, type BoardDeal } from "@/components/board/kanban-board";
@@ -16,9 +15,6 @@ export default async function PipelinePage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const user = await requireUser();
-  await expireStaleFollowUps();
-  await autoArchiveStaleDeals();
-  await purgeExpiredDeletedDeals();
   const params = await searchParams;
 
   const hasSearch = typeof params.q === "string" && params.q.trim().length > 0;

@@ -5,14 +5,11 @@ import { PipelineTabs } from "@/components/board/pipeline-tabs";
 import { TransactionalBoard, type BoardLoan } from "@/components/board/transactional-board";
 import { CopyTransactionalLinkButton } from "@/components/transactional/copy-transactional-link-button";
 import { transactionalFees } from "@/lib/transactional-fees";
-import { autoArchiveStaleTransactionalLoans, purgeExpiredDeletedTransactionalLoans } from "@/server/transactional-automation";
 import { and, isNull } from "drizzle-orm";
 import { transactionalLoans } from "@/server/db/schema";
 
 export default async function TransactionalPipelinePage() {
   await requireAdminOrLoanOfficer();
-  await autoArchiveStaleTransactionalLoans();
-  await purgeExpiredDeletedTransactionalLoans();
   // Archived and deleted requests are off the board (and out of its totals).
   const rows = await db.query.transactionalLoans.findMany({
     where: and(isNull(transactionalLoans.archivedAt), isNull(transactionalLoans.deletedAt)),

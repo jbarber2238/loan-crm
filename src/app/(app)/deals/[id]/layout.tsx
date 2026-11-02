@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { getDealDetail } from "@/server/data/deal-detail";
-import { expireStaleFollowUps, autoArchiveStaleDeals, purgeExpiredDeletedDeals } from "@/server/deal-stage-automation";
 import { requireUser } from "@/server/auth/guards";
 import { DealHeader } from "@/components/deals/deal-header";
 import { DealLifecycleBanner } from "@/components/deals/deal-lifecycle-banner";
@@ -16,9 +15,6 @@ export default async function DealDetailLayout({
 }) {
   const { id } = await params;
   const user = await requireUser();
-  await expireStaleFollowUps();
-  await autoArchiveStaleDeals();
-  await purgeExpiredDeletedDeals();
   const deal = await getDealDetail(id);
   if (!deal) notFound();
 

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { companySettings } from "@/server/db/schema";
@@ -10,11 +11,16 @@ export const DEFAULT_COMPANY_NAME = "[Your Company]";
 // serve the files read them.
 const NO_FILE_BYTES = { logoData: false, wireInstructionsData: false } as const;
 
-export async function getCompanyName(): Promise<string> {
-  const row = await db.query.companySettings.findFirst({
+// The page title, the sidebar name and the sidebar logo all read this row in the same render; one query serves them.
+const companyRow = cache(() =>
+  db.query.companySettings.findFirst({
     where: eq(companySettings.id, "default"),
     columns: NO_FILE_BYTES,
-  });
+  })
+);
+
+export async function getCompanyName(): Promise<string> {
+  const row = await companyRow();
   return row?.name ?? DEFAULT_COMPANY_NAME;
 }
 
@@ -61,10 +67,7 @@ export async function getCompanyLogoHtml(): Promise<string> {
  * needed. Null if nothing's been uploaded.
  */
 export async function getCompanyLogo(): Promise<{ src: string; isLight: boolean } | null> {
-  const row = await db.query.companySettings.findFirst({
-    where: eq(companySettings.id, "default"),
-    columns: NO_FILE_BYTES,
-  });
+  const row = await companyRow();
   if (!row?.logoFileName) return null;
   return { src: `/api/company-logo?v=${row.updatedAt.getTime()}`, isLight: row.logoIsLight };
 }

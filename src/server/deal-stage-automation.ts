@@ -9,17 +9,13 @@ import {
   FOLLOW_UP_AUTO_LOST_DAYS,
 } from "@/lib/deal-pipeline";
 
-// No cron/scheduled-job runner exists in this app yet, so this runs lazily
-// on page load instead (called from the pipeline board and deal detail
-// pages, before they query deals) — the practical effect is the same, since
-// anyone viewing the pipeline triggers the check and the page's own query
-// picks up the result immediately. It just won't fire the instant 7 days is
-// up if nobody has the app open. No revalidatePath here — the caller is
-// mid-render and about to query fresh data itself.
+// Run every 10 minutes by /api/cron/deal-maintenance. (They used to run at the top of every pipeline and deal
+// page; whoever loaded a page first after a deal became eligible waited for all of it.)
 export async function expireStaleFollowUps() {
   const cutoff = new Date(Date.now() - FOLLOW_UP_AUTO_LOST_DAYS * 24 * 60 * 60 * 1000);
   const stale = await db.query.deals.findMany({
     where: and(eq(deals.stage, "follow_up"), lt(deals.pausedAt, cutoff)),
+    columns: { id: true, pauseReason: true },
   });
   if (!stale.length) return 0;
 
@@ -51,8 +47,7 @@ export async function expireStaleFollowUps() {
   return stale.length;
 }
 
-// Same "runs lazily on page load" convention as expireStaleFollowUps above —
-// called from the same two places (pipeline board, deal detail layout).
+// Same schedule as expireStaleFollowUps above.
 // "30 days in Closed/Lost" is measured from the most recent time the deal
 // actually entered that stage (its latest dealStageHistory row), same
 // source the pipeline board's own "Xd in stage" already reads from — not
@@ -65,7 +60,8 @@ export async function autoArchiveStaleDeals() {
       isNull(deals.archivedAt),
       isNull(deals.deletedAt)
     ),
-    with: { stageHistory: true },
+    columns: { id: true, createdAt: true },
+    with: { stageHistory: { columns: { changedAt: true } } },
   });
 
   const stale = candidates.filter((deal) => {
@@ -87,7 +83,7 @@ export async function autoArchiveStaleDeals() {
   return stale.length;
 }
 
-// Same lazy-on-page-load convention — hard-deletes (cascading to every
+// Same schedule — hard-deletes (cascading to every
 // related row: term sheets, pricing requests, notes, client needs, etc.)
 // any deal a person soft-deleted more than DELETED_DEAL_PURGE_AFTER_DAYS
 // ago. There is no recovery after this runs; deleteDeal/restoreDeletedDeal
