@@ -850,13 +850,22 @@ export function TeamChatPanel({
   }, [roomId, refresh]);
 
   useEffect(() => {
-    const first = setTimeout(refresh, 0);
+    // If this chat's messages are already on the way (loaded ahead of time), show those the moment they land, then refresh.
+    const first = setTimeout(async () => {
+      const loading = roomStateLoading.get(roomId);
+      if (loading) {
+        await loading;
+        const cached = roomStateCache.get(roomId);
+        if (cached) setState((current) => current ?? cached);
+      }
+      void refresh();
+    }, 0);
     const timer = setInterval(refresh, live ? POLL_LIVE_MS : POLL_FALLBACK_MS);
     return () => {
       clearTimeout(first);
       clearInterval(timer);
     };
-  }, [refresh, live]);
+  }, [refresh, live, roomId]);
 
   // Expire stale typing indicators.
   useEffect(() => {

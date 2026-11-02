@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ExternalLink } from "lucide-react";
@@ -40,16 +40,18 @@ export function TeamChatShell({
   const active = rooms.find((r) => r.roomId === activeId);
   // Chats opened here are read by the time they show, so their unread badge goes away without waiting for a refresh.
   const [opened, setOpened] = useState<Set<string>>(new Set());
+  // Once someone opens a chat, stop loading others ahead of time so theirs isn't queued behind them.
+  const stopPrefetch = useRef(false);
   const unreadOf = (r: ChatRoomSummary) => (opened.has(r.roomId) ? 0 : r.unread);
 
   // Load the first messages of the chats most likely to be opened next, one at a time so the database isn't hit all at once.
   useEffect(() => {
     let cancelled = false;
-    const ranked = [...rooms].sort((a, b) => b.unread - a.unread).slice(0, 5);
+    const ranked = [...rooms].sort((a, b) => b.unread - a.unread).slice(0, 4);
     (async () => {
       for (const r of ranked) {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        if (cancelled) return;
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        if (cancelled || stopPrefetch.current) return;
         if (!document.hidden) await prefetchRoomState(r.roomId);
       }
     })();
@@ -62,6 +64,7 @@ export function TeamChatShell({
     // Let "open in a new tab" clicks behave normally.
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
     e.preventDefault();
+    stopPrefetch.current = true;
     if (roomId) setOpened((prev) => new Set(prev).add(roomId));
     window.history.pushState(null, "", roomId ? `/team-chat?room=${roomId}` : "/team-chat");
   }

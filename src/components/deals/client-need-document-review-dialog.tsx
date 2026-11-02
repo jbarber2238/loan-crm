@@ -157,6 +157,7 @@ export function ClientNeedDocumentReviewDialog({
   const [chatQuestion, setChatQuestion] = useState("");
   const [chatHistory, setChatHistory] = useState<{ question: string; answer: string | null; error?: string }[]>([]);
   const latestChatEntryRef = useRef<HTMLDivElement>(null);
+  const columnRef = useRef<HTMLDivElement>(null);
 
   // Rejected documents are gone from this preview entirely — they only live
   // in the deal-wide Documents tab's Rejected bucket, where restoreRejectedDocuments
@@ -181,6 +182,8 @@ export function ClientNeedDocumentReviewDialog({
   function jumpToFlag(docId: string, page: number | null) {
     setCurrentId(docId);
     setJumpPage(page);
+    // On a phone the document is at the top and the facts are below it, so bring the document back into view.
+    columnRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function handleRunReview() {
@@ -293,7 +296,7 @@ export function ClientNeedDocumentReviewDialog({
             </DialogTitle>
           </DialogHeader>
 
-          <div className={cn("flex min-h-0 flex-1 gap-2", isPhone && "flex-col overflow-y-auto")}>
+          <div ref={columnRef} className={cn("flex min-h-0 flex-1 gap-2", isPhone && "flex-col overflow-y-auto")}>
             {/* Sidebar — switch which document is shown, check to multi-select.
                 Kept slim on purpose: the document itself is what needs to be
                 readable, this strip is just for quick page/file switching.
