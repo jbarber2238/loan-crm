@@ -14,6 +14,7 @@ import {
 } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { roomAccess } from "@/server/team-chat-access";
+import { loadRoomState, upsertRead } from "@/server/team-chat-state";
 import { pushChatMessage } from "@/server/chat-push";
 import { resolveStagedFiles } from "@/server/staged-uploads";
 import { ALLOWED_REACTIONS } from "@/lib/chat-reactions";
@@ -117,88 +118,8 @@ export interface ChatRoomState {
 
 /** `markRead` also records that the viewer has now seen the room, in the same trip (the chat's poll used to make a second call for it). */
 export async function getRoomState(roomId: string, markRead = false): Promise<ChatRoomState> {
-  const { user } = await requireRoomAccess(roomId);
-  // Read the room as it was before this view marks it seen, so "Seen by" for other people is unaffected.
-  const [messages, reads] = await Promise.all([
-    db
-      .select({
-        id: teamChatMessages.id,
-        userId: teamChatMessages.userId,
-        authorName: users.name,
-        authorImage: users.image,
-        body: teamChatMessages.body,
-        parentId: teamChatMessages.parentId,
-        createdAt: teamChatMessages.createdAt,
-        editedAt: teamChatMessages.editedAt,
-      })
-      .from(teamChatMessages)
-      .innerJoin(users, eq(users.id, teamChatMessages.userId))
-      .where(eq(teamChatMessages.roomId, roomId))
-      .orderBy(asc(teamChatMessages.createdAt)),
-    db
-      .select({ userId: teamChatReads.userId, name: users.name, lastReadAt: teamChatReads.lastReadAt })
-      .from(teamChatReads)
-      .innerJoin(users, eq(users.id, teamChatReads.userId))
-      .where(eq(teamChatReads.roomId, roomId)),
-  ]);
-  const ids = messages.map((m) => m.id);
-  const [atts, reacts] = await Promise.all([
-    ids.length
-    ? db
-        .select({
-          id: teamChatAttachments.id,
-          messageId: teamChatAttachments.messageId,
-          fileName: teamChatAttachments.fileName,
-          mimeType: teamChatAttachments.mimeType,
-          fileSize: teamChatAttachments.fileSize,
-          kind: teamChatAttachments.kind,
-          durationSeconds: teamChatAttachments.durationSeconds,
-          transcript: teamChatAttachments.transcript,
-        })
-        .from(teamChatAttachments)
-        .where(inArray(teamChatAttachments.messageId, ids))
-        .orderBy(asc(teamChatAttachments.createdAt))
-    : [],
-    ids.length
-    ? db
-        .select({
-          messageId: teamChatReactions.messageId,
-          userId: teamChatReactions.userId,
-          emoji: teamChatReactions.emoji,
-          name: users.name,
-        })
-        .from(teamChatReactions)
-        .innerJoin(users, eq(users.id, teamChatReactions.userId))
-        .where(inArray(teamChatReactions.messageId, ids))
-        .orderBy(asc(teamChatReactions.createdAt))
-    : [],
-    markRead ? upsertRead(roomId, user.id) : null,
-  ]).then(([a, r]) => [a, r] as const);
-  const reactionsFor = (messageId: string): ChatReaction[] => {
-    const byEmoji = new Map<string, ChatReaction>();
-    for (const r of reacts) {
-      if (r.messageId !== messageId) continue;
-      const entry = byEmoji.get(r.emoji) ?? { emoji: r.emoji, userIds: [], names: [] };
-      entry.userIds.push(r.userId);
-      entry.names.push((r.name ?? "Someone").split(" ")[0]);
-      byEmoji.set(r.emoji, entry);
-    }
-    return [...byEmoji.values()];
-  };
-  return {
-    currentUserId: user.id,
-    messages: messages.map((m) => ({
-      ...m,
-      authorName: m.authorName ?? "Someone",
-      createdAt: m.createdAt.toISOString(),
-      editedAt: m.editedAt ? m.editedAt.toISOString() : null,
-      attachments: atts
-        .filter((a) => a.messageId === m.id)
-        .map((a) => ({ ...a, kind: a.kind as "file" | "audio" })),
-      reactions: reactionsFor(m.id),
-    })),
-    readers: reads.map((r) => ({ userId: r.userId, name: r.name ?? "Someone", lastReadAt: r.lastReadAt.toISOString() })),
-  };
+  const user = await requireUser();
+  return loadRoomState(user, roomId, markRead);
 }
 
 /** Changes the text of one of my own messages and marks it edited. Nobody else's message can be edited, by anyone. */
@@ -235,16 +156,6 @@ export async function toggleTeamReaction(roomId: string, messageId: string, emoj
   const existing = await db.query.teamChatReactions.findFirst({ where: mine });
   if (existing) await db.delete(teamChatReactions).where(mine);
   else await db.insert(teamChatReactions).values({ messageId, userId: user.id, emoji }).onConflictDoNothing();
-}
-
-async function upsertRead(roomId: string, userId: string) {
-  await db
-    .insert(teamChatReads)
-    .values({ roomId, userId, lastReadAt: new Date() })
-    .onConflictDoUpdate({
-      target: [teamChatReads.roomId, teamChatReads.userId],
-      set: { lastReadAt: new Date() },
-    });
 }
 
 export async function markRoomRead(roomId: string) {

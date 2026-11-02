@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { ArrowUp, ChevronLeft, FileText, MessageSquare, Mic, Paperclip, Smile, SmilePlus, Square, X } from "lucide-react";
 import {
   editTeamMessage,
-  getRoomState,
   sendTeamMessage,
   toggleTeamReaction,
   type ChatAttachment,
@@ -745,6 +744,17 @@ function MessageRow({
  * every few seconds while open, marks the room read as messages arrive, and
  * shows replies as threads. Purely internal — nothing here reaches a borrower.
  */
+/** A chat's current messages, from the server. `markRead` also records that the viewer has seen it. */
+async function fetchRoomState(roomId: string, markRead: boolean): Promise<ChatRoomState> {
+  const res = await fetch(`/api/team-chat/rooms/${roomId}/state`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ markRead }),
+  });
+  if (!res.ok) throw new Error("Couldn't load that chat");
+  return (await res.json()) as ChatRoomState;
+}
+
 // The last messages loaded for each chat, so opening one shows them at once and refreshes underneath.
 const roomStateCache = new Map<string, ChatRoomState>();
 const roomStateLoading = new Map<string, Promise<void>>();
@@ -754,7 +764,7 @@ export function prefetchRoomState(roomId: string): Promise<void> {
   if (roomStateCache.has(roomId)) return Promise.resolve();
   const inFlight = roomStateLoading.get(roomId);
   if (inFlight) return inFlight;
-  const load = getRoomState(roomId, false)
+  const load = fetchRoomState(roomId, false)
     .then((next) => {
       if (!roomStateCache.has(roomId)) roomStateCache.set(roomId, next);
     })
@@ -811,7 +821,7 @@ export function TeamChatPanel({
     try {
       const visible = !document.hidden;
       // One trip: the server marks the room read in the same call when someone is actually looking at it.
-      const next = await getRoomState(roomId, visible);
+      const next = await fetchRoomState(roomId, visible);
       roomStateCache.set(roomId, next);
       setState(next);
       if (visible) {
