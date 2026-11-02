@@ -31,6 +31,8 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "cn";
 import { documentViewUrl } from "@/lib/spreadsheet-preview";
+import { useIsPhone } from "@/lib/use-is-phone";
+import { PhoneDocumentViewer } from "@/components/deals/phone-document-viewer";
 
 export interface ReviewableDocument {
   id: string;
@@ -133,6 +135,7 @@ export function ClientNeedDocumentReviewDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const router = useRouter();
+  const isPhone = useIsPhone();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   // The Reject Need confirmation popup's own note — separate from the
@@ -283,14 +286,14 @@ export function ClientNeedDocumentReviewDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="flex h-[95vh] w-[98vw] max-w-[calc(100%-1rem)] flex-col overflow-hidden p-3 sm:max-w-[2200px]">
+        <DialogContent className="flex h-[95dvh] w-[98vw] max-w-[calc(100%-1rem)] flex-col overflow-hidden p-3 sm:max-w-[2200px]">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="pr-6 text-base leading-snug">
               Reviewing: {needName} ({visibleDocuments.length} doc{visibleDocuments.length === 1 ? "" : "s"})
             </DialogTitle>
           </DialogHeader>
 
-          <div className="flex min-h-0 flex-1 gap-2">
+          <div className={cn("flex min-h-0 flex-1 gap-2", isPhone && "flex-col overflow-y-auto")}>
             {/* Sidebar — switch which document is shown, check to multi-select.
                 Kept slim on purpose: the document itself is what needs to be
                 readable, this strip is just for quick page/file switching.
@@ -298,24 +301,27 @@ export function ClientNeedDocumentReviewDialog({
                 document only lives in the deal-wide Documents tab's Rejected
                 bucket, restorable from there. */}
             {visibleDocuments.length > 1 && (
-              <div className="w-[84px] shrink-0 space-y-1.5 overflow-y-auto border-r pr-1.5">
+              <div className={cn("shrink-0", isPhone ? "flex gap-1.5 overflow-x-auto pb-1" : "w-[84px] space-y-1.5 overflow-y-auto border-r pr-1.5")}>
                 {visibleDocuments.map((doc) => (
-                  <DocumentThumbnail
-                    key={doc.id}
-                    doc={doc}
-                    isCurrent={doc.id === currentId}
-                    checked={checkedIds.has(doc.id)}
-                    onToggleChecked={(v) => toggleChecked(doc.id, v)}
-                    onSelect={() => selectDocument(doc.id)}
-                  />
+                  <div key={doc.id} className={isPhone ? "w-24 shrink-0" : undefined}>
+                    <DocumentThumbnail
+                      doc={doc}
+                      isCurrent={doc.id === currentId}
+                      checked={checkedIds.has(doc.id)}
+                      onToggleChecked={(v) => toggleChecked(doc.id, v)}
+                      onSelect={() => selectDocument(doc.id)}
+                    />
+                  </div>
                 ))}
               </div>
             )}
 
             {/* Main viewer — the reason this dialog exists, so it gets almost
                 all the width; the file list and AI panel are both kept slim. */}
-            <div className="min-w-0 flex-1 overflow-hidden rounded-md border bg-muted/30">
-              {current ? (
+            <div className={cn("min-w-0 overflow-hidden rounded-md border bg-muted/30", isPhone ? "h-[62dvh] shrink-0" : "flex-1")}>
+              {current && isPhone ? (
+                <PhoneDocumentViewer key={current.id} doc={current} jumpPage={jumpPage} />
+              ) : current ? (
                 isImage ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={fileUrl} alt={current.fileName} className="h-full w-full object-contain" />
@@ -330,7 +336,7 @@ export function ClientNeedDocumentReviewDialog({
             {/* Current-document panel — kept narrow so the viewer stays the
                 star of the layout. */}
             {current && (
-              <div className="w-[300px] shrink-0 space-y-3 overflow-y-auto">
+              <div className={cn("shrink-0 space-y-3", isPhone ? "w-full" : "w-[300px] overflow-y-auto")}>
                 <div>
                   {renamingId === current.id ? (
                     <div className="flex items-center gap-1">

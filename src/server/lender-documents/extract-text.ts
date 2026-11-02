@@ -133,6 +133,33 @@ export async function renderPdfPagesAsImages(
   }
 }
 
+/** How many pages a PDF has, for the phone document viewer. */
+export async function pdfPageCount(base64Data: string): Promise<number> {
+  await ensurePdfjsNodeSetup();
+  const { PDFParse } = await import("pdf-parse");
+  const parser = new PDFParse({ data: new Uint8Array(Buffer.from(base64Data, "base64")) });
+  try {
+    return (await parser.getInfo()).total;
+  } finally {
+    await parser.destroy();
+  }
+}
+
+/** One page of a PDF as a JPEG sized for a phone screen (about 2x a 390px-wide display), for the phone document viewer. */
+export async function renderPdfPageJpeg(base64Data: string, pageNumber: number): Promise<Buffer | null> {
+  await ensurePdfjsNodeSetup();
+  const { PDFParse } = await import("pdf-parse");
+  const sharp = (await import("sharp")).default;
+  const parser = new PDFParse({ data: new Uint8Array(Buffer.from(base64Data, "base64")) });
+  try {
+    const result = await parser.getScreenshot({ partial: [pageNumber], desiredWidth: 1100, imageBuffer: true, imageDataUrl: false });
+    const page = result.pages[0];
+    return page ? await sharp(Buffer.from(page.data)).jpeg({ quality: 80 }).toBuffer() : null;
+  } finally {
+    await parser.destroy();
+  }
+}
+
 /**
  * Best-effort text extraction so the AI intake check (§8) can reference
  * uploaded lender documents. Returns null for types we don't parse (e.g.

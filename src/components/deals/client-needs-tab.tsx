@@ -360,7 +360,7 @@ function DocumentRow({
       onClick={onClick}
       className="flex w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-sm hover:bg-muted/50"
     >
-      <span className="truncate">{document.fileName}</span>
+      <span className="min-w-0 truncate">{document.fileName}</span>
       {document.reviewStatus === "approved" && <Badge variant="success">Approved</Badge>}
       {document.reviewStatus === "pending" && <Badge variant="warning">Review needed</Badge>}
     </button>
@@ -734,15 +734,15 @@ function ClientNeedRow({
   return (
     <Card>
       <CardContent className="space-y-3 py-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="flex min-w-0 items-start gap-3">
             <Checkbox
               checked={selected}
               onCheckedChange={(v) => onToggleSelected(v === true)}
               className="mt-0.5"
             />
-            <div>
-            <p data-need-title className="flex items-center gap-2 text-sm font-medium">
+            <div className="min-w-0">
+            <p data-need-title className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
               {hasExpandableContent ? (
                 <button
                   type="button"
@@ -833,7 +833,8 @@ function ClientNeedRow({
             )}
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          {/* On a phone the buttons drop under the name and wrap, instead of squeezing the name into a sliver. */}
+          <div className="flex flex-wrap items-center gap-2 pl-7 sm:shrink-0 sm:justify-end sm:pl-0">
             {need.needType === "document_upload" || need.needType === "pandadoc_form" ? (
               <>
                 {need.needType === "document_upload" && <AttachDocumentButton dealId={dealId} needId={need.id} />}

@@ -121,7 +121,7 @@ function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
           <Smile className="size-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-80 p-2">
+      <PopoverContent align="start" className="z-[70] w-80 p-2">
         <div className="max-h-64 space-y-2 overflow-y-auto">
           {recent.length > 0 && (
             <div>
@@ -195,7 +195,7 @@ function GifPicker({ onPick }: { onPick: (url: string) => void }) {
           GIF
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-80 space-y-2 p-2">
+      <PopoverContent align="start" className="z-[70] w-80 space-y-2 p-2">
         {status === "not-set-up" ? (
           <p className="p-2 text-sm text-muted-foreground">GIFs aren&apos;t turned on yet. An admin needs to add a free Giphy key to the CRM.</p>
         ) : (
@@ -555,7 +555,7 @@ function ReactionPicker({ onPick }: { onPick: (emoji: string) => void }) {
           <SmilePlus className="size-4" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-72 space-y-2 p-2">
+      <PopoverContent align="start" className="z-[70] w-72 space-y-2 p-2">
         <div className="flex justify-between">
           {QUICK_REACTIONS.map((e) => (
             <button key={e} type="button" onClick={() => pick(e)} className="flex size-9 items-center justify-center rounded-md text-xl hover:bg-muted">
@@ -745,6 +745,25 @@ function MessageRow({
  * every few seconds while open, marks the room read as messages arrive, and
  * shows replies as threads. Purely internal — nothing here reaches a borrower.
  */
+// The last messages loaded for each chat, so opening one shows them at once and refreshes underneath.
+const roomStateCache = new Map<string, ChatRoomState>();
+const roomStateLoading = new Map<string, Promise<void>>();
+
+/** Loads a chat's messages ahead of time (without marking it read), so it's already there when someone opens it. */
+export function prefetchRoomState(roomId: string): Promise<void> {
+  if (roomStateCache.has(roomId)) return Promise.resolve();
+  const inFlight = roomStateLoading.get(roomId);
+  if (inFlight) return inFlight;
+  const load = getRoomState(roomId, false)
+    .then((next) => {
+      if (!roomStateCache.has(roomId)) roomStateCache.set(roomId, next);
+    })
+    .catch(() => {})
+    .finally(() => roomStateLoading.delete(roomId));
+  roomStateLoading.set(roomId, load);
+  return load;
+}
+
 export function TeamChatPanel({
   roomId,
   heightClass = "h-[calc(100dvh-10rem)] min-h-[320px] lg:h-[560px]",
@@ -773,7 +792,7 @@ export function TeamChatPanel({
   const loanCenter = useLoanCenterNav();
   const isPhone = useIsPhone();
   const box = useVisibleBox();
-  const [state, setState] = useState<ChatRoomState | null>(null);
+  const [state, setState] = useState<ChatRoomState | null>(() => roomStateCache.get(roomId) ?? null);
   /** Messages I just sent that the server hasn't confirmed yet; shown right away so sending feels instant. */
   const [pending, setPending] = useState<ChatMessage[]>([]);
   const [openThread, setOpenThread] = useState<string | null>(null);
@@ -793,6 +812,7 @@ export function TeamChatPanel({
       const visible = !document.hidden;
       // One trip: the server marks the room read in the same call when someone is actually looking at it.
       const next = await getRoomState(roomId, visible);
+      roomStateCache.set(roomId, next);
       setState(next);
       if (visible) {
         const unreadFromOthers = next.messages.some(
