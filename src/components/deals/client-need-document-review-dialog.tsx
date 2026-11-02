@@ -30,6 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "cn";
+import { documentViewUrl } from "@/lib/spreadsheet-preview";
 
 export interface ReviewableDocument {
   id: string;
@@ -162,9 +163,8 @@ export function ClientNeedDocumentReviewDialog({
   // instead of continuing to show something that just dropped out of view.
   const visibleDocuments = documents.filter((d) => d.reviewStatus !== "rejected");
   const current = visibleDocuments.find((d) => d.id === currentId) ?? visibleDocuments[0];
-  const fileUrl = current
-    ? `/api/client-need-documents/${current.id}${jumpPage ? `#page=${jumpPage}` : ""}`
-    : "";
+  // Spreadsheets would only download in a frame, so they're shown as tables instead.
+  const fileUrl = current ? `${documentViewUrl(current)}${jumpPage ? `#page=${jumpPage}` : ""}` : "";
   const isImage = current ? SUPPORTED_IMAGE_TYPES.has(current.mimeType.toLowerCase()) : false;
   // Whichever document the last AI Review actually pulled facts from — for
   // an Operating Agreement need this is normally the only document anyway.
