@@ -166,9 +166,9 @@ function renderStyledSheet(workbook: Workbook, ws: Worksheet, theme: ThemePalett
       const span = spans.get(`${r}:${c}`);
       const text = cellText(cell, format);
       const wrap = Boolean(cell.alignment?.wrapText);
-      // Text that runs past its cell shows over the empty cells beside it, like Excel does.
+      // Text that runs past its cell shows over the empty cells beside it, shaded or not, like Excel does.
       const next = c < lastCol ? row.getCell(c + 1) : null;
-      const spill = !wrap && text !== "" && !span && !isNumericValue(cell.value) && next !== null && cellText(next, format) === "" && !hasLook(next);
+      const spill = !wrap && text !== "" && !span && !isNumericValue(cell.value) && next !== null && cellText(next, format) === "";
       const attrs = [span && span.cols > 1 ? ` colspan="${span.cols}"` : "", span && span.rows > 1 ? ` rowspan="${span.rows}"` : "", wrap || spill ? ` class="${[wrap ? "wrap" : "", spill ? "spill" : ""].filter(Boolean).join(" ")}"` : ""].join("");
       const css = cellCss(cell, theme);
       cells.push(`<td${attrs}${css ? ` style="${css}"` : ""}>${escapeHtml(text)}</td>`);
