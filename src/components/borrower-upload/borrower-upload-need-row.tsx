@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { stageLargeFiles } from "@/lib/stage-large-files";
 import { batchFiles, describeSkipped, expandZipFiles } from "@/lib/zip-uploads";
+import { BORROWER_MAX_FILE_BYTES, formatMb, readableUploadError } from "@/lib/upload-limits";
 import { stageUploadChunk } from "@/server/actions/staged-upload";
 
 // The finish-line reward: once a need is accepted it drops out of the
@@ -159,18 +160,26 @@ export function BorrowerUploadNeedRow({ token, need }: { token: string; need: Bo
         setProgress("Opening your files…");
         const { files, skipped } = await expandZipFiles(picked);
         if (files.length === 0) throw new Error(describeSkipped(skipped) || "There were no files to upload.");
+        // Say so before sending anything, rather than after a long upload.
+        const tooBig = files.find((f) => f.size > BORROWER_MAX_FILE_BYTES);
+        if (tooBig) {
+          throw new Error(
+            `${tooBig.name} is ${formatMb(tooBig.size)}, over our ${formatMb(BORROWER_MAX_FILE_BYTES)} limit. Please save it smaller or split it into two files.`
+          );
+        }
         for (const batch of batchFiles(files)) {
           setProgress(files.length > batch.length ? `Uploading ${sent + 1}–${sent + batch.length} of ${files.length}…` : null);
           const formData = new FormData();
           for (const file of batch) formData.append("file", file);
-          await uploadBorrowerDocument(token, need.id, await stageLargeFiles(formData, stageUploadChunk, { borrowerToken: token }));
+          const result = await uploadBorrowerDocument(token, need.id, await stageLargeFiles(formData, stageUploadChunk, { borrowerToken: token }));
+          if ("error" in result) throw new Error(result.error);
           sent += batch.length;
         }
         setJustUploaded(true);
         if (skipped.length) setNotice(describeSkipped(skipped));
         router.refresh();
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Couldn't upload those files.";
+        const message = readableUploadError(err);
         setError(sent > 0 ? `${message} (${sent} file${sent === 1 ? "" : "s"} did upload before this.)` : message);
         if (sent > 0) router.refresh();
       } finally {

@@ -13,8 +13,9 @@ import { createSigningSessionUrl } from "@/server/pandadoc";
 import { parsePropertyAddress } from "@/lib/format";
 import { getCustomFormDefinition, syncedFieldsFor } from "@/lib/custom-need-forms/registry";
 import { resolveStagedFiles } from "@/server/staged-uploads";
+import { BORROWER_MAX_FILE_BYTES, formatMb } from "@/lib/upload-limits";
 
-const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
+const MAX_FILE_SIZE = BORROWER_MAX_FILE_BYTES;
 
 function firstName(fullName: string): string {
   return fullName.trim().split(/\s+/)[0] || fullName;
@@ -157,31 +158,49 @@ export async function getPandaDocSigningUrl(token: string, needId: string): Prom
   return createSigningSessionUrl(need.pandadocDocumentId, deal.borrowerEmail);
 }
 
-/** Borrower-side upload — token-gated instead of requireUser(). */
-export async function uploadBorrowerDocument(token: string, needId: string, formData: FormData) {
+/**
+ * Borrower-side upload — token-gated instead of requireUser().
+ *
+ * Reasons a borrower can fix come back as `{ error }` instead of being thrown: in production a thrown message is
+ * replaced by React's generic "error #441" text, so the borrower would never learn that, say, a file was too big.
+ */
+export async function uploadBorrowerDocument(token: string, needId: string, formData: FormData): Promise<{ error: string } | { ok: true }> {
   const deal = await db.query.deals.findFirst({ where: eq(deals.borrowerUploadToken, token) });
-  if (!deal) throw new Error("This link is no longer valid");
+  if (!deal) return { error: "This link is no longer valid." };
 
   const need = await db.query.dealClientNeeds.findFirst({
     where: and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, deal.id)),
+    columns: { id: true, needType: true, status: true, sentAt: true, itemName: true },
   });
   if (!need || need.needType !== "document_upload" || need.status === "accepted") {
-    throw new Error("This item can't accept an upload right now");
+    return { error: "This item can't accept an upload right now." };
   }
 
-  await resolveStagedFiles(formData);
+  try {
+    await resolveStagedFiles(formData);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "That upload couldn't be read. Please try again." };
+  }
   const files = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
-  if (!files.length) throw new Error("Choose at least one file to upload");
+  if (!files.length) return { error: "Choose at least one file to upload." };
   const tooLarge = files.find((f) => f.size > MAX_FILE_SIZE);
-  if (tooLarge) throw new Error(`${tooLarge.name} is too large (15MB max)`);
+  if (tooLarge) {
+    return { error: `${tooLarge.name} is ${formatMb(tooLarge.size)}, over our ${formatMb(MAX_FILE_SIZE)} limit. Please save it smaller or split it into two files.` };
+  }
 
   for (const file of files) {
     const original = Buffer.from(await file.arrayBuffer()).toString("base64");
-    const stored = await convertHeicIfNeeded({
-      fileName: file.name,
-      mimeType: file.type || "application/octet-stream",
-      dataBase64: original,
-    });
+    let stored;
+    try {
+      stored = await convertHeicIfNeeded({
+        fileName: file.name,
+        mimeType: file.type || "application/octet-stream",
+        dataBase64: original,
+      });
+    } catch (err) {
+      console.error("Borrower upload: couldn't convert a photo:", err);
+      return { error: `We couldn't read ${file.name}. Please send it as a PDF or JPG instead.` };
+    }
     await db.insert(dealClientNeedDocuments).values({
       clientNeedId: needId,
       fileName: stored.fileName,
@@ -207,6 +226,7 @@ export async function uploadBorrowerDocument(token: string, needId: string, form
 
   revalidatePath(`/borrower-upload/${token}`);
   revalidatePath(`/deals/${deal.id}/loan-center`);
+  return { ok: true };
 }
 
 /**
