@@ -49,8 +49,9 @@ export function TeamChatShell({
     let cancelled = false;
     const ranked = [...rooms].sort((a, b) => b.unread - a.unread).slice(0, 4);
     (async () => {
-      for (const r of ranked) {
-        await new Promise((resolve) => setTimeout(resolve, 400));
+      for (const [i, r] of ranked.entries()) {
+        // The first one starts right away (it also wakes the server up); the rest follow at a gentle pace.
+        if (i > 0) await new Promise((resolve) => setTimeout(resolve, 400));
         if (cancelled || stopPrefetch.current) return;
         if (!document.hidden) await prefetchRoomState(r.roomId);
       }
