@@ -12,6 +12,7 @@ import {
   autoGenerateClientNeedsForProduct,
   putClientNeedOnHold,
   resumeClientNeedFromHold,
+  reopenPandaDocForm,
 } from "@/server/actions/client-needs";
 import {
   attachDocumentToClientNeed,
@@ -615,6 +616,25 @@ function NeedActionsMenu({ dealId, need }: { dealId: string; need: ClientNeed })
     });
   }
 
+  function handleReopenForm() {
+    if (
+      !window.confirm(
+        `Reopen "${need.itemName}" so the borrower can change their answers? Their answers stay filled in, but they will need to sign again. The current signed copy moves to Rejected.`
+      )
+    ) {
+      return;
+    }
+    startTransition(async () => {
+      const result = await reopenPandaDocForm(dealId, need.id);
+      if ("error" in result) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Form reopened. Use Send to Borrower to let them know.");
+      router.refresh();
+    });
+  }
+
   function handleDelete() {
     const rejectedCount = rejectedDocuments.length;
     const deletedCount = need.documents.length - rejectedCount;
@@ -651,6 +671,9 @@ function NeedActionsMenu({ dealId, need }: { dealId: string; need: ClientNeed })
           ) : null}
           {rejectedDocuments.length > 0 && (
             <DropdownMenuItem onClick={() => setReasonOpen(true)}>Edit rejection reason</DropdownMenuItem>
+          )}
+          {need.needType === "pandadoc_form" && need.pandadocDocumentId && (
+            <DropdownMenuItem onClick={handleReopenForm}>Reopen form for borrower</DropdownMenuItem>
           )}
           <DropdownMenuItem onClick={() => setAuditOpen(true)}>Reminder history</DropdownMenuItem>
           {need.needType === "document_upload" && need.documents.length > 0 && (

@@ -21,7 +21,13 @@ import { recomputeNeedStatus } from "@/server/client-need-status";
 import { copyQuestionsToNewNeeds } from "@/server/client-need-questions";
 import { createClientNeed } from "@/server/actions/client-need-catalog";
 import { activeRulesFor } from "@/server/client-need-rules";
-import { createDocumentFromTemplate, createDocumentFromPdfFile, waitUntilDraft, sendDocumentSilently } from "@/server/pandadoc";
+import {
+  createDocumentFromTemplate,
+  createDocumentFromPdfFile,
+  waitUntilDraft,
+  sendDocumentSilently,
+  revertDocumentToDraft,
+} from "@/server/pandadoc";
 import { addSignaturePage } from "@/server/pdf/signature-page";
 
 type CatalogNeedRow = {
@@ -507,6 +513,49 @@ export async function putClientNeedOnHold(dealId: string, needId: string, note: 
     .set({ onHoldAt: new Date(), onHoldNote: trimmed })
     .where(and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)));
   revalidatePath(`/deals/${dealId}/loan-center`);
+}
+
+// PandaDoc locks a form once the borrower finishes it, so a borrower who needs to fix an answer sees a read-only
+// copy. This reopens the same document (their answers stay filled in; only the signature is cleared) and sends it
+// silently again, so their "Fill out and sign" link works. The earlier signed copy stays on the Documents tab as
+// Rejected so the new one is the only active file; the processor then uses Send to Borrower to tell them.
+export async function reopenPandaDocForm(dealId: string, needId: string) {
+  const user = await requireUser();
+  const need = await db.query.dealClientNeeds.findFirst({
+    where: and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)),
+    columns: { id: true, needType: true, pandadocDocumentId: true, itemName: true },
+  });
+  if (!need || need.needType !== "pandadoc_form" || !need.pandadocDocumentId) {
+    return fail("This form hasn't been created in PandaDoc yet, so there is nothing to reopen.");
+  }
+
+  try {
+    await revertDocumentToDraft(need.pandadocDocumentId);
+    await waitUntilDraft(need.pandadocDocumentId);
+    await sendDocumentSilently(need.pandadocDocumentId);
+  } catch (err) {
+    console.error(`Failed to reopen PandaDoc ${need.pandadocDocumentId} for need ${needId}:`, err);
+    return fail("PandaDoc wouldn't reopen this form. Try again in a minute, or reopen it from PandaDoc directly.");
+  }
+
+  const reviewedAt = new Date();
+  await db
+    .update(dealClientNeedDocuments)
+    .set({
+      reviewStatus: "rejected",
+      reviewedAt,
+      reviewedByUserId: user.id,
+      rejectionNote: "Reopened so the borrower can make changes. A new signed copy replaces this one.",
+    })
+    .where(eq(dealClientNeedDocuments.clientNeedId, needId));
+  // lastSentAt is set after the rejection so the need reads as awaiting the borrower, not as rejected-and-unsent.
+  await db
+    .update(dealClientNeeds)
+    .set({ pandadocStatus: "document.sent", lastSentAt: new Date() })
+    .where(eq(dealClientNeeds.id, needId));
+  await recomputeNeedStatus(needId);
+  revalidatePath(`/deals/${dealId}/loan-center`);
+  return { ok: true as const };
 }
 
 export async function resumeClientNeedFromHold(dealId: string, needId: string) {

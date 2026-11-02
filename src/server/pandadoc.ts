@@ -220,6 +220,14 @@ export async function waitUntilDraft(documentId: string, { maxAttempts = 10, del
 }
 
 /**
+ * Moves a document (even a completed one) back to draft so it can be sent again. PandaDoc keeps every answer the
+ * borrower typed and only clears signature/initials fields; nobody is notified. The caller must resend it.
+ */
+export async function revertDocumentToDraft(documentId: string) {
+  await pandaDocFetch(`/documents/${documentId}/draft`, { method: "POST" });
+}
+
+/**
  * Sends the document so it's ready to be filled/signed, without PandaDoc
  * emailing the recipient — the borrower gets to it through a link on our
  * own borrower-upload page instead (see createSigningSessionUrl below).
