@@ -91,7 +91,7 @@ export interface ChatAttachment {
 export interface ChatReaction {
   emoji: string;
   userIds: string[];
-  /** First names, for the hover text. */
+  /** Full names, in the same order as userIds, for the "who reacted" list. */
   names: string[];
 }
 

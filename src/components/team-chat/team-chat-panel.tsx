@@ -16,7 +16,7 @@ import {
 } from "@/server/actions/team-chat";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { findVideoEmbed, linkify } from "@/lib/linkify";
 import { EMOJI_GROUPS, RECENT_EMOJI_KEY, insertAtSelection, withRecentEmoji } from "@/lib/chat-emoji";
@@ -581,6 +581,85 @@ function ReactionPicker({ onPick }: { onPick: (emoji: string) => void }) {
   );
 }
 
+/**
+ * One reaction on a message: the emoji and how many people used it. Hovering it (or holding a finger on it, on a
+ * phone) lists who reacted, with your own name first as "You". Tapping it adds or takes back your reaction.
+ */
+function ReactionChip({ reaction, me, onToggle }: { reaction: ChatReaction; me: string; onToggle: () => void }) {
+  const [open, setOpen] = useState(false);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heldOpen = useRef(false);
+  const mine = reaction.userIds.includes(me);
+  const people = reaction.userIds
+    .map((id, i) => ({ id, name: id === me ? "You" : (reaction.names[i] ?? "Someone") }))
+    .sort((a, b) => Number(b.id === me) - Number(a.id === me));
+
+  function startHold() {
+    heldOpen.current = false;
+    holdTimer.current = setTimeout(() => {
+      heldOpen.current = true;
+      setOpen(true);
+    }, 450);
+  }
+  function endHold() {
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+    // Let go of a long press and the list stays up a moment so it can be read.
+    if (heldOpen.current) setTimeout(() => setOpen(false), 2500);
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverAnchor asChild>
+        <button
+          type="button"
+          aria-label={`${reaction.emoji} from ${people.map((p) => p.name).join(", ")}`}
+          onClick={() => {
+            // A press-and-hold that showed the list isn't also a tap.
+            if (heldOpen.current) {
+              heldOpen.current = false;
+              return;
+            }
+            onToggle();
+          }}
+          onPointerEnter={(e) => e.pointerType === "mouse" && setOpen(true)}
+          onPointerLeave={(e) => e.pointerType === "mouse" && setOpen(false)}
+          onPointerDown={(e) => e.pointerType !== "mouse" && startHold()}
+          onPointerUp={endHold}
+          onPointerCancel={endHold}
+          onContextMenu={(e) => e.preventDefault()}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setOpen(false)}
+          className={cn(
+            "flex select-none items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs leading-none hover:bg-muted",
+            mine && "border-primary/50 bg-primary/10"
+          )}
+        >
+          <span className="text-sm">{reaction.emoji}</span>
+          <span className="tabular-nums">{reaction.userIds.length}</span>
+        </button>
+      </PopoverAnchor>
+      <PopoverContent
+        side="top"
+        align="start"
+        sideOffset={6}
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+        className="pointer-events-none z-[70] w-auto max-w-64 gap-1 p-2"
+      >
+        <p className="text-lg leading-none">{reaction.emoji}</p>
+        <ul className="text-xs">
+          {people.map((p) => (
+            <li key={p.id} className={cn("truncate", p.id === me && "font-semibold")}>
+              {p.name}
+            </li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 /** Reaction chips for one message, the add-reaction button, and whatever else belongs on that line (Reply). */
 function ReactionBar({
   m,
@@ -601,24 +680,9 @@ function ReactionBar({
 }) {
   return (
     <div className={cn("flex flex-wrap items-center gap-1", end && "justify-end")}>
-      {m.reactions.map((r) => {
-        const mine = r.userIds.includes(me);
-        return (
-          <button
-            key={r.emoji}
-            type="button"
-            title={r.names.join(", ")}
-            onClick={() => onReact(m.id, r.emoji)}
-            className={cn(
-              "flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs leading-none hover:bg-muted",
-              mine && "border-primary/50 bg-primary/10"
-            )}
-          >
-            <span className="text-sm">{r.emoji}</span>
-            <span className="tabular-nums">{r.userIds.length}</span>
-          </button>
-        );
-      })}
+      {m.reactions.map((r) => (
+        <ReactionChip key={r.emoji} reaction={r} me={me} onToggle={() => onReact(m.id, r.emoji)} />
+      ))}
       <ReactionPicker onPick={(e) => onReact(m.id, e)} />
       {children}
       {onEdit && (
@@ -937,7 +1001,7 @@ export function TeamChatPanel({
 
   function react(messageId: string, emoji: string) {
     if (!state) return;
-    const me = state.readers.find((r) => r.userId === state.currentUserId)?.name.split(" ")[0] ?? "You";
+    const me = state.readers.find((r) => r.userId === state.currentUserId)?.name ?? "You";
     setState({
       ...state,
       messages: state.messages.map((m) =>

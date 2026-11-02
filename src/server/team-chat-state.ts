@@ -76,7 +76,7 @@ export async function loadRoomState(user: { id: string; isAdmin: boolean }, room
     const list = reactionsByMessage.get(r.messageId) ?? [];
     const entry = list.find((x) => x.emoji === r.emoji) ?? { emoji: r.emoji, userIds: [], names: [] };
     entry.userIds.push(r.userId);
-    entry.names.push((r.name ?? "Someone").split(" ")[0]);
+    entry.names.push(r.name ?? "Someone");
     if (!list.includes(entry)) list.push(entry);
     reactionsByMessage.set(r.messageId, list);
   }
