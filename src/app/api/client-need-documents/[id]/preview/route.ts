@@ -27,9 +27,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   return new Response(html, {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
-      // The page is only tables and styling: no scripts, nothing loaded from anywhere, and a spreadsheet's own
+      // The page is only tables and styling: no scripts, nothing loaded from anywhere (pictures are embedded), and a spreadsheet's own
       // contents can't run code even if they look like it.
-      "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'self'",
+      "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data:; frame-ancestors 'self'",
       "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, max-age=60",
     },
