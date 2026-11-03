@@ -1,5 +1,39 @@
 import { describe, expect, it } from "vitest";
-import { rejectedDocumentsToMention } from "@/server/client-needs-email-format";
+import { formatStatusList, groupRejectionsByNote, rejectedDocumentsToMention } from "@/server/client-needs-email-format";
+
+describe("groupRejectionsByNote", () => {
+  it("lists files that share a reason together, once", () => {
+    const groups = groupRejectionsByNote([
+      { fileName: "a.pdf", rejectionNote: "please upload official statements" },
+      { fileName: "b.pdf", rejectionNote: "please upload official statements" },
+    ]);
+    expect(groups).toEqual([{ fileNames: ["a.pdf", "b.pdf"], note: "please upload official statements" }]);
+  });
+
+  it("keeps files with different reasons on their own lines, in order", () => {
+    const groups = groupRejectionsByNote([
+      { fileName: "a.pdf", rejectionNote: "blurry" },
+      { fileName: "b.pdf", rejectionNote: "wrong month" },
+      { fileName: "c.pdf", rejectionNote: "blurry" },
+    ]);
+    expect(groups).toEqual([
+      { fileNames: ["a.pdf", "c.pdf"], note: "blurry" },
+      { fileNames: ["b.pdf"], note: "wrong month" },
+    ]);
+  });
+
+  it("prints a shared reason once in the email", () => {
+    const html = formatStatusList(
+      [{ itemName: "Bank Statements", documents: [
+        { fileName: "a.pdf", rejectionNote: "use official PDFs" },
+        { fileName: "b.pdf", rejectionNote: "use official PDFs" },
+      ] }],
+      []
+    );
+    expect(html.match(/use official PDFs/g)).toHaveLength(1);
+    expect(html).toContain("a.pdf, b.pdf: use official PDFs");
+  });
+});
 
 const doc = (id: string, reviewStatus: string, day: number) => ({ id, reviewStatus, createdAt: new Date(2026, 10, day) });
 

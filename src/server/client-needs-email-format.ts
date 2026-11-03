@@ -7,6 +7,23 @@ import {
   EMAIL_SECTION_HEADING_STYLE,
 } from "@/lib/email-html";
 
+/**
+ * Rejected files that share the same reason are listed together, so "Reject Need" (one note for every file on the
+ * need) reads as the reason once, not once per file. Files with their own reasons stay on their own lines, in order.
+ */
+export function groupRejectionsByNote(
+  documents: { fileName: string; rejectionNote: string | null }[]
+): { fileNames: string[]; note: string | null }[] {
+  const groups: { fileNames: string[]; note: string | null }[] = [];
+  for (const d of documents) {
+    const note = d.rejectionNote?.trim() || null;
+    const existing = groups.find((g) => g.note === note);
+    if (existing) existing.fileNames.push(d.fileName);
+    else groups.push({ fileNames: [d.fileName], note });
+  }
+  return groups;
+}
+
 // One combined status block: rejected items (with the processor's note) come
 // first since they need action soonest, then everything else still owed —
 // this is the one email format used for both a brand-new send (nothing
@@ -26,11 +43,11 @@ export function formatStatusList(
   if (rejectedNeeds.length > 0) {
     const list = rejectedNeeds
       .map((n) => {
-        const notes = n.documents
+        const notes = groupRejectionsByNote(n.documents)
           .map(
-            (d) =>
-              `<br/><span style="${EMAIL_SUBNOTE_STYLE}">${n.hideFileNames ? "" : `${escapeHtml(d.fileName)}: `}${escapeHtml(
-                d.rejectionNote ?? "No reason given"
+            (g) =>
+              `<br/><span style="${EMAIL_SUBNOTE_STYLE}">${n.hideFileNames ? "" : `${g.fileNames.map(escapeHtml).join(", ")}: `}${escapeHtml(
+                g.note ?? "No reason given"
               )}</span>`
           )
           .join("");

@@ -95,9 +95,14 @@ export async function getDealForBorrowerUpload(token: string) {
     templateFileName: n.templateFileName,
     pandadocDocumentId: n.pandadocDocumentId,
     customFormKey: n.customFormKey,
-    rejectionNotes: rejectedDocumentsToMention(n)
-      .filter((d) => d.rejectionNote)
-      .map((d) => d.rejectionNote!),
+    // Several files rejected with the same reason read it once.
+    rejectionNotes: [
+      ...new Set(
+        rejectedDocumentsToMention(n)
+          .filter((d) => d.rejectionNote)
+          .map((d) => d.rejectionNote!)
+      ),
+    ],
     answers: n.answers,
   }));
 
