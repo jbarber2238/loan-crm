@@ -24,9 +24,40 @@ export async function updateDealPricingNote(dealId: string, formData: FormData) 
   revalidatePath(`/deals/${dealId}`);
 }
 
+async function insertPricingEmailDraft(
+  user: { name?: string | null },
+  deal: typeof deals.$inferSelect,
+  rep: { id: string; name: string; lenderId: string },
+  companyName: string
+) {
+  const { subject, body } = await buildPricingEmail(deal, {
+    repName: rep.name,
+    senderName: user.name ?? "",
+    companyName,
+    notes: deal.pricingNoteToRep,
+  });
+
+  // Rendered to HTML once, here, so the draft can be edited with real
+  // formatting (bold, bullet lists) — everything downstream (save, send)
+  // treats emailBody as HTML from this point on.
+  await db.insert(pricingRequests).values({
+    dealId: deal.id,
+    lenderId: rep.lenderId,
+    lenderRepId: rep.id,
+    emailSubject: subject,
+    emailBody: plainTextToHtmlAutoList(body),
+    status: "draft",
+  });
+}
+
 export async function createPricingRequests(dealId: string, formData: FormData) {
   const user = await requireUser();
   const repIds = formData.getAll("lenderRepIds").filter((v): v is string => typeof v === "string");
+  // Reps on quick-pricer lenders that should ALSO get a pricing email, for a
+  // deal where the pricer alone won't cut it and you want their help.
+  const alsoEmailRepIds = new Set(
+    formData.getAll("alsoEmailRepIds").filter((v): v is string => typeof v === "string")
+  );
 
   if (!repIds.length) return;
 
@@ -42,9 +73,9 @@ export async function createPricingRequests(dealId: string, formData: FormData) 
     });
     if (!rep) continue;
 
-    // A lender with a quick pricer has nothing to email — the row just
-    // anchors a "go price it yourself" card (and an AI screenshot upload)
-    // in the same list instead of a drafted pricing email.
+    // A lender with a quick pricer has nothing to email by default — the row
+    // just anchors a "go price it yourself" card (and an AI screenshot
+    // upload) in the same list instead of a drafted pricing email.
     if (rep.lender.quickPricerUrl) {
       await db.insert(pricingRequests).values({
         dealId,
@@ -56,27 +87,11 @@ export async function createPricingRequests(dealId: string, formData: FormData) 
         status: "sent",
         sentAt: new Date(),
       });
+      if (alsoEmailRepIds.has(rep.id)) await insertPricingEmailDraft(user, deal, rep, companyName);
       continue;
     }
 
-    const { subject, body } = await buildPricingEmail(deal, {
-      repName: rep.name,
-      senderName: user.name ?? "",
-      companyName,
-      notes: deal.pricingNoteToRep,
-    });
-
-    // Rendered to HTML once, here, so the draft can be edited with real
-    // formatting (bold, bullet lists) — everything downstream (save, send)
-    // treats emailBody as HTML from this point on.
-    await db.insert(pricingRequests).values({
-      dealId,
-      lenderId: rep.lenderId,
-      lenderRepId: rep.id,
-      emailSubject: subject,
-      emailBody: plainTextToHtmlAutoList(body),
-      status: "draft",
-    });
+    await insertPricingEmailDraft(user, deal, rep, companyName);
   }
 
   // No-op if the deal isn't currently "New" (e.g. pricing more lenders
@@ -88,6 +103,34 @@ export async function createPricingRequests(dealId: string, formData: FormData) 
       console.error("Failed to send borrower rate-shopping notification:", err);
     });
   }
+
+  revalidatePath(`/deals/${dealId}`);
+}
+
+/**
+ * "Email my rep too" from a quick-pricer card: drafts the normal pricing
+ * email to the rep on that card, for the cases the pricer can't price clearly.
+ * One draft at a time — if an unsent one already exists for this rep, it's
+ * left alone rather than stacking a duplicate.
+ */
+export async function draftRepEmailForQuickPricer(dealId: string, lenderRepId: string) {
+  const user = await requireUser();
+  const [deal, rep] = await Promise.all([
+    db.query.deals.findFirst({ where: eq(deals.id, dealId) }),
+    db.query.lenderReps.findFirst({ where: eq(lenderReps.id, lenderRepId) }),
+  ]);
+  if (!deal || !rep) throw new Error("Couldn't find that deal or rep");
+
+  const existingDraft = await db.query.pricingRequests.findFirst({
+    where: and(
+      eq(pricingRequests.dealId, dealId),
+      eq(pricingRequests.lenderRepId, lenderRepId),
+      eq(pricingRequests.isQuickPricer, false),
+      eq(pricingRequests.status, "draft")
+    ),
+    columns: { id: true },
+  });
+  if (!existingDraft) await insertPricingEmailDraft(user, deal, rep, await getCompanyName());
 
   revalidatePath(`/deals/${dealId}`);
 }

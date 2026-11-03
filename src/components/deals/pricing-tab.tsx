@@ -31,6 +31,7 @@ import type { RecipientCandidate } from "@/lib/email-recipients";
 interface LenderWithReps {
   id: string;
   name: string;
+  quickPricerUrl?: string | null;
   reps: { id: string; name: string; email: string }[];
 }
 
@@ -43,6 +44,7 @@ interface PricingRequest {
   status: "draft" | "sent";
   sentAt: Date | null;
   lenderId: string;
+  lenderRepId: string;
   lender: { name: string; quickPricerUrl: string | null };
   lenderRep: { name: string; email: string };
   replyReceivedAt: Date | null;
@@ -353,6 +355,8 @@ export function PricingTab({
                         dealId={dealId}
                         lenderId={request.lenderId}
                         lenderName={request.lender.name}
+                        lenderRepId={request.lenderRepId}
+                        repName={request.lenderRep.name}
                         quickPricerUrl={request.lender.quickPricerUrl}
                         loanCategory={loanCategory}
                         products={products}

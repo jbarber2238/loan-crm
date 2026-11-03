@@ -1,7 +1,10 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { ExternalLink } from "lucide-react";
+import { draftRepEmailForQuickPricer } from "@/server/actions/pricing";
 import { extractTermSheetFromScreenshot, type TermSheetExtractionOption } from "@/server/ai/term-sheet-extraction";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -19,6 +22,8 @@ export function QuickPricerCard({
   dealId,
   lenderId,
   lenderName,
+  lenderRepId,
+  repName,
   quickPricerUrl,
   loanCategory,
   products,
@@ -28,19 +33,35 @@ export function QuickPricerCard({
   dealId: string;
   lenderId: string;
   lenderName: string;
+  lenderRepId: string;
+  repName: string;
   quickPricerUrl: string;
   loanCategory: string;
   products: ProductOption[];
   purchasePrice?: number | null;
   estimatedAsIsValue?: number | null;
 }) {
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [drafting, startDraft] = useTransition();
   const [reading, startRead] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [options, setOptions] = useState<TermSheetExtractionOption[] | null>(null);
   const [extractionNotes, setExtractionNotes] = useState<string | null>(null);
 
   const lenderProducts = products.filter((p) => p.lenderId === lenderId);
+
+  function handleEmailRep() {
+    startDraft(async () => {
+      try {
+        await draftRepEmailForQuickPricer(dealId, lenderRepId);
+        toast.success(`Draft email to ${repName} created`);
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't create the draft.");
+      }
+    });
+  }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -80,11 +101,16 @@ export function QuickPricerCard({
     <div className="space-y-3 rounded-md border p-3">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium">{lenderName} has a quick pricer</p>
-        <Button asChild size="sm" variant="outline">
-          <a href={quickPricerUrl} target="_blank" rel="noreferrer">
-            Open Quick Pricer <ExternalLink className="size-3.5" />
-          </a>
-        </Button>
+        <div className="flex gap-2">
+          <Button type="button" size="sm" variant="ghost" disabled={drafting} onClick={handleEmailRep}>
+            {drafting ? "Drafting…" : `Email ${repName.split(" ")[0]} for help`}
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <a href={quickPricerUrl} target="_blank" rel="noreferrer">
+              Open Quick Pricer <ExternalLink className="size-3.5" />
+            </a>
+          </Button>
+        </div>
       </div>
       <p className="text-xs text-muted-foreground">
         Price it directly on their site, then snap a screenshot of the results and drop it below to get a
