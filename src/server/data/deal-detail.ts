@@ -17,7 +17,6 @@ export const getDealDetail = cache(async (id: string) => {
       lender: { with: { reps: true } },
       product: true,
       notes: { with: { author: true } },
-      clientNeeds: true,
       // Never the file bytes (signed PDFs, reply attachments): this loads on every deal page and tab, and they
       // are base64 text. Their own routes fetch a single file when someone opens it.
       termSheets: { columns: { signedDocumentData: false }, with: { lender: true, product: true } },
