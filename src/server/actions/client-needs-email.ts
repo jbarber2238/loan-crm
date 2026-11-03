@@ -12,6 +12,8 @@ import { getOrCreateBorrowerUploadLink } from "@/server/actions/deals";
 import { buildBorrowerEmail } from "@/server/borrower-templates";
 import { recomputeNeedStatus } from "@/server/client-need-status";
 import { createAndSendPandaDocForm } from "@/server/actions/client-needs";
+import { reopenPandaDocNeed } from "@/server/pandadoc-reopen";
+import { fail } from "@/lib/action-result";
 import { getEmailRecipientCandidates } from "@/server/email-recipient-candidates";
 import {
   escapeHtml,
@@ -138,6 +140,34 @@ export async function sendClientNeedsUpdateEmail(
     await createAndSendPandaDocForm(dealId, need.id, need.pandadocTemplateUuid, need.itemName);
   }
 
+  // A finished PandaDoc form that a processor rejected is locked on PandaDoc's side, so the borrower couldn't fix
+  // it from the link in this email. Reopen it first (answers kept, signature cleared). If PandaDoc refuses, stop
+  // before emailing: telling them to fix a form that is still locked is worse than not sending.
+  const rejectedForms = await db.query.dealClientNeeds.findMany({
+    where: and(
+      inArray(dealClientNeeds.id, ids),
+      eq(dealClientNeeds.needType, "pandadoc_form"),
+      eq(dealClientNeeds.pandadocStatus, "document.completed"),
+      isNull(dealClientNeeds.onHoldAt)
+    ),
+    columns: { id: true, itemName: true, pandadocDocumentId: true },
+    with: { documents: { columns: { id: true, reviewStatus: true } } },
+  });
+  for (const form of rejectedForms) {
+    // Only when every copy on the need is rejected: an earlier rejected copy stays on the need after a reopen, and
+    // must not reopen a form whose newer copy is pending or approved.
+    const allRejected = form.documents.length > 0 && form.documents.every((d) => d.reviewStatus === "rejected");
+    if (!form.pandadocDocumentId || !allRejected) continue;
+    try {
+      await reopenPandaDocNeed(form.id, form.pandadocDocumentId, { rejectExistingDocs: false, reviewerUserId: user.id });
+    } catch (err) {
+      console.error(`Failed to reopen PandaDoc ${form.pandadocDocumentId} for need ${form.id}:`, err);
+      return fail(
+        `PandaDoc wouldn't reopen "${form.itemName}" for the borrower, so nothing was sent. Try again in a minute.`
+      );
+    }
+  }
+
   const [logoHtml, signatureHtml] = await Promise.all([
     getCompanyLogoHtml(),
     getUserEmailSignatureHtml(user.id),
@@ -167,4 +197,5 @@ export async function sendClientNeedsUpdateEmail(
   for (const id of ids) await recomputeNeedStatus(id);
 
   revalidatePath(`/deals/${dealId}/loan-center`);
+  return { ok: true as const };
 }

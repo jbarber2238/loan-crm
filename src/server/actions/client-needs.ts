@@ -21,13 +21,8 @@ import { recomputeNeedStatus } from "@/server/client-need-status";
 import { copyQuestionsToNewNeeds } from "@/server/client-need-questions";
 import { createClientNeed } from "@/server/actions/client-need-catalog";
 import { activeRulesFor } from "@/server/client-need-rules";
-import {
-  createDocumentFromTemplate,
-  createDocumentFromPdfFile,
-  waitUntilDraft,
-  sendDocumentSilently,
-  revertDocumentToDraft,
-} from "@/server/pandadoc";
+import { createDocumentFromTemplate, createDocumentFromPdfFile, waitUntilDraft, sendDocumentSilently } from "@/server/pandadoc";
+import { reopenPandaDocNeed } from "@/server/pandadoc-reopen";
 import { addSignaturePage } from "@/server/pdf/signature-page";
 
 type CatalogNeedRow = {
@@ -530,30 +525,11 @@ export async function reopenPandaDocForm(dealId: string, needId: string) {
   }
 
   try {
-    await revertDocumentToDraft(need.pandadocDocumentId);
-    await waitUntilDraft(need.pandadocDocumentId);
-    await sendDocumentSilently(need.pandadocDocumentId);
+    await reopenPandaDocNeed(needId, need.pandadocDocumentId, { rejectExistingDocs: true, reviewerUserId: user.id });
   } catch (err) {
     console.error(`Failed to reopen PandaDoc ${need.pandadocDocumentId} for need ${needId}:`, err);
     return fail("PandaDoc wouldn't reopen this form. Try again in a minute, or reopen it from PandaDoc directly.");
   }
-
-  const reviewedAt = new Date();
-  await db
-    .update(dealClientNeedDocuments)
-    .set({
-      reviewStatus: "rejected",
-      reviewedAt,
-      reviewedByUserId: user.id,
-      rejectionNote: "Reopened so the borrower can make changes. A new signed copy replaces this one.",
-    })
-    .where(eq(dealClientNeedDocuments.clientNeedId, needId));
-  // lastSentAt is set after the rejection so the need reads as awaiting the borrower, not as rejected-and-unsent.
-  await db
-    .update(dealClientNeeds)
-    .set({ pandadocStatus: "document.sent", lastSentAt: new Date() })
-    .where(eq(dealClientNeeds.id, needId));
-  await recomputeNeedStatus(needId);
   revalidatePath(`/deals/${dealId}/loan-center`);
   return { ok: true as const };
 }

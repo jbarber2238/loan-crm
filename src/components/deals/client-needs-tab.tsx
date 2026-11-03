@@ -1023,7 +1023,12 @@ function SendToBorrowerDialog({
     const finalBody = bodyRef.current?.innerHTML ?? body;
     startTransition(async () => {
       try {
-        await sendClientNeedsUpdateEmail(dealId, needIds, to, cc, subject, finalBody);
+        const result = await sendClientNeedsUpdateEmail(dealId, needIds, to, cc, subject, finalBody);
+        if ("error" in result) {
+          setError(result.error);
+          toast.error(result.error);
+          return;
+        }
         setOpen(false);
         toast.success("Email sent to borrower");
         router.refresh();
