@@ -9,7 +9,15 @@ import { gifInMessage } from "@/lib/chat-gif";
  * people on a deal's chat, or (for the team-wide General room) everyone. Each person's own settings decide whether
  * it actually reaches their phone. Never throws.
  */
-export async function pushChatMessage(input: { roomId: string; senderId: string; senderName: string; text: string; attachment: "file" | "voice" | null }): Promise<void> {
+export async function pushChatMessage(input: {
+  roomId: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  attachment: "file" | "voice" | null;
+  /** People already alerted another way (tagged with @), so they don't get this one as well. */
+  skipUserIds?: string[];
+}): Promise<void> {
   try {
     const [room] = await db
       .select({
@@ -35,7 +43,8 @@ export async function pushChatMessage(input: { roomId: string; senderId: string;
     } else {
       recipients = members;
     }
-    recipients = recipients.filter((id) => id !== input.senderId);
+    const skip = new Set([input.senderId, ...(input.skipUserIds ?? [])]);
+    recipients = recipients.filter((id) => !skip.has(id));
     if (recipients.length === 0) return;
 
     const who = input.senderName.trim() || "Someone";

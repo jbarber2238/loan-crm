@@ -16,6 +16,8 @@ import { requireUser } from "@/server/auth/guards";
 import { roomAccess } from "@/server/team-chat-access";
 import { loadRoomState, upsertRead } from "@/server/team-chat-state";
 import { pushChatMessage } from "@/server/chat-push";
+import { notifyChatMentions, roomPeople } from "@/server/chat-mentions";
+import type { MentionPerson } from "@/lib/chat-mentions";
 import { resolveStagedFiles } from "@/server/staged-uploads";
 import { ALLOWED_REACTIONS } from "@/lib/chat-reactions";
 
@@ -136,6 +138,14 @@ export async function editTeamMessage(roomId: string, messageId: string, newText
   if (message.userId !== user.id) throw new Error("You can only edit your own messages");
   if (message.body === text) return;
   await db.update(teamChatMessages).set({ body: text, editedAt: new Date() }).where(eq(teamChatMessages.id, messageId));
+  // Only people the edit newly tags are told; anyone tagged in the original already was.
+  await notifyChatMentions({ roomId, messageId, sender: user, text, previousText: message.body });
+}
+
+/** Who can be tagged with @ in this chat (everyone who can read it), for the typing suggestions and highlighting. */
+export async function getMentionablePeople(roomId: string): Promise<MentionPerson[]> {
+  await requireRoomAccess(roomId);
+  return roomPeople(roomId);
 }
 
 /** Adds my reaction to a message, or takes it back if I'd already left that one. */
@@ -219,7 +229,15 @@ export async function sendTeamMessage(roomId: string, formData: FormData) {
     db.update(teamChatRooms).set({ lastMessageAt: new Date() }).where(eq(teamChatRooms.id, roomId)),
     upsertRead(roomId, user.id),
   ]);
-  await pushChatMessage({ roomId, senderId: user.id, senderName: user.name ?? "", text, attachment: audioFile ? "voice" : files.length ? "file" : null });
+  const tagged = await notifyChatMentions({ roomId, messageId: message.id, sender: user, text });
+  await pushChatMessage({
+    roomId,
+    senderId: user.id,
+    senderName: user.name ?? "",
+    text,
+    attachment: audioFile ? "voice" : files.length ? "file" : null,
+    skipUserIds: tagged,
+  });
 }
 
 async function attachmentPreview(messageId: string): Promise<string> {

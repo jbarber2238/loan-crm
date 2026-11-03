@@ -13,7 +13,7 @@ export interface NotificationCategory {
 export const NOTIFICATION_CATEGORIES: NotificationCategory[] = [
   { id: "deals", label: "Activity on my deals", description: "Documents uploaded, term sheets accepted, the processing fee paid and other updates on deals I'm assigned to.", adminOnly: false, defaultPush: true },
   { id: "texts", label: "Texts from clients", description: "A client texts one of my deals.", adminOnly: false, defaultPush: true },
-  { id: "chat_direct", label: "Team chat: messages to me", description: "Direct messages, group chats I'm in, and chats on my deals.", adminOnly: false, defaultPush: true },
+  { id: "chat_direct", label: "Team chat: messages to me", description: "Direct messages, group chats I'm in, chats on my deals, and anyone who tags me with @ in any chat.", adminOnly: false, defaultPush: true },
   { id: "chat_general", label: "Team chat: the General room", description: "Every message in the team-wide chat. Busy, so it's off until you want it.", adminOnly: false, defaultPush: false },
   { id: "leads", label: "Event signups and leads", description: "Someone registers for the Friday Zoom or becomes a lead.", adminOnly: true, defaultPush: true },
   { id: "partners", label: "Partner activity", description: "Partners accepting terms, sending referrals, sending banking or tax forms.", adminOnly: true, defaultPush: true },
@@ -35,6 +35,7 @@ const TYPE_TO_CATEGORY: Record<string, string> = {
   inbound_text: "texts",
   direct_message: "chat_direct",
   group_message: "chat_direct",
+  chat_mention: "chat_direct",
   general_message: "chat_general",
   friday_signup: "leads",
   friday_headcount: "leads",
@@ -81,7 +82,7 @@ export interface DealTeam {
 }
 
 /** Types that are sent to one person on purpose (a message to them), so they always go through. */
-const DIRECT_TYPES = new Set(["direct_message", "group_message"]);
+const DIRECT_TYPES = new Set(["direct_message", "group_message", "chat_mention"]);
 
 /**
  * The one rule for who a notification may reach. Admins and loan officers are told whatever they're sent. A

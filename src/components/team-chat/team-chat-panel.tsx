@@ -8,6 +8,7 @@ import { ArrowUp, ChevronLeft, FileText, MessageSquare, Mic, Paperclip, Smile, S
 import {
   editTeamMessage,
   sendTeamMessage,
+  getMentionablePeople,
   toggleTeamReaction,
   type ChatAttachment,
   type ChatMessage,
@@ -18,7 +19,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
-import { findVideoEmbed, linkify } from "@/lib/linkify";
+import { findVideoEmbed } from "@/lib/linkify";
+import { MessageText } from "@/components/team-chat/message-text";
+import { activeMentionQuery, matchMentionPeople, mentionHandle, type MentionPerson } from "@/lib/chat-mentions";
 import { EMOJI_GROUPS, RECENT_EMOJI_KEY, insertAtSelection, withRecentEmoji } from "@/lib/chat-emoji";
 import { gifInMessage } from "@/lib/chat-gif";
 import { useVoiceRecorder, type VoiceClip } from "@/components/messaging/use-voice-recorder";
@@ -243,7 +246,12 @@ function Composer({
   onTyping,
   autoFocus,
   phone,
+  people = [],
+  currentUserId,
 }: {
+  /** Who can be tagged with @ here (everyone who can read this chat). */
+  people?: MentionPerson[];
+  currentUserId?: string;
   placeholder: string;
   onSend: (message: OutgoingMessage) => Promise<void>;
   onTyping?: () => void;
@@ -258,6 +266,10 @@ function Composer({
   const fileInput = useRef<HTMLInputElement>(null);
   const textBox = useRef<HTMLTextAreaElement>(null);
   const voice = useVoiceRecorder();
+  // The "@word" being typed right now, and which suggestion is highlighted.
+  const [mention, setMention] = useState<{ start: number; query: string } | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const suggestions = mention ? matchMentionPeople(people.filter((p) => p.id !== currentUserId), mention.query).slice(0, 6) : [];
 
   const canSend = Boolean(text.trim() || files.length || clip);
 
@@ -283,6 +295,26 @@ function Composer({
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Couldn't send that");
       }
+    });
+  }
+
+  function updateMention(value: string, cursor: number) {
+    setMention(activeMentionQuery(value, cursor));
+    setMentionIndex(0);
+  }
+
+  function pickMention(person: MentionPerson) {
+    if (!mention) return;
+    const box = textBox.current;
+    const cursor = box?.selectionStart ?? text.length;
+    const insert = `@${mentionHandle(person, people)} `;
+    const next = text.slice(0, mention.start) + insert + text.slice(cursor);
+    const at = mention.start + insert.length;
+    setText(next);
+    setMention(null);
+    requestAnimationFrame(() => {
+      box?.focus();
+      box?.setSelectionRange(at, at);
     });
   }
 
@@ -315,7 +347,24 @@ function Composer({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="relative space-y-2">
+      {suggestions.length > 0 && (
+        <ul role="listbox" aria-label="Tag a teammate" className="absolute bottom-full left-0 z-20 mb-1 max-h-56 w-64 max-w-full overflow-y-auto rounded-md border bg-popover p-1 shadow-md">
+          {suggestions.map((p, i) => (
+            <li key={p.id} role="option" aria-selected={i === mentionIndex}>
+              <button
+                type="button"
+                // Keeps the cursor in the message box instead of taking focus away when tapped.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pickMention(p)}
+                className={cn("flex w-full items-center rounded px-2 py-1.5 text-left text-sm", i === mentionIndex ? "bg-accent" : "hover:bg-accent/60")}
+              >
+                {p.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       {(files.length > 0 || clip) && (
         <div className="flex flex-wrap gap-2">
           {files.map((f, i) => (
@@ -382,9 +431,28 @@ function Composer({
           placeholder={placeholder}
           onChange={(e) => {
             setText(e.target.value);
+            updateMention(e.target.value, e.target.selectionStart);
             if (e.target.value) onTyping?.();
           }}
+          onBlur={() => setMention(null)}
           onKeyDown={(e) => {
+            if (suggestions.length > 0) {
+              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault();
+                setMentionIndex((i) => (i + (e.key === "ArrowDown" ? 1 : suggestions.length - 1)) % suggestions.length);
+                return;
+              }
+              if (e.key === "Enter" || e.key === "Tab") {
+                e.preventDefault();
+                pickMention(suggestions[mentionIndex] ?? suggestions[0]);
+                return;
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setMention(null);
+                return;
+              }
+            }
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               submit();
@@ -740,7 +808,11 @@ function MessageRow({
   editing,
   onSaveEdit,
   onCancelEdit,
+  people,
+  currentUserId,
 }: {
+  people: MentionPerson[];
+  currentUserId: string;
   m: ChatMessage;
   mine: boolean;
   compact?: boolean;
@@ -770,7 +842,7 @@ function MessageRow({
                 mine ? "bg-primary text-primary-foreground" : "bg-muted"
               )}
             >
-              {linkify(m.body)}
+              <MessageText text={m.body} people={people} currentUserId={currentUserId} onPrimary={mine} />
             </p>
           ))}
           <VideoPreview text={m.body} />
@@ -795,7 +867,7 @@ function MessageRow({
           <span className="font-medium text-foreground">{mine ? "You" : m.authorName}</span> · {timeLabel(m.createdAt)}
           {edited}
         </p>
-        {editor ?? (m.body && !gifInMessage(m.body) && <p className="text-sm whitespace-pre-wrap break-words">{linkify(m.body)}</p>)}
+        {editor ?? (m.body && !gifInMessage(m.body) && <p className="text-sm whitespace-pre-wrap break-words"><MessageText text={m.body} people={people} currentUserId={currentUserId} /></p>)}
         <VideoPreview text={m.body} />
         <GifPreview text={m.body} />
         <Attachments items={m.attachments} />
@@ -823,6 +895,8 @@ async function fetchRoomState(roomId: string, markRead: boolean): Promise<ChatRo
 // The last messages loaded for each chat, so opening one shows them at once and refreshes underneath.
 const roomStateCache = new Map<string, ChatRoomState>();
 const roomStateLoading = new Map<string, Promise<void>>();
+// Who can be tagged in each chat. Rarely changes, so it is fetched once per chat rather than with every refresh.
+const peopleCache = new Map<string, MentionPerson[]>();
 
 /** Loads a chat's messages ahead of time (without marking it read), so it's already there when someone opens it. */
 export function prefetchRoomState(roomId: string): Promise<void> {
@@ -848,7 +922,10 @@ export function TeamChatPanel({
   fillViewport = false,
   dock = false,
   onBack,
+  focusMessageId = null,
 }: {
+  /** Open at this message (from a "you were tagged" notification): scrolls to it and flashes it. */
+  focusMessageId?: string | null;
   roomId: string;
   heightClass?: string;
   showMembers?: boolean;
@@ -872,6 +949,10 @@ export function TeamChatPanel({
   const [pending, setPending] = useState<ChatMessage[]>([]);
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [people, setPeople] = useState<MentionPerson[]>(() => peopleCache.get(roomId) ?? []);
+  const [flashId, setFlashId] = useState<string | null>(null);
+  const focusDone = useRef<string | null>(null);
+  const focusStarted = useRef<{ id: string; at: number } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const lastCount = useRef(0);
@@ -940,6 +1021,21 @@ export function TeamChatPanel({
   // Not while the tab is in the background; it catches up the moment you come back.
   useVisibleInterval(refresh, live ? POLL_LIVE_MS : POLL_FALLBACK_MS);
 
+  useEffect(() => {
+    const cached = peopleCache.get(roomId);
+    if (cached) return;
+    let cancelled = false;
+    getMentionablePeople(roomId)
+      .then((list) => {
+        peopleCache.set(roomId, list);
+        if (!cancelled) setPeople(list);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [roomId]);
+
   // Expire stale typing indicators.
   useEffect(() => {
     const t = setInterval(() => {
@@ -976,9 +1072,36 @@ export function TeamChatPanel({
     const n = messages.length;
     if (n !== lastCount.current) {
       lastCount.current = n;
-      scrollToEnd(bottomRef.current);
+      const waitingForTaggedMessage = Boolean(focusMessageId) && focusDone.current !== focusMessageId;
+      if (!waitingForTaggedMessage) scrollToEnd(bottomRef.current);
     }
-  }, [messages]);
+  }, [messages, focusMessageId]);
+
+  // Opened from a "you were tagged" notification: scroll that message to the middle and flash it. If it's a reply,
+  // open its thread first. The message may not be in the first copy shown (an older cached one), so keep trying
+  // as fresh messages arrive, and stop waiting after a few seconds in case it was deleted.
+  useEffect(() => {
+    if (!focusMessageId || focusDone.current === focusMessageId) return;
+    if (focusStarted.current?.id !== focusMessageId) focusStarted.current = { id: focusMessageId, at: Date.now() };
+    const target = state?.messages.find((m) => m.id === focusMessageId);
+    if (!target) {
+      // Not here (yet): a fresher copy may still arrive. Give up after a few seconds in case it was deleted.
+      if (Date.now() - focusStarted.current.at > 6000) focusDone.current = focusMessageId;
+      return;
+    }
+    focusDone.current = focusMessageId;
+    // Open a reply's thread first, then wait a frame so it is on the screen before scrolling to it. These are
+    // deliberately not cancelled when the effect re-runs (a refresh lands mid-way): the jump should still finish
+    // and the highlight must still switch itself off.
+    requestAnimationFrame(() => {
+      if (target.parentId) setOpenThread(target.parentId);
+      requestAnimationFrame(() => {
+        document.querySelector(`[data-chat-msg="${focusMessageId}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+        setFlashId(focusMessageId);
+        setTimeout(() => setFlashId(null), 3500);
+      });
+    });
+  }, [focusMessageId, state]);
 
   // On a phone the chat owns the screen: freeze the page behind it, and keep the newest message in view
   // when the keyboard opens or closes.
@@ -1131,8 +1254,14 @@ export function TeamChatPanel({
         const isOpen = openThread === m.id;
         const mine = m.userId === state.currentUserId;
         return (
-          <div key={m.id} className="space-y-2">
+          <div
+            key={m.id}
+            data-chat-msg={m.id}
+            className={cn("space-y-2 rounded-md transition-colors duration-700", flashId === m.id && "bg-primary/10 ring-2 ring-primary/40")}
+          >
             <MessageRow
+              people={people}
+              currentUserId={state.currentUserId}
               m={m}
               mine={mine}
               bubble={isPhone}
@@ -1159,8 +1288,14 @@ export function TeamChatPanel({
               {(isOpen || thread.length > 0) && (
                 <div className={cn("mt-2 space-y-2 border-l-2 pl-3 text-left", isPhone && mine && "ml-auto max-w-[85%]")}>
                   {thread.map((r) => (
-                    <div key={r.id} className="space-y-1">
+                    <div
+                      key={r.id}
+                      data-chat-msg={r.id}
+                      className={cn("space-y-1 rounded-md transition-colors duration-700", flashId === r.id && "bg-primary/10 ring-2 ring-primary/40")}
+                    >
                       <MessageRow
+                        people={people}
+                        currentUserId={state.currentUserId}
                         m={r}
                         mine={r.userId === state.currentUserId}
                         compact
@@ -1180,7 +1315,7 @@ export function TeamChatPanel({
                       </div>
                     </div>
                   ))}
-                  {isOpen && <Composer placeholder="Reply in thread…" autoFocus phone={isPhone} onSend={(msg) => send(msg, m.id)} onTyping={announceTyping} />}
+                  {isOpen && <Composer placeholder="Reply in thread…" autoFocus phone={isPhone} people={people} currentUserId={state.currentUserId} onSend={(msg) => send(msg, m.id)} onTyping={announceTyping} />}
                 </div>
               )}
             </div>
@@ -1204,6 +1339,8 @@ export function TeamChatPanel({
       <Composer
         placeholder={isPhone ? "Message the team" : dock ? "Message" : "Message the team (internal only — clients never see this)"}
         phone={isPhone}
+        people={people}
+        currentUserId={state?.currentUserId}
         onSend={(msg) => send(msg)}
         onTyping={announceTyping}
       />

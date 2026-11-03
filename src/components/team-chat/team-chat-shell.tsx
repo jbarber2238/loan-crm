@@ -36,6 +36,8 @@ export function TeamChatShell({
 }) {
   const searchParams = useSearchParams();
   const room = searchParams.get("room");
+  // Set when arriving from a "you were tagged" notification: the chat opens at that message.
+  const focusMessageId = searchParams.get("message");
   const activeId = rooms.some((r) => r.roomId === room) ? room! : generalId;
   const active = rooms.find((r) => r.roomId === activeId);
   // Chats opened here are read by the time they show, so their unread badge goes away without waiting for a refresh.
@@ -180,6 +182,7 @@ export function TeamChatShell({
           <TeamChatPanel
             key={activeId}
             roomId={activeId}
+            focusMessageId={room === activeId ? focusMessageId : null}
             showMembers={active?.kind !== "general" && active?.kind !== "dm"}
             phoneTitle={active ? displayTitle(active) : "General"}
             backHref="/team-chat"
