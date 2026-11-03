@@ -82,6 +82,7 @@ async function buildReminderGroup(
   const rejectedIds = new Set(rejectedRows.map((n) => n.id));
   const rejectedNeeds = rejectedRows.map((n) => ({
     itemName: n.itemName,
+    hideFileNames: n.needType === "pandadoc_form",
     documents: rejectedDocumentsToMention(n),
   }));
   const outstandingNeeds = group

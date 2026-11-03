@@ -14,7 +14,12 @@ import {
 // rejection, rather than two separate email types. Rendered as HTML so it
 // reads like a real formatted email, not a plain-text dump.
 export function formatStatusList(
-  rejectedNeeds: { itemName: string; documents: { fileName: string; rejectionNote: string | null }[] }[],
+  rejectedNeeds: {
+    itemName: string;
+    // A PandaDoc form is one document, so its file name only adds clutter in front of the reason.
+    hideFileNames?: boolean;
+    documents: { fileName: string; rejectionNote: string | null }[];
+  }[],
   outstandingNeeds: { itemName: string; description: string | null }[]
 ): string {
   const sections: string[] = [];
@@ -24,7 +29,7 @@ export function formatStatusList(
         const notes = n.documents
           .map(
             (d) =>
-              `<br/><span style="${EMAIL_SUBNOTE_STYLE}">${escapeHtml(d.fileName)}: ${escapeHtml(
+              `<br/><span style="${EMAIL_SUBNOTE_STYLE}">${n.hideFileNames ? "" : `${escapeHtml(d.fileName)}: `}${escapeHtml(
                 d.rejectionNote ?? "No reason given"
               )}</span>`
           )

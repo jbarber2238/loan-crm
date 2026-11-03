@@ -28,7 +28,7 @@ export async function reopenPandaDocNeed(
         reviewStatus: "rejected",
         reviewedAt: new Date(),
         reviewedByUserId: reviewerUserId,
-        rejectionNote: "Reopened so you can make changes. Please review it and sign again.",
+        rejectionNote: "This form was reopened so you can update your answers.",
       })
       // Copies already rejected keep their own reason; overwriting it would lose what the processor wrote.
       .where(and(eq(dealClientNeedDocuments.clientNeedId, needId), ne(dealClientNeedDocuments.reviewStatus, "rejected")));

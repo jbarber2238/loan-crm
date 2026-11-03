@@ -9,6 +9,7 @@ import { deals, dealClientNeeds, dealClientNeedDocuments, dealClientNeedAnswers,
 import { recomputeNeedStatus } from "@/server/client-need-status";
 import { recordBorrowerActivity } from "@/server/borrower-activity";
 import { convertHeicIfNeeded } from "@/server/heic";
+import { rejectedDocumentsToMention } from "@/server/client-needs-email-format";
 import { createSigningSessionUrl } from "@/server/pandadoc";
 import { parsePropertyAddress } from "@/lib/format";
 import { getCustomFormDefinition, syncedFieldsFor } from "@/lib/custom-need-forms/registry";
@@ -69,7 +70,7 @@ export async function getDealForBorrowerUpload(token: string) {
     ),
     columns: { templateFileData: false },
     with: {
-      documents: { columns: { reviewStatus: true, rejectionNote: true } },
+      documents: { columns: { reviewStatus: true, rejectionNote: true, createdAt: true } },
       answers: {
         columns: { id: true, questionText: true, required: true, answerText: true },
         orderBy: (a, { asc }) => asc(a.sortOrder),
@@ -94,8 +95,8 @@ export async function getDealForBorrowerUpload(token: string) {
     templateFileName: n.templateFileName,
     pandadocDocumentId: n.pandadocDocumentId,
     customFormKey: n.customFormKey,
-    rejectionNotes: n.documents
-      .filter((d) => d.reviewStatus === "rejected" && d.rejectionNote)
+    rejectionNotes: rejectedDocumentsToMention(n)
+      .filter((d) => d.rejectionNote)
       .map((d) => d.rejectionNote!),
     answers: n.answers,
   }));

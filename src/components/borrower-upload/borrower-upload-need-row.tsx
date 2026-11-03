@@ -206,7 +206,15 @@ export function BorrowerUploadNeedRow({ token, need }: { token: string; need: Bo
 
       {need.rejectionNotes.length > 0 && (
         <div className="rounded-md bg-destructive/10 p-2 text-xs text-destructive">
-          Please resubmit — {need.rejectionNotes.join("; ")}
+          {need.needType === "pandadoc_form" ? (
+            <>
+              From your loan team: {need.rejectionNotes.join(" ")}
+              <br />
+              Open the form below, update your answers, and sign again.
+            </>
+          ) : (
+            <>Please resubmit — {need.rejectionNotes.join("; ")}</>
+          )}
         </div>
       )}
 

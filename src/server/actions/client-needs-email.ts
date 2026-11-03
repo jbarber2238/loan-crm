@@ -60,6 +60,7 @@ export async function previewClientNeedsUpdateEmail(dealId: string, needIds: str
   const rejectedIds = new Set(rejectedNeedRows.map((n) => n.id));
   const rejectedNeeds = rejectedNeedRows.map((n) => ({
     itemName: n.itemName,
+    hideFileNames: n.needType === "pandadoc_form",
     documents: rejectedDocumentsToMention(n),
   }));
   const outstandingNeeds = needs.filter((n) => n.status !== "accepted" && !rejectedIds.has(n.id));
