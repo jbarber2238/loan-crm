@@ -45,3 +45,17 @@ export function formatStatusList(
   }
   return sections.join("");
 } 
+
+/**
+ * The rejected copies worth telling the borrower about. A PandaDoc form is one document the borrower redoes, and a
+ * reopen leaves the earlier rejected copy behind, so only the newest copy counts: it is mentioned only while it is
+ * itself rejected, never alongside older rejections or once a newer copy is pending or approved. Every other need
+ * type lists each rejected file with its own reason.
+ */
+export function rejectedDocumentsToMention<D extends { reviewStatus: string; createdAt: Date }>(
+  need: { needType: string; documents: D[] }
+): D[] {
+  if (need.needType !== "pandadoc_form") return need.documents.filter((d) => d.reviewStatus === "rejected");
+  const newest = [...need.documents].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+  return newest?.reviewStatus === "rejected" ? [newest] : [];
+}

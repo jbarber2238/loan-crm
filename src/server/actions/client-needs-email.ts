@@ -24,7 +24,7 @@ import {
   EMAIL_SUBNOTE_STYLE,
   EMAIL_SECTION_HEADING_STYLE,
 } from "@/lib/email-html";
-import { formatStatusList } from "@/server/client-needs-email-format";
+import { formatStatusList, rejectedDocumentsToMention } from "@/server/client-needs-email-format";
 
 async function loadDealForEmail(dealId: string) {
   const deal = await db.query.deals.findFirst({
@@ -56,11 +56,11 @@ export async function previewClientNeedsUpdateEmail(dealId: string, needIds: str
   });
   if (!needs.length) throw new Error("The selected client needs are on hold (or couldn't be found) — nothing to send.");
 
-  const rejectedNeedRows = needs.filter((n) => n.documents.some((d) => d.reviewStatus === "rejected"));
+  const rejectedNeedRows = needs.filter((n) => rejectedDocumentsToMention(n).length > 0);
   const rejectedIds = new Set(rejectedNeedRows.map((n) => n.id));
   const rejectedNeeds = rejectedNeedRows.map((n) => ({
     itemName: n.itemName,
-    documents: n.documents.filter((d) => d.reviewStatus === "rejected"),
+    documents: rejectedDocumentsToMention(n),
   }));
   const outstandingNeeds = needs.filter((n) => n.status !== "accepted" && !rejectedIds.has(n.id));
 

@@ -5,7 +5,7 @@ import { sendGmailAs } from "@/server/gmail/send";
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
 import { buildBorrowerEmail } from "@/server/borrower-templates";
-import { formatStatusList } from "@/server/client-needs-email-format";
+import { formatStatusList, rejectedDocumentsToMention } from "@/server/client-needs-email-format";
 import { htmlButton } from "@/lib/email-html";
 import { checkReminderDue, REMINDER_HOUR_ET, REMINDER_MINUTE_ET } from "@/lib/reminder-schedule";
 
@@ -78,11 +78,11 @@ async function buildReminderGroup(
   const sender = await loadSender(senderId);
   if (!sender?.email) return { ok: false };
 
-  const rejectedRows = group.filter((n) => n.documents.some((d) => d.reviewStatus === "rejected"));
+  const rejectedRows = group.filter((n) => rejectedDocumentsToMention(n).length > 0);
   const rejectedIds = new Set(rejectedRows.map((n) => n.id));
   const rejectedNeeds = rejectedRows.map((n) => ({
     itemName: n.itemName,
-    documents: n.documents.filter((d) => d.reviewStatus === "rejected"),
+    documents: rejectedDocumentsToMention(n),
   }));
   const outstandingNeeds = group
     .filter((n) => !rejectedIds.has(n.id))

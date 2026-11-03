@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { dealClientNeeds, dealClientNeedDocuments } from "@/server/db/schema";
 import { revertDocumentToDraft, waitUntilDraft, sendDocumentSilently } from "@/server/pandadoc";
@@ -28,9 +28,10 @@ export async function reopenPandaDocNeed(
         reviewStatus: "rejected",
         reviewedAt: new Date(),
         reviewedByUserId: reviewerUserId,
-        rejectionNote: "Reopened so the borrower can make changes. A new signed copy replaces this one.",
+        rejectionNote: "Reopened so you can make changes. Please review it and sign again.",
       })
-      .where(eq(dealClientNeedDocuments.clientNeedId, needId));
+      // Copies already rejected keep their own reason; overwriting it would lose what the processor wrote.
+      .where(and(eq(dealClientNeedDocuments.clientNeedId, needId), ne(dealClientNeedDocuments.reviewStatus, "rejected")));
   }
   // Set after any rejection above so the need reads as awaiting the borrower, not as rejected-and-unsent.
   await db
