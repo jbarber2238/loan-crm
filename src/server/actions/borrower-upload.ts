@@ -13,6 +13,8 @@ import { rejectedDocumentsToMention } from "@/server/client-needs-email-format";
 import { createSigningSessionUrl } from "@/server/pandadoc";
 import { parsePropertyAddress } from "@/lib/format";
 import { getCustomFormDefinition, syncedFieldsFor } from "@/lib/custom-need-forms/registry";
+import { collectCustomFormAnswers, MAX_DRAFT_ANSWER_CHARS } from "@/lib/custom-need-forms/answers";
+import { fail, type ActionError } from "@/lib/action-result";
 import { resolveStagedFiles } from "@/server/staged-uploads";
 import { BORROWER_MAX_FILE_BYTES, formatMb } from "@/lib/upload-limits";
 
@@ -46,6 +48,8 @@ export interface BorrowerUploadNeed {
   templateFileName: string | null;
   pandadocDocumentId: string | null;
   customFormKey: string | null;
+  // The borrower has started this form and saved their progress, but hasn't submitted it.
+  hasFormDraft: boolean;
   rejectionNotes: string[];
   answers: BorrowerUploadAnswer[];
 }
@@ -95,6 +99,7 @@ export async function getDealForBorrowerUpload(token: string) {
     templateFileName: n.templateFileName,
     pandadocDocumentId: n.pandadocDocumentId,
     customFormKey: n.customFormKey,
+    hasFormDraft: Boolean(n.customFormDraft) && !n.customFormSubmittedAt,
     // Several files rejected with the same reason read it once.
     rejectionNotes: [
       ...new Set(
@@ -354,6 +359,10 @@ export async function getCustomFormNeed(token: string, needId: string) {
   if (need.customFormData) {
     Object.assign(defaultValues, need.customFormData);
   }
+  // Unsubmitted work in progress wins over everything: it is the borrower's latest typing.
+  if (need.customFormDraft) {
+    Object.assign(defaultValues, need.customFormDraft);
+  }
 
   return {
     need: {
@@ -365,7 +374,41 @@ export async function getCustomFormNeed(token: string, needId: string) {
     },
     dealSummary: { propertyAddress: deal.propertyAddress, loanNumber: deal.loanNumber },
     defaultValues,
+    draftSavedAt: need.customFormDraft ? need.customFormDraftSavedAt : null,
   };
+}
+
+/**
+ * Saves what the borrower has typed so far, without submitting. The application is long, so they can leave and pick
+ * it up from the same link. Nothing is required here, the need's status doesn't change, and the loan team sees
+ * nothing until the real submit.
+ */
+export async function saveCustomFormDraft(
+  token: string,
+  needId: string,
+  formData: FormData
+): Promise<{ savedAt: string } | ActionError> {
+  const deal = await db.query.deals.findFirst({ where: eq(deals.borrowerUploadToken, token) });
+  if (!deal) return fail("This link is no longer valid.");
+
+  const need = await db.query.dealClientNeeds.findFirst({
+    where: and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, deal.id)),
+    columns: { id: true, needType: true, customFormKey: true, status: true },
+  });
+  if (!need || need.needType !== "custom_form" || !need.customFormKey || need.status === "accepted") {
+    return fail("This application can't be saved right now.");
+  }
+
+  const definition = getCustomFormDefinition(need.customFormKey);
+  if (!definition) return fail("This form isn't set up correctly — reach out to your loan officer.");
+
+  const answers = collectCustomFormAnswers(definition, (name) => formData.get(name), MAX_DRAFT_ANSWER_CHARS);
+  const now = new Date();
+  await db
+    .update(dealClientNeeds)
+    .set({ customFormDraft: answers, customFormDraftSavedAt: now })
+    .where(eq(dealClientNeeds.id, needId));
+  return { savedAt: now.toISOString() };
 }
 
 /**
@@ -392,12 +435,7 @@ export async function submitCustomFormAnswers(token: string, needId: string, for
   if (!definition) throw new Error("This form isn't set up correctly — reach out to your loan officer");
 
   const allFields = definition.sections.flatMap((s) => s.fields);
-  const answers: Record<string, string> = {};
-  for (const field of allFields) {
-    const value = formData.get(field.name);
-    const trimmed = typeof value === "string" ? value.trim() : "";
-    if (trimmed) answers[field.name] = trimmed;
-  }
+  const answers = collectCustomFormAnswers(definition, (name) => formData.get(name));
 
   const requiredMissing = allFields.filter((f) => {
     if (f.optional) return false;
@@ -411,7 +449,14 @@ export async function submitCustomFormAnswers(token: string, needId: string, for
   const now = new Date();
   await db
     .update(dealClientNeeds)
-    .set({ customFormData: answers, customFormSubmittedAt: now, status: "review_needed", sentAt: need.sentAt ?? now })
+    .set({
+      customFormData: answers,
+      customFormSubmittedAt: now,
+      customFormDraft: null,
+      customFormDraftSavedAt: null,
+      status: "review_needed",
+      sentAt: need.sentAt ?? now,
+    })
     .where(eq(dealClientNeeds.id, needId));
 
   const dealUpdates: Record<string, string> = {};

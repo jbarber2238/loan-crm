@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { getCustomFormNeed, submitCustomFormAnswers } from "@/server/actions/borrower-upload";
+import { getCustomFormNeed, saveCustomFormDraft, submitCustomFormAnswers } from "@/server/actions/borrower-upload";
 import { getCustomFormDefinition } from "@/lib/custom-need-forms/registry";
 import { CustomNeedFormRenderer } from "@/components/borrower-upload/custom-need-form-renderer";
+import { CustomFormSaveProgress } from "@/components/borrower-upload/custom-form-save-progress";
 import { ActionForm } from "@/components/forms/action-form";
 import { SubmitButton } from "@/components/forms/submit-button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -47,6 +48,11 @@ export default async function CustomNeedFormPage({
     await submitCustomFormAnswers(token, needId, formData);
   }
 
+  async function saveDraftAction(formData: FormData) {
+    "use server";
+    return saveCustomFormDraft(token, needId, formData);
+  }
+
   const muted = theme ? "bp-muted" : "text-primary-foreground/70";
   const mutedStrong = theme ? "bp-muted" : "text-primary-foreground/80";
 
@@ -72,7 +78,13 @@ export default async function CustomNeedFormPage({
       ) : (
         <ActionForm action={submitAction} className="space-y-8">
           <CustomNeedFormRenderer definition={definition} defaultValues={data.defaultValues} />
-          <SubmitButton className="w-full bp-primary">Submit</SubmitButton>
+          <div className="space-y-3">
+            <CustomFormSaveProgress
+              saveAction={saveDraftAction}
+              initialSavedAt={data.draftSavedAt ? data.draftSavedAt.toISOString() : null}
+            />
+            <SubmitButton className="w-full bp-primary">Submit</SubmitButton>
+          </div>
         </ActionForm>
       )}
       <Link href={`/borrower-upload/${token}`} className="block text-center text-xs text-muted-foreground underline">

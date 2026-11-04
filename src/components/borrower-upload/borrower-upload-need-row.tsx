@@ -258,7 +258,11 @@ export function BorrowerUploadNeedRow({ token, need }: { token: string; need: Bo
       ) : need.needType === "custom_form" ? (
         <Button asChild size="sm" className="max-sm:h-11 max-sm:w-full">
           <a href={`/borrower-upload/${token}/form/${need.id}`}>
-            {need.status === "not_sent" || need.status === "awaiting_docs" ? "Fill out application" : "Review submission"}
+            {need.status === "not_sent" || need.status === "awaiting_docs"
+              ? need.hasFormDraft
+                ? "Continue application"
+                : "Fill out application"
+              : "Review submission"}
           </a>
         </Button>
       ) : (

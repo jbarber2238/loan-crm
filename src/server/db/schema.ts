@@ -1256,6 +1256,11 @@ export const dealClientNeeds = pgTable("deal_client_needs", {
   customFormKey: text("custom_form_key"),
   customFormData: jsonb("custom_form_data").$type<Record<string, string>>(),
   customFormSubmittedAt: timestamp("custom_form_submitted_at", { mode: "date" }),
+  // Work in progress: what the borrower has typed so far on a form they haven't submitted. Kept apart from
+  // customFormData so a half-filled form is never mistaken for a submission (the loan team's summary, the need's
+  // status, and a submitted copy that is being corrected all read customFormData only). Cleared on submit.
+  customFormDraft: jsonb("custom_form_draft").$type<Record<string, string>>(),
+  customFormDraftSavedAt: timestamp("custom_form_draft_saved_at", { mode: "date" }),
   sentAt: timestamp("sent_at", { mode: "date" }),
   // Whoever actually clicked "Send to Borrower" (or the borrower-facing
   // action that first set sentAt) — the automated reminder sends from this
