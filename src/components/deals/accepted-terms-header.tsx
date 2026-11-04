@@ -14,6 +14,9 @@ import {
   REFINANCE_CATEGORIES,
   isDscrLikeCategory,
   estimatedReservesRequired,
+  estimatedFeeFrom,
+  STANDARD_APPRAISAL_ESTIMATE,
+  STANDARD_CREDIT_PULL_ESTIMATE,
 } from "@/lib/term-sheet-calculations";
 import { isInterestOnlyCategory, rehabOrConstructionBudgetLabel } from "@/lib/loan-sections";
 import { costToBorrowerLabelFor } from "@/lib/term-sheet-fields";
@@ -225,6 +228,8 @@ export function AcceptedTermsHeader({
     originationFee,
     costToBorrowerFee: effectiveCostToBorrowerFee ?? 0,
     underwritingDocFee: underwritingDocFeeNum,
+    appraisalFee: estimatedFeeFrom(acceptedTermSheetFields?.appraisalFee, STANDARD_APPRAISAL_ESTIMATE),
+    creditPullFee: estimatedFeeFrom(acceptedTermSheetFields?.creditPullFee, STANDARD_CREDIT_PULL_ESTIMATE),
     processingFee,
     netProceedsCap,
     propertyAlreadyOwned,

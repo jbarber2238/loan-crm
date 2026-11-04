@@ -22,7 +22,14 @@ const anthropic = process.env.ANTHROPIC_API_KEY
 // still get captured normally — into costToBorrowerFee (see the "Rate +
 // points pricing" rule below) or underwritingDocFee — just never into
 // these three.
-const BROKER_ONLY_FIELDS = new Set(["originationPoints", "originationFee", "rateBuydownPoints"]);
+const BROKER_ONLY_FIELDS = new Set([
+  "originationPoints",
+  "originationFee",
+  "rateBuydownPoints",
+  // Our own pre-closing estimates for the borrower's credit pull and appraisal — not anything a lender quotes.
+  "creditPullFee",
+  "appraisalFee",
+]);
 
 export interface TermSheetExtractionOption {
   // A short, specific description of what makes this option distinct from

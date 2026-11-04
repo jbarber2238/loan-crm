@@ -6,6 +6,7 @@
  */
 
 import { rehabOrConstructionBudgetLabel, isInterestOnlyCategory } from "@/lib/loan-sections";
+import { STANDARD_APPRAISAL_ESTIMATE, STANDARD_CREDIT_PULL_ESTIMATE } from "@/lib/term-sheet-calculations";
 
 export type TermSheetFieldType =
   | "text"
@@ -58,6 +59,22 @@ function baseFields(category: string): TermSheetField[] {
       label: "Credit Pull Type",
       type: "select",
       options: ["Soft", "Hard"],
+    },
+    // Paid up front, before closing, and shown on the term sheet as estimates. Pre-filled with our standard
+    // figures; change them when a deal calls for it (e.g. a mixed-use appraisal that runs well over $1,000).
+    {
+      key: "creditPullFee",
+      label: "Credit Pull Fee (estimate)",
+      type: "currency",
+      defaultValue: String(STANDARD_CREDIT_PULL_ESTIMATE),
+      helperText: `Standard estimate is $${STANDARD_CREDIT_PULL_ESTIMATE}. Change it only when this deal's credit pull will cost more or less.`,
+    },
+    {
+      key: "appraisalFee",
+      label: "Appraisal Fee (estimate)",
+      type: "currency",
+      defaultValue: String(STANDARD_APPRAISAL_ESTIMATE),
+      helperText: `Standard estimate is $${STANDARD_APPRAISAL_ESTIMATE.toLocaleString("en-US")}. Raise it for property types that appraise higher, like mixed-use.`,
     },
     {
       key: "lienPosition",

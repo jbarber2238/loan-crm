@@ -16,6 +16,7 @@ import {
   originationFeeSuggestion,
   ratioMetricsFor,
   REFINANCE_CATEGORIES,
+  estimatedFeeFrom,
   STANDARD_APPRAISAL_ESTIMATE,
   STANDARD_CREDIT_PULL_ESTIMATE,
   STANDARD_PROCESSING_FEE,
@@ -201,8 +202,8 @@ export function TermSheetPdf({
   // valueBasisFor/ratioMetricsFor already guard against for LTV).
   const downPayment = purchasePrice !== null && !isRefi ? purchasePrice - closingDisbursement : 0;
   const existingDebtPayoff = isRefi ? (mortgagePayoffAmount ?? 0) : 0;
-  const appraisalFee = STANDARD_APPRAISAL_ESTIMATE;
-  const creditPullFee = STANDARD_CREDIT_PULL_ESTIMATE;
+  const appraisalFee = estimatedFeeFrom(fields.appraisalFee, STANDARD_APPRAISAL_ESTIMATE);
+  const creditPullFee = estimatedFeeFrom(fields.creditPullFee, STANDARD_CREDIT_PULL_ESTIMATE);
   const processingFee = STANDARD_PROCESSING_FEE;
 
   const reservesFromPitia = DSCR_CATEGORIES.has(loanCategory) || loanCategory === "portfolio";

@@ -153,6 +153,17 @@ export function leadValueFor({
 export const STANDARD_APPRAISAL_ESTIMATE = 1000;
 export const STANDARD_CREDIT_PULL_ESTIMATE = 130;
 
+// The standard figures are only the starting point: the term sheet form
+// pre-fills them and they can be edited per term sheet (a mixed-use property
+// can appraise at $2,900, say). A term sheet with nothing stored — one saved
+// before the fields existed, or a cleared box — falls back to the standard
+// figure. A deliberate 0 is kept.
+export function estimatedFeeFrom(value: unknown, standard: number): number {
+  if (value === null || value === undefined || value === "") return standard;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : standard;
+}
+
 // Our own processing fee — always $999, not a per-lender number.
 export const STANDARD_PROCESSING_FEE = 999;
 
