@@ -3,7 +3,8 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown, ChevronRight, MoreVertical, Sparkles, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, Loader2, MoreVertical, Sparkles, Trash2 } from "lucide-react";
+import { downloadZip } from "@/lib/download-zip";
 import {
   markNonDocumentNeedAccepted,
   reopenNonDocumentNeed,
@@ -1309,6 +1310,7 @@ export function ClientNeedsTab({
   catalog,
   entityDocOffer,
   entityDocAutoOpen,
+  propertyLabel,
 }: {
   dealId: string;
   needs: ClientNeed[];
@@ -1324,10 +1326,13 @@ export function ClientNeedsTab({
   entityDocOffer: EntityDocOffer | null;
   /** Whether that offer opens by itself as a pop-up (as opposed to only from the menu). */
   entityDocAutoOpen: boolean;
+  /** Names the zip when documents are downloaded. */
+  propertyLabel: string;
 }) {
   const [addNeedOpen, setAddNeedOpen] = useState(false);
   const [autoGenerateOpen, setAutoGenerateOpen] = useState(false);
   const [carryOverOpen, setCarryOverOpen] = useState(entityDocAutoOpen);
+  const [downloading, setDownloading] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<"docs" | "esign">("docs");
 
@@ -1339,6 +1344,20 @@ export function ClientNeedsTab({
   const selectedNeeds = needs.filter((n) => selectedIds.has(n.id) && !n.onHoldAt);
   // Deletion doesn't care about hold status, unlike sending to the borrower.
   const selectedForDelete = needs.filter((n) => selectedIds.has(n.id));
+  // What "Download documents" would bring: every file on the selected needs except rejected ones (those were sent back).
+  const selectedDocumentIds = selectedForDelete.flatMap((n) => n.documents.filter((d) => d.reviewStatus !== "rejected").map((d) => d.id));
+
+  async function handleDownloadDocuments() {
+    setDownloading(true);
+    try {
+      await downloadZip(selectedDocumentIds, `${propertyLabel} - Client needs documents`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't download these documents");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   // "Select all" only ever touches the tab you're looking at — flipping to
   // the other tab shouldn't silently grab (or drop) items you can't see.
   const allVisibleSelected = visibleNeeds.length > 0 && visibleNeeds.every((n) => selectedIds.has(n.id));
@@ -1399,6 +1418,12 @@ export function ClientNeedsTab({
               reminderIntervalHours={reminderIntervalHours}
             />
           </div>
+          {selectedDocumentIds.length > 0 && (
+            <Button type="button" size="sm" variant="outline" disabled={downloading} onClick={handleDownloadDocuments}>
+              {downloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+              Download documents ({selectedDocumentIds.length})
+            </Button>
+          )}
           {selectedForDelete.length > 0 && (
             <BulkDeleteClientNeedsDialog
               dealId={dealId}

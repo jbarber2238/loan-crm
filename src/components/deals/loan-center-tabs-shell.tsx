@@ -24,18 +24,18 @@ type TabItem = { value: string; label: string; short: string; icon: LucideIcon }
 
 const TABS: TabItem[] = [
   { value: "client-needs", label: "Client Needs", short: "Needs", icon: ClipboardList },
+  { value: "documents", label: "Documents", short: "Docs", icon: FolderOpen },
   { value: "conditions", label: "Conditions", short: "Conditions", icon: ListChecks },
   { value: "roles", label: "Roles and Key Contacts", short: "Contacts", icon: Users },
   { value: "key-dates", label: "Key Dates", short: "Dates", icon: CalendarDays },
   { value: "email-log", label: "Email Log", short: "Emails", icon: Mail },
   { value: "notes", label: "Notes", short: "Notes", icon: StickyNote },
-  { value: "documents", label: "Documents", short: "Docs", icon: FolderOpen },
   { value: "team-chat", label: "Team Chat", short: "Chat", icon: MessageSquare },
   { value: "communications", label: "Communications", short: "Texts", icon: MessageSquareText },
 ];
 
 // Four shortcuts live on the bar; the rest sit behind "More" (iOS tab bars top out at five).
-const BAR_VALUES = ["client-needs", "conditions", "key-dates", "documents"];
+const BAR_VALUES = ["client-needs", "documents", "conditions", "key-dates"];
 const BAR = BAR_VALUES.map((v) => TABS.find((t) => t.value === v)!);
 const MORE = TABS.filter((t) => !BAR_VALUES.includes(t.value));
 

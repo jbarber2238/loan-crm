@@ -13,27 +13,10 @@ import { restoreClientNeeds } from "@/server/actions/client-needs";
 import type { DealDocumentRow } from "@/server/actions/client-need-documents";
 import { ChangeNeedDialog, type ChangeNeedCandidate } from "@/components/deals/change-need-dialog";
 import { DealFileEntry, DealFileUploadForm, formatStamp } from "@/components/deals/deal-file-parts";
+import { downloadZip } from "@/lib/download-zip";
 import { DEAL_FILE_CATEGORY_LABELS, type DealFileRow } from "@/lib/deal-files";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import type { DealCatalogItem } from "@/components/deals/add-client-need-to-deal-dialog";
-
-async function downloadZip(ids: string[], zipName: string) {
-  const res = await fetch("/api/client-need-documents/download-zip", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ids, zipName }),
-  });
-  if (!res.ok) throw new Error(await res.text().catch(() => "Download failed"));
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${zipName}.zip`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
 
 function DocumentSection({
   dealId,

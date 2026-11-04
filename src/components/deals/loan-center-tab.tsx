@@ -172,6 +172,7 @@ export function LoanCenterTab({
             hasAcceptedProduct={hasAcceptedProduct}
             entityDocOffer={entityDocOffer}
             entityDocAutoOpen={entityDocAutoOpen}
+            propertyLabel={propertyLabel}
           />
         </TabsContent>
 
