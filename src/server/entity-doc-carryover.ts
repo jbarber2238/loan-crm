@@ -28,6 +28,8 @@ export interface CarryOverPlanItem {
 export interface CarryOverPlan {
   offer: EntityDocOffer;
   items: CarryOverPlanItem[];
+  /** Whether the pop-up should open by itself for this viewer (fee paid, nothing copied yet, not dismissed). */
+  autoPopup: boolean;
 }
 
 /**
@@ -38,10 +40,14 @@ export interface CarryOverPlan {
  *
  * Pass `viewerUserId` to leave out the offer for someone who already pressed "No thanks" on this deal.
  * Copying itself doesn't pass it: a dismissal only hides the pop-up for that person.
+ *
+ * `onDemand` is for a processor who asks for the offer from the menu: the fee, an earlier copy and a past
+ * "No thanks" no longer hide it (`autoPopup` still says whether the pop-up should open by itself), and files
+ * already on this deal are left out so a second pass never brings the same file over twice.
  */
 export async function planEntityDocCarryOver(
   dealId: string,
-  { requirePaid = true, viewerUserId }: { requirePaid?: boolean; viewerUserId?: string } = {}
+  { requirePaid = true, viewerUserId, onDemand = false }: { requirePaid?: boolean; viewerUserId?: string; onDemand?: boolean } = {}
 ): Promise<CarryOverPlan | null> {
   const deal = await db.query.deals.findFirst({
     where: eq(deals.id, dealId),
@@ -56,22 +62,25 @@ export async function planEntityDocCarryOver(
       deletedAt: true,
     },
   });
-  if (!deal || deal.deletedAt || deal.entityDocsCarryoverStatus) return null;
-  if ((requirePaid && deal.stripeInvoiceStatus !== "paid") || !deal.borrowerEntityName?.trim()) return null;
-  if (viewerUserId) {
+  if (!deal || deal.deletedAt || !deal.borrowerEntityName?.trim()) return null;
+  let autoPopup = !deal.entityDocsCarryoverStatus && !(requirePaid && deal.stripeInvoiceStatus !== "paid");
+  if (autoPopup && viewerUserId) {
     const dismissed = await db.query.dealCarryoverDismissals.findFirst({
       where: and(eq(dealCarryoverDismissals.dealId, dealId), eq(dealCarryoverDismissals.userId, viewerUserId)),
       columns: { dealId: true },
     });
-    if (dismissed) return null;
+    if (dismissed) autoPopup = false;
   }
+  if (!autoPopup && !onDemand) return null;
 
   // This deal's own empty slots for each kind of entity document.
   const myNeeds = await db.query.dealClientNeeds.findMany({
     where: eq(dealClientNeeds.dealId, dealId),
     columns: { id: true, itemName: true, needType: true },
-    with: { documents: { columns: { id: true } } },
+    with: { documents: { columns: { id: true, fileName: true, fileSize: true } } },
   });
+  // Files already on this deal, so a second pass (or a borrower's own upload of the same file) isn't copied again.
+  const alreadyHere = new Set(myNeeds.flatMap((n) => n.documents.map((d) => `${d.fileName}|${d.fileSize}`)));
   // Only plain document-upload needs can receive files (signed forms and questionnaires are deal-specific).
   const slots = new Map<EntityDocKind, string>();
   const needByName = new Map<string, string>();
@@ -117,15 +126,19 @@ export async function planEntityDocCarryOver(
       if (n.needType !== "document_upload" || n.documents.length === 0) continue;
       const key = carryOverKey(n.itemName);
       const bucket = byKey.get(key) ?? { itemName: n.itemName, description: n.description, minFiles: n.minFiles, approvedIds: [], allIds: [] };
+      byKey.set(key, bucket);
       for (const d of n.documents) {
         const fingerprint = `${key}|${d.fileName}|${d.fileSize}`;
         if (seen.has(fingerprint)) continue;
         seen.add(fingerprint);
+        if (alreadyHere.has(`${d.fileName}|${d.fileSize}`)) continue;
         bucket.allIds.push(d.id);
         if (d.reviewStatus === "approved") bucket.approvedIds.push(d.id);
       }
       byKey.set(key, bucket);
     }
+    // A kind whose every file is already on this deal has nothing left to offer.
+    for (const [key, bucket] of byKey) if (bucket.allIds.length === 0) byKey.delete(key);
 
     const items: CarryOverPlanItem[] = [];
     const shown: OfferItem[] = [];
@@ -172,6 +185,7 @@ export async function planEntityDocCarryOver(
         items: shown,
       },
       items,
+      autoPopup,
     };
   }
   return null;

@@ -19,7 +19,7 @@ export async function copyEntityDocsFromPriorDeal(
 
   // Re-worked from scratch here, never trusted from the browser: the earlier deal, the files and the empty
   // slots all have to be exactly what the offer said.
-  const plan = await planEntityDocCarryOver(dealId);
+  const plan = await planEntityDocCarryOver(dealId, { onDemand: true });
   if (!plan || plan.offer.prior.id !== priorDealId) return fail("That offer is no longer available. Refresh the page.");
   if (!plan.offer.emailMatches && !confirmedSameBorrower) return fail("Please confirm this is the same borrower first.");
 

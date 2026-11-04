@@ -78,13 +78,17 @@ export default async function DealLoanCenterPage({
   const noteAuthor = deal.clientNeedsNoteUpdatedByUserId ? allUsers.find((u) => u.id === deal.clientNeedsNoteUpdatedByUserId) : null;
   const loanOfficers = allUsers.filter((u) => u.baseRole === "loan_officer");
   const processors = allUsers.filter((u) => u.baseRole === "processor");
-  const entityDocOffer = (await planEntityDocCarryOver(id, { viewerUserId: user.id }))?.offer ?? null;
+  // One lookup serves both: the pop-up that opens by itself, and the menu item for pulling documents over later.
+  const carryOverPlan = await planEntityDocCarryOver(id, { viewerUserId: user.id, onDemand: true });
+  const entityDocOffer = carryOverPlan?.offer ?? null;
+  const entityDocAutoOpen = Boolean(carryOverPlan?.autoPopup);
   const assistants = allUsers.filter((u) => u.baseRole === "loan_officer_assistant");
 
   return (
     <LoanCenterTab
       initialTab={tab}
       entityDocOffer={entityDocOffer}
+      entityDocAutoOpen={entityDocAutoOpen}
       teamChat={
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">

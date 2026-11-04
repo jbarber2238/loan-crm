@@ -11,13 +11,26 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 /**
- * Shown the first time a repeat borrower's deal is opened after the processing fee is paid. If the email
+ * Shown the first time a repeat borrower's deal is opened after the processing fee is paid, and again whenever
+ * someone chooses "Bring over documents from an earlier deal" from the client needs menu. If the email
  * matches too it goes straight to the document list; if only the name and entity match it first asks
  * whether this is the same borrower. "No thanks" is remembered for that person only, so every other user still sees this until they answer too. Closing it without answering leaves the question for next time.
  */
-export function EntityDocCarryOverDialog({ dealId, offer }: { dealId: string; offer: EntityDocOffer }) {
+export function EntityDocCarryOverDialog({
+  dealId,
+  offer,
+  onClose,
+}: {
+  dealId: string;
+  offer: EntityDocOffer;
+  /** Called when it closes, by any route. The parent mounts this only while it should be showing, so each opening starts fresh. */
+  onClose: () => void;
+}) {
   const router = useRouter();
-  const [open, setOpen] = useState(true);
+  const open = true;
+  const setOpen = (next: boolean) => {
+    if (!next) onClose();
+  };
   const [confirmed, setConfirmed] = useState(offer.emailMatches);
   const [picked, setPicked] = useState<Set<string>>(new Set(offer.items.filter((i) => i.group === "entity").map((i) => i.key)));
   const [pending, startTransition] = useTransition();
