@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
+import { isRetryableRead, runReadWithRetry } from "./resilient-read";
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is not set");
@@ -50,8 +51,44 @@ function currentClient(): PgClient {
   return current;
 }
 
+// Throws away a pool that just proved dead, but only if it is still the live one: another request may already have
+// swapped it. Whatever is still running on it gets a short grace period before it is cut off.
+function replaceClientIfCurrent(used: PgClient) {
+  if (current !== used) return;
+  current = createClient();
+  lastUsedAt = Date.now();
+  used.end({ timeout: 30 }).catch(() => {});
+}
+
+// drizzle runs every query through client.unsafe(sql, params) (rows come from awaiting it, or from .values()).
+// Plain reads go through runReadWithRetry so a dead connection costs a couple of seconds and a retry instead of a
+// minute-long hang that ends in a crashed page; anything that could write is passed through untouched.
+function resilientUnsafe(query: string, params?: unknown[], options?: unknown) {
+  if (!isRetryableRead(query)) {
+    return currentClient().unsafe(query, params as never, options as never);
+  }
+  const run = (asValues: boolean) => {
+    let used: PgClient = current;
+    return runReadWithRetry(
+      () => {
+        used = currentClient();
+        const pending = used.unsafe(query, params as never, options as never);
+        return asValues ? pending.values() : pending;
+      },
+      () => replaceClientIfCurrent(used)
+    );
+  };
+  return {
+    then: (onFulfilled?: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) =>
+      run(false).then(onFulfilled, onRejected),
+    catch: (onRejected?: (e: unknown) => unknown) => run(false).catch(onRejected),
+    values: () => run(true),
+  } as unknown as ReturnType<PgClient["unsafe"]>;
+}
+
 const forwardingClient = new Proxy(function forwardingClient() {} as unknown as PgClient, {
   get(_target, prop) {
+    if (prop === "unsafe") return resilientUnsafe;
     const client = currentClient();
     const value = Reflect.get(client, prop, client);
     return typeof value === "function" ? value.bind(client) : value;
