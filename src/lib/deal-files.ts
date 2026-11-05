@@ -8,6 +8,10 @@ export const DEAL_FILE_CATEGORY_LABELS: Record<DealFileCategory, string> = {
 
 export const DEAL_FILE_MAX_BYTES = 15 * 1024 * 1024;
 export const DEAL_FILE_NOTE_MAX = 1000;
+// Several documents can be saved in one go (a title commitment plus its exceptions, say). The totals keep one
+// save from holding too much in memory at once.
+export const DEAL_FILE_MAX_COUNT = 10;
+export const DEAL_FILE_MAX_TOTAL_BYTES = 50 * 1024 * 1024;
 
 export interface DealFileRow {
   id: string;
@@ -27,6 +31,19 @@ export function isDealFileCategory(value: string): value is DealFileCategory {
 export function validateDealFileUpload(file: { size: number } | null, note: string): string | null {
   if (!file || file.size === 0) return "Choose a file to upload.";
   if (file.size > DEAL_FILE_MAX_BYTES) return "That file is over 15MB. Please upload a smaller one.";
+  if (note.trim().length > DEAL_FILE_NOTE_MAX) return `Keep the note under ${DEAL_FILE_NOTE_MAX.toLocaleString("en-US")} characters.`;
+  return null;
+}
+
+/** Checks a batch of documents saved together; returns an error message naming the file at fault, or null. */
+export function validateDealFileBatch(files: { name: string; size: number }[], note: string): string | null {
+  if (files.length === 0) return "Choose a file to upload.";
+  if (files.length > DEAL_FILE_MAX_COUNT) return `Upload up to ${DEAL_FILE_MAX_COUNT} documents at a time.`;
+  for (const f of files) {
+    if (f.size === 0) return `${f.name || "A file"} is empty. Choose a different file.`;
+    if (f.size > DEAL_FILE_MAX_BYTES) return `${f.name || "A file"} is over 15MB. Please upload a smaller one.`;
+  }
+  if (files.reduce((n, f) => n + f.size, 0) > DEAL_FILE_MAX_TOTAL_BYTES) return "Those files add up to over 50MB. Upload them in two batches.";
   if (note.trim().length > DEAL_FILE_NOTE_MAX) return `Keep the note under ${DEAL_FILE_NOTE_MAX.toLocaleString("en-US")} characters.`;
   return null;
 }

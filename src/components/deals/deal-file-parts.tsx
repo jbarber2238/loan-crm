@@ -38,7 +38,7 @@ export function DealFileUploadForm({
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
-  const [fileName, setFileName] = useState("");
+  const [fileNames, setFileNames] = useState<string[]>([]);
   const [pending, start] = useTransition();
 
   return (
@@ -55,9 +55,9 @@ export function DealFileUploadForm({
               toast.error(result.error);
               return;
             }
-            toast.success("Document saved");
+            toast.success(result && result.saved > 1 ? `${result.saved} documents saved` : "Document saved");
             formRef.current?.reset();
-            setFileName("");
+            setFileNames([]);
             router.refresh();
             onDone?.();
           } catch (err) {
@@ -67,16 +67,22 @@ export function DealFileUploadForm({
       }}
     >
       <div className="space-y-1.5">
-        <Label htmlFor={`file-${category}`}>File</Label>
+        <Label htmlFor={`file-${category}`}>File or files</Label>
         <input
           id={`file-${category}`}
           name="file"
           type="file"
           required
+          multiple
           accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx"
-          onChange={(e) => setFileName(e.target.files?.[0]?.name ?? "")}
+          onChange={(e) => setFileNames([...(e.target.files ?? [])].map((f) => f.name))}
           className="block w-full text-sm file:mr-3 file:rounded-md file:border file:bg-background file:px-3 file:py-1.5 file:text-sm hover:file:bg-muted"
         />
+        {fileNames.length > 1 && (
+          <p className="text-xs text-muted-foreground">
+            {fileNames.length} files selected. Each is saved as its own document, and the note below is added to all of them.
+          </p>
+        )}
       </div>
       <div className="space-y-1.5">
         <Label htmlFor={`note-${category}`}>Note (optional)</Label>
@@ -88,9 +94,9 @@ export function DealFileUploadForm({
           placeholder={notePlaceholder ?? "What changed in this version, or why it matters…"}
         />
       </div>
-      <Button type="submit" disabled={pending || !fileName} className="w-full">
+      <Button type="submit" disabled={pending || fileNames.length === 0} className="w-full">
         <Upload className="size-3.5" />
-        {pending ? "Saving…" : "Save document"}
+        {pending ? "Saving…" : fileNames.length > 1 ? `Save ${fileNames.length} documents` : "Save document"}
       </Button>
     </form>
   );
