@@ -580,8 +580,10 @@ const NEED_STATUS_LABEL: Record<string, string> = {
 export async function buildClientNeedsContextNote(dealId: string): Promise<string> {
   await requireUser();
 
+  // Needs marked "Unused" are no longer relevant to this client, so they are left out of every
+  // section and out of the summary counts.
   const needs = await db.query.dealClientNeeds.findMany({
-    where: eq(dealClientNeeds.dealId, dealId),
+    where: and(eq(dealClientNeeds.dealId, dealId), ne(dealClientNeeds.status, "unused")),
     with: { documents: { columns: { fileName: true, createdAt: true } } },
     orderBy: (n, { asc }) => asc(n.sortOrder),
   });
