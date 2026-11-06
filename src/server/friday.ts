@@ -23,6 +23,7 @@ import {
   googleCalendarUrl,
   isAtOrAfterEt,
   isAtOrAfterEtTime,
+  isSkippedSessionDay,
   latestSessionDayBefore,
   nextSessionDay,
   resolveFridayTimes,
@@ -369,7 +370,7 @@ export async function runFridayJobs(now: Date = new Date()): Promise<FridayJobRe
 
   // Friday reminders: 9 AM "we're live at noon", 11:00 "live in 1 hour", 11:50 "starting in 10 minutes".
   // Each goes out once per person and stops at noon.
-  if (isFridayToday && !isAtOrAfterEt(now, today, 12)) {
+  if (isFridayToday && !isSkippedSessionDay(today) && !isAtOrAfterEt(now, today, 12)) {
     const due: FridayEmailKind[] = [];
     // Whatever order the times were set in, the email for the latest time that has passed is the one sent.
     const timed: [FridayEmailKind, Date][] = [

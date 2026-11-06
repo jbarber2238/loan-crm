@@ -80,13 +80,22 @@ export function etToUtc(day: string, hour: number, minute = 0): Date {
   return new Date(Date.UTC(y, m - 1, d, hour + 5, minute));
 }
 
-/** The next session a new signup is booked into: this Friday until 11:00 AM ET, then the following Friday. */
+/** Fridays with no session (out of office, holiday). Signups skip over these and book the following Friday. */
+export const SKIPPED_SESSION_DAYS: readonly string[] = ["2026-11-06"];
+
+export function isSkippedSessionDay(day: string): boolean {
+  return SKIPPED_SESSION_DAYS.includes(day);
+}
+
+/** The next session a new signup is booked into: this Friday until 11:00 AM ET, then the following Friday. Skipped Fridays are passed over. */
 export function nextSessionDay(now: Date): string {
   const p = etParts(now);
   const today = etDay(now);
-  if (p.weekday === 5) return p.hour < SIGNUP_CUTOFF_HOUR_ET ? today : addDays(today, 7);
-  const ahead = (5 - p.weekday + 7) % 7;
-  return addDays(today, ahead);
+  let day: string;
+  if (p.weekday === 5) day = p.hour < SIGNUP_CUTOFF_HOUR_ET ? today : addDays(today, 7);
+  else day = addDays(today, (5 - p.weekday + 7) % 7);
+  while (isSkippedSessionDay(day)) day = addDays(day, 7);
+  return day;
 }
 
 export function sessionStart(day: string): Date {

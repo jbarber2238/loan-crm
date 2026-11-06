@@ -17,6 +17,14 @@ import {
 // 2026-10-23 is a Friday (EDT, UTC-4); 2026-11-06 is also a Friday, after DST ends (EST, UTC-5).
 const at = (iso: string) => new Date(iso);
 
+describe("skipped Fridays", () => {
+  it("books signups into the following Friday instead", () => {
+    expect(nextSessionDay(at("2026-11-06T12:00:00Z"))).toBe("2026-11-13"); // skipped Friday, 7 AM EST
+    expect(nextSessionDay(at("2026-11-03T15:00:00Z"))).toBe("2026-11-13"); // earlier that week
+    expect(nextSessionDay(at("2026-11-07T15:00:00Z"))).toBe("2026-11-13"); // Saturday after
+  });
+});
+
 describe("next Friday session", () => {
   it("is this Friday for anyone signing up earlier in the week", () => {
     expect(nextSessionDay(at("2026-10-19T14:00:00Z"))).toBe("2026-10-23"); // Monday
