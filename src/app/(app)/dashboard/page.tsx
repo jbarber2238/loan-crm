@@ -202,16 +202,16 @@ export default async function DashboardPage({
             />
             <DrillDownStatCard
               compact
-              label="Value Closed"
+              label="Revenue Closed"
               value={money(data.pipelineConversion.totalValueClosed)}
-              sub={`${data.pipelineConversion.loansClosed} loans closed this period`}
+              sub={`our fees on ${data.pipelineConversion.loansClosed} closed ${data.pipelineConversion.loansClosed === 1 ? "loan" : "loans"}`}
               deals={data.pipelineConversion.closedDeals}
             />
             <DrillDownStatCard
               compact
               label="Loans Closed"
               value={String(data.pipelineConversion.loansClosed)}
-              sub={money(data.pipelineConversion.totalVolumeClosed) + " total volume"}
+              sub={money(data.pipelineConversion.totalVolumeClosed) + " in loan volume funded"}
               deals={data.pipelineConversion.closedDeals}
             />
             <DrillDownStatCard

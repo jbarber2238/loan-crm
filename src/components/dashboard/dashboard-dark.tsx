@@ -328,12 +328,12 @@ export function DashboardDark({
           <DrillDownStatCard tile label="Total Lost Value" value={money(pc.totalLostValue)} sub="currently sitting in Lost" deals={pc.totalLostValueDeals} />
           <DrillDownStatCard
             tile
-            label="Value Closed"
+            label="Revenue Closed"
             value={money(pc.totalValueClosed)}
-            sub={`${pc.loansClosed} loans closed this period`}
+            sub={`our fees on ${pc.loansClosed} closed ${pc.loansClosed === 1 ? "loan" : "loans"}`}
             deals={pc.closedDeals}
           />
-          <DrillDownStatCard tile label="Loans Closed" value={String(pc.loansClosed)} sub={`${money(pc.totalVolumeClosed)} total volume`} deals={pc.closedDeals} />
+          <DrillDownStatCard tile label="Loans Closed" value={String(pc.loansClosed)} sub={`${money(pc.totalVolumeClosed)} in loan volume funded`} deals={pc.closedDeals} />
           <DrillDownStatCard
             tile
             label="Average Loan Size (Requested)"
