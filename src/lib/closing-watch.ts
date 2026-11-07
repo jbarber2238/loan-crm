@@ -40,11 +40,10 @@ export function closingWatchStatus(
 }
 
 export function closingWatchLabel(status: ClosingWatchStatus, offset: number | null): string {
-  if (status === "no_date" || offset === null) return "No date set";
-  if (status === "overdue") return `${-offset} ${-offset === 1 ? "day" : "days"} overdue`;
-  if (offset === 0) return "Due today";
-  if (offset === 1) return "Due tomorrow";
-  return `Due in ${offset} days`;
+  if (status === "no_date" || offset === null) return "No Estimated Closing Date";
+  if (status === "overdue") return "Past Estimated Closing Date";
+  if (offset === 0) return "Estimated Closing Date is today";
+  return `${offset} ${offset === 1 ? "day" : "days"} from Estimated Closing Date`;
 }
 
 // Re-exported so callers that only need day math don't reach into the Friday module.

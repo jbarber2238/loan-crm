@@ -1,18 +1,13 @@
 import Link from "next/link";
-import { STAGES, labelFor } from "@/lib/labels";
 import { closingWatchLabel, CLOSING_SOON_DAYS } from "@/lib/closing-watch";
 import type { ClosingWatchRow } from "@/server/dashboard-metrics";
 import { cn } from "@/lib/utils";
 
-function money(n: number): string {
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-}
-
-// "2026-11-04" -> "Nov 4". Built from the parts, not new Date(), so the day
+// "2026-11-04" -> "Nov 4, 2026". Built from the parts, not new Date(), so the day
 // never shifts with the viewer's timezone.
 function shortDay(day: string): string {
   const [y, m, d] = day.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 }
 
 const PILL = {
@@ -48,11 +43,11 @@ export function ClosingWatchList({ rows, tone }: { rows: ClosingWatchRow[]; tone
         >
           <div className="min-w-0">
             <div className="truncate font-medium">
-              {r.loanNumber ? `#${r.loanNumber} — ` : ""}
-              {r.borrowerName}
+              {r.loanNumber ? `#${r.loanNumber} · ` : ""}
+              {r.propertyAddress}
             </div>
             <div className={cn("truncate text-xs", dark ? "text-[rgba(246,246,246,.66)]" : "text-muted-foreground")}>
-              {labelFor(STAGES, r.stage)} · {r.estimatedClosingDay ? `Est. ${shortDay(r.estimatedClosingDay)}` : "No estimated date"} · {money(r.value)}
+              {r.estimatedClosingDay ? `Estimated Closing Date: ${shortDay(r.estimatedClosingDay)}` : "No estimated closing date set"}
             </div>
           </div>
           <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold", PILL[r.status][tone])}>

@@ -26,12 +26,12 @@ describe("closing watch", () => {
   });
 
   it("reads naturally", () => {
-    expect(closingWatchLabel("overdue", -1)).toBe("1 day overdue");
-    expect(closingWatchLabel("overdue", -9)).toBe("9 days overdue");
-    expect(closingWatchLabel("soon", 0)).toBe("Due today");
-    expect(closingWatchLabel("soon", 1)).toBe("Due tomorrow");
-    expect(closingWatchLabel("soon", 3)).toBe("Due in 3 days");
-    expect(closingWatchLabel("no_date", null)).toBe("No date set");
+    expect(closingWatchLabel("overdue", -1)).toBe("Past Estimated Closing Date");
+    expect(closingWatchLabel("overdue", -9)).toBe("Past Estimated Closing Date");
+    expect(closingWatchLabel("soon", 0)).toBe("Estimated Closing Date is today");
+    expect(closingWatchLabel("soon", 1)).toBe("1 day from Estimated Closing Date");
+    expect(closingWatchLabel("soon", 3)).toBe("3 days from Estimated Closing Date");
+    expect(closingWatchLabel("no_date", null)).toBe("No Estimated Closing Date");
   });
 
   it("starts today at midnight UTC of the Eastern calendar day", () => {
