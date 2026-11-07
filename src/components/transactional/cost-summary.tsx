@@ -65,6 +65,9 @@ export function CostSummary({
         <p className="mt-2 text-sm leading-relaxed">Enter a funding amount to see your total cost.</p>
       )}
 
+      {/* Over $1,000,000 there is no published price, so no published pricing notes either. */}
+      {cost.kind !== "custom" && (
+        <>
       <p className="mt-4 border-t pt-3 text-xs leading-relaxed" style={{ color: muted, borderColor: dark ? "rgba(250,247,242,0.2)" : "rgba(20,61,74,0.15)" }}>
         Pricing: 1.25% for $100,000–$499,999 and 1.00% for $500,000–$1,000,000. Same-day funding adds 0.25%.
       </p>
@@ -73,6 +76,8 @@ export function CostSummary({
         within 24 hours, each additional day costs +0.25% until they are, weekends included. This is not included in the
         cost above.
       </p>
+        </>
+      )}
     </div>
   );
 }
