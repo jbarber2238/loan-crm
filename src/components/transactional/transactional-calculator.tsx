@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CostSummary } from "@/components/transactional/cost-summary";
+import { STANDARD_RANGE_MAX } from "@/lib/transactional-fees";
 
 const TEAL = "#143D4A";
 
@@ -10,6 +11,8 @@ export function TransactionalCalculator() {
   const [raw, setRaw] = useState("");
   const [sameDay, setSameDay] = useState(false);
   const amount = Number(raw.replace(/[$,\s]/g, ""));
+  // Over $1,000,000 is priced individually, with no same-day option.
+  const customPriced = Number.isFinite(amount) && amount > STANDARD_RANGE_MAX;
 
   return (
     <div className="space-y-4">
@@ -27,10 +30,12 @@ export function TransactionalCalculator() {
           style={{ borderColor: "rgba(20,61,74,0.3)", color: "#1E1E1E", ["--tw-ring-color" as string]: TEAL }}
         />
       </div>
-      <label className="flex items-center gap-2 text-sm" style={{ color: "#1E1E1E" }}>
-        <input type="checkbox" checked={sameDay} onChange={(e) => setSameDay(e.target.checked)} className="size-4" />
-        Funding needed same day (adds 0.25%)
-      </label>
+      {!customPriced && (
+        <label className="flex items-center gap-2 text-sm" style={{ color: "#1E1E1E" }}>
+          <input type="checkbox" checked={sameDay} onChange={(e) => setSameDay(e.target.checked)} className="size-4" />
+          Funding needed same day (adds 0.25%)
+        </label>
+      )}
       <CostSummary
         amount={Number.isFinite(amount) && raw.trim() !== "" ? amount : null}
         sameDay={sameDay}

@@ -11,7 +11,7 @@ import { getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
 import { notifyAdminsOfNewTransactionalLoan, sendTransactionalReceipt } from "@/server/transactional-notifications";
 import { TRANSACTIONAL_STAGES, buildLenderEmailHtml } from "@/lib/transactional-shared";
-import { MINIMUM_FUNDING_AMOUNT } from "@/lib/transactional-fees";
+import { MINIMUM_FUNDING_AMOUNT, STANDARD_RANGE_MAX } from "@/lib/transactional-fees";
 import { ARCHIVABLE_STAGES } from "@/lib/deal-pipeline";
 import { lenderEmailRecipients, parseAdditionalContacts } from "@/lib/transactional-lender-contacts";
 import { easternToday, isSameDayFundingByTiming } from "@/lib/same-day-funding";
@@ -83,8 +83,11 @@ export async function submitTransactionalIntake(formData: FormData) {
       titlePhone: nullableStr(formData, "titlePhone"),
       titleEmail: nullableStr(formData, "titleEmail"),
       // Ticked by the borrower, or implied by the timing: closing today, or
-      // after the 4 PM Eastern cutoff the day before.
-      sameDayFunding: formData.get("sameDayFunding") === "on" || isSameDayFundingByTiming(closingDay),
+      // after the 4 PM Eastern cutoff the day before. Never above $1,000,000:
+      // those are priced individually, with no same-day option.
+      sameDayFunding:
+        Number(fundingAmount) <= STANDARD_RANGE_MAX &&
+        (formData.get("sameDayFunding") === "on" || isSameDayFundingByTiming(closingDay)),
       marketingConsent: formData.get("marketingConsent") === "on",
       marketingConsentAt: formData.get("marketingConsent") === "on" ? new Date() : null,
     })

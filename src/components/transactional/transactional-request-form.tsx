@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { easternToday, isSameDayFundingByTiming } from "@/lib/same-day-funding";
+import { STANDARD_RANGE_MAX } from "@/lib/transactional-fees";
 
 // Same section-heading and field styling as the DSCR intake form
 // (src/components/deals/intake-form-fields.tsx), so the two read as one site.
@@ -89,6 +90,8 @@ export function TransactionalRequestForm() {
   // whether or not they tick the box (the server applies the same rule).
   const sameDayByTiming = Boolean(closingDay) && isSameDayFundingByTiming(closingDay);
   const sameDay = sameDayByTiming || sameDayChecked;
+  // Over $1,000,000 is priced individually and there is no same-day option.
+  const customPriced = Number.isFinite(amount) && amount > STANDARD_RANGE_MAX;
 
   return (
     <ActionForm action={submitTransactionalIntake}>
@@ -160,17 +163,19 @@ export function TransactionalRequestForm() {
               onChange={setClosingDay}
             />
           </div>
-          <div className="space-y-1">
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox
-                name="sameDayFunding"
-                checked={sameDay}
-                disabled={sameDayByTiming}
-                onCheckedChange={(v) => setSameDayChecked(v === true)}
-              />
-              I need the funds the same day (adds 0.25%)
-            </label>
-          </div>
+          {!customPriced && (
+            <div className="space-y-1">
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  name="sameDayFunding"
+                  checked={sameDay}
+                  disabled={sameDayByTiming}
+                  onCheckedChange={(v) => setSameDayChecked(v === true)}
+                />
+                I need the funds the same day (adds 0.25%)
+              </label>
+            </div>
+          )}
           <CostSummary
             amount={rawAmount.trim() === "" || !Number.isFinite(amount) ? null : amount}
             sameDay={sameDay}
