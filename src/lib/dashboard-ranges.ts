@@ -39,3 +39,29 @@ export function dashboardRangeStart(range: DashboardRange, now: Date = new Date(
       return null;
   }
 }
+
+/**
+ * Where a FORECAST for this range stops. Everything else on the dashboard looks
+ * back and ends "now", but a forecast looks forward: "this month" should reach
+ * the last day of the month, so open deals expected to close later this month
+ * count. Today ends tonight, a week-range looks a week ahead, and all-time has
+ * no upper bound.
+ */
+export function dashboardRangeForecastEnd(range: DashboardRange, now: Date = new Date()): Date {
+  switch (range) {
+    case "today":
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    case "last_7":
+      return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    case "this_month":
+      return new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    case "this_quarter": {
+      const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+      return new Date(now.getFullYear(), quarterStartMonth + 3, 0, 23, 59, 59, 999);
+    }
+    case "this_year":
+      return new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+    case "all_time":
+      return new Date(8.64e15);
+  }
+}

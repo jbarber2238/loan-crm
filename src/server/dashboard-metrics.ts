@@ -2,7 +2,7 @@ import { eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { deals, companySettings } from "@/server/db/schema";
 import { PAUSED_STAGES } from "@/lib/deal-pipeline";
-import { dashboardRangeStart, type DashboardRange } from "@/lib/dashboard-ranges";
+import { dashboardRangeStart, dashboardRangeForecastEnd, type DashboardRange } from "@/lib/dashboard-ranges";
 import { leadValueFor, isDscrLikeCategory, estimatedMonthlyPI, estimatedMonthlyPitia, calculateDscrRatio } from "@/lib/term-sheet-calculations";
 
 const TERMINAL_STAGES = new Set(["closed", "lost", "disqualified"]);
@@ -758,7 +758,7 @@ export interface CostProfitabilityData {
   avgOriginationPointsByLoanType: { loanCategory: string; averagePoints: number; count: number }[];
 }
 
-function buildCostProfitability(dealsData: DealWithRelations[], start: Date | null, end: Date): CostProfitabilityData {
+function buildCostProfitability(dealsData: DealWithRelations[], start: Date | null, end: Date, forecastEnd: Date): CostProfitabilityData {
   // Projected Revenue is deliberately NOT the same figure as Total Pipeline
   // Value: it's revenue expected to land IN the selected period, based on
   // each open deal's own estimatedClosingDate — "what do we expect to
@@ -766,16 +766,20 @@ function buildCostProfitability(dealsData: DealWithRelations[], start: Date | nu
   // when it's expected to close." Deals with no estimated closing date yet
   // can't be projected into a period, so they're excluded here (they still
   // count in Total Pipeline Value).
+  // The window runs from today (or the period's start, if that's later) to the
+  // END of the period. A closing date that's already passed can't be projected
+  // forward, so those deals show up in "Closing Dates to Update" instead.
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const projectionStart = start === null || start < startOfToday ? startOfToday : start;
   const projectedDeals = dealsData.filter(
-    (d) => VIABLE_STAGES.has(d.stage) && d.estimatedClosingDate && inRange(d.estimatedClosingDate, start, end)
+    (d) => VIABLE_STAGES.has(d.stage) && d.estimatedClosingDate && inRange(d.estimatedClosingDate, projectionStart, forecastEnd)
   );
   const projectedRevenue = projectedDeals.reduce((sum, d) => sum + dealLeadValue(d), 0);
 
   // Lenders move on their own process and the borrower's target date is only a
   // target, so a closing date that has slipped into the past (or was never
   // filled in) is a processor to-do, not a real forecast. Surface those deals.
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
   const needsClosingDateDeals = dealsData.filter(
     (d) => VIABLE_STAGES.has(d.stage) && (!d.estimatedClosingDate || d.estimatedClosingDate < startOfToday)
   );
@@ -948,7 +952,7 @@ export async function buildDashboardData(range: DashboardRange): Promise<Dashboa
     lenderTurnTimes: buildLenderTurnTimes(dealsData, start, end, lenderNames),
     walletShare: buildWalletShare(dealsData, start, end, lenderNames),
     referralPerformance: buildReferralPerformance(dealsData, start, end),
-    costProfitability: buildCostProfitability(dealsData, start, end),
+    costProfitability: buildCostProfitability(dealsData, start, end, dashboardRangeForecastEnd(range)),
     operations: buildOperations(dealsData),
     pipelineAging: buildPipelineAging(dealsData),
     enabledDashboardMetrics: settingsRow?.enabledDashboardMetrics ?? [],
