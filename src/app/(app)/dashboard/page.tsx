@@ -511,8 +511,8 @@ export default async function DashboardPage({
           <CardHeader>
             <CardTitle className="text-base">Lender Turn Times</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Approximated from our own button clicks (no lender-reply timestamp exists): Price Loan → term sheet
-              drafted, and Application → Closed.
+              Approximated from our own actions (no lender-reply timestamp exists): pricing request sent → first term sheet
+              drafted, with each re-price counted as its own round, and Application → Closed.
             </p>
           </CardHeader>
           <CardContent>

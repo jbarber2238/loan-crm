@@ -1,6 +1,7 @@
 import { eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { deals, companySettings } from "@/server/db/schema";
+import { lenderTurnSamples } from "@/lib/lender-turn-times";
 import { PAUSED_STAGES } from "@/lib/deal-pipeline";
 import { closingWatchStatus, startOfEtToday, type ClosingWatchStatus } from "@/lib/closing-watch";
 import { dashboardRangeStart, dashboardRangeForecastEnd, type DashboardRange } from "@/lib/dashboard-ranges";
@@ -626,21 +627,21 @@ export interface LenderTurnTimeRow {
 }
 
 /**
- * Lender responsiveness, separate from our own internal timelines. Since
- * there's no lender-reply webhook/timestamp to measure against, both of
- * these are anchored to OUR team's own button clicks — an approximation of
- * lender speed, not a precise one, but directionally useful:
- * - Time to Term Sheet: from clicking "Price Loan" (pricingRequest.createdAt
- *   — the request row is created the instant that dialog is submitted) to
- *   the term sheet draft actually existing in the system (termSheet.createdAt).
+ * Lender responsiveness, separate from our own internal timelines. There's no
+ * lender-reply timestamp to measure against, so both of these are anchored to
+ * OUR team's own actions — an approximation of lender speed, directionally
+ * useful:
+ * - Time to Term Sheet: each pricing request is its own round, from the moment
+ *   it was SENT to the first term sheet drafted from that lender after it
+ *   (see lender-turn-times.ts). A re-price is a new request and so a new round.
+ *   Quick pricers and unsent drafts are left out. A round counts toward the
+ *   period its term sheet landed in.
  * - Time to Close: from the deal entering Application (the moment the
  *   processing invoice is paid and the file effectively goes to this
  *   lender) to Closed. Same underlying duration as "Speed to Close:
  *   application → close" above, just sliced by lender instead of loan
- *   category — a deliberately different measure than the internal
- *   Application → Close speed metric's OWN slicing, not a duplicate: this
- *   view answers "which lender is slow," that one answers "which loan type
- *   is slow."
+ *   category — this view answers "which lender is slow," that one answers
+ *   "which loan type is slow."
  */
 function buildLenderTurnTimes(
   dealsData: DealWithRelations[],
@@ -652,13 +653,11 @@ function buildLenderTurnTimes(
   const toClose = new Map<string, number[]>();
 
   for (const deal of dealsData) {
-    for (const termSheet of deal.termSheets) {
-      if (!inRange(termSheet.createdAt, start, end)) continue;
-      const matchingRequest = deal.pricingRequests.find((r) => r.lenderId === termSheet.lenderId);
-      if (!matchingRequest) continue;
-      const list = toTermSheet.get(termSheet.lenderId) ?? [];
-      list.push(daysBetween(matchingRequest.createdAt, termSheet.createdAt));
-      toTermSheet.set(termSheet.lenderId, list);
+    for (const sample of lenderTurnSamples(deal.pricingRequests, deal.termSheets)) {
+      if (!inRange(sample.completedAt, start, end)) continue;
+      const list = toTermSheet.get(sample.lenderId) ?? [];
+      list.push(sample.days);
+      toTermSheet.set(sample.lenderId, list);
     }
 
     if (!deal.lenderId) continue;

@@ -724,7 +724,7 @@ export function DashboardDark({
 
       <Panel
         title="Lender Turn Times"
-        subtitle="Approximated from our own button clicks (no lender-reply timestamp exists): Price Loan → term sheet drafted, and Application → Closed."
+        subtitle="Approximated from our own actions (no lender-reply timestamp exists): pricing request sent → first term sheet drafted, with each re-price counted as its own round, and Application → Closed."
       >
         {data.lenderTurnTimes.length === 0 ? (
           <p className={EMPTY}>No data in this range.</p>
