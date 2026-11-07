@@ -307,14 +307,27 @@ export default async function DashboardPage({
 
       {/* ---------------------------------------------------------------- */}
       <section className="space-y-4">
-        <SectionHeading title="Cost & Profitability" />
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-2">
-          <StatCard
+        <SectionHeading title="Revenue Forecast" />
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <DrillDownStatCard
             label="Projected Revenue"
             value={money(data.costProfitability.projectedRevenue)}
-            sub="open deals expected to close in this period"
+            sub="open deals with an estimated closing date in this period"
+            deals={data.costProfitability.projectedRevenueDeals}
           />
-          <StatCard label="Closed Revenue" value={money(data.costProfitability.closedRevenue)} />
+          <DrillDownStatCard
+            label="Closed Revenue"
+            value={money(data.costProfitability.closedRevenue)}
+            sub="fees on loans closed in this period"
+            deals={data.pipelineConversion.closedDeals}
+          />
+          <DrillDownStatCard
+            label="Closing Dates to Update"
+            value={String(data.costProfitability.needsClosingDateDeals.length)}
+            sub="open deals with a past or missing estimated closing date, left out of the projection"
+            deals={data.costProfitability.needsClosingDateDeals}
+            emptyMessage="Every open deal has a current estimated closing date."
+          />
         </div>
         {enabled.has("avg_origination_points_by_loan_type") && (
           <Card>

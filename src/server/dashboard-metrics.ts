@@ -750,6 +750,10 @@ function buildReferralPerformance(dealsData: DealWithRelations[], start: Date | 
 
 export interface CostProfitabilityData {
   projectedRevenue: number;
+  /** The open deals whose estimated closing date lands in the period, i.e. what the projection is built from. */
+  projectedRevenueDeals: DrillDownDeal[];
+  /** Open deals with no estimated closing date, or one that has already passed. They can't be projected into any period until someone updates the date. */
+  needsClosingDateDeals: DrillDownDeal[];
   closedRevenue: number;
   avgOriginationPointsByLoanType: { loanCategory: string; averagePoints: number; count: number }[];
 }
@@ -762,9 +766,19 @@ function buildCostProfitability(dealsData: DealWithRelations[], start: Date | nu
   // when it's expected to close." Deals with no estimated closing date yet
   // can't be projected into a period, so they're excluded here (they still
   // count in Total Pipeline Value).
-  const projectedRevenue = dealsData
-    .filter((d) => VIABLE_STAGES.has(d.stage) && d.estimatedClosingDate && inRange(d.estimatedClosingDate, start, end))
-    .reduce((sum, d) => sum + dealLeadValue(d), 0);
+  const projectedDeals = dealsData.filter(
+    (d) => VIABLE_STAGES.has(d.stage) && d.estimatedClosingDate && inRange(d.estimatedClosingDate, start, end)
+  );
+  const projectedRevenue = projectedDeals.reduce((sum, d) => sum + dealLeadValue(d), 0);
+
+  // Lenders move on their own process and the borrower's target date is only a
+  // target, so a closing date that has slipped into the past (or was never
+  // filled in) is a processor to-do, not a real forecast. Surface those deals.
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const needsClosingDateDeals = dealsData.filter(
+    (d) => VIABLE_STAGES.has(d.stage) && (!d.estimatedClosingDate || d.estimatedClosingDate < startOfToday)
+  );
 
   const closedRevenue = dealsData
     .filter((d) => firstEntryInRange(d, "closed", start, end) !== null)
@@ -782,7 +796,13 @@ function buildCostProfitability(dealsData: DealWithRelations[], start: Date | nu
     .map(([loanCategory, points]) => ({ loanCategory, averagePoints: average(points)!, count: points.length }))
     .sort((a, b) => b.count - a.count);
 
-  return { projectedRevenue, closedRevenue, avgOriginationPointsByLoanType };
+  return {
+    projectedRevenue,
+    projectedRevenueDeals: projectedDeals.map(toDrillDownDeal),
+    needsClosingDateDeals: needsClosingDateDeals.map(toDrillDownDeal),
+    closedRevenue,
+    avgOriginationPointsByLoanType,
+  };
 }
 
 // ---------------------------------------------------------------------------

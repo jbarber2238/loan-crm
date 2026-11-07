@@ -531,23 +531,32 @@ export function DashboardDark({
         </section>
 
         <section className={cn(TINTED, "flex-[1_1_340px]")}>
-          <h2 className="text-lg font-bold">Cost &amp; Profitability</h2>
-          <div className="flex flex-wrap gap-3">
-            <div className="flex-[1_1_130px] rounded-2xl border border-[#fa5f05] bg-[rgba(250,95,5,.08)] p-4">
-              <div className={cn("text-[28px] leading-8 font-bold tabular-nums", DISPLAY)}>{money(data.costProfitability.projectedRevenue)}</div>
-              <div className="mt-1 text-xs text-[rgba(246,246,246,.78)]">Projected revenue: open deals expected to close in this period</div>
-            </div>
-            <div className="flex-[1_1_130px] rounded-2xl border border-[rgba(246,246,246,.08)] bg-[#17191b] p-4">
-              <div className={cn("text-[28px] leading-8 font-bold tabular-nums", DISPLAY)}>{money(data.costProfitability.closedRevenue)}</div>
-              <div className="mt-1 text-xs text-[rgba(246,246,246,.78)]">Closed revenue</div>
-            </div>
+          <h2 className="text-lg font-bold">Revenue Forecast</h2>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
+            <DrillDownStatCard
+              tile
+              featured
+              label="Projected Revenue"
+              value={money(data.costProfitability.projectedRevenue)}
+              sub="open deals with an estimated closing date in this period"
+              deals={data.costProfitability.projectedRevenueDeals}
+            />
+            <DrillDownStatCard
+              tile
+              label="Closed Revenue"
+              value={money(data.costProfitability.closedRevenue)}
+              sub="fees on loans closed in this period"
+              deals={pc.closedDeals}
+            />
           </div>
-          {data.loanOfficerPerformance.map((lo) => (
-            <div key={lo.userId} className="flex items-center justify-between text-[13px] text-[rgba(246,246,246,.78)]">
-              <span>{lo.name}, lead → app</span>
-              <span className="font-bold text-white">{pct(lo.leadToApplicationPct)}</span>
-            </div>
-          ))}
+          <DrillDownStatCard
+            tile
+            label="Closing Dates to Update"
+            value={String(data.costProfitability.needsClosingDateDeals.length)}
+            sub="open deals with a past or missing estimated closing date, left out of the projection"
+            deals={data.costProfitability.needsClosingDateDeals}
+            emptyMessage="Every open deal has a current estimated closing date."
+          />
           {enabled.has("avg_origination_points_by_loan_type") && (
             <div className="flex flex-col gap-2 border-t border-[rgba(246,246,246,.08)] pt-3.5">
               <p className="text-sm font-semibold">Average Origination Points, by Loan Type</p>
