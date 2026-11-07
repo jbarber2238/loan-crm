@@ -4,6 +4,10 @@
 
 export const LENDER_POINTS = 0.75;
 export const SAME_DAY_PREMIUM_POINTS = 0.25;
+// Funds not returned within 24 hours of funding cost another 0.25% for each
+// additional calendar day (weekends and holidays included) until they come
+// back. Fund Friday, wire back Monday: Sat + Sun + Mon = 3 days = +0.75%.
+export const LATE_RETURN_POINTS_PER_DAY = 0.25;
 export const STANDARD_RANGE_MIN = 100_000;
 // The smallest request the public intake form accepts. Raise or remove this
 // (and the fee tiers above) if smaller deals are ever taken on.
@@ -86,4 +90,10 @@ export function publicCost(fundingAmount: number | null, sameDayFunding: boolean
   if (fundingAmount > STANDARD_RANGE_MAX) return { kind: "custom" };
   const fees = transactionalFees({ fundingAmount, brokerPoints: null, sameDayFunding });
   return { kind: "standard", totalPoints: fees.totalPoints, totalFee: fees.totalFee };
+}
+
+/** The added charge for funds still out after 24 hours, in dollars. */
+export function lateReturnFee(fundingAmount: number, extraDays: number): number {
+  if (!Number.isFinite(fundingAmount) || !Number.isFinite(extraDays) || extraDays <= 0) return 0;
+  return cents((fundingAmount * LATE_RETURN_POINTS_PER_DAY * Math.floor(extraDays)) / 100);
 }

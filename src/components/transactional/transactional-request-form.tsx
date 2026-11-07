@@ -161,6 +161,10 @@ export function TransactionalRequestForm() {
               />
               I need the funds the same day (adds 0.25%)
             </label>
+            <p className="pl-6 text-xs text-muted-foreground">
+              Our funds must be returned within 24 hours of funding. After that, the cost is +0.25% for each additional
+              day until they are returned (weekends included).
+            </p>
           </div>
           <CostSummary
             amount={rawAmount.trim() === "" || !Number.isFinite(amount) ? null : amount}
