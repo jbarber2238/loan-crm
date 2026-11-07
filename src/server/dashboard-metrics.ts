@@ -1,6 +1,6 @@
 import { eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { deals, companySettings } from "@/server/db/schema";
+import { deals, companySettings, partnerPayouts } from "@/server/db/schema";
 import { lenderTurnSamples } from "@/lib/lender-turn-times";
 import { PAUSED_STAGES } from "@/lib/deal-pipeline";
 import { closingWatchStatus, startOfEtToday, type ClosingWatchStatus } from "@/lib/closing-watch";
@@ -712,36 +712,63 @@ function buildWalletShare(dealsData: DealWithRelations[], start: Date | null, en
 export interface ReferralPerformanceRow {
   affiliateId: string;
   affiliateName: string;
+  /** Referred deals submitted in the selected period. */
   referrals: number;
+  /** Referred deals open right now (New through Clear to Close), whatever the period. */
+  inPipeline: number;
+  /** Referred deals that closed in the selected period. */
   closed: number;
-  feesPaid: number;
-  feesPending: number;
+  /** Payouts still owed to this partner right now (pending or ready to pay), in dollars. */
+  owed: number;
+  /** Payouts paid to this partner in the selected period, in dollars. */
+  paid: number;
 }
 
-function buildReferralPerformance(dealsData: DealWithRelations[], start: Date | null, end: Date): ReferralPerformanceRow[] {
+type PayoutRow = Pick<typeof partnerPayouts.$inferSelect, "partnerId" | "status" | "amount" | "paidAmount" | "paidDate">;
+
+function buildReferralPerformance(
+  dealsData: DealWithRelations[],
+  payouts: PayoutRow[],
+  start: Date | null,
+  end: Date
+): ReferralPerformanceRow[] {
   const byAffiliate = new Map<string, ReferralPerformanceRow>();
+  const rowFor = (affiliateId: string, name: string) => {
+    let row = byAffiliate.get(affiliateId);
+    if (!row) {
+      row = { affiliateId, affiliateName: name, referrals: 0, inPipeline: 0, closed: 0, owed: 0, paid: 0 };
+      byAffiliate.set(affiliateId, row);
+    }
+    return row;
+  };
+
+  const nameById = new Map<string, string>();
   for (const deal of dealsData) {
     if (!deal.referredByAffiliateId || !deal.referredByAffiliate) continue;
-    const row = byAffiliate.get(deal.referredByAffiliateId) ?? {
-      affiliateId: deal.referredByAffiliateId,
-      affiliateName: deal.referredByAffiliate.name ?? deal.referredByAffiliate.email,
-      referrals: 0,
-      closed: 0,
-      feesPaid: 0,
-      feesPending: 0,
-    };
+    const name = deal.referredByAffiliate.name ?? deal.referredByAffiliate.email;
+    nameById.set(deal.referredByAffiliateId, name);
+    const row = rowFor(deal.referredByAffiliateId, name);
     if (inRange(deal.createdAt, start, end)) row.referrals++;
-    const closedEntry = firstEntryInRange(deal, "closed", start, end);
-    if (closedEntry) {
-      row.closed++;
-      if (deal.referralFeeEligible) {
-        if (deal.referralFeePaidAt) row.feesPaid++;
-        else row.feesPending++;
-      }
-    }
-    byAffiliate.set(deal.referredByAffiliateId, row);
+    if (VIABLE_STAGES.has(deal.stage)) row.inPipeline++;
+    if (firstEntryInRange(deal, "closed", start, end)) row.closed++;
   }
-  return [...byAffiliate.values()].sort((a, b) => b.referrals - a.referrals);
+
+  // Money comes from the partner payout ledger, the same one the Partner
+  // Payouts widget and the partner portal use.
+  for (const payout of payouts) {
+    const name = nameById.get(payout.partnerId);
+    if (!name) continue;
+    const row = rowFor(payout.partnerId, name);
+    if (payout.status === "paid") {
+      if (payout.paidDate && inRange(payout.paidDate, start, end)) row.paid += num(payout.paidAmount ?? payout.amount);
+    } else {
+      row.owed += num(payout.amount);
+    }
+  }
+
+  return [...byAffiliate.values()].sort(
+    (a, b) => b.inPipeline - a.inPipeline || b.referrals - a.referrals || a.affiliateName.localeCompare(b.affiliateName)
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -963,9 +990,10 @@ export interface DashboardData {
 export async function buildDashboardData(range: DashboardRange): Promise<DashboardData> {
   const start = dashboardRangeStart(range);
   const end = new Date();
-  const [dealsData, allLenders, settingsRow] = await Promise.all([
+  const [dealsData, allLenders, payoutRows, settingsRow] = await Promise.all([
     fetchDeals(),
     db.query.lenders.findMany(),
+    db.query.partnerPayouts.findMany({ columns: { partnerId: true, status: true, amount: true, paidAmount: true, paidDate: true } }),
     db.query.companySettings.findFirst({ where: eq(companySettings.id, "default"), columns: { logoData: false, wireInstructionsData: false } }),
   ]);
   const lenderNames = new Map(allLenders.map((l) => [l.id, l.name]));
@@ -978,7 +1006,7 @@ export async function buildDashboardData(range: DashboardRange): Promise<Dashboa
     lenderPerformance: buildLenderPerformance(dealsData, start, end, lenderNames),
     lenderTurnTimes: buildLenderTurnTimes(dealsData, start, end, lenderNames),
     walletShare: buildWalletShare(dealsData, start, end, lenderNames),
-    referralPerformance: buildReferralPerformance(dealsData, start, end),
+    referralPerformance: buildReferralPerformance(dealsData, payoutRows, start, end),
     costProfitability: buildCostProfitability(dealsData, start, end, dashboardRangeForecastEnd(range)),
     operations: buildOperations(dealsData),
     pipelineAging: buildPipelineAging(dealsData),

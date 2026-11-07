@@ -537,26 +537,31 @@ export default async function DashboardPage({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Referral Partner Performance</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Referrals, Closed and Paid follow the selected period. In Pipeline and Owed are right-now snapshots.
+            </p>
           </CardHeader>
           <CardContent>
             <div className="space-y-2 overflow-x-auto [&>div]:min-w-[40rem]">
-              <div className="grid grid-cols-4 gap-2 text-xs font-medium text-muted-foreground">
-                <span>Partner</span>
+              <div className="grid grid-cols-6 gap-2 text-xs font-medium text-muted-foreground">
+                <span className="col-span-1">Partner</span>
                 <span className="text-right">Referrals</span>
+                <span className="text-right">In Pipeline</span>
                 <span className="text-right">Closed</span>
-                <span className="text-right">Fees Paid / Pending</span>
+                <span className="text-right">Owed</span>
+                <span className="text-right">Paid</span>
               </div>
               {data.referralPerformance.length === 0 && (
                 <p className="text-sm text-muted-foreground">No referral activity in this range.</p>
               )}
               {data.referralPerformance.map((row) => (
-                <div key={row.affiliateId} className="grid grid-cols-4 gap-2 text-sm">
+                <div key={row.affiliateId} className="grid grid-cols-6 gap-2 text-sm">
                   <span className="truncate font-medium">{row.affiliateName}</span>
                   <span className="text-right">{row.referrals || "—"}</span>
+                  <span className="text-right">{row.inPipeline || "—"}</span>
                   <span className="text-right">{row.closed || "—"}</span>
-                  <span className="text-right">
-                    {row.feesPaid} / {row.feesPending}
-                  </span>
+                  <span className="text-right">{row.owed ? money(row.owed) : "—"}</span>
+                  <span className="text-right">{row.paid ? money(row.paid) : "—"}</span>
                 </div>
               ))}
             </div>

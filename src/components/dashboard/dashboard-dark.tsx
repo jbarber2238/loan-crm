@@ -753,7 +753,11 @@ export function DashboardDark({
       </Panel>
 
       <section className="flex flex-wrap items-stretch gap-4">
-        <Panel title="Referral Partner Performance" className="flex-[1_1_340px]">
+        <Panel
+          title="Referral Partner Performance"
+          subtitle="Referrals, Closed and Paid follow the selected period. In Pipeline and Owed are right-now snapshots."
+          className="flex-[1_1_340px]"
+        >
           {data.referralPerformance.length === 0 ? (
             <p className={EMPTY}>No referral activity in this range.</p>
           ) : (
@@ -763,8 +767,10 @@ export function DashboardDark({
                   <tr>
                     <th className={cn(TH, "text-left")}>Partner</th>
                     <th className={cn(TH, "text-right")}>Referrals</th>
+                    <th className={cn(TH, "text-right")}>In Pipeline</th>
                     <th className={cn(TH, "text-right")}>Closed</th>
-                    <th className={cn(TH, "text-right")}>Fees Paid / Pending</th>
+                    <th className={cn(TH, "text-right")}>Owed</th>
+                    <th className={cn(TH, "text-right")}>Paid</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -772,10 +778,10 @@ export function DashboardDark({
                     <tr key={row.affiliateId} className={ROW}>
                       <td className="px-2 py-3 font-semibold">{row.affiliateName}</td>
                       <td className={cn(TD, "text-right", !row.referrals && DIM)}>{row.referrals || "—"}</td>
+                      <td className={cn(TD, "text-right", !row.inPipeline && DIM)}>{row.inPipeline || "—"}</td>
                       <td className={cn(TD, "text-right", !row.closed && DIM)}>{row.closed || "—"}</td>
-                      <td className={cn(TD, "text-right")}>
-                        {row.feesPaid} / {row.feesPending}
-                      </td>
+                      <td className={cn(TD, "text-right", !row.owed && DIM)}>{row.owed ? money(row.owed) : "—"}</td>
+                      <td className={cn(TD, "text-right", !row.paid && DIM)}>{row.paid ? money(row.paid) : "—"}</td>
                     </tr>
                   ))}
                 </tbody>
