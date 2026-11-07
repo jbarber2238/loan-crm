@@ -2,6 +2,7 @@ import { eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { deals, companySettings } from "@/server/db/schema";
 import { PAUSED_STAGES } from "@/lib/deal-pipeline";
+import { closingWatchStatus, startOfEtToday, type ClosingWatchStatus } from "@/lib/closing-watch";
 import { dashboardRangeStart, dashboardRangeForecastEnd, type DashboardRange } from "@/lib/dashboard-ranges";
 import { leadValueFor, isDscrLikeCategory, estimatedMonthlyPI, estimatedMonthlyPitia, calculateDscrRatio } from "@/lib/term-sheet-calculations";
 
@@ -748,12 +749,25 @@ function buildReferralPerformance(dealsData: DealWithRelations[], start: Date | 
 // Cost & Profitability
 // ---------------------------------------------------------------------------
 
+export interface ClosingWatchRow extends DrillDownDeal {
+  status: ClosingWatchStatus;
+  /** Days from today to the estimated closing date: negative once it has passed, null when no date is set. */
+  daysFromToday: number | null;
+  /** The estimated closing day (YYYY-MM-DD), or null. */
+  estimatedClosingDay: string | null;
+  /** What the deal is worth to us (lead value). */
+  value: number;
+}
+
 export interface CostProfitabilityData {
+  /** Open deals whose estimated closing date lands between today and the end of the period. */
   projectedRevenue: number;
-  /** The open deals whose estimated closing date lands in the period, i.e. what the projection is built from. */
   projectedRevenueDeals: DrillDownDeal[];
-  /** Open deals with no estimated closing date, or one that has already passed. They can't be projected into any period until someone updates the date. */
-  needsClosingDateDeals: DrillDownDeal[];
+  /** Open deals that are still being worked but have no usable closing date: none set, or the date has passed. */
+  undatedProjectedRevenue: number;
+  undatedProjectedRevenueDeals: DrillDownDeal[];
+  /** Deals past their estimated closing date or within a few days of it, plus any with no date. Overdue first, then soonest due. */
+  closingWatch: ClosingWatchRow[];
   closedRevenue: number;
   avgOriginationPointsByLoanType: { loanCategory: string; averagePoints: number; count: number }[];
 }
@@ -761,27 +775,39 @@ export interface CostProfitabilityData {
 function buildCostProfitability(dealsData: DealWithRelations[], start: Date | null, end: Date, forecastEnd: Date): CostProfitabilityData {
   // Projected Revenue is deliberately NOT the same figure as Total Pipeline
   // Value: it's revenue expected to land IN the selected period, based on
-  // each open deal's own estimatedClosingDate — "what do we expect to
-  // actually book this month," not "what's open right now regardless of
-  // when it's expected to close." Deals with no estimated closing date yet
-  // can't be projected into a period, so they're excluded here (they still
-  // count in Total Pipeline Value).
-  // The window runs from today (or the period's start, if that's later) to the
-  // END of the period. A closing date that's already passed can't be projected
-  // forward, so those deals show up in "Closing Dates to Update" instead.
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const projectionStart = start === null || start < startOfToday ? startOfToday : start;
-  const projectedDeals = dealsData.filter(
-    (d) => VIABLE_STAGES.has(d.stage) && d.estimatedClosingDate && inRange(d.estimatedClosingDate, projectionStart, forecastEnd)
+  // each open deal's own estimatedClosingDate. Open deals that can't be placed
+  // on the calendar (no date, or a date that has already passed) are still
+  // revenue being worked, so they get their own "no current date" figure
+  // instead of vanishing. The two together equal every open deal's value.
+  const now = new Date();
+  const today = startOfEtToday(now);
+  const openDeals = dealsData.filter((d) => VIABLE_STAGES.has(d.stage));
+  const projectedDeals = openDeals.filter(
+    (d) => d.estimatedClosingDate && inRange(d.estimatedClosingDate, today, forecastEnd)
   );
-  const projectedRevenue = projectedDeals.reduce((sum, d) => sum + dealLeadValue(d), 0);
+  // A date beyond the end of the period belongs to a later period, so it's in
+  // neither bucket here.
+  const undatedDeals = openDeals.filter((d) => !d.estimatedClosingDate || d.estimatedClosingDate < today);
+  const sumLead = (list: DealWithRelations[]) => list.reduce((sum, d) => sum + dealLeadValue(d), 0);
 
-  // Lenders move on their own process and the borrower's target date is only a
-  // target, so a closing date that has slipped into the past (or was never
-  // filled in) is a processor to-do, not a real forecast. Surface those deals.
-  const needsClosingDateDeals = dealsData.filter(
-    (d) => VIABLE_STAGES.has(d.stage) && (!d.estimatedClosingDate || d.estimatedClosingDate < startOfToday)
+  // The to-do list for whoever keeps closing dates current: lenders move on
+  // their own process and the borrower's date is only a target, so overdue and
+  // about-to-be-due deals are the ones worth a look.
+  const watchOrder: Record<ClosingWatchStatus, number> = { overdue: 0, soon: 1, no_date: 2 };
+  const closingWatch: ClosingWatchRow[] = [];
+  for (const d of openDeals) {
+    const watch = closingWatchStatus(d.estimatedClosingDate, now);
+    if (!watch) continue;
+    closingWatch.push({
+      ...toDrillDownDeal(d),
+      status: watch.status,
+      daysFromToday: watch.offset,
+      estimatedClosingDay: d.estimatedClosingDate ? d.estimatedClosingDate.toISOString().slice(0, 10) : null,
+      value: dealLeadValue(d),
+    });
+  }
+  closingWatch.sort(
+    (a, b) => watchOrder[a.status] - watchOrder[b.status] || (a.daysFromToday ?? 0) - (b.daysFromToday ?? 0)
   );
 
   const closedRevenue = dealsData
@@ -801,9 +827,11 @@ function buildCostProfitability(dealsData: DealWithRelations[], start: Date | nu
     .sort((a, b) => b.count - a.count);
 
   return {
-    projectedRevenue,
+    projectedRevenue: sumLead(projectedDeals),
     projectedRevenueDeals: projectedDeals.map(toDrillDownDeal),
-    needsClosingDateDeals: needsClosingDateDeals.map(toDrillDownDeal),
+    undatedProjectedRevenue: sumLead(undatedDeals),
+    undatedProjectedRevenueDeals: undatedDeals.map(toDrillDownDeal),
+    closingWatch,
     closedRevenue,
     avgOriginationPointsByLoanType,
   };

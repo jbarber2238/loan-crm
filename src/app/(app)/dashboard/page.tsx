@@ -6,6 +6,8 @@ import { buildDashboardData } from "@/server/dashboard-metrics";
 import { DASHBOARD_RANGES, DEFAULT_DASHBOARD_RANGE, isDashboardRange } from "@/lib/dashboard-ranges";
 import { STAGES, LOAN_CATEGORIES, labelFor } from "@/lib/labels";
 import { InlineBar } from "@/components/dashboard/inline-bar";
+import { ClosingWatchList } from "@/components/dashboard/closing-watch-list";
+import { CLOSING_SOON_DAYS } from "@/lib/closing-watch";
 import { StageBarChart } from "@/components/dashboard/stage-bar-chart";
 import { MetricsLibrarySheet } from "@/components/dashboard/metrics-library-sheet";
 import { DrillDownStatCard } from "@/components/dashboard/drill-down-stat-card";
@@ -316,19 +318,29 @@ export default async function DashboardPage({
             deals={data.costProfitability.projectedRevenueDeals}
           />
           <DrillDownStatCard
+            label="Projected Revenue, No Current Date"
+            value={money(data.costProfitability.undatedProjectedRevenue)}
+            sub="open deals with no estimated closing date, or one that has passed"
+            deals={data.costProfitability.undatedProjectedRevenueDeals}
+          />
+          <DrillDownStatCard
             label="Closed Revenue"
             value={money(data.costProfitability.closedRevenue)}
             sub="fees on loans closed in this period"
             deals={data.pipelineConversion.closedDeals}
           />
-          <DrillDownStatCard
-            label="Closing Dates to Update"
-            value={String(data.costProfitability.needsClosingDateDeals.length)}
-            sub="open deals with a past or missing estimated closing date, left out of the projection"
-            deals={data.costProfitability.needsClosingDateDeals}
-            emptyMessage="Every open deal has a current estimated closing date."
-          />
         </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Closing Watch</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Open deals past their estimated closing date or within {CLOSING_SOON_DAYS} days of it, plus any with no date. Click one to update it.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ClosingWatchList rows={data.costProfitability.closingWatch} tone="light" />
+          </CardContent>
+        </Card>
         {enabled.has("avg_origination_points_by_loan_type") && (
           <Card>
             <CardHeader>

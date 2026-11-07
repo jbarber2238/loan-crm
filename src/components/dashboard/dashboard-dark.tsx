@@ -4,6 +4,8 @@ import type { DashboardData } from "@/server/dashboard-metrics";
 import { DASHBOARD_RANGES } from "@/lib/dashboard-ranges";
 import { STAGES, LOAN_CATEGORIES, labelFor } from "@/lib/labels";
 import { INDUSTRY_BENCHMARKS } from "@/lib/dashboard-benchmarks";
+import { ClosingWatchList } from "@/components/dashboard/closing-watch-list";
+import { CLOSING_SOON_DAYS } from "@/lib/closing-watch";
 import { DrillDownStatCard } from "@/components/dashboard/drill-down-stat-card";
 import { MetricsLibrarySheet } from "@/components/dashboard/metrics-library-sheet";
 import { PartnerPayoutWidget } from "@/components/dashboard/partner-payout-widget";
@@ -543,20 +545,19 @@ export function DashboardDark({
             />
             <DrillDownStatCard
               tile
+              label="Projected Revenue, No Current Date"
+              value={money(data.costProfitability.undatedProjectedRevenue)}
+              sub="open deals with no estimated closing date, or one that has passed"
+              deals={data.costProfitability.undatedProjectedRevenueDeals}
+            />
+            <DrillDownStatCard
+              tile
               label="Closed Revenue"
               value={money(data.costProfitability.closedRevenue)}
               sub="fees on loans closed in this period"
               deals={pc.closedDeals}
             />
           </div>
-          <DrillDownStatCard
-            tile
-            label="Closing Dates to Update"
-            value={String(data.costProfitability.needsClosingDateDeals.length)}
-            sub="open deals with a past or missing estimated closing date, left out of the projection"
-            deals={data.costProfitability.needsClosingDateDeals}
-            emptyMessage="Every open deal has a current estimated closing date."
-          />
           {enabled.has("avg_origination_points_by_loan_type") && (
             <div className="flex flex-col gap-2 border-t border-[rgba(246,246,246,.08)] pt-3.5">
               <p className="text-sm font-semibold">Average Origination Points, by Loan Type</p>
@@ -575,6 +576,13 @@ export function DashboardDark({
           )}
         </section>
       </section>
+
+      <Panel
+        title="Closing Watch"
+        subtitle={`Open deals past their estimated closing date or within ${CLOSING_SOON_DAYS} days of it, plus any with no date. Click one to update it.`}
+      >
+        <ClosingWatchList rows={data.costProfitability.closingWatch} tone="dark" />
+      </Panel>
 
       {/* Speed, quality and risk */}
       <SectionTitle title="Speed, quality and risk" subtitle="Closed loans only, within the selected range." />
