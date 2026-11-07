@@ -97,6 +97,15 @@ export function TransactionalRequestForm() {
           <span className="text-destructive">*</span> Required — every field is required.
         </p>
 
+        <div className="rounded-sm border-l-4 p-4 text-sm leading-relaxed" style={{ borderColor: "#143D4A", backgroundColor: "#143D4A12" }}>
+          <p className="font-medium">A double close is a 24-hour transaction.</p>
+          <p className="mt-1">
+            Our funds must be wired back within 24 hours of funding. We do not offer extended transactional funding. If
+            the funds are not returned within 24 hours, you will be charged an additional 0.25% for each day after that,
+            weekends included, until they are returned.
+          </p>
+        </div>
+
         <fieldset className="space-y-3">
           <legend className="text-sm font-medium">
             Is this property under contract?
@@ -161,10 +170,6 @@ export function TransactionalRequestForm() {
               />
               I need the funds the same day (adds 0.25%)
             </label>
-            <p className="pl-6 text-xs text-muted-foreground">
-              Our funds must be returned within 24 hours of funding. After that, the cost is +0.25% for each additional
-              day until they are returned (weekends included).
-            </p>
           </div>
           <CostSummary
             amount={rawAmount.trim() === "" || !Number.isFinite(amount) ? null : amount}

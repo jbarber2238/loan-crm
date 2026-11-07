@@ -9,8 +9,6 @@ const TEAL = "#143D4A";
 export function TransactionalCalculator() {
   const [raw, setRaw] = useState("");
   const [sameDay, setSameDay] = useState(false);
-  const [lateRaw, setLateRaw] = useState("");
-  const lateDays = Math.max(0, Math.min(60, Math.floor(Number(lateRaw) || 0)));
   const amount = Number(raw.replace(/[$,\s]/g, ""));
 
   return (
@@ -33,30 +31,9 @@ export function TransactionalCalculator() {
         <input type="checkbox" checked={sameDay} onChange={(e) => setSameDay(e.target.checked)} className="size-4" />
         Funding needed same day (adds 0.25%)
       </label>
-      <div className="space-y-1.5">
-        <label htmlFor="calc-late" className="text-[10px] font-medium tracking-[0.14em] uppercase" style={{ color: "#68735F" }}>
-          Days funds stay out past 24 hours (optional)
-        </label>
-        <input
-          id="calc-late"
-          type="number"
-          min={0}
-          max={60}
-          inputMode="numeric"
-          value={lateRaw}
-          onChange={(e) => setLateRaw(e.target.value)}
-          placeholder="0"
-          className="w-full rounded-sm border bg-white px-3 py-2.5 text-base outline-none focus-visible:ring-2"
-          style={{ borderColor: "rgba(20,61,74,0.3)", color: "#1E1E1E", ["--tw-ring-color" as string]: TEAL }}
-        />
-        <p className="text-xs" style={{ color: "#68735F" }}>
-          Each extra day adds 0.25%. Funded Friday, returned Monday = 3 days (Sat, Sun, Mon) = +0.75%.
-        </p>
-      </div>
       <CostSummary
         amount={Number.isFinite(amount) && raw.trim() !== "" ? amount : null}
         sameDay={sameDay}
-        lateDays={lateDays}
         tone="light"
       />
     </div>

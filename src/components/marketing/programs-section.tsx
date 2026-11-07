@@ -341,7 +341,7 @@ export function ProgramsSection({ applyHref }: { applyHref: string }) {
               </table>
             </div>
             <p className="mt-3 text-xs leading-relaxed" style={{ color: BASALT }}>
-              Funds not returned within 24 hours add 0.25% for each additional day, weekends included.
+              A double close is a 24-hour transaction. Funds not returned within 24 hours are charged an additional 0.25% per day.
             </p>
             <div className="mt-4 grid grid-cols-1 border bg-white sm:grid-cols-3" style={{ borderColor: TEAL }}>
               {[

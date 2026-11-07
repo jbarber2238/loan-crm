@@ -10,7 +10,7 @@ const archivo = Archivo({ subsets: ["latin"], weight: ["400", "500"], variable: 
 export const metadata: Metadata = {
   title: "Transactional Funding — Manna Lending",
   description:
-    "Short-term transactional funding for double closes (A-B / B-C). Public, up-front pricing: 1.25% for $100,000–$499,999, 1.00% for $500,000–$1,000,000. Same-day funding adds 0.25%, and funds not returned within 24 hours add 0.25% per day.",
+    "Short-term transactional funding for double closes (A-B / B-C). Public, up-front pricing: 1.25% for $100,000–$499,999, 1.00% for $500,000–$1,000,000. Same-day funding adds 0.25%. A double close is a 24-hour transaction; funds not returned within 24 hours are charged 0.25% per day.",
 };
 
 const SAND = "#CBB8A0";
@@ -151,22 +151,23 @@ export default function TransactionalFundingPage() {
           </div>
           <div className="mt-5 rounded-sm border p-6" style={{ borderColor: "rgba(250,247,242,0.35)" }}>
             <p className="text-[11px] font-medium tracking-[0.18em] uppercase" style={{ color: SAND }}>
-              Funds returned after 24 hours
+              A double close is a 24-hour transaction
             </p>
             <p className="mt-3 text-2xl" style={{ color: OFF_WHITE }}>
-              +0.25% for each additional day
+              Funds are wired back within 24 hours.
             </p>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed" style={{ color: "rgba(250,247,242,0.9)" }}>
-              Our funds are short-term. If they are not wired back within 24 hours, the cost goes up 0.25% for every
-              additional day until they are returned. Weekends and holidays count.
+              Transactional funding is built for same-day and next-day double closes. We do not offer extended
+              transactional funding. If the funds are not returned within 24 hours, you are charged an additional 0.25% for
+              each day after that until they are, weekends and holidays included.
             </p>
             <p className="mt-3 max-w-2xl text-sm leading-relaxed" style={{ color: "rgba(250,247,242,0.9)" }}>
               Example: we fund on a Friday and the wire back misses the cutoff, so it returns Monday. That is Saturday,
-              Sunday and Monday: 3 days, or +0.75%. On a $300,000 funding at 1.25%, the total goes from $3,750 to $6,000.
+              Sunday and Monday, or +0.75% on top of your cost.
             </p>
           </div>
           <p className="mt-6 text-xs" style={{ color: "rgba(250,247,242,0.8)" }}>
-            Minimum funding amount is $100,000. Same-day funding adds 0.25% to the total cost. Funds not returned within 24 hours add 0.25% for each additional day. Funding above $1,000,000 is
+            Minimum funding amount is $100,000. Same-day funding adds 0.25% to the total cost. Funds not returned within 24 hours are charged an additional 0.25% per day. Funding above $1,000,000 is
             priced individually.
           </p>
         </div>
@@ -181,7 +182,7 @@ export default function TransactionalFundingPage() {
               Know the number before you request.
             </h2>
             <p className="mt-4 max-w-md text-sm leading-relaxed" style={{ color: BASALT }}>
-              Enter your funding amount to see the total cost, calculated from the public pricing above. If your funds will be out longer than 24 hours, add the extra days to see the late-return charge too.
+              Enter your funding amount to see the total cost, calculated from the public pricing above.
             </p>
           </div>
           <TransactionalCalculator />

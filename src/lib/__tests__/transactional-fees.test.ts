@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultBrokerPoints, formatPoints, lateReturnFee, publicCost, transactionalFees } from "@/lib/transactional-fees";
+import { defaultBrokerPoints, formatPoints, publicCost, transactionalFees } from "@/lib/transactional-fees";
 
 describe("defaultBrokerPoints", () => {
   it("is 0.50% from $100,000 and 0.25% from $500,000", () => {
@@ -70,21 +70,5 @@ describe("publicCost", () => {
     expect(publicCost(99_999, false).kind).toBe("below_minimum");
     expect(publicCost(null, false).kind).toBe("empty");
     expect(publicCost(0, false).kind).toBe("empty");
-  });
-});
-
-describe("lateReturnFee", () => {
-  it("is 0.25% of the funding per extra day", () => {
-    expect(lateReturnFee(300_000, 1)).toBe(750);
-  });
-
-  it("Friday funding returned Monday is 3 days = 0.75%", () => {
-    expect(lateReturnFee(300_000, 3)).toBe(2250);
-  });
-
-  it("is zero when the funds come back in time", () => {
-    expect(lateReturnFee(300_000, 0)).toBe(0);
-    expect(lateReturnFee(300_000, -2)).toBe(0);
-    expect(lateReturnFee(300_000, Number.NaN)).toBe(0);
   });
 });
