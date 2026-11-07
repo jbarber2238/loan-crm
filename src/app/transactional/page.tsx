@@ -10,7 +10,7 @@ const archivo = Archivo({ subsets: ["latin"], weight: ["400", "500"], variable: 
 export const metadata: Metadata = {
   title: "Transactional Funding — Manna Lending",
   description:
-    "Short-term transactional funding for double closes (A-B / B-C). Public, up-front pricing from 1.00%, $100,000 minimum, same-day funding available. Funds not returned within 24 hours add 0.25% per day.",
+    "Short-term transactional funding for double closes (A-B / B-C). Public, up-front pricing: 1.25% for $100,000–$499,999, 1.00% for $500,000–$1,000,000. Same-day funding adds 0.25%, and funds not returned within 24 hours add 0.25% per day.",
 };
 
 const SAND = "#CBB8A0";
@@ -86,7 +86,7 @@ export default function TransactionalFundingPage() {
 
       {/* Hero */}
       <section style={{ backgroundColor: OFF_WHITE }}>
-        <div className="mx-auto max-w-6xl px-6 pt-16 md:pt-20">
+        <div className="mx-auto max-w-6xl px-6 pt-16 pb-16 md:pt-20 md:pb-20">
           <Eyebrow>Transactional funding</Eyebrow>
           <h1 className="mt-4 max-w-3xl text-4xl leading-[1.1] font-normal text-balance md:text-6xl" style={{ color: BASALT }}>
             We fund your double close.
@@ -106,22 +106,6 @@ export default function TransactionalFundingPage() {
               See pricing
             </a>
           </div>
-          <dl className="mt-12 grid grid-cols-1 gap-6 border-t py-8 sm:grid-cols-3" style={{ borderColor: LINE }}>
-            {[
-              ["From 1.00%", "Total cost on $500K–$1M"],
-              ["$100,000", "Minimum funding amount"],
-              ["+0.25%", "For same-day funding"],
-            ].map(([value, label]) => (
-              <div key={label}>
-                <dd className="text-2xl md:text-3xl" style={{ color: BASALT }}>
-                  {value}
-                </dd>
-                <dt className="mt-1 text-[11px]" style={{ color: MOSS }}>
-                  {label}
-                </dt>
-              </div>
-            ))}
-          </dl>
         </div>
       </section>
 
