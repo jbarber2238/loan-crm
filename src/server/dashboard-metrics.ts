@@ -1,6 +1,6 @@
 import { eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { deals, dealStageEnum, companySettings } from "@/server/db/schema";
+import { deals, companySettings } from "@/server/db/schema";
 import { PAUSED_STAGES } from "@/lib/deal-pipeline";
 import { dashboardRangeStart, type DashboardRange } from "@/lib/dashboard-ranges";
 import { leadValueFor, isDscrLikeCategory, estimatedMonthlyPI, estimatedMonthlyPitia, calculateDscrRatio } from "@/lib/term-sheet-calculations";
@@ -8,10 +8,22 @@ import { leadValueFor, isDscrLikeCategory, estimatedMonthlyPI, estimatedMonthlyP
 const TERMINAL_STAGES = new Set(["closed", "lost", "disqualified"]);
 // The pipeline is split in two halves, plus a paused bucket, so the dashboard
 // can show each separately: early (New to Negotiation), late (Application to
-// Clear to Close), and paused (On Hold / Follow-up).
-const EARLY_PIPELINE_STAGES = new Set(["new", "rate_shopping", "term_sheet", "negotiation"]);
-const LATE_PIPELINE_STAGES = new Set(["application", "initial_app_review", "underwriting_review", "conditional_approval", "clear_to_close"]);
-const VIABLE_STAGES = new Set([...EARLY_PIPELINE_STAGES, ...LATE_PIPELINE_STAGES]);
+// Clear to Close), and paused (On Hold / Follow-up). Fixed order, so charts
+// keep a stable shape even when a stage has zero deals in it.
+const VIABLE_STAGE_ORDER = [
+  "new",
+  "rate_shopping",
+  "term_sheet",
+  "negotiation",
+  "application",
+  "initial_app_review",
+  "underwriting_review",
+  "conditional_approval",
+  "clear_to_close",
+] as const;
+const EARLY_PIPELINE_STAGES = new Set<string>(VIABLE_STAGE_ORDER.slice(0, 4));
+const LATE_PIPELINE_STAGES = new Set<string>(VIABLE_STAGE_ORDER.slice(4));
+const VIABLE_STAGES = new Set<string>(VIABLE_STAGE_ORDER);
 
 type DealWithRelations = Awaited<ReturnType<typeof fetchDeals>>[number];
 
@@ -118,51 +130,40 @@ function toDrillDownDeal(d: DealWithRelations): DrillDownDeal {
 // Pipeline & Conversion
 // ---------------------------------------------------------------------------
 
-export interface FunnelRow {
+export interface TimeInStageRow {
   stage: string;
-  enteredCount: number;
-  nextStageCounts: { stage: string; count: number }[];
-  stillHereCount: number;
+  /** Average days a deal sat in this stage before moving on, across stays that ended in the selected period. Null when none did. */
+  avgDays: number | null;
+  /** How many completed stays that average is built from. */
+  stays: number;
+  /** Deals sitting in this stage right now. */
+  currentCount: number;
 }
 
 /**
- * Data-driven, not a hardcoded state machine — the pipeline itself doesn't
- * enforce legal transitions (any stage can move to any other), so rather
- * than assume a fixed set of "legal" next stages, this reads whatever
- * actually happened next in each deal's own history.
+ * How long deals spend in each stage before moving on — the number to watch
+ * when tuning turnaround. A "stay" is one stretch in a stage, from the moment
+ * the deal entered it to the moment it left, and counts toward the period it
+ * ENDED in (same "filter by when it landed" convention as the rest of the
+ * dashboard). A deal that bounces back into a stage contributes one stay per
+ * visit. Stays still in progress are not averaged — they're unfinished — but
+ * the deals currently in each stage are counted alongside.
  */
-function buildFunnel(dealsData: DealWithRelations[], start: Date | null, end: Date): FunnelRow[] {
-  const rows: FunnelRow[] = [];
-  for (const stage of dealStageEnum.enumValues) {
-    let enteredCount = 0;
-    let stillHereCount = 0;
-    const nextCounts = new Map<string, number>();
-
+function buildTimeInStage(dealsData: DealWithRelations[], start: Date | null, end: Date): TimeInStageRow[] {
+  return VIABLE_STAGE_ORDER.map((stage) => {
+    const durations: number[] = [];
+    let currentCount = 0;
     for (const deal of dealsData) {
-      const entry = firstEntryInRange(deal, stage, start, end);
-      if (!entry) continue;
-      enteredCount++;
+      if (deal.stage === stage) currentCount++;
       const hist = sortedHistory(deal);
-      const next = hist[entry.index + 1];
-      if (next) {
-        nextCounts.set(next.stage, (nextCounts.get(next.stage) ?? 0) + 1);
-      } else {
-        stillHereCount++;
+      for (let i = 0; i < hist.length - 1; i++) {
+        if (hist[i].stage !== stage || hist[i + 1].stage === stage) continue;
+        if (!inRange(hist[i + 1].changedAt, start, end)) continue;
+        durations.push(daysBetween(hist[i].changedAt, hist[i + 1].changedAt));
       }
     }
-
-    if (enteredCount > 0) {
-      rows.push({
-        stage,
-        enteredCount,
-        stillHereCount,
-        nextStageCounts: [...nextCounts.entries()]
-          .map(([stage, count]) => ({ stage, count }))
-          .sort((a, b) => b.count - a.count),
-      });
-    }
-  }
-  return rows;
+    return { stage, avgDays: average(durations), stays: durations.length, currentCount };
+  });
 }
 
 export interface StageTransitionRow {
@@ -271,7 +272,7 @@ export interface PipelineConversionData {
   averageLoanSizeClosed: number;
   speedLeadToClose: SpeedRow[];
   speedApplicationToClose: SpeedRow[];
-  funnel: FunnelRow[];
+  timeInStage: TimeInStageRow[];
   stageTransitionTimes: StageTransitionRow[];
 }
 
@@ -360,7 +361,7 @@ function buildPipelineConversion(dealsData: DealWithRelations[], start: Date | n
     averageLoanSizeClosed: closedAmounts.length ? totalVolumeClosed / closedAmounts.length : 0,
     speedLeadToClose: buildSpeedLeadToClose(dealsData, start, end),
     speedApplicationToClose: buildSpeedApplicationToClose(dealsData, start, end),
-    funnel: buildFunnel(dealsData, start, end),
+    timeInStage: buildTimeInStage(dealsData, start, end),
     stageTransitionTimes: buildStageTransitionTimes(dealsData, start, end),
   };
 }
@@ -788,24 +789,10 @@ function buildCostProfitability(dealsData: DealWithRelations[], start: Date | nu
 // Operations
 // ---------------------------------------------------------------------------
 
-// Every stage a deal can be actively sitting in — matches Justin's own
-// definition of "pipeline" for Total Pipeline Value: everything from New
-// through Clear to Close, plus On Hold and Follow-up. Fixed order (not
-// derived from whatever's present) so the bar chart's shape and stage
-// order stay stable even when a stage currently has zero deals in it.
-export const ACTIVE_STAGE_ORDER = [
-  "new",
-  "rate_shopping",
-  "term_sheet",
-  "negotiation",
-  "application",
-  "initial_app_review",
-  "underwriting_review",
-  "conditional_approval",
-  "clear_to_close",
-  "on_hold",
-  "follow_up",
-] as const;
+// Active = viable and moving: New through Clear to Close, the same set the
+// Total Pipeline Value card and the pipeline board's banner total. On Hold and
+// Follow-up are paused, so they're counted separately, not here.
+export const ACTIVE_STAGE_ORDER = VIABLE_STAGE_ORDER;
 
 export interface OperationsData {
   activeByStage: { stage: string; count: number }[];
@@ -814,7 +801,7 @@ export interface OperationsData {
 
 /** A right-now snapshot of the live pipeline's shape, not range-filtered — "what does the desk look like today," same convention as Total Pipeline Value. Real-time by construction: this is a fresh DB read on every dashboard load, so a deal restored a moment ago already shows up in its new stage. */
 function buildOperations(dealsData: DealWithRelations[]): OperationsData {
-  const activeDeals = dealsData.filter((d) => !TERMINAL_STAGES.has(d.stage));
+  const activeDeals = dealsData.filter((d) => VIABLE_STAGES.has(d.stage));
 
   const byStage = new Map<string, number>();
   for (const deal of activeDeals) {

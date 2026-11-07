@@ -3,7 +3,6 @@ import { ArrowRight } from "lucide-react";
 import type { DashboardData } from "@/server/dashboard-metrics";
 import { DASHBOARD_RANGES } from "@/lib/dashboard-ranges";
 import { STAGES, LOAN_CATEGORIES, labelFor } from "@/lib/labels";
-import { PIPELINE_STAGES } from "@/lib/deal-pipeline";
 import { INDUSTRY_BENCHMARKS } from "@/lib/dashboard-benchmarks";
 import { DrillDownStatCard } from "@/components/dashboard/drill-down-stat-card";
 import { MetricsLibrarySheet } from "@/components/dashboard/metrics-library-sheet";
@@ -97,27 +96,37 @@ function OutlineLink({ href, children }: { href: string; children: React.ReactNo
   );
 }
 
-function FunnelBars({ data }: { data: { label: string; count: number }[] }) {
-  const max = Math.max(1, ...data.map((d) => d.count));
-  const peak = data.findIndex((d) => d.count === max);
+function StageTimeBars({ rows }: { rows: { label: string; avgDays: number | null; stays: number; currentCount: number }[] }) {
+  const max = Math.max(0.0001, ...rows.map((r) => r.avgDays ?? 0));
+  const slowest = rows.reduce<number>((best, r, i) => ((r.avgDays ?? -1) > (rows[best].avgDays ?? -1) ? i : best), 0);
   return (
-    <div className="flex h-[250px] items-end gap-2">
-      {data.map((d, i) => (
-        <div key={d.label} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5">
-          <span className={cn("text-sm font-bold", d.count === 0 && DIM)}>{d.count}</span>
-          <span
-            className="w-full rounded-t-[10px] rounded-b-[4px]"
-            style={{
-              height: d.count === 0 ? 4 : `${Math.max(6, (d.count / max) * 180)}px`,
-              background:
-                d.count === 0
-                  ? "#333f48"
-                  : i === peak && d.count > 0 && data.filter((x) => x.count === max).length === 1
-                    ? "linear-gradient(180deg,#fdb78f,#fa5f05)"
-                    : "linear-gradient(180deg,#fa5f05,#bc4704)",
-            }}
-          />
-          <span className={cn("h-8 text-center text-[11px] leading-[14px] break-words", DIM)}>{d.label}</span>
+    <div className="flex flex-col gap-3.5">
+      {rows.map((r, i) => (
+        <div key={r.label} className="flex flex-col gap-1.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-[13px]">
+            <span>
+              {r.label}
+              {i === slowest && r.avgDays !== null && (
+                <span className="ml-2 rounded-full bg-[rgba(250,95,5,.18)] px-2 py-0.5 text-[11px] font-semibold text-[#fdb78f]">Slowest</span>
+              )}
+            </span>
+            <span className="font-bold">
+              {daysAndHours(r.avgDays)}
+              <span className="ml-2 font-normal text-[rgba(246,246,246,.66)]">
+                {r.stays > 0 ? `· ${r.stays} ${r.stays === 1 ? "stay" : "stays"}` : "· none finished this period"}
+                {r.currentCount > 0 && ` · ${r.currentCount} here now`}
+              </span>
+            </span>
+          </div>
+          <div role="img" aria-label={`${r.label}: ${daysAndHours(r.avgDays)} on average`} className="h-2.5 rounded-full bg-[#333f48]">
+            <div
+              className="h-2.5 rounded-full"
+              style={{
+                width: r.avgDays === null ? 0 : `${Math.max(2, (r.avgDays / max) * 100)}%`,
+                background: i === slowest ? "linear-gradient(90deg,#fa5f05,#fdb78f)" : "linear-gradient(90deg,#bc4704,#fa5f05)",
+              }}
+            />
+          </div>
         </div>
       ))}
     </div>
@@ -187,17 +196,7 @@ export function DashboardDark({
   const enabled = new Set(data.enabledDashboardMetrics);
   const pc = data.pipelineConversion;
 
-  const lostDisqualifiedEntered = pc.funnel
-    .filter((r) => r.stage === "lost" || r.stage === "disqualified")
-    .reduce((sum, r) => sum + r.enteredCount, 0);
-  const funnelByStage = new Map(pc.funnel.map((r) => [r.stage, r.enteredCount]));
-  const funnelData = [
-    ...PIPELINE_STAGES.filter((s) => s.value !== "closed").map((s) => ({
-      label: s.label,
-      count: funnelByStage.get(s.value) ?? 0,
-    })),
-    { label: "Lost / DQ", count: lostDisqualifiedEntered },
-  ];
+  const timeInStageRows = pc.timeInStage.map((r) => ({ ...r, label: stageLabel(r.stage) }));
 
   const activeRows = data.operations.activeByStage.map((r) => ({ label: stageLabel(r.stage), count: r.count }));
   const activeTotal = activeRows.reduce((s, r) => s + r.count, 0);
@@ -348,14 +347,14 @@ export function DashboardDark({
           <section className={cn(PANEL, "flex-[2_1_560px]")}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold">Pipeline Funnel</h2>
+                <h2 className="text-lg font-bold">Average Time in Each Stage</h2>
                 <p className={cn("mt-1 text-[13px]", DIM)}>
-                  Deals that entered each core stage this period, in order, plus everything Lost or Disqualified.
+                  How long deals sat in each stage before moving on, for stays that finished this period. Longest bar is where deals wait most.
                 </p>
               </div>
               <span className="rounded-xl border border-[rgba(246,246,246,.14)] px-3.5 py-2 text-[13px] font-semibold">{rangeLabel}</span>
             </div>
-            <FunnelBars data={funnelData} />
+            <StageTimeBars rows={timeInStageRows} />
           </section>
 
           <section className={cn(PANEL, "flex-[1_1_340px]")}>

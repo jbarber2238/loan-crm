@@ -5,7 +5,6 @@ import { DashboardDark } from "@/components/dashboard/dashboard-dark";
 import { buildDashboardData } from "@/server/dashboard-metrics";
 import { DASHBOARD_RANGES, DEFAULT_DASHBOARD_RANGE, isDashboardRange } from "@/lib/dashboard-ranges";
 import { STAGES, LOAN_CATEGORIES, labelFor } from "@/lib/labels";
-import { PIPELINE_STAGES } from "@/lib/deal-pipeline";
 import { InlineBar } from "@/components/dashboard/inline-bar";
 import { StageBarChart } from "@/components/dashboard/stage-bar-chart";
 import { MetricsLibrarySheet } from "@/components/dashboard/metrics-library-sheet";
@@ -83,17 +82,8 @@ export default async function DashboardPage({
   }
   const enabled = new Set(data.enabledDashboardMetrics);
 
-  const lostDisqualifiedEntered = data.pipelineConversion.funnel
-    .filter((r) => r.stage === "lost" || r.stage === "disqualified")
-    .reduce((sum, r) => sum + r.enteredCount, 0);
-  const funnelByStage = new Map(data.pipelineConversion.funnel.map((r) => [r.stage, r.enteredCount]));
-  const linearFunnelData = [
-    ...PIPELINE_STAGES.filter((s) => s.value !== "closed").map((s) => ({
-      label: s.label,
-      count: funnelByStage.get(s.value) ?? 0,
-    })),
-    { label: "Lost / Disqualified", count: lostDisqualifiedEntered },
-  ];
+  const timeInStage = data.pipelineConversion.timeInStage;
+  const maxStageDays = Math.max(0.0001, ...timeInStage.map((r) => r.avgDays ?? 0));
 
   return (
     <div className="space-y-10 pb-16">
@@ -236,13 +226,32 @@ export default async function DashboardPage({
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Pipeline Funnel</CardTitle>
+            <CardTitle className="text-base">Average Time in Each Stage</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Deals that entered each core stage this period, in order, plus everything Lost or Disqualified.
+              How long deals sat in each stage before moving on, for stays that finished this period. Longest bar is where deals wait most.
             </p>
           </CardHeader>
-          <CardContent>
-            <StageBarChart data={linearFunnelData} />
+          <CardContent className="space-y-3">
+            {timeInStage.map((row) => (
+              <div key={row.stage} className="space-y-1">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
+                  <span className="font-medium">{stageLabel(row.stage)}</span>
+                  <span>
+                    <span className="font-semibold">{daysAndHours(row.avgDays)}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {row.stays > 0 ? `· ${row.stays} ${row.stays === 1 ? "stay" : "stays"}` : "· none finished this period"}
+                      {row.currentCount > 0 && ` · ${row.currentCount} here now`}
+                    </span>
+                  </span>
+                </div>
+                <div className="h-2 rounded-full bg-muted">
+                  <div
+                    className="h-2 rounded-full bg-foreground/70"
+                    style={{ width: row.avgDays === null ? 0 : `${Math.max(2, (row.avgDays / maxStageDays) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
           </CardContent>
         </Card>
 
