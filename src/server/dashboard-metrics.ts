@@ -1,10 +1,17 @@
 import { eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { deals, dealStageEnum, companySettings } from "@/server/db/schema";
+import { PAUSED_STAGES } from "@/lib/deal-pipeline";
 import { dashboardRangeStart, type DashboardRange } from "@/lib/dashboard-ranges";
 import { leadValueFor, isDscrLikeCategory, estimatedMonthlyPI, estimatedMonthlyPitia, calculateDscrRatio } from "@/lib/term-sheet-calculations";
 
 const TERMINAL_STAGES = new Set(["closed", "lost", "disqualified"]);
+// The pipeline is split in two halves, plus a paused bucket, so the dashboard
+// can show each separately: early (New to Negotiation), late (Application to
+// Clear to Close), and paused (On Hold / Follow-up).
+const EARLY_PIPELINE_STAGES = new Set(["new", "rate_shopping", "term_sheet", "negotiation"]);
+const LATE_PIPELINE_STAGES = new Set(["application", "initial_app_review", "underwriting_review", "conditional_approval", "clear_to_close"]);
+const VIABLE_STAGES = new Set([...EARLY_PIPELINE_STAGES, ...LATE_PIPELINE_STAGES]);
 
 type DealWithRelations = Awaited<ReturnType<typeof fetchDeals>>[number];
 
@@ -241,12 +248,24 @@ export interface PipelineConversionData {
   leadCohortDeals: DrillDownDeal[];
   leadLostPct: number | null;
   leadLostDeals: DrillDownDeal[];
+  /** Viable, actively moving deals only: New through Clear to Close. Same definition as the pipeline board's Open Pipeline Value banner. */
   totalPipelineValue: number;
   totalPipelineValueDeals: DrillDownDeal[];
+  /** The early half of the pipeline: New, Rate Shopping, Term Sheet, Negotiation. */
+  earlyPipelineValue: number;
+  earlyPipelineValueDeals: DrillDownDeal[];
+  /** The committed half: Application Intake through Clear to Close. */
+  latePipelineValue: number;
+  latePipelineValueDeals: DrillDownDeal[];
+  /** Paused deals (On Hold and Follow-up), kept out of the live pipeline total. */
+  onHoldValue: number;
+  onHoldValueDeals: DrillDownDeal[];
   totalLostValue: number;
   totalLostValueDeals: DrillDownDeal[];
   loansClosed: number;
   closedDeals: DrillDownDeal[];
+  /** What the deals closed in this period were worth to us (lead value), as opposed to loan volume. */
+  totalValueClosed: number;
   totalVolumeClosed: number;
   averageLoanSizeRequested: number;
   averageLoanSizeClosed: number;
@@ -285,11 +304,16 @@ function buildPipelineConversion(dealsData: DealWithRelations[], start: Date | n
   const applicationsSubmittedDirect = applicationsSubmitted - applicationsSubmittedRestored;
 
   // Snapshot, not range-filtered — "what's live right now," same convention
-  // Justin already sees on the pipeline board's Lead Value badges. Matches
-  // his own definition: everything between New and Clear to Close, plus
-  // On Hold and Follow-up — i.e. everything that isn't Closed/Lost/Disqualified.
-  const activeDeals = dealsData.filter((d) => !TERMINAL_STAGES.has(d.stage));
-  const totalPipelineValue = activeDeals.reduce((sum, d) => sum + dealLeadValue(d), 0);
+  // as the pipeline board's Lead Value badges. Only viable, actively moving
+  // deals count: New through Clear to Close, the exact set the board's Open
+  // Pipeline Value banner totals. On Hold and Follow-up are paused, so they
+  // get their own bucket instead of inflating the live number.
+  const earlyDeals = dealsData.filter((d) => EARLY_PIPELINE_STAGES.has(d.stage));
+  const lateDeals = dealsData.filter((d) => LATE_PIPELINE_STAGES.has(d.stage));
+  const activeDeals = [...earlyDeals, ...lateDeals];
+  const sumLead = (list: DealWithRelations[]) => list.reduce((sum, d) => sum + dealLeadValue(d), 0);
+  const totalPipelineValue = sumLead(activeDeals);
+  const onHoldDeals = dealsData.filter((d) => PAUSED_STAGES.has(d.stage));
 
   // Real-time by design: only deals CURRENTLY sitting in Lost, that also
   // moved into Lost at some point in this range. A deal lost earlier this
@@ -320,10 +344,17 @@ function buildPipelineConversion(dealsData: DealWithRelations[], start: Date | n
     leadLostDeals: lostDeals.map(toDrillDownDeal),
     totalPipelineValue,
     totalPipelineValueDeals: activeDeals.map(toDrillDownDeal),
+    earlyPipelineValue: sumLead(earlyDeals),
+    earlyPipelineValueDeals: earlyDeals.map(toDrillDownDeal),
+    latePipelineValue: sumLead(lateDeals),
+    latePipelineValueDeals: lateDeals.map(toDrillDownDeal),
+    onHoldValue: sumLead(onHoldDeals),
+    onHoldValueDeals: onHoldDeals.map(toDrillDownDeal),
     totalLostValue,
     totalLostValueDeals: lostNowDeals.map(toDrillDownDeal),
     loansClosed: closedAmounts.length,
     closedDeals: closedDeals.map(toDrillDownDeal),
+    totalValueClosed: sumLead(closedDeals),
     totalVolumeClosed,
     averageLoanSizeRequested: requestedAmounts.length ? average(requestedAmounts)! : 0,
     averageLoanSizeClosed: closedAmounts.length ? totalVolumeClosed / closedAmounts.length : 0,
@@ -731,7 +762,7 @@ function buildCostProfitability(dealsData: DealWithRelations[], start: Date | nu
   // can't be projected into a period, so they're excluded here (they still
   // count in Total Pipeline Value).
   const projectedRevenue = dealsData
-    .filter((d) => !TERMINAL_STAGES.has(d.stage) && d.estimatedClosingDate && inRange(d.estimatedClosingDate, start, end))
+    .filter((d) => VIABLE_STAGES.has(d.stage) && d.estimatedClosingDate && inRange(d.estimatedClosingDate, start, end))
     .reduce((sum, d) => sum + dealLeadValue(d), 0);
 
   const closedRevenue = dealsData

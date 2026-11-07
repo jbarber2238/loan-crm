@@ -264,7 +264,7 @@ export function DashboardDark({
         <div>
           <h2 className="text-[22px] leading-[30px] font-bold">Pipeline &amp; Conversion</h2>
           <p className={cn("mt-1 text-[13px]", DIM)}>
-            Today is midnight-to-midnight. Total Pipeline Value and Total Lost Value are real-time snapshots. A restored
+            Today is midnight-to-midnight. Pipeline, On Hold and Lost values are real-time snapshots. A restored
             deal drops out immediately, not just on its next stage change.
           </p>
         </div>
@@ -301,10 +301,38 @@ export function DashboardDark({
             label="Total Pipeline Value"
             pill={`${pc.totalPipelineValueDeals.length} open`}
             value={money(pc.totalPipelineValue)}
-            sub="live, as of now"
+            sub="New through Clear to Close, live"
             deals={pc.totalPipelineValueDeals}
           />
+          <DrillDownStatCard
+            tile
+            label="New → Negotiation"
+            value={money(pc.earlyPipelineValue)}
+            sub={`${pc.earlyPipelineValueDeals.length} deals, early stages`}
+            deals={pc.earlyPipelineValueDeals}
+          />
+          <DrillDownStatCard
+            tile
+            label="Application → Clear to Close"
+            value={money(pc.latePipelineValue)}
+            sub={`${pc.latePipelineValueDeals.length} deals, committed`}
+            deals={pc.latePipelineValueDeals}
+          />
+          <DrillDownStatCard
+            tile
+            label="On Hold Value"
+            value={money(pc.onHoldValue)}
+            sub={`${pc.onHoldValueDeals.length} paused (On Hold + Follow-up), not in pipeline`}
+            deals={pc.onHoldValueDeals}
+          />
           <DrillDownStatCard tile label="Total Lost Value" value={money(pc.totalLostValue)} sub="currently sitting in Lost" deals={pc.totalLostValueDeals} />
+          <DrillDownStatCard
+            tile
+            label="Value Closed"
+            value={money(pc.totalValueClosed)}
+            sub={`${pc.loansClosed} loans closed this period`}
+            deals={pc.closedDeals}
+          />
           <DrillDownStatCard tile label="Loans Closed" value={String(pc.loansClosed)} sub={`${money(pc.totalVolumeClosed)} total volume`} deals={pc.closedDeals} />
           <DrillDownStatCard
             tile

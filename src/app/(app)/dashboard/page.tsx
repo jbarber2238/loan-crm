@@ -122,7 +122,7 @@ export default async function DashboardPage({
       <section className="space-y-4">
         <SectionHeading
           title="Pipeline & Conversion"
-          subtitle="Today is midnight-to-midnight. Total Pipeline Value and Total Lost Value are real-time snapshots — a restored deal drops out immediately, not just on its next stage change."
+          subtitle="Today is midnight-to-midnight. Pipeline, On Hold and Lost values are real-time snapshots — a restored deal drops out immediately, not just on its next stage change."
         />
 
         <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
@@ -169,8 +169,29 @@ export default async function DashboardPage({
               compact
               label="Total Pipeline Value"
               value={money(data.pipelineConversion.totalPipelineValue)}
-              sub="live, as of now"
+              sub="New through Clear to Close, live"
               deals={data.pipelineConversion.totalPipelineValueDeals}
+            />
+            <DrillDownStatCard
+              compact
+              label="New → Negotiation"
+              value={money(data.pipelineConversion.earlyPipelineValue)}
+              sub={`${data.pipelineConversion.earlyPipelineValueDeals.length} deals, early stages`}
+              deals={data.pipelineConversion.earlyPipelineValueDeals}
+            />
+            <DrillDownStatCard
+              compact
+              label="Application → Clear to Close"
+              value={money(data.pipelineConversion.latePipelineValue)}
+              sub={`${data.pipelineConversion.latePipelineValueDeals.length} deals, committed`}
+              deals={data.pipelineConversion.latePipelineValueDeals}
+            />
+            <DrillDownStatCard
+              compact
+              label="On Hold Value"
+              value={money(data.pipelineConversion.onHoldValue)}
+              sub={`${data.pipelineConversion.onHoldValueDeals.length} paused (On Hold + Follow-up), not in pipeline`}
+              deals={data.pipelineConversion.onHoldValueDeals}
             />
             <DrillDownStatCard
               compact
@@ -178,6 +199,13 @@ export default async function DashboardPage({
               value={money(data.pipelineConversion.totalLostValue)}
               sub="currently sitting in Lost"
               deals={data.pipelineConversion.totalLostValueDeals}
+            />
+            <DrillDownStatCard
+              compact
+              label="Value Closed"
+              value={money(data.pipelineConversion.totalValueClosed)}
+              sub={`${data.pipelineConversion.loansClosed} loans closed this period`}
+              deals={data.pipelineConversion.closedDeals}
             />
             <DrillDownStatCard
               compact
