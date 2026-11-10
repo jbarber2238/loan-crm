@@ -300,7 +300,7 @@ export function AcceptedTermsHeader({
       value={money(Math.abs(estimatedCashToClose))}
       hint={
         <>
-          <span className="block">{borrowerReceivesCash ? "payoff + fees netted against loan amount" : "down payment + fees"}</span>
+          <span className="block">{borrowerReceivesCash ? "payoff + fees netted against loan amount" : "down payment + fees, before title fees"}</span>
           {reservesAmount !== null && reservesAmount > 0 && (
             <span className="mt-0.5 block font-medium text-foreground">
               {borrowerReceivesCash

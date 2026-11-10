@@ -75,6 +75,11 @@ const styles = StyleSheet.create({
   cardNote: { fontSize: 7, color: "#666", lineHeight: 1.35, paddingVertical: 4, paddingHorizontal: 6 },
 });
 
+// Title fees come from the borrower's own title company and firm up near closing, so the sheet flags them rather
+// than guessing a number that would differ from lender to lender.
+const TITLE_FEES_LABEL = "Title Fees (estimate based on your title company)";
+const TITLE_FEES_VALUE = "TBD";
+
 function money(value: unknown): string {
   const n = Number(value);
   return Number.isFinite(n) ? `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}` : "—";
@@ -331,7 +336,7 @@ export function TermSheetPdf({
 
             <View style={styles.card}>
               <Text style={styles.cardHeader}>
-                {isRefi && !ownsProperty ? "Net Proceeds at Closing" : "Cash at Closing"}
+                {isRefi && !ownsProperty ? "Estimated Net Proceeds at Closing" : "Estimated Closing Costs"}
               </Text>
               {isRefi && <Row label={ownsProperty ? "Initial Advance" : "Loan Amount"} value={money(closingDisbursement)} />}
               {isRefi && existingDebtPayoff > 0 && (
@@ -344,16 +349,18 @@ export function TermSheetPdf({
               {capApplies && (
                 <Row label={`Less: Reduction to ${money(netProceedsCap)} Net Proceeds Cap`} value={money(capReduction)} />
               )}
+              <Row label={TITLE_FEES_LABEL} value={TITLE_FEES_VALUE} />
               <TotalRow
                 label={
                   isRefi
                     ? netCashAtClosing >= 0
                       ? "Est. Net Cash to Borrower"
                       : "Est. Cash Due at Closing"
-                    : "Subtotal — Cash at Closing"
+                    : "Subtotal — Est. Closing Costs"
                 }
                 value={money(Math.abs(netCashAtClosing))}
               />
+              <Text style={styles.cardNote}>Title fees are not included in this subtotal.</Text>
             </View>
 
             {drawFee > 0 && (
@@ -425,6 +432,10 @@ export function TermSheetPdf({
               {cashDueAtClosing > 0 && <Row label="Cash Due at Closing" value={money(cashDueAtClosing)} />}
               <Row label={reservesLabel} value={money(reserves)} />
               <TotalRow label="Cash to Show" value={money(cashToShow)} />
+              <Text style={styles.cardNote}>
+                Does not include title fees. Your title company will quote those as you get closer to closing, so
+                the final figure will change.
+              </Text>
             </View>
           </View>
         </View>
