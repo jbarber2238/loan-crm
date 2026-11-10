@@ -7,6 +7,11 @@ import {
   EMAIL_SECTION_HEADING_STYLE,
 } from "@/lib/email-html";
 
+// The processor's reason is the thing the borrower has to act on, so it is set apart in bold red on a tinted
+// block (inline styles only: email clients ignore stylesheets), with the file name small and grey above it.
+const REJECTION_REASON_BOX_STYLE = "margin:8px 0 0; padding:8px 12px; border-left:4px solid #b91c1c; background:#fef2f2;";
+const REJECTION_REASON_TEXT_STYLE = "color:#991b1b; font-size:15px; font-weight:700; line-height:1.4;";
+
 /**
  * Rejected files that share the same reason are listed together, so "Reject Need" (one note for every file on the
  * need) reads as the reason once, not once per file. Files with their own reasons stay on their own lines, in order.
@@ -44,12 +49,14 @@ export function formatStatusList(
     const list = rejectedNeeds
       .map((n) => {
         const notes = groupRejectionsByNote(n.documents)
-          .map(
-            (g) =>
-              `<br/><span style="${EMAIL_SUBNOTE_STYLE}">${n.hideFileNames ? "" : `${g.fileNames.map(escapeHtml).join(", ")}: `}${escapeHtml(
-                g.note ?? "No reason given"
-              )}</span>`
-          )
+          .map((g) => {
+            const files = n.hideFileNames
+              ? ""
+              : `<div style="${EMAIL_SUBNOTE_STYLE} margin:0 0 3px;">${g.fileNames.map(escapeHtml).join(", ")}</div>`;
+            return `<div style="${REJECTION_REASON_BOX_STYLE}">${files}<div style="${REJECTION_REASON_TEXT_STYLE}">Reason: ${escapeHtml(
+              g.note ?? "No reason given"
+            )}</div></div>`;
+          })
           .join("");
         return `<li style="${EMAIL_ITEM_STYLE}"><strong>${escapeHtml(n.itemName)}</strong> — needs to be resubmitted${notes}</li>`;
       })

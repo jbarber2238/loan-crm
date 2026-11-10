@@ -31,7 +31,25 @@ describe("groupRejectionsByNote", () => {
       []
     );
     expect(html.match(/use official PDFs/g)).toHaveLength(1);
-    expect(html).toContain("a.pdf, b.pdf: use official PDFs");
+    expect(html).toContain("a.pdf, b.pdf");
+    expect(html).toContain("Reason: use official PDFs");
+  });
+
+  it("sets the reason apart in bold so the borrower can't miss it", () => {
+    const html = formatStatusList(
+      [{ itemName: "Purchase Agreement", documents: [{ fileName: "pa.pdf", rejectionNote: "remove Seller Financing" }] }],
+      []
+    );
+    expect(html).toMatch(/font-weight:700;[^"]*">Reason: remove Seller Financing</);
+  });
+
+  it("leaves the file name off for a form", () => {
+    const html = formatStatusList(
+      [{ itemName: "Application", hideFileNames: true, documents: [{ fileName: "form.pdf", rejectionNote: "sign page 2" }] }],
+      []
+    );
+    expect(html).not.toContain("form.pdf");
+    expect(html).toContain("Reason: sign page 2");
   });
 });
 
