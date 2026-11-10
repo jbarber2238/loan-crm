@@ -193,13 +193,6 @@ function hardMoneyDrawFields(category: string): TermSheetField[] {
   ];
 }
 
-function bridgeFields(): TermSheetField[] {
-  return [
-    { key: "exitStrategy", label: "Exit Strategy", type: "text" },
-    { key: "extensionTerms", label: "Extension Terms", type: "text" },
-  ];
-}
-
 // DSCR/Portfolio reserves are a standard months-of-PITIA formula, and bridge's
 // is months of the interest payment (with a lump-sum override). Fix-and-flip
 // and new-construction lenders each calculate reserves their own way (e.g. 10%
@@ -221,16 +214,16 @@ function reservesFields(category: string): TermSheetField[] {
     return [
       {
         key: "reservesMonths",
-        label: "Reserves Required (months of payments)",
+        label: "Reserves (months of payments)",
         type: "number",
         defaultValue: "6",
-        helperText: "Defaults to 6 months of the monthly interest payment — change the number if the lender requires a different amount.",
+        helperText: "Defaults to 6 months of the monthly interest payment.",
       },
       {
         key: "reservesRequired",
-        label: "Reserves Required (dollar amount override)",
+        label: "Reserves Required",
         type: "currency",
-        helperText: "Optional. If the lender quotes a lump sum instead (e.g. 10% of the loan), enter it here and it replaces the months calculation.",
+        helperText: "Calculated automatically from the months and the monthly interest payment. Type a different amount if the lender quotes a lump sum.",
       },
     ];
   }
@@ -255,8 +248,6 @@ export function termSheetFieldsFor(category: string): TermSheetField[] {
 
   if (HARD_MONEY_DRAW_CATEGORIES.has(category)) {
     fields.push(...hardMoneyDrawFields(category));
-  } else if (BRIDGE_CATEGORIES.has(category)) {
-    fields.push(...bridgeFields());
   }
 
   fields.push(...reservesFields(category));

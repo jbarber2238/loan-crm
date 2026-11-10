@@ -408,8 +408,6 @@ export function TermSheetPdf({
                     value={monthlyInterestOnly !== null ? money(monthlyInterestOnly) : "—"}
                     compact
                   />
-                  <Row label="Exit Strategy" value={text(fields.exitStrategy)} compact />
-                  <Row label="Extension Terms" value={text(fields.extensionTerms)} compact />
                 </>
               )}
             </View>

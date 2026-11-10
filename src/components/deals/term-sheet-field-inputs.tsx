@@ -13,7 +13,13 @@ import {
 } from "@/components/ui/select";
 import type { ReactNode } from "react";
 import type { TermSheetField } from "@/lib/term-sheet-fields";
-import { calculateRefiNetProceeds, maxLoanAmountForNetProceedsCap, ratioMetricsFor } from "@/lib/term-sheet-calculations";
+import {
+  calculateDutchMonthlyInterest,
+  calculateRefiNetProceeds,
+  maxLoanAmountForNetProceedsCap,
+  ratioMetricsFor,
+  reservesRuleFor,
+} from "@/lib/term-sheet-calculations";
 
 const MIN_ORIGINATION_FEE = 2500;
 
@@ -27,8 +33,6 @@ const LENDER_PRODUCT_KEYS = [
   "amortizationType",
   "lienPosition",
   "interestType",
-  "exitStrategy",
-  "extensionTerms",
 ];
 const ADDITIONAL_TERM_KEYS = ["creditPullType", "creditPullFee", "appraisalFee", "prepaymentPenalty"];
 const BROKER_FEE_KEYS = ["originationPoints", "originationFee", "rateBuydownPoints"];
@@ -185,6 +189,17 @@ export function TermSheetFieldInputs({
   const [interestReserve, setInterestReserve] = useState(String(values.interestReserve ?? ""));
   const [underwritingFee, setUnderwritingFee] = useState(String(values.underwritingDocFee ?? ""));
   const [netProceedsCap, setNetProceedsCap] = useState(String(values.netProceedsCap ?? ""));
+  // Bridge reserves: months of the monthly interest payment, calculated live. The dollar box shows that figure
+  // until a different amount is typed; only a typed amount is saved (the sheet and header recalculate the rest).
+  const reservesFromPayments = fields.some((f) => f.key === "reservesMonths") && fields.some((f) => f.key === "reservesRequired") && category !== undefined && reservesRuleFor(category) === "payments";
+  const [interestRate, setInterestRate] = useState(String(values.interestRate ?? ""));
+  const [reservesMonths, setReservesMonths] = useState(String(values.reservesMonths ?? "6"));
+  const [reservesOverride, setReservesOverride] = useState<string | null>(
+    Number(values.reservesRequired) > 0 ? String(values.reservesRequired) : null
+  );
+  const monthlyInterest = Number(loanAmount) > 0 && Number(interestRate) > 0 ? calculateDutchMonthlyInterest(Number(loanAmount), Number(interestRate)) : null;
+  const calculatedReserves =
+    monthlyInterest !== null && Number(reservesMonths) > 0 ? String(Math.round(monthlyInterest * Number(reservesMonths))) : "";
 
   function handleLoanAmountChange(v: string, source: "user" | "patch" = "user") {
     setLoanAmount(v);
@@ -319,6 +334,42 @@ export function TermSheetFieldInputs({
             value={interestReserve}
             onChange={(e) => setInterestReserve(e.target.value)}
           />
+        ) : field.key === "interestRate" ? (
+          <Input
+            id={field.key}
+            name={field.key}
+            type="number"
+            step="0.001"
+            value={interestRate}
+            onChange={(e) => setInterestRate(e.target.value)}
+          />
+        ) : field.key === "reservesMonths" && reservesFromPayments ? (
+          <Input
+            id={field.key}
+            name={field.key}
+            type="number"
+            value={reservesMonths}
+            onChange={(e) => setReservesMonths(e.target.value)}
+          />
+        ) : field.key === "reservesRequired" && reservesFromPayments ? (
+          <>
+            <Input
+              id={field.key}
+              type="number"
+              value={reservesOverride ?? calculatedReserves}
+              onChange={(e) => setReservesOverride(e.target.value.trim() === "" ? null : e.target.value)}
+            />
+            {reservesOverride !== null && <input type="hidden" name={field.key} value={reservesOverride} />}
+            {reservesOverride !== null && calculatedReserves !== "" && (
+              <button
+                type="button"
+                className="text-xs underline underline-offset-2"
+                onClick={() => setReservesOverride(null)}
+              >
+                Back to calculated: {money(Number(calculatedReserves))}
+              </button>
+            )}
+          </>
         ) : field.key === "approvedArv" ? (
           <Input id={field.key} name={field.key} type="number" value={arv} onChange={(e) => setArv(e.target.value)} />
         ) : field.key === "originationPoints" ? (
