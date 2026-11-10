@@ -9,6 +9,7 @@ import { sendGmailAs, type GmailAttachment } from "@/server/gmail/send";
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
 import { plainTextToHtml } from "@/lib/email-html";
+import { ensureAddressInHtml, ensureAddressInSubject, ensureAddressInText } from "@/lib/submission-address";
 import {
   buildApplicationIntroTemplateTokens,
   buildApplicationSubmissionEmail,
@@ -88,6 +89,10 @@ export async function previewApplicationSubmissionEmail(dealId: string) {
     body = rendered.body;
   }
 
+  // The property's address is always in the subject and the body, whatever the lender's own template says.
+  subject = ensureAddressInSubject(subject, deal.propertyAddress);
+  body = ensureAddressInText(body, deal.propertyAddress);
+
   const [signatureHtml, candidates, availableDocuments] = await Promise.all([
     getUserEmailSignatureHtml(user.id),
     getEmailRecipientCandidates(dealId),
@@ -124,6 +129,12 @@ export async function sendApplicationSubmissionEmail(
   if (!user.email) throw new Error("Your account has no email on file");
   if (!to.trim()) throw new Error("No recipient on file for this email");
   if (!subject.trim() || !body.trim()) throw new Error("Subject and body can't be empty");
+
+  // Last safeguard: if the address was edited out of the compose window, it goes back in rather than out to the lender without it.
+  const deal = await db.query.deals.findFirst({ where: eq(deals.id, dealId), columns: { propertyAddress: true } });
+  if (!deal) throw new Error("Deal not found");
+  subject = ensureAddressInSubject(subject, deal.propertyAddress);
+  body = ensureAddressInHtml(body, deal.propertyAddress);
 
   const [logoHtml, signatureHtml] = await Promise.all([
     getCompanyLogoHtml(),
