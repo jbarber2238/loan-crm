@@ -279,8 +279,11 @@ export function TermSheetFieldInputs({
 
   function renderField(field: TermSheetField) {
     const defaultValue = values[field.key] ?? field.defaultValue;
+    // Years and months are one field with a different unit. Sharing a React key keeps what was already typed
+    // when the product changes between a long-term and a short-term type; only the label and unit change.
+    const reactKey = field.key === "loanTermYears" || field.key === "loanTermMonths" ? "loanTerm" : field.key;
     return (
-      <div key={field.key} className={`space-y-1.5 ${field.type === "textarea" ? "sm:col-span-2" : ""}`}>
+      <div key={reactKey} className={`space-y-1.5 ${field.type === "textarea" ? "sm:col-span-2" : ""}`}>
         <Label htmlFor={field.key}>
           {field.label} {field.adminOnly && <span className="text-muted-foreground">(internal)</span>}
         </Label>

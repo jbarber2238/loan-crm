@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
+import { useMemo, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createTermSheet } from "@/server/actions/term-sheets";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { TermSheetFieldInputs } from "@/components/deals/term-sheet-field-inputs";
 import { termSheetFieldsFor } from "@/lib/term-sheet-fields";
+import { isInterestOnlyCategory } from "@/lib/loan-sections";
 import { cn } from "@/lib/utils";
 import type { TermSheetExtractionOption } from "@/server/ai/term-sheet-extraction";
 
@@ -61,6 +62,23 @@ export function TermSheetExtractionReview({
   const [creating, startCreate] = useTransition();
 
   const option = options[selected];
+
+  // The fields follow the product picked here, not just the deal's loan type: a bridge product quotes its term in
+  // months, a DSCR one in years. (The picker can hold products of any type, e.g. a bridge quote on a DSCR deal.)
+  const category = lenderProducts.find((p) => p.id === productId)?.category ?? loanCategory;
+  const fieldDefs = useMemo(() => termSheetFieldsFor(category), [category]);
+  const termKey = isInterestOnlyCategory(category) ? "loanTermMonths" : "loanTermYears";
+  const otherTermKey = termKey === "loanTermMonths" ? "loanTermYears" : "loanTermMonths";
+  // The reply was read against the deal's loan type, so a lender's "12 months" can sit under the other term key.
+  // Carry the number across when the right key is empty; the label shows the unit so it can be checked and fixed.
+  const values = useMemo(() => {
+    const v = option.fields;
+    return v[termKey] === undefined && v[otherTermKey] !== undefined ? { ...v, [termKey]: v[otherTermKey] } : v;
+  }, [option, termKey, otherTermKey]);
+  const notFoundLabels = option.notFoundKeys.map((key) => {
+    const k = key === "loanTermYears" || key === "loanTermMonths" ? termKey : key;
+    return fieldDefs.find((f) => f.key === k)?.label ?? key;
+  });
 
   function handleCreateTermSheet(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -119,16 +137,16 @@ export function TermSheetExtractionReview({
       )}
       {option.notFoundKeys.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          Couldn&apos;t find in the reply — fill these in manually: {option.notFoundKeys.join(", ")}
+          Couldn&apos;t find in the reply — fill these in manually: {notFoundLabels.join(", ")}
         </p>
       )}
 
       <form key={selected} onSubmit={handleCreateTermSheet} className="space-y-3">
         <input type="hidden" name="productId" value={productId} />
         <TermSheetFieldInputs
-          fields={termSheetFieldsFor(loanCategory)}
-          values={option.fields}
-          category={loanCategory}
+          fields={fieldDefs}
+          values={values}
+          category={category}
           purchasePrice={purchasePrice}
           estimatedAsIsValue={estimatedAsIsValue}
           productSelector={
