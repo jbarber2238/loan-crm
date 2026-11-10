@@ -543,6 +543,25 @@ export async function setRateLockExpiration(dealId: string, date: string | null)
   revalidatePath(`/deals/${dealId}`);
 }
 
+// Optional — "2026-10-30" sets it, empty clears it. Edited straight from the deal header; the same field the
+// Overview tab's details form saves. Stored as the picked calendar day at midnight UTC, like every other closing date.
+export async function setEstimatedClosingDate(dealId: string, date: string | null) {
+  await requireUser();
+  const value = date?.trim() ?? "";
+  if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error("Pick a valid date");
+  const day = value ? new Date(value) : null;
+  if (day && Number.isNaN(day.getTime())) throw new Error("Pick a valid date");
+
+  await db
+    .update(deals)
+    .set({ estimatedClosingDate: day, updatedAt: new Date() })
+    .where(eq(deals.id, dealId));
+
+  revalidatePath(`/deals/${dealId}`);
+  revalidatePath("/");
+  revalidatePath("/dashboard");
+}
+
 export async function updateDealDates(dealId: string, formData: FormData) {
   const user = await requireUser();
 

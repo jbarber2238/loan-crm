@@ -1,6 +1,7 @@
 import { Lock, LockOpen } from "lucide-react";
 import { toggleRateLock } from "@/server/actions/deals";
 import { RateLockExpiration } from "@/components/deals/rate-lock-expiration";
+import { EstimatedClosingDate } from "@/components/deals/estimated-closing-date";
 import {
   originationFeeForPoints,
   rateBuydownFeeForPoints,
@@ -310,7 +311,7 @@ export function AcceptedTermsHeader({
   const estClosingField = (
     <Field
       label="Est. Closing"
-      value={estimatedClosingDate ? estimatedClosingDate.toLocaleDateString() : "—"}
+      value={<EstimatedClosingDate dealId={dealId} date={estimatedClosingDate} />}
       className="w-full"
     />
   );
