@@ -65,7 +65,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       </MobileNavProvider>
       <AttentionSync />
       <PhoneTabBar isAdmin={session.user.isAdmin} />
-      <TeamDockRoot currentUserId={session.user.id} />
+      <TeamDockRoot currentUserId={session.user.id} currentUserName={session.user.name ?? ""} />
       </TeamDockProvider>
     </ChatDockProvider>
   );
