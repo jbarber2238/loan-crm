@@ -72,6 +72,19 @@ const styles = StyleSheet.create({
   signatureLine: { borderBottomWidth: 0.75, borderBottomColor: "#333", width: 260, height: 22 },
   signatureLabel: { fontSize: 8, color: "#555", marginTop: 3 },
   signatureTag: { fontSize: 9, color: "#000" },
+  // Set apart so a borrower can't skim past that title fees are still to come.
+  titleFeesCallout: {
+    fontSize: 8.5,
+    fontWeight: 700,
+    color: "#111",
+    lineHeight: 1.35,
+    backgroundColor: "#fff4e5",
+    borderLeftWidth: 3,
+    borderLeftColor: "#ea580c",
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    margin: 6,
+  },
   cardNote: { fontSize: 7, color: "#666", lineHeight: 1.35, paddingVertical: 4, paddingHorizontal: 6 },
 });
 
@@ -428,11 +441,11 @@ export function TermSheetPdf({
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.cardHeader}>Cash to Show</Text>
+              <Text style={styles.cardHeader}>Est. Cash to Show</Text>
               {cashDueAtClosing > 0 && <Row label="Cash Due at Closing" value={money(cashDueAtClosing)} />}
               <Row label={reservesLabel} value={money(reserves)} />
-              <TotalRow label="Cash to Show" value={money(cashToShow)} />
-              <Text style={styles.cardNote}>
+              <TotalRow label="Est. Cash to Show" value={money(cashToShow)} />
+              <Text style={styles.titleFeesCallout}>
                 Does not include title fees. Your title company will quote those as you get closer to closing, so
                 the final figure will change.
               </Text>
