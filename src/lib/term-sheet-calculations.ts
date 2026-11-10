@@ -194,6 +194,27 @@ export function estimatedReservesRequired(monthlyPitia: number, months = 6): num
   return monthlyPitia * months;
 }
 
+/**
+ * How a category's "Reserves Required" is worked out. DSCR/Portfolio: a number of months of PITIA. Bridge: a number of
+ * months of the monthly interest payment (default 6), unless the lender quotes a lump sum, which replaces it. Fix-and-flip
+ * and new construction: only ever the lump sum the lender quotes.
+ */
+export function reservesRuleFor(category: string): "pitia" | "payments" | "lump_sum" {
+  if (DSCR_CATEGORIES.has(category) || category === "portfolio") return "pitia";
+  if (BRIDGE_CATEGORIES.has(category)) return "payments";
+  return "lump_sum";
+}
+
+export function reservesRequiredFor(
+  category: string,
+  { monthlyPayment, months, lumpSum }: { monthlyPayment: number | null; months: number; lumpSum: number | null }
+): number | null {
+  const rule = reservesRuleFor(category);
+  if (rule === "lump_sum") return lumpSum;
+  if (rule === "payments" && lumpSum !== null && lumpSum > 0) return lumpSum;
+  return monthlyPayment === null ? null : estimatedReservesRequired(monthlyPayment, months);
+}
+
 export function calculateDscrRatio(monthlyRent: number | null, monthlyPitia: number): number | null {
   if (!monthlyRent || !monthlyPitia) return null;
   return monthlyRent / monthlyPitia;

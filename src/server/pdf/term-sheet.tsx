@@ -8,7 +8,8 @@ import {
   calculateInitialMonthlyInterest,
   estimatedMonthlyPI,
   estimatedMonthlyPitia,
-  estimatedReservesRequired,
+  reservesRequiredFor,
+  reservesRuleFor,
   isOwnedPropertyDrawLoan,
   landCostBasis,
   ltcBasisLabel,
@@ -206,14 +207,24 @@ export function TermSheetPdf({
   const creditPullFee = estimatedFeeFrom(fields.creditPullFee, STANDARD_CREDIT_PULL_ESTIMATE);
   const processingFee = STANDARD_PROCESSING_FEE;
 
-  const reservesFromPitia = DSCR_CATEGORIES.has(loanCategory) || loanCategory === "portfolio";
+  const isBridge = loanCategory.startsWith("bridge_");
+  const reservesRule = reservesRuleFor(loanCategory);
   const reservesMonths = num(fields, "reservesMonths") || 6;
-  const reserves = reservesFromPitia
-    ? estimatedReservesRequired(monthlyPitia, reservesMonths)
-    : num(fields, "reservesRequired");
-  const reservesLabel = reservesFromPitia
-    ? `Reserves Required (${reservesMonths} mo. PITIA, not held in escrow)`
-    : "Reserves Required (not held in escrow)";
+  const monthlyInterestOnly = loanAmount > 0 && rate > 0 ? calculateDutchMonthlyInterest(loanAmount, rate) : null;
+  const reserveLumpSum = fields.reservesRequired !== undefined ? num(fields, "reservesRequired") : null;
+  const reserves =
+    reservesRequiredFor(loanCategory, {
+      monthlyPayment: reservesRule === "pitia" ? monthlyPitia : monthlyInterestOnly,
+      months: reservesMonths,
+      lumpSum: reserveLumpSum,
+    }) ?? 0;
+  const bridgeReservesOverridden = reservesRule === "payments" && reserveLumpSum !== null && reserveLumpSum > 0;
+  const reservesLabel =
+    reservesRule === "pitia"
+      ? `Reserves Required (${reservesMonths} mo. PITIA, not held in escrow)`
+      : reservesRule === "payments" && !bridgeReservesOverridden
+        ? `Reserves Required (${reservesMonths} mo. of payments, not held in escrow)`
+        : "Reserves Required (not held in escrow)";
 
   // A draw loan's per-draw fee comes out of the wire each time the borrower
   // requests a draw from the budget — never part of closing, so it sits in its
@@ -223,7 +234,7 @@ export function TermSheetPdf({
 
   const lenderPts = num(fields, "lenderOriginationPoints");
   const costToBorrowerLabel =
-    costToBorrowerLabelFor(loanCategory) + (isHardMoneyDraw && lenderPts > 0 ? ` (${lenderPts} pt${lenderPts === 1 ? "" : "s"})` : "");
+    costToBorrowerLabelFor(loanCategory) + ((isHardMoneyDraw || isBridge) && lenderPts > 0 ? ` (${lenderPts} pt${lenderPts === 1 ? "" : "s"})` : "");
 
   // Purchase/hard-money-draw: what the borrower brings to the closing
   // table. Refinance: the loan's net proceeds after paying off the existing
@@ -390,8 +401,13 @@ export function TermSheetPdf({
                   />
                 </>
               )}
-              {loanCategory.startsWith("bridge_") && (
+              {isBridge && (
                 <>
+                  <Row
+                    label="Monthly Interest Payment"
+                    value={monthlyInterestOnly !== null ? money(monthlyInterestOnly) : "—"}
+                    compact
+                  />
                   <Row label="Exit Strategy" value={text(fields.exitStrategy)} compact />
                   <Row label="Extension Terms" value={text(fields.extensionTerms)} compact />
                 </>

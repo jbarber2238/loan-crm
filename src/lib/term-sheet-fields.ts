@@ -92,7 +92,7 @@ function baseFields(category: string): TermSheetField[] {
 // points on a hard money loan. Same storage key either way.
 export function costToBorrowerLabelFor(category: string): string {
   if (DSCR_CATEGORIES.has(category) || category === "portfolio") return "Rate Buydown Fee";
-  return HARD_MONEY_DRAW_CATEGORIES.has(category) ? "Lender Origination Fee" : "Lender Fee";
+  return HARD_MONEY_DRAW_CATEGORIES.has(category) || BRIDGE_CATEGORIES.has(category) ? "Lender Origination Fee" : "Lender Fee";
 }
 
 function costToBorrowerField(category: string): TermSheetField {
@@ -104,7 +104,7 @@ function costToBorrowerField(category: string): TermSheetField {
     type: "currency",
     helperText: isRateBuydown
       ? "Rate Buydown Points × loan amount — computed automatically."
-      : HARD_MONEY_DRAW_CATEGORIES.has(category)
+      : HARD_MONEY_DRAW_CATEGORIES.has(category) || BRIDGE_CATEGORIES.has(category)
         ? "Lender Origination Points × total loan amount — computed automatically. Or type a flat dollar amount if the lender quotes one."
         : undefined,
   };
@@ -140,9 +140,9 @@ function feesFields(category: string): TermSheetField[] {
           },
         ]
       : []),
-    // Fix-and-flip/new construction lenders quote their own origination in points
+    // Fix-and-flip/new construction/bridge lenders quote their own origination in points
     // (e.g. 1 pt); the dollar fee below is worked out from it.
-    ...(HARD_MONEY_DRAW_CATEGORIES.has(category)
+    ...(HARD_MONEY_DRAW_CATEGORIES.has(category) || BRIDGE_CATEGORIES.has(category)
       ? [
           {
             key: "lenderOriginationPoints",
@@ -200,10 +200,11 @@ function bridgeFields(): TermSheetField[] {
   ];
 }
 
-// DSCR/Portfolio reserves are a standard months-of-PITIA formula. Hard money
-// and bridge lenders each calculate reserves their own way (e.g. 10% of loan
-// amount, 25% of rehab budget) — for those, just capture the lump sum they
-// quote rather than trying to model every lender's formula.
+// DSCR/Portfolio reserves are a standard months-of-PITIA formula, and bridge's
+// is months of the interest payment (with a lump-sum override). Fix-and-flip
+// and new-construction lenders each calculate reserves their own way (e.g. 10%
+// of loan amount, 25% of rehab budget) — for those, just capture the lump sum
+// they quote rather than trying to model every lender's formula.
 function reservesFields(category: string): TermSheetField[] {
   if (DSCR_CATEGORIES.has(category) || category === "portfolio") {
     return [
@@ -213,6 +214,23 @@ function reservesFields(category: string): TermSheetField[] {
         type: "number",
         defaultValue: "6",
         helperText: "Defaults to 6 months of PITIA — lower it if the lender requires fewer.",
+      },
+    ];
+  }
+  if (BRIDGE_CATEGORIES.has(category)) {
+    return [
+      {
+        key: "reservesMonths",
+        label: "Reserves Required (months of payments)",
+        type: "number",
+        defaultValue: "6",
+        helperText: "Defaults to 6 months of the monthly interest payment — change the number if the lender requires a different amount.",
+      },
+      {
+        key: "reservesRequired",
+        label: "Reserves Required (dollar amount override)",
+        type: "currency",
+        helperText: "Optional. If the lender quotes a lump sum instead (e.g. 10% of the loan), enter it here and it replaces the months calculation.",
       },
     ];
   }

@@ -13,8 +13,8 @@ import {
   calculateDutchMonthlyInterest,
   calculateEstimatedCashToClose,
   REFINANCE_CATEGORIES,
-  isDscrLikeCategory,
-  estimatedReservesRequired,
+  reservesRequiredFor,
+  reservesRuleFor,
   estimatedFeeFrom,
   STANDARD_APPRAISAL_ESTIMATE,
   STANDARD_CREDIT_PULL_ESTIMATE,
@@ -279,15 +279,20 @@ export function AcceptedTermsHeader({
     typeof acceptedTermSheetFields?.reservesMonths === "number" && acceptedTermSheetFields.reservesMonths > 0
       ? acceptedTermSheetFields.reservesMonths
       : 6;
-  const reservesFromPitia = isDscrLikeCategory(loanCategory) || loanCategory === "portfolio";
-  const reservesAmount = reservesFromPitia
-    ? monthlyPayment.amount !== null
-      ? estimatedReservesRequired(monthlyPayment.amount, termSheetReservesMonths)
-      : null
-    : typeof acceptedTermSheetFields?.reservesRequired === "number"
-      ? acceptedTermSheetFields.reservesRequired
-      : null;
-  const reservesLabel = reservesFromPitia ? `reserves (${termSheetReservesMonths} mo. PITIA)` : "reserves";
+  const reservesRule = reservesRuleFor(loanCategory);
+  const reservesLumpSum =
+    typeof acceptedTermSheetFields?.reservesRequired === "number" ? acceptedTermSheetFields.reservesRequired : null;
+  const reservesAmount = reservesRequiredFor(loanCategory, {
+    monthlyPayment: monthlyPayment.amount,
+    months: termSheetReservesMonths,
+    lumpSum: reservesLumpSum,
+  });
+  const reservesLabel =
+    reservesRule === "pitia"
+      ? `reserves (${termSheetReservesMonths} mo. PITIA)`
+      : reservesRule === "payments" && !(reservesLumpSum !== null && reservesLumpSum > 0)
+        ? `reserves (${termSheetReservesMonths} mo. payments)`
+        : "reserves";
   const totalToShow = (borrowerReceivesCash ? 0 : estimatedCashToClose) + (reservesAmount ?? 0);
   const cashToCloseField = (
     <Field
