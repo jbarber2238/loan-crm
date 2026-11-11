@@ -11,6 +11,7 @@ import {
   renameClientNeedDocument,
 } from "@/server/actions/client-need-documents";
 import { ChangeNeedDialog, type ChangeNeedCandidate } from "@/components/deals/change-need-dialog";
+import { EditRejectionReasonDialog } from "@/components/deals/edit-rejection-reason-dialog";
 import type { DealCatalogItem } from "@/components/deals/add-client-need-to-deal-dialog";
 import {
   reviewClientNeedDocuments,
@@ -147,6 +148,7 @@ export function ClientNeedDocumentReviewDialog({
   const [disapproveNote, setDisapproveNote] = useState("");
   const [disapprovingSelected, setDisapprovingSelected] = useState(false);
   const [selectedDisapproveNote, setSelectedDisapproveNote] = useState("");
+  const [reasonOpen, setReasonOpen] = useState(false);
   const [currentId, setCurrentId] = useState(initialDocumentId);
   const [jumpPage, setJumpPage] = useState<number | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
@@ -166,6 +168,8 @@ export function ClientNeedDocumentReviewDialog({
   // currently looking at automatically advances to another visible one
   // instead of continuing to show something that just dropped out of view.
   const visibleDocuments = documents.filter((d) => d.reviewStatus !== "rejected");
+  // The rejected ones are listed in the side panel with their reasons, which can be edited from there.
+  const rejectedDocuments = documents.filter((d) => d.reviewStatus === "rejected");
   const current = visibleDocuments.find((d) => d.id === currentId) ?? visibleDocuments[0];
   // Spreadsheets would only download in a frame, so they're shown as tables instead.
   const fileUrl = current ? `${documentViewUrl(current)}${jumpPage ? `#page=${jumpPage}` : ""}` : "";
@@ -338,8 +342,36 @@ export function ClientNeedDocumentReviewDialog({
 
             {/* Current-document panel — kept narrow so the viewer stays the
                 star of the layout. */}
-            {current && (
+            {(current || rejectedDocuments.length > 0) && (
               <div className={cn("shrink-0 space-y-3", isPhone ? "w-full" : "w-[300px] overflow-y-auto")}>
+                {rejectedDocuments.length > 0 && (
+                  <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-destructive">
+                        Rejection reason{rejectedDocuments.length === 1 ? "" : "s"}
+                      </p>
+                      <Button type="button" size="sm" variant="outline" onClick={() => setReasonOpen(true)}>
+                        <Pencil className="size-3.5" />
+                        Edit
+                      </Button>
+                    </div>
+                    {rejectedDocuments.map((doc) => (
+                      <div key={doc.id} className="space-y-0.5 text-xs">
+                        {rejectedDocuments.length > 1 && (
+                          <p className="truncate text-muted-foreground">{doc.fileName}</p>
+                        )}
+                        <p className="whitespace-pre-wrap break-words font-medium text-destructive">
+                          {doc.rejectionNote?.trim() || "No reason given"}
+                        </p>
+                      </div>
+                    ))}
+                    <p className="text-[11px] text-muted-foreground">
+                      This is what the borrower is told to fix, in their next reminder and on their upload page.
+                    </p>
+                  </div>
+                )}
+                {current && (
+                <>
                 <div>
                   {renamingId === current.id ? (
                     <div className="flex items-center gap-1">
@@ -658,6 +690,8 @@ export function ClientNeedDocumentReviewDialog({
                     </Button>
                   </div>
                 </div>
+                </>
+                )}
               </div>
             )}
           </div>
@@ -694,6 +728,15 @@ export function ClientNeedDocumentReviewDialog({
           </div>
         </DialogContent>
       </Dialog>
+
+      <EditRejectionReasonDialog
+        dealId={dealId}
+        needId={needId}
+        needName={needName}
+        documents={rejectedDocuments}
+        open={reasonOpen}
+        onOpenChange={setReasonOpen}
+      />
 
       <Dialog open={rejectNeedOpen} onOpenChange={setRejectNeedOpen}>
         <DialogContent className="sm:max-w-md">
