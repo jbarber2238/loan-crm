@@ -65,7 +65,7 @@ export async function approveClientNeedDocuments(dealId: string, needId: string,
   if (!documentIds.length) return;
   await db
     .update(dealClientNeedDocuments)
-    .set({ reviewStatus: "approved", reviewedAt: new Date(), reviewedByUserId: user.id, rejectionNote: null })
+    .set({ reviewStatus: "approved", reviewedAt: new Date(), reviewedByUserId: user.id, rejectionNote: null, rejectionNoteArchivedAt: null, rejectionNoteArchivedByUserId: null })
     .where(and(eq(dealClientNeedDocuments.clientNeedId, needId), inArray(dealClientNeedDocuments.id, documentIds)));
   await recomputeNeedStatus(needId);
   revalidatePath(`/deals/${dealId}/loan-center`);
@@ -85,7 +85,7 @@ export async function acceptClientNeed(dealId: string, needId: string) {
   if (pendingDocs.length) {
     await db
       .update(dealClientNeedDocuments)
-      .set({ reviewStatus: "approved", reviewedAt: new Date(), reviewedByUserId: user.id, rejectionNote: null })
+      .set({ reviewStatus: "approved", reviewedAt: new Date(), reviewedByUserId: user.id, rejectionNote: null, rejectionNoteArchivedAt: null, rejectionNoteArchivedByUserId: null })
       .where(inArray(dealClientNeedDocuments.id, pendingDocs.map((d) => d.id)));
   }
 
@@ -119,7 +119,7 @@ export async function restoreRejectedDocuments(dealId: string, documentIds: stri
 
   await db
     .update(dealClientNeedDocuments)
-    .set({ reviewStatus: "pending", reviewedAt: null, reviewedByUserId: null, rejectionNote: null })
+    .set({ reviewStatus: "pending", reviewedAt: null, reviewedByUserId: null, rejectionNote: null, rejectionNoteArchivedAt: null, rejectionNoteArchivedByUserId: null })
     .where(inArray(dealClientNeedDocuments.id, documentIds));
 
   // Restoring a rejected document also brings back its need if that need was
@@ -166,6 +166,37 @@ export async function updateRejectionNotes(
   revalidatePath(`/deals/${dealId}/loan-center`);
 }
 
+/**
+ * Archives (or, with archived=false, brings back) a rejected document's reason. An archived reason stays on the
+ * document as an audit trail but the borrower email and upload page no longer mention it, so use it when what the
+ * borrower was asked to fix no longer applies. The document itself stays rejected.
+ */
+export async function setRejectionNoteArchived(dealId: string, needId: string, documentId: string, archived: boolean) {
+  const user = await requireUser();
+  const need = await db.query.dealClientNeeds.findFirst({
+    where: and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)),
+    columns: { id: true },
+  });
+  if (!need) throw new Error("Client need not found");
+
+  await db
+    .update(dealClientNeedDocuments)
+    .set(
+      archived
+        ? { rejectionNoteArchivedAt: new Date(), rejectionNoteArchivedByUserId: user.id }
+        : { rejectionNoteArchivedAt: null, rejectionNoteArchivedByUserId: null }
+    )
+    .where(
+      and(
+        eq(dealClientNeedDocuments.id, documentId),
+        eq(dealClientNeedDocuments.clientNeedId, needId),
+        eq(dealClientNeedDocuments.reviewStatus, "rejected")
+      )
+    );
+
+  revalidatePath(`/deals/${dealId}/loan-center`);
+}
+
 export async function rejectClientNeedDocuments(
   dealId: string,
   needId: string,
@@ -180,7 +211,7 @@ export async function rejectClientNeedDocuments(
 
   await db
     .update(dealClientNeedDocuments)
-    .set({ reviewStatus: "rejected", reviewedAt: new Date(), reviewedByUserId: user.id, rejectionNote: note.trim() })
+    .set({ reviewStatus: "rejected", reviewedAt: new Date(), reviewedByUserId: user.id, rejectionNote: note.trim(), rejectionNoteArchivedAt: null, rejectionNoteArchivedByUserId: null })
     .where(and(eq(dealClientNeedDocuments.clientNeedId, needId), inArray(dealClientNeedDocuments.id, documentIds)));
 
   // Rejecting a document — whether one of several or every document via
@@ -235,6 +266,7 @@ export interface DealDocumentRow {
   itemName: string;
   clientNeedId: string;
   rejectionNote: string | null;
+  rejectionNoteArchived: boolean;
   createdAt: Date;
 }
 
@@ -252,7 +284,7 @@ export async function getDealDocumentsForDocumentsTab(dealId: string): Promise<{
         db.select({ id: dealClientNeeds.id }).from(dealClientNeeds).where(eqD(dealClientNeeds.dealId, dealId))
       ),
     // Never the file bytes: this runs on every Loan Center load, and a deal's documents can be tens of MB of base64.
-    columns: { id: true, fileName: true, clientNeedId: true, rejectionNote: true, reviewStatus: true, createdAt: true },
+    columns: { id: true, fileName: true, clientNeedId: true, rejectionNote: true, rejectionNoteArchivedAt: true, reviewStatus: true, createdAt: true },
     with: { clientNeed: { columns: { itemName: true, status: true } } },
     orderBy: (d, { desc }) => desc(d.createdAt),
   });
@@ -267,6 +299,7 @@ export async function getDealDocumentsForDocumentsTab(dealId: string): Promise<{
       itemName: r.clientNeed.itemName,
       clientNeedId: r.clientNeedId,
       rejectionNote: r.rejectionNote,
+      rejectionNoteArchived: r.rejectionNoteArchivedAt !== null,
       createdAt: r.createdAt,
     };
     // A rejected document is always listed as Rejected, with the need it came
@@ -338,7 +371,7 @@ export async function changeClientNeedDocument(
     .update(dealClientNeedDocuments)
     .set(
       restored
-        ? { clientNeedId: destinationNeedId, reviewStatus: "pending", reviewedAt: null, reviewedByUserId: null, rejectionNote: null }
+        ? { clientNeedId: destinationNeedId, reviewStatus: "pending", reviewedAt: null, reviewedByUserId: null, rejectionNote: null, rejectionNoteArchivedAt: null, rejectionNoteArchivedByUserId: null }
         : { clientNeedId: destinationNeedId }
     )
     .where(eq(dealClientNeedDocuments.id, documentId));

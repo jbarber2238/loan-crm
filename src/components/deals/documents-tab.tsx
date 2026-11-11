@@ -231,7 +231,14 @@ function DocumentSection({
                     </td>
                     <td className="px-3 py-2 text-muted-foreground">{r.itemName}</td>
                     {showReason && (
-                      <td className="px-3 py-2 text-muted-foreground">{r.rejectionNote ?? "—"}</td>
+                      <td className="px-3 py-2 text-muted-foreground">
+                        {r.rejectionNote ?? "—"}
+                        {r.rejectionNote && r.rejectionNoteArchived && (
+                          <span className="ml-1.5 rounded bg-muted px-1 py-0.5 text-[10px] uppercase tracking-wide">
+                            Archived
+                          </span>
+                        )}
+                      </td>
                     )}
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1">

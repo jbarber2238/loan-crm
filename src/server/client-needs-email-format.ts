@@ -81,10 +81,12 @@ export function formatStatusList(
  * itself rejected, never alongside older rejections or once a newer copy is pending or approved. Every other need
  * type lists each rejected file with its own reason.
  */
-export function rejectedDocumentsToMention<D extends { reviewStatus: string; createdAt: Date }>(
-  need: { needType: string; documents: D[] }
-): D[] {
-  if (need.needType !== "pandadoc_form") return need.documents.filter((d) => d.reviewStatus === "rejected");
+export function rejectedDocumentsToMention<
+  D extends { reviewStatus: string; createdAt: Date; rejectionNoteArchivedAt?: Date | null },
+>(need: { needType: string; documents: D[] }): D[] {
+  // A reason staff archived no longer applies, so the borrower is not told about it.
+  const active = (d: D) => !d.rejectionNoteArchivedAt;
+  if (need.needType !== "pandadoc_form") return need.documents.filter((d) => d.reviewStatus === "rejected" && active(d));
   const newest = [...need.documents].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
-  return newest?.reviewStatus === "rejected" ? [newest] : [];
+  return newest?.reviewStatus === "rejected" && active(newest) ? [newest] : [];
 }

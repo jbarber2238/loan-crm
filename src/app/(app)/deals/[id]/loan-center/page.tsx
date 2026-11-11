@@ -51,6 +51,8 @@ export default async function DealLoanCenterPage({
             mimeType: true,
             reviewStatus: true,
             rejectionNote: true,
+            rejectionNoteArchivedAt: true,
+            rejectionNoteArchivedByUserId: true,
             aiReviewFlags: true,
             aiReviewedAt: true,
             aiExtractedFacts: true,
@@ -76,6 +78,17 @@ export default async function DealLoanCenterPage({
   ]);
 
   const noteAuthor = deal.clientNeedsNoteUpdatedByUserId ? allUsers.find((u) => u.id === deal.clientNeedsNoteUpdatedByUserId) : null;
+  // Who archived a rejection reason, by name, for the audit list in the review window.
+  const userNameById = new Map(allUsers.map((u) => [u.id, u.name ?? u.email]));
+  const clientNeedsForTab = clientNeeds.map(({ documents, ...need }) => ({
+    ...need,
+    documents: documents.map(({ rejectionNoteArchivedByUserId, ...doc }) => ({
+      ...doc,
+      rejectionNoteArchivedByName: rejectionNoteArchivedByUserId
+        ? (userNameById.get(rejectionNoteArchivedByUserId) ?? null)
+        : null,
+    })),
+  })) as ClientNeed[];
   const loanOfficers = allUsers.filter((u) => u.baseRole === "loan_officer");
   const processors = allUsers.filter((u) => u.baseRole === "processor");
   // One lookup serves both: the pop-up that opens by itself, and the menu item for pulling documents over later.
@@ -116,7 +129,7 @@ export default async function DealLoanCenterPage({
       followers={deal.followers}
       // The query already excludes status "unused" above — this narrows the
       // type to match, since Drizzle can't express that from a `where` clause.
-      clientNeeds={clientNeeds as ClientNeed[]}
+      clientNeeds={clientNeedsForTab}
       clientNeedsCatalog={clientNeedsCatalog}
       loanCategoryProducts={categoryProducts.map((p) => ({
         id: p.id,

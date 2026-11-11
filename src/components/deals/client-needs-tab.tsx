@@ -609,6 +609,8 @@ function NeedActionsMenu({ dealId, need }: { dealId: string; need: ClientNeed })
   const [auditOpen, setAuditOpen] = useState(false);
   const [reasonOpen, setReasonOpen] = useState(false);
   const rejectedDocuments = need.documents.filter((d) => d.reviewStatus === "rejected");
+  // Reasons staff archived no longer apply, so only the live ones are editable from the menu.
+  const editableReasonDocuments = rejectedDocuments.filter((d) => !d.rejectionNoteArchivedAt);
 
   function handleResume() {
     startTransition(async () => {
@@ -671,7 +673,7 @@ function NeedActionsMenu({ dealId, need }: { dealId: string; need: ClientNeed })
           ) : need.status !== "accepted" ? (
             <DropdownMenuItem onClick={() => setHoldOpen(true)}>Put on hold</DropdownMenuItem>
           ) : null}
-          {rejectedDocuments.length > 0 && (
+          {editableReasonDocuments.length > 0 && (
             <DropdownMenuItem onClick={() => setReasonOpen(true)}>Edit rejection reason</DropdownMenuItem>
           )}
           {need.needType === "pandadoc_form" && need.pandadocDocumentId && (
@@ -697,7 +699,7 @@ function NeedActionsMenu({ dealId, need }: { dealId: string; need: ClientNeed })
         dealId={dealId}
         needId={need.id}
         needName={need.itemName}
-        documents={rejectedDocuments}
+        documents={editableReasonDocuments}
         open={reasonOpen}
         onOpenChange={setReasonOpen}
       />

@@ -230,6 +230,8 @@ export async function cloneNewConstructionDeal(originalDealId: string, formData:
         reviewedAt: doc.reviewedAt,
         reviewedByUserId: doc.reviewedByUserId,
         rejectionNote: doc.rejectionNote,
+        rejectionNoteArchivedAt: doc.rejectionNoteArchivedAt,
+        rejectionNoteArchivedByUserId: doc.rejectionNoteArchivedByUserId,
       });
     }
   }

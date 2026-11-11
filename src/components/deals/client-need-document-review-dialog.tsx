@@ -3,12 +3,13 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { FileText, Pencil, Check, X, Sparkles, Send, ArrowRightLeft } from "lucide-react";
+import { FileText, Pencil, Check, X, Sparkles, Send, ArrowRightLeft, Archive, ArchiveRestore } from "lucide-react";
 import {
   approveClientNeedDocuments,
   rejectClientNeedDocuments,
   acceptClientNeed,
   renameClientNeedDocument,
+  setRejectionNoteArchived,
 } from "@/server/actions/client-need-documents";
 import { ChangeNeedDialog, type ChangeNeedCandidate } from "@/components/deals/change-need-dialog";
 import { EditRejectionReasonDialog } from "@/components/deals/edit-rejection-reason-dialog";
@@ -27,6 +28,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -41,6 +43,9 @@ export interface ReviewableDocument {
   mimeType: string;
   reviewStatus: "pending" | "approved" | "rejected";
   rejectionNote: string | null;
+  // Set when staff archived the reason: kept for the audit list, left out of borrower emails.
+  rejectionNoteArchivedAt: Date | null;
+  rejectionNoteArchivedByName: string | null;
   aiReviewFlags: { flags: AiReviewFlag[] } | null;
   aiReviewedAt: Date | null;
   aiExtractedFacts: OperatingAgreementFacts | null;
@@ -149,6 +154,7 @@ export function ClientNeedDocumentReviewDialog({
   const [disapprovingSelected, setDisapprovingSelected] = useState(false);
   const [selectedDisapproveNote, setSelectedDisapproveNote] = useState("");
   const [reasonOpen, setReasonOpen] = useState(false);
+  const [archivedOpen, setArchivedOpen] = useState(false);
   const [currentId, setCurrentId] = useState(initialDocumentId);
   const [jumpPage, setJumpPage] = useState<number | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
@@ -168,8 +174,12 @@ export function ClientNeedDocumentReviewDialog({
   // currently looking at automatically advances to another visible one
   // instead of continuing to show something that just dropped out of view.
   const visibleDocuments = documents.filter((d) => d.reviewStatus !== "rejected");
-  // The rejected ones are listed in the side panel with their reasons, which can be edited from there.
-  const rejectedDocuments = documents.filter((d) => d.reviewStatus === "rejected");
+  // The rejected ones are listed in the side panel with their reasons, which can be edited or archived from there.
+  // An archived reason no longer applies: it is kept for the audit list and left out of borrower emails.
+  const rejectedDocuments = documents.filter((d) => d.reviewStatus === "rejected" && !d.rejectionNoteArchivedAt);
+  const archivedReasonDocuments = documents
+    .filter((d) => d.reviewStatus === "rejected" && d.rejectionNoteArchivedAt)
+    .sort((a, b) => (b.rejectionNoteArchivedAt?.getTime() ?? 0) - (a.rejectionNoteArchivedAt?.getTime() ?? 0));
   const current = visibleDocuments.find((d) => d.id === currentId) ?? visibleDocuments[0];
   // Spreadsheets would only download in a frame, so they're shown as tables instead.
   const fileUrl = current ? `${documentViewUrl(current)}${jumpPage ? `#page=${jumpPage}` : ""}` : "";
@@ -260,6 +270,17 @@ export function ClientNeedDocumentReviewDialog({
     });
   }
 
+  function archiveReason(documentId: string, archived: boolean) {
+    run(async () => {
+      await setRejectionNoteArchived(dealId, needId, documentId, archived);
+      toast.success(
+        archived
+          ? "Reason archived. The borrower email and upload page no longer mention it."
+          : "Reason restored. It will show in the borrower email again."
+      );
+    });
+  }
+
   function validateNote(value: string): string | null {
     if (!value.trim()) {
       setError("A rejection note is required.");
@@ -342,7 +363,7 @@ export function ClientNeedDocumentReviewDialog({
 
             {/* Current-document panel — kept narrow so the viewer stays the
                 star of the layout. */}
-            {(current || rejectedDocuments.length > 0) && (
+            {(current || rejectedDocuments.length > 0 || archivedReasonDocuments.length > 0) && (
               <div className={cn("shrink-0 space-y-3", isPhone ? "w-full" : "w-[300px] overflow-y-auto")}>
                 {rejectedDocuments.length > 0 && (
                   <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-2">
@@ -357,9 +378,23 @@ export function ClientNeedDocumentReviewDialog({
                     </div>
                     {rejectedDocuments.map((doc) => (
                       <div key={doc.id} className="space-y-0.5 text-xs">
-                        {rejectedDocuments.length > 1 && (
-                          <p className="truncate text-muted-foreground">{doc.fileName}</p>
-                        )}
+                        <div className="flex items-start justify-between gap-2">
+                          {rejectedDocuments.length > 1 ? (
+                            <p className="truncate text-muted-foreground">{doc.fileName}</p>
+                          ) : (
+                            <span />
+                          )}
+                          <button
+                            type="button"
+                            disabled={pending}
+                            onClick={() => archiveReason(doc.id, true)}
+                            className="flex shrink-0 items-center gap-1 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                            title="This reason no longer applies. It stays on file but is left out of the borrower email."
+                          >
+                            <Archive className="size-3" />
+                            Archive
+                          </button>
+                        </div>
                         <p className="whitespace-pre-wrap break-words font-medium text-destructive">
                           {doc.rejectionNote?.trim() || "No reason given"}
                         </p>
@@ -367,8 +402,21 @@ export function ClientNeedDocumentReviewDialog({
                     ))}
                     <p className="text-[11px] text-muted-foreground">
                       This is what the borrower is told to fix, in their next reminder and on their upload page.
+                      Archive a reason that no longer applies.
                     </p>
                   </div>
+                )}
+                {archivedReasonDocuments.length > 0 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => setArchivedOpen(true)}
+                  >
+                    <Archive className="size-3.5" />
+                    Archived reasons ({archivedReasonDocuments.length})
+                  </Button>
                 )}
                 {current && (
                 <>
@@ -737,6 +785,55 @@ export function ClientNeedDocumentReviewDialog({
         open={reasonOpen}
         onOpenChange={setReasonOpen}
       />
+
+      <Dialog open={archivedOpen} onOpenChange={setArchivedOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Archived rejection reasons</DialogTitle>
+            <DialogDescription>
+              Reasons for &ldquo;{needName}&rdquo; that no longer apply. They are kept here as a record and are left out
+              of the borrower email and upload page.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60dvh] space-y-3 overflow-y-auto">
+            {archivedReasonDocuments.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No archived reasons.</p>
+            ) : (
+              archivedReasonDocuments.map((doc) => (
+                <div key={doc.id} className="space-y-1 rounded-md border p-2.5">
+                  <p className="break-words text-xs font-medium text-muted-foreground">{doc.fileName}</p>
+                  <p className="whitespace-pre-wrap break-words text-sm">{doc.rejectionNote?.trim() || "No reason given"}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-muted-foreground">
+                      Archived{" "}
+                      {doc.rejectionNoteArchivedAt?.toLocaleString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                      {doc.rejectionNoteArchivedByName ? ` by ${doc.rejectionNoteArchivedByName}` : ""}
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 gap-1 px-2"
+                      disabled={pending}
+                      onClick={() => archiveReason(doc.id, false)}
+                    >
+                      <ArchiveRestore className="size-3.5" />
+                      Restore
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={rejectNeedOpen} onOpenChange={setRejectNeedOpen}>
         <DialogContent className="sm:max-w-md">

@@ -1322,6 +1322,11 @@ export const dealClientNeedDocuments = pgTable("deal_client_need_documents", {
   reviewedAt: timestamp("reviewed_at", { mode: "date" }),
   reviewedByUserId: uuid("reviewed_by_user_id").references(() => users.id),
   rejectionNote: text("rejection_note"),
+  // Set when staff archive the reason because it no longer applies: the document stays rejected and the note is
+  // kept as an audit trail, but the borrower email and upload page stop mentioning it. A new rejection, an
+  // approval or a restore clears these along with the note.
+  rejectionNoteArchivedAt: timestamp("rejection_note_archived_at", { mode: "date" }),
+  rejectionNoteArchivedByUserId: uuid("rejection_note_archived_by_user_id").references(() => users.id),
   // Manually-triggered AI document review (§ Client Needs Overhaul plan) —
   // {"flags": [{"page": number|null, "quote": string, "concern": string}]}.
   aiReviewFlags: jsonb("ai_review_flags").$type<{

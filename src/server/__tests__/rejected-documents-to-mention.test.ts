@@ -75,3 +75,19 @@ describe("rejectedDocumentsToMention", () => {
     expect(rejectedDocumentsToMention({ needType: "pandadoc_form", documents: [] })).toEqual([]);
   });
 });
+
+describe("rejectedDocumentsToMention with archived reasons", () => {
+  const at = new Date("2026-11-01T00:00:00Z");
+  it("leaves out rejected documents whose reason was archived", () => {
+    const docs = [
+      { id: "a", reviewStatus: "rejected", createdAt: at, rejectionNoteArchivedAt: null },
+      { id: "b", reviewStatus: "rejected", createdAt: at, rejectionNoteArchivedAt: at },
+    ];
+    expect(rejectedDocumentsToMention({ needType: "document_upload", documents: docs }).map((d) => d.id)).toEqual(["a"]);
+  });
+
+  it("does not mention a form whose newest rejected copy has its reason archived", () => {
+    const docs = [{ id: "a", reviewStatus: "rejected", createdAt: at, rejectionNoteArchivedAt: at }];
+    expect(rejectedDocumentsToMention({ needType: "pandadoc_form", documents: docs })).toEqual([]);
+  });
+});

@@ -74,7 +74,7 @@ export async function getDealForBorrowerUpload(token: string) {
     ),
     columns: { templateFileData: false },
     with: {
-      documents: { columns: { reviewStatus: true, rejectionNote: true, createdAt: true } },
+      documents: { columns: { reviewStatus: true, rejectionNote: true, rejectionNoteArchivedAt: true, createdAt: true } },
       answers: {
         columns: { id: true, questionText: true, required: true, answerText: true },
         orderBy: (a, { asc }) => asc(a.sortOrder),
