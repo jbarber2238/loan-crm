@@ -83,7 +83,7 @@ export function EditRejectionReasonDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="flex max-h-[92dvh] flex-col">
         <DialogHeader>
           <DialogTitle>Edit rejection reason</DialogTitle>
           <DialogDescription>
@@ -91,7 +91,9 @@ export function EditRejectionReasonDialog({
             their upload page. Archive a reason that no longer applies to leave it out of the email.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-4">
+          {/* The reasons scroll on their own, so Save stays in view however many documents there are. */}
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
           {documents.map((doc) => (
             <div key={doc.id} className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
@@ -118,6 +120,7 @@ export function EditRejectionReasonDialog({
               />
             </div>
           ))}
+          </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button className="w-full" disabled={pending} onClick={handleSave}>
             {pending ? "Saving…" : "Save reason"}
