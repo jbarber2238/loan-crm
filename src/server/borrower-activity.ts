@@ -36,6 +36,25 @@ export async function recordBorrowerActivity(
 
 type Event = typeof borrowerActivityEvents.$inferSelect;
 
+/** Up to this many items are named in the in-app alert; more than that is just a count. */
+const NAME_ITEMS_UP_TO = 3;
+
+/**
+ * Body line for the in-app "client needs completed" alert. A few items are
+ * named so staff can see at a glance what to review; a bigger batch is
+ * summarized as a count.
+ */
+export function activityNotificationBody(itemNames: string[]): string {
+  const names = [...new Set(itemNames.map((n) => n.trim()).filter(Boolean))];
+  if (names.length === 0) return "Items ready for review";
+  if (names.length > NAME_ITEMS_UP_TO) return `${names.length} items ready for review`;
+  const list =
+    names.length === 1
+      ? names[0]
+      : `${names.slice(0, -1).join(", ")}${names.length > 2 ? "," : ""} and ${names[names.length - 1]}`;
+  return `Ready for review: ${list}`;
+}
+
 async function sendDigestForDeal(dealId: string, events: Event[]) {
   const deal = await db.query.deals.findFirst({
     where: eq(deals.id, dealId),
@@ -45,11 +64,10 @@ async function sendDigestForDeal(dealId: string, events: Event[]) {
 
   // In-app notification first — one entry per session, not per task, and
   // independent of whether email can be sent below.
-  const itemCount = new Set(events.map((e) => e.itemName)).size;
   await createNotifications([deal.assignedLoanOfficerId, deal.assignedProcessorId], {
     type: "client_needs_completed",
     title: `${deal.borrowerName} has completed client needs for ${deal.propertyAddress}`,
-    body: `${itemCount} ${itemCount === 1 ? "item" : "items"} ready for review`,
+    body: activityNotificationBody(events.map((e) => e.itemName)),
     href: `/deals/${deal.id}/loan-center`,
     dealId: deal.id,
   });
