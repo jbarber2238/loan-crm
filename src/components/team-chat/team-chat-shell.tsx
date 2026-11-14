@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ExternalLink } from "lucide-react";
@@ -19,6 +19,20 @@ const displayTitle = (r: { kind: string; title: string }) => {
   return parts.length === 2 ? `${parts[1]} · ${parts[0]}` : r.title;
 };
 
+// Below the page's two-column breakpoint (md), the list and an open chat are separate screens.
+function subscribeNarrow(callback: () => void) {
+  const mq = window.matchMedia("(max-width: 767px)");
+  mq.addEventListener("change", callback);
+  return () => mq.removeEventListener("change", callback);
+}
+function useIsNarrow(): boolean {
+  return useSyncExternalStore(
+    subscribeNarrow,
+    () => window.matchMedia("(max-width: 767px)").matches,
+    () => false
+  );
+}
+
 /**
  * The Team Chat page. Picking a chat only changes the address (the page itself isn't fetched again from the
  * server), and the first messages of the busiest chats are loaded in the background, so a chat opens right away.
@@ -35,6 +49,7 @@ export function TeamChatShell({
   otherGroups: ManageableGroupChat[];
 }) {
   const searchParams = useSearchParams();
+  const isNarrow = useIsNarrow();
   const room = searchParams.get("room");
   // Set when arriving from a "you were tagged" notification: the chat opens at that message.
   const focusMessageId = searchParams.get("message");
@@ -92,7 +107,7 @@ export function TeamChatShell({
         <p className="text-sm text-muted-foreground">Internal only. Borrowers never see anything here.</p>
       </div>
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-[280px_minmax(0,1fr)]">
-        <div className={cn("space-y-4", room && "hidden md:block")}>
+        <div className={cn("space-y-4 pb-24 md:pb-0", room && "hidden md:block")}>
           <NewChatDialog currentUserId={currentUserId} />
           {sections.map((section) => (
             <section key={section.label} className="space-y-1.5">
@@ -179,6 +194,9 @@ export function TeamChatShell({
               </Button>
             )}
           </div>
+          {/* On a phone the chat panel freezes page scrolling while it is mounted, even when hidden, so with no
+              chat picked it stays unmounted and the list of chats can scroll. */}
+          {(room || !isNarrow) && (
           <TeamChatPanel
             key={activeId}
             roomId={activeId}
@@ -189,6 +207,7 @@ export function TeamChatShell({
             onBack={() => window.history.pushState(null, "", "/team-chat")}
             heightClass="h-[calc(100dvh-13rem)] min-h-[360px] md:h-[calc(100vh-14rem)] md:min-h-[420px]"
           />
+          )}
         </div>
       </div>
     </div>
