@@ -39,16 +39,30 @@ async function extractFromSpreadsheet(buffer: Buffer): Promise<string> {
 // is pdf.js's own documented way to skip that dynamic-import path entirely
 // (it checks for this before ever attempting the import) — Next.js sees our
 // literal import path here and bundles the file correctly.
+// Rendering a page to a picture (the phone viewer, scanned-PDF fallback) needs the REAL canvas classes: for
+// some PDFs (e.g. ones made by "Microsoft Print to PDF") pdf.js draws glyphs as Path2D shapes and the native
+// canvas rejects an empty stub ("Value is non of these types `String`, `Path`"), so the page never renders.
+// Prefer @napi-rs/canvas's classes, and upgrade any stub left over from an earlier text-only call.
+const STUB = Symbol("pdfjsNodeStub");
+function stubClass(name: string) {
+  const cls = { [name]: class {} }[name] as unknown as Record<symbol, boolean>;
+  cls[STUB] = true;
+  return cls;
+}
+
 async function ensurePdfjsNodeSetup() {
   const g = globalThis as unknown as Record<string, unknown>;
-  if (typeof g.DOMMatrix === "undefined") {
-    g.DOMMatrix = class DOMMatrix {};
+  let canvas: Record<string, unknown> | null = null;
+  try {
+    canvas = (await import("@napi-rs/canvas")) as unknown as Record<string, unknown>;
+  } catch {
+    canvas = null; // no native canvas in this runtime: text extraction still works with stubs
   }
-  if (typeof g.Path2D === "undefined") {
-    g.Path2D = class Path2D {};
-  }
-  if (typeof g.ImageData === "undefined") {
-    g.ImageData = class ImageData {};
+  for (const name of ["DOMMatrix", "Path2D", "ImageData"]) {
+    const current = g[name] as (Record<symbol, boolean> | undefined);
+    const real = canvas?.[name];
+    if (typeof current === "undefined") g[name] = real ?? stubClass(name);
+    else if (current[STUB] && real) g[name] = real;
   }
   if (typeof g.pdfjsWorker === "undefined") {
     g.pdfjsWorker = await import("pdfjs-dist/legacy/build/pdf.worker.mjs");
