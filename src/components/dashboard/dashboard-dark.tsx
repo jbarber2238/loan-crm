@@ -339,7 +339,7 @@ export function DashboardDark({
             tile
             label="Average Loan Size (Requested)"
             value={money(pc.averageLoanSizeRequested)}
-            sub="this period's New Leads"
+            sub="this period's New Leads, not disqualified"
             deals={pc.leadCohortDeals}
           />
           <DrillDownStatCard tile label="Average Closed Loan Size" value={money(pc.averageLoanSizeClosed)} deals={pc.closedDeals} />

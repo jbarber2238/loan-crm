@@ -210,7 +210,7 @@ export default async function DashboardPage({
               compact
               label="Average Loan Size (Requested)"
               value={money(data.pipelineConversion.averageLoanSizeRequested)}
-              sub="this period's New Leads"
+              sub="this period's New Leads, not disqualified"
               deals={data.pipelineConversion.leadCohortDeals}
             />
             <DrillDownStatCard

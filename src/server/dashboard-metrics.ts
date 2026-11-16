@@ -329,7 +329,10 @@ function buildPipelineConversion(dealsData: DealWithRelations[], start: Date | n
   const closedAmounts = closedDeals.map((d) => (d.approvedLoanAmount !== null ? num(d.approvedLoanAmount) : num(d.loanAmountRequested)));
   const totalVolumeClosed = closedAmounts.reduce((a, b) => a + b, 0);
 
-  const requestedAmounts = leadCohort.map((d) => num(d.loanAmountRequested));
+  // Average requested size is about real prospects, so a deal that has since been disqualified (it never
+  // could have become a loan) is left out. Lost deals stay in: they were real requests that just didn't close.
+  const requestedCohort = leadCohort.filter((d) => d.stage !== "disqualified");
+  const requestedAmounts = requestedCohort.map((d) => num(d.loanAmountRequested));
 
   return {
     newLeads,
@@ -342,7 +345,7 @@ function buildPipelineConversion(dealsData: DealWithRelations[], start: Date | n
     applicationsSubmittedDeals: applicationDealsWithFlag,
     leadToApplicationPct: newLeads ? (convertedDeals.length / newLeads) * 100 : null,
     leadToApplicationConvertedDeals: convertedDeals.map(toDrillDownDeal),
-    leadCohortDeals: leadCohort.map(toDrillDownDeal),
+    leadCohortDeals: requestedCohort.map(toDrillDownDeal),
     leadLostPct: newLeads ? (lostDeals.length / newLeads) * 100 : null,
     leadLostDeals: lostDeals.map(toDrillDownDeal),
     totalPipelineValue,
