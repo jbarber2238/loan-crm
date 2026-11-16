@@ -155,7 +155,15 @@ export default async function DashboardPage({
               value={pct(data.pipelineConversion.leadLostPct)}
               sub="of this period's New Leads"
               deals={data.pipelineConversion.leadLostDeals}
-              emptyMessage="None of this period's New Leads are currently Lost/Disqualified."
+              emptyMessage="None of this period's New Leads are currently Lost."
+            />
+            <DrillDownStatCard
+              compact
+              label="Leads Disqualified"
+              value={pct(data.pipelineConversion.leadDisqualifiedPct)}
+              sub="of this period's New Leads"
+              deals={data.pipelineConversion.leadDisqualifiedDeals}
+              emptyMessage="None of this period's New Leads are currently Disqualified."
             />
             <DrillDownStatCard
               compact

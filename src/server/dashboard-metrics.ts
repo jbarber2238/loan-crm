@@ -251,6 +251,8 @@ export interface PipelineConversionData {
   leadCohortDeals: DrillDownDeal[];
   leadLostPct: number | null;
   leadLostDeals: DrillDownDeal[];
+  leadDisqualifiedPct: number | null;
+  leadDisqualifiedDeals: DrillDownDeal[];
   /** Viable, actively moving deals only: New through Clear to Close. Same definition as the pipeline board's Open Pipeline Value banner. */
   totalPipelineValue: number;
   totalPipelineValueDeals: DrillDownDeal[];
@@ -287,7 +289,10 @@ function buildPipelineConversion(dealsData: DealWithRelations[], start: Date | n
   const leadCohort = dealsData.filter((d) => inRange(d.createdAt, start, end));
   const newLeads = leadCohort.length;
   const convertedDeals = leadCohort.filter((d) => firstEntryEver(d, "application") !== null);
-  const lostDeals = leadCohort.filter((d) => TERMINAL_STAGES.has(d.stage) && d.stage !== "closed");
+  // Lost and Disqualified are tracked separately: a lost deal was a real prospect we didn't win, a
+  // disqualified one was never a fit.
+  const lostDeals = leadCohort.filter((d) => d.stage === "lost");
+  const disqualifiedDeals = leadCohort.filter((d) => d.stage === "disqualified");
 
   // A Restored Lead is the opposite case: an OLD deal re-entering New or
   // Rate Shopping this period (came back from Lost/Follow-up, or an
@@ -348,6 +353,8 @@ function buildPipelineConversion(dealsData: DealWithRelations[], start: Date | n
     leadCohortDeals: requestedCohort.map(toDrillDownDeal),
     leadLostPct: newLeads ? (lostDeals.length / newLeads) * 100 : null,
     leadLostDeals: lostDeals.map(toDrillDownDeal),
+    leadDisqualifiedPct: newLeads ? (disqualifiedDeals.length / newLeads) * 100 : null,
+    leadDisqualifiedDeals: disqualifiedDeals.map(toDrillDownDeal),
     totalPipelineValue,
     totalPipelineValueDeals: activeDeals.map(toDrillDownDeal),
     earlyPipelineValue: sumLead(earlyDeals),

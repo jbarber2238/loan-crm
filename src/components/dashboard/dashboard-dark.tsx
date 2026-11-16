@@ -294,7 +294,15 @@ export function DashboardDark({
             value={pct(pc.leadLostPct)}
             sub="of this period's New Leads"
             deals={pc.leadLostDeals}
-            emptyMessage="None of this period's New Leads are currently Lost/Disqualified."
+            emptyMessage="None of this period's New Leads are currently Lost."
+          />
+          <DrillDownStatCard
+            tile
+            label="Leads Disqualified"
+            value={pct(pc.leadDisqualifiedPct)}
+            sub="of this period's New Leads"
+            deals={pc.leadDisqualifiedDeals}
+            emptyMessage="None of this period's New Leads are currently Disqualified."
           />
           <DrillDownStatCard
             tile
