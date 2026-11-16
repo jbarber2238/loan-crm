@@ -31,6 +31,10 @@
     {
       "path": "/api/cron/chat-reminders",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/task-reminders",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

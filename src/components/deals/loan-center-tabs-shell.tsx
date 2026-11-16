@@ -10,6 +10,7 @@ import {
   MessageSquare,
   MessageSquareText,
   MoreHorizontal,
+  SquareCheckBig,
   StickyNote,
   Users,
   type LucideIcon,
@@ -18,6 +19,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { LoanCenterNavContext } from "@/components/deals/loan-center-nav-context";
 import { OPEN_TEXT_THREAD_EVENT, type OpenTextThreadDetail } from "@/components/messaging/chat-dock-context";
+import { LOAN_CENTER_GOTO_EVENT } from "@/lib/loan-center-events";
 import { cn } from "@/lib/utils";
 
 type TabItem = { value: string; label: string; short: string; icon: LucideIcon };
@@ -30,6 +32,7 @@ const TABS: TabItem[] = [
   { value: "key-dates", label: "Key Dates", short: "Dates", icon: CalendarDays },
   { value: "email-log", label: "Email Log", short: "Emails", icon: Mail },
   { value: "notes", label: "Notes", short: "Notes", icon: StickyNote },
+  { value: "tasks", label: "Tasks", short: "Tasks", icon: SquareCheckBig },
   { value: "team-chat", label: "Team Chat", short: "Chat", icon: MessageSquare },
   { value: "communications", label: "Communications", short: "Texts", icon: MessageSquareText },
 ];
@@ -44,7 +47,7 @@ const MORE = TABS.filter((t) => !BAR_VALUES.includes(t.value));
  * content; on phones and iPads (below lg) the row is replaced by an
  * iOS-style bar pinned to the bottom of the screen, within thumb reach.
  */
-export function LoanCenterTabsShell({ initialTab, children }: { initialTab?: string; children: React.ReactNode }) {
+export function LoanCenterTabsShell({ initialTab, badges, children }: { initialTab?: string; badges?: Record<string, number>; children: React.ReactNode }) {
   const [tab, setTab] = useState(initialTab && TABS.some((t) => t.value === initialTab) ? initialTab : "client-needs");
   const [moreOpen, setMoreOpen] = useState(false);
   const [focusThreadId, setFocusThreadId] = useState<string | null>(null);
@@ -58,6 +61,20 @@ export function LoanCenterTabsShell({ initialTab, children }: { initialTab?: str
     }
     window.addEventListener(OPEN_TEXT_THREAD_EVENT, onOpenThread);
     return () => window.removeEventListener(OPEN_TEXT_THREAD_EVENT, onOpenThread);
+  }, []);
+
+  // The Latest update banner (above this) can send you to Notes.
+  useEffect(() => {
+    function onGoto(e: Event) {
+      const next = (e as CustomEvent<{ tab: string }>).detail?.tab;
+      if (next && TABS.some((t) => t.value === next)) {
+        setTab(next);
+        setMoreOpen(false);
+        window.scrollTo({ top: 0 });
+      }
+    }
+    window.addEventListener(LOAN_CENTER_GOTO_EVENT, onGoto);
+    return () => window.removeEventListener(LOAN_CENTER_GOTO_EVENT, onGoto);
   }, []);
 
   // The deal header (a server component above this) trims itself on the conversation tabs; it keys off this.
@@ -91,6 +108,7 @@ export function LoanCenterTabsShell({ initialTab, children }: { initialTab?: str
         {TABS.map((t) => (
           <TabsTrigger key={t.value} value={t.value}>
             {t.label}
+            {badges?.[t.value] ? <span className="ml-1.5 rounded-full bg-primary px-1.5 text-[10px] leading-4 font-bold text-primary-foreground">{badges[t.value]}</span> : null}
           </TabsTrigger>
         ))}
       </TabsList>
@@ -128,6 +146,7 @@ export function LoanCenterTabsShell({ initialTab, children }: { initialTab?: str
                 >
                   <t.icon className="size-5 text-muted-foreground" />
                   {t.label}
+                  {badges?.[t.value] ? <span className="rounded-full bg-primary px-1.5 text-[10px] leading-4 font-bold text-primary-foreground">{badges[t.value]}</span> : null}
                 </button>
               </li>
             ))}

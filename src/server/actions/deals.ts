@@ -891,15 +891,20 @@ export async function addDealNote(dealId: string, formData: FormData) {
   const user = await requireUser();
   const body = str(formData, "body");
   if (!body) return;
+  // A note posted with "Start end-of-day update" becomes the Latest update under the deal header; every other note
+  // (regular, AI, system) never does.
+  const isUpdate = formData.get("isUpdate") === "1";
 
   await db.insert(dealNotes).values({
     dealId,
     authorUserId: user.id,
     source: "user",
     body,
+    isUpdate,
   });
 
-  revalidatePath(`/deals/${dealId}`);
+  // The header banner lives in the deal layout, so an update has to refresh that too.
+  revalidatePath(`/deals/${dealId}`, isUpdate ? "layout" : "page");
 }
 
 export async function resolveDealNote(dealId: string, noteId: string) {
@@ -920,7 +925,7 @@ export async function deleteDealNote(dealId: string, noteId: string) {
   }
 
   await db.delete(dealNotes).where(eq(dealNotes.id, noteId));
-  revalidatePath(`/deals/${dealId}`);
+  revalidatePath(`/deals/${dealId}`, note.isUpdate ? "layout" : "page");
   revalidatePath(`/deals/${dealId}/loan-center`);
 }
 

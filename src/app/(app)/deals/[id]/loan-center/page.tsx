@@ -10,6 +10,8 @@ import { getEmailLogForDeal } from "@/server/actions/email-log";
 import { LoanCenterTab } from "@/components/deals/loan-center-tab";
 import { planEntityDocCarryOver } from "@/server/entity-doc-carryover";
 import { getDealFiles } from "@/server/data/deal-files";
+import { getCoverageInfo, listAssignableUsers, listVisibleTasks } from "@/server/tasks";
+import { todayEt } from "@/lib/tasks";
 import type { ClientNeed } from "@/components/deals/client-needs-tab";
 
 export default async function DealLoanCenterPage({
@@ -26,6 +28,7 @@ export default async function DealLoanCenterPage({
   const deal = await getDealDetail(id);
   if (!deal) notFound();
 
+  const [dealTasks, coverage, taskUsers] = await Promise.all([listVisibleTasks(user, { dealId: id }), getCoverageInfo(user.id), listAssignableUsers()]);
   const [allUsers, clientNeedsCatalog, conditions, clientNeeds, categoryProducts, allProducts, documents, emailLog, dealFiles] = await Promise.all([
     db.query.users.findMany({ where: (users, { eq }) => eq(users.active, true) }),
     db.query.clientNeeds.findMany({
@@ -184,6 +187,12 @@ export default async function DealLoanCenterPage({
       appraisalDocumentFileName={deal.appraisalDocumentFileName}
       dealFiles={dealFiles}
       emailLog={emailLog}
+      tasks={dealTasks}
+      taskToday={todayEt()}
+      viewerId={user.id}
+      viewerIsAdmin={user.isAdmin}
+      viewerCovering={coverage.covering.length > 0}
+      taskUsers={taskUsers}
     />
   );
 }

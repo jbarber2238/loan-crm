@@ -5,6 +5,8 @@ import { DealHeader } from "@/components/deals/deal-header";
 import { DealLifecycleBanner } from "@/components/deals/deal-lifecycle-banner";
 import { ClearToCloseEmailBanner } from "@/components/deals/clear-to-close-email-banner";
 import { DealPhoneBar } from "@/components/deals/deal-phone-bar";
+import { LatestUpdateBanner } from "@/components/deals/latest-update-banner";
+import { getLatestUpdate } from "@/server/tasks";
 
 export default async function DealDetailLayout({
   children,
@@ -23,11 +25,14 @@ export default async function DealDetailLayout({
   // deleted deal's URL reveals nothing to a non-admin who has it.
   if (deal.deletedAt && !user.isAdmin) notFound();
 
+  const latestUpdate = await getLatestUpdate(id);
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <DealLifecycleBanner deal={deal} />
       <ClearToCloseEmailBanner deal={deal} />
       <DealHeader deal={deal} />
+      <LatestUpdateBanner dealId={deal.id} userId={user.id} update={latestUpdate} />
       {children}
       <DealPhoneBar dealId={deal.id} />
     </div>

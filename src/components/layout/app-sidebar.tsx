@@ -20,6 +20,7 @@ import {
   Users,
   Star,
   Mail,
+  SquareCheckBig,
 } from "lucide-react";
 import { signOutAction } from "@/server/actions/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -46,16 +47,20 @@ export function AppSidebar({
   user,
   companyName,
   logo,
+  openTaskCount = 0,
 }: {
   user: SidebarUser;
   companyName: string;
   logo: { src: string; isLight: boolean } | null;
+  /** Open tasks assigned to this person, shown as a badge on the Tasks link. */
+  openTaskCount?: number;
 }) {
   const pathname = usePathname();
   const { unread: teamUnread } = useTeamDock();
 
   const mainLinks = [
     { href: "/pipeline", label: "Pipeline", icon: LayoutDashboard, exact: true },
+    { href: "/tasks", label: "Tasks", icon: SquareCheckBig, exact: true },
     ...(user.isAdmin ? [{ href: "/dashboard", label: "Dashboard", icon: BarChart3, exact: true }] : []),
     { href: "/deals/new", label: "New Deal", icon: FilePlus, exact: true },
     { href: "/lenders", label: "Lenders", icon: Landmark, exact: false },
@@ -160,6 +165,11 @@ export function AppSidebar({
               >
                 <Icon className="size-4" />
                 {link.label}
+                {link.href === "/tasks" && openTaskCount > 0 && (
+                  <span className="ml-auto rounded-full bg-primary px-1.5 text-[10px] leading-4 font-semibold text-primary-foreground">
+                    {openTaskCount}
+                  </span>
+                )}
                 {link.href === "/team-chat" && teamUnread > 0 && (
                   <span className="ml-auto rounded-full bg-primary px-1.5 text-[10px] leading-4 font-semibold text-primary-foreground">
                     {teamUnread}

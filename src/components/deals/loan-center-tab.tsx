@@ -9,6 +9,9 @@ import { ClientNeedsNote, type ClientNeedsNoteData } from "@/components/deals/cl
 import type { EntityDocOffer } from "@/lib/entity-doc-carryover";
 import { ConditionsTab, type DealCondition } from "@/components/deals/conditions-tab";
 import { NotesTab } from "@/components/deals/notes-tab";
+import { DealTasksTab } from "@/components/tasks/deal-tasks-tab";
+import type { TaskUser } from "@/components/tasks/task-parts";
+import type { TaskRow } from "@/server/tasks";
 import { KeyDateTracker } from "@/components/deals/key-date-tracker";
 import type { DealFileRow } from "@/lib/deal-files";
 import { KeyDatesForm } from "@/components/deals/key-dates-form";
@@ -36,6 +39,7 @@ interface Note {
   body: string;
   source: "user" | "ai" | "system";
   resolved: boolean;
+  isUpdate: boolean;
   createdAt: Date;
   author?: { name: string | null } | null;
   canDelete: boolean;
@@ -95,6 +99,12 @@ export function LoanCenterTab({
   entityDocAutoOpen,
   documents,
   propertyLabel,
+  tasks,
+  taskToday,
+  viewerId,
+  viewerIsAdmin,
+  viewerCovering,
+  taskUsers,
 }: {
   dealId: string;
   loanCategory: string;
@@ -152,10 +162,17 @@ export function LoanCenterTab({
   entityDocAutoOpen: boolean;
   documents: { accepted: DealDocumentRow[]; rejected: DealDocumentRow[]; unused: DealDocumentRow[] };
   propertyLabel: string;
+  tasks: TaskRow[];
+  taskToday: string;
+  viewerId: string;
+  viewerIsAdmin: boolean;
+  viewerCovering: boolean;
+  taskUsers: TaskUser[];
 }) {
+  const openTaskCount = tasks.filter((t) => !t.completedAt).length;
   return (
     <div className="space-y-4">
-      <LoanCenterTabsShell initialTab={initialTab}>
+      <LoanCenterTabsShell initialTab={initialTab} badges={{ tasks: openTaskCount }}>
 
         <TabsContent value="client-needs" className="space-y-4">
           <ClientNeedsNote dealId={dealId} note={clientNeedsNote} />
@@ -236,6 +253,10 @@ export function LoanCenterTab({
 
         <TabsContent value="notes">
           <NotesTab dealId={dealId} notes={notes} />
+        </TabsContent>
+
+        <TabsContent value="tasks">
+          <DealTasksTab dealId={dealId} tasks={tasks} today={taskToday} viewerId={viewerId} isAdmin={viewerIsAdmin} hasCover={viewerCovering} users={taskUsers} />
         </TabsContent>
 
         <TabsContent value="documents">

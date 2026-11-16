@@ -248,6 +248,9 @@ export const users = pgTable("user", {
   // to /onboarding. Backfilled to createdAt for everyone who predates the
   // wizard so they're never sent through it retroactively.
   onboardedAt: timestamp("onboarded_at", { mode: "date" }),
+  // Pop-up reminders for tasks with a due time: 'now' (at the due time), 'both' (15 minutes before and at the due
+  // time) or 'off'. Whether the same reminder is also pushed to a phone is the "tasks" notification category.
+  taskReminderMode: text("task_reminder_mode").notNull().default("now"),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 
@@ -1522,7 +1525,50 @@ export const dealNotes = pgTable("deal_notes", {
   body: text("body").notNull(),
   // AI sanity-check flags are notes that can be dismissed/resolved (§8).
   resolved: boolean("resolved").notNull().default(false),
+  // True for a note posted as an end-of-day update (Where we stand / Outstanding / Issues). The newest one is the
+  // "Latest update" shown under the deal header; regular, AI and system notes never are.
+  isUpdate: boolean("is_update").notNull().default(false),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+// Internal staff tasks on a deal. Assigned to one person (default: whoever made it). Staff only ever see their own,
+// plus those of someone they are covering (task_coverage); admins see everything. due_time is an Eastern wall-clock
+// time that triggers the pop-up reminder; due_at is that moment, kept so the reminder checks are a plain comparison.
+export const dealTasks = pgTable("deal_tasks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  dealId: uuid("deal_id")
+    .notNull()
+    .references(() => deals.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  dueDate: date("due_date", { mode: "string" }),
+  dueTime: text("due_time"),
+  dueAt: timestamp("due_at", { mode: "date", withTimezone: true }),
+  assignedToUserId: uuid("assigned_to_user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  completedAt: timestamp("completed_at", { mode: "date", withTimezone: true }),
+  completedByUserId: uuid("completed_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  // Set when the 15-minute heads-up / the due-time reminder has reached the person (an on-screen pop-up or a push),
+  // so the phone push isn't sent on top of one they already saw.
+  headsUpSentAt: timestamp("heads_up_sent_at", { mode: "date", withTimezone: true }),
+  dueSentAt: timestamp("due_sent_at", { mode: "date", withTimezone: true }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+});
+
+// "I'm out of the office: covered_by looks after my tasks from start_date through end_date." One row per person who is out.
+export const taskCoverage = pgTable("task_coverage", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  fromUserId: uuid("from_user_id")
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: "cascade" }),
+  coveredByUserId: uuid("covered_by_user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  startDate: date("start_date", { mode: "string" }).notNull(),
+  endDate: date("end_date", { mode: "string" }).notNull(),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
 });
 
 // One row per closed deal: the "thank you" email, its reminders, and the answers. The email goes
@@ -1946,6 +1992,10 @@ export const closingSurveysRelations = relations(closingSurveys, ({ one }) => ({
 export const dealNotesRelations = relations(dealNotes, ({ one }) => ({
   deal: one(deals, { fields: [dealNotes.dealId], references: [deals.id] }),
   author: one(users, { fields: [dealNotes.authorUserId], references: [users.id] }),
+}));
+
+export const dealTasksRelations = relations(dealTasks, ({ one }) => ({
+  deal: one(deals, { fields: [dealTasks.dealId], references: [deals.id] }),
 }));
 
 export const emailLogEntriesRelations = relations(emailLogEntries, ({ one }) => ({

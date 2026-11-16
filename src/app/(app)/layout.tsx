@@ -13,6 +13,8 @@ import { ThemeSync } from "@/components/appearance/theme-sync";
 import { DarkModeWelcome } from "@/components/appearance/dark-mode-welcome";
 import { PhoneTabBar } from "@/components/layout/phone-tab-bar";
 import { AttentionSync } from "@/components/layout/attention-sync";
+import { TaskReminderHost } from "@/components/tasks/task-reminder-host";
+import { countMyOpenTasks } from "@/server/tasks";
 
 // The staff app only (not the public site): lets "Add to Home Screen" on an iPhone or iPad
 // install it like an app, with its own name, icon and no browser bar.
@@ -46,7 +48,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     redirect("/onboarding");
   }
 
-  const [companyName, logo, appearance] = await Promise.all([getCompanyName(), getCompanyLogo(), getMyAppearance()]);
+  const [companyName, logo, appearance, openTaskCount] = await Promise.all([getCompanyName(), getCompanyLogo(), getMyAppearance(), countMyOpenTasks(session.user.id)]);
   const firstName = session.user.name?.split(" ")[0] ?? "there";
 
   return (
@@ -56,7 +58,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       <ThemeSync theme={appearance.theme} />
       {!appearance.welcomeSeen && <DarkModeWelcome firstName={firstName} />}
       <div className={appearance.theme === "dark" ? "dark" : undefined}>
-        <AppSidebar user={session.user} companyName={companyName} logo={logo} />
+        <AppSidebar user={session.user} companyName={companyName} logo={logo} openTaskCount={openTaskCount} />
         <main className="min-h-screen lg:ml-60">
           <TopBar />
           <div className="p-3 sm:p-4 md:p-6">{children}</div>
@@ -64,6 +66,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       </div>
       </MobileNavProvider>
       <AttentionSync />
+      <TaskReminderHost />
       <PhoneTabBar isAdmin={session.user.isAdmin} />
       <TeamDockRoot currentUserId={session.user.id} currentUserName={session.user.name ?? ""} />
       </TeamDockProvider>

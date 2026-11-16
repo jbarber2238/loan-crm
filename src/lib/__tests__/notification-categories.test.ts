@@ -38,7 +38,7 @@ describe("categories", () => {
     expect(categoryFor("brand_new_type", false)).toBe("system");
   });
   it("shows processors and loan officers only the non-admin switches", () => {
-    expect(categoriesFor(false).map((c) => c.id)).toEqual(["deals", "texts", "chat_direct", "chat_general"]);
+    expect(categoriesFor(false).map((c) => c.id)).toEqual(["deals", "texts", "chat_direct", "chat_general", "tasks"]);
     expect(categoriesFor(true).length).toBeGreaterThan(4);
   });
   it("uses the default until a choice is made", () => {

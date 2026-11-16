@@ -577,6 +577,20 @@ const NEED_STATUS_LABEL: Record<string, string> = {
 // A plain, deterministic status pull (no AI) — a processor clicks "Pull
 // Client Need Context" to drop a factual snapshot into a note before editing
 // it further, rather than typing the whole rundown by hand every time.
+/**
+ * The deal's open client needs, one line each, for the Outstanding section of an end-of-day update. Everything not
+ * accepted yet counts (needs on hold are marked as such); needs marked Unused never do.
+ */
+export async function getOutstandingClientNeedLines(dealId: string): Promise<string[]> {
+  await requireUser();
+  const needs = await db.query.dealClientNeeds.findMany({
+    where: and(eq(dealClientNeeds.dealId, dealId), ne(dealClientNeeds.status, "unused"), ne(dealClientNeeds.status, "accepted")),
+    columns: { itemName: true, status: true, onHoldAt: true },
+    orderBy: (n, { asc }) => asc(n.sortOrder),
+  });
+  return needs.map((n) => `${n.itemName} (${n.onHoldAt ? "on hold" : (NEED_STATUS_LABEL[n.status] ?? n.status)})`);
+}
+
 export async function buildClientNeedsContextNote(dealId: string): Promise<string> {
   await requireUser();
 
