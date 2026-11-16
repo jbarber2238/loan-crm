@@ -36,6 +36,8 @@ import { cn } from "cn";
 import { documentViewUrl } from "@/lib/spreadsheet-preview";
 import { useIsPhone } from "@/lib/use-is-phone";
 import { PhoneDocumentViewer } from "@/components/deals/phone-document-viewer";
+import { DocFactsCard } from "@/components/deals/doc-facts-card";
+import type { DealFileFacts, DocFacts } from "@/lib/doc-facts";
 
 export interface ReviewableDocument {
   id: string;
@@ -49,6 +51,7 @@ export interface ReviewableDocument {
   aiReviewFlags: { flags: AiReviewFlag[] } | null;
   aiReviewedAt: Date | null;
   aiExtractedFacts: OperatingAgreementFacts | null;
+  aiDocFacts: DocFacts | null;
 }
 
 const FACT_LABELS: Record<keyof OperatingAgreementFacts, string> = {
@@ -126,6 +129,7 @@ export function ClientNeedDocumentReviewDialog({
   documents,
   allNeeds,
   catalog,
+  dealFacts,
   initialDocumentId,
   open,
   onOpenChange,
@@ -136,6 +140,8 @@ export function ClientNeedDocumentReviewDialog({
   documents: ReviewableDocument[];
   allNeeds: ChangeNeedCandidate[];
   catalog: DealCatalogItem[];
+  /** What the deal has on file, for checking a purchase agreement or payoff scan against. */
+  dealFacts: DealFileFacts;
   initialDocumentId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -187,6 +193,8 @@ export function ClientNeedDocumentReviewDialog({
   // Whichever document the last AI Review actually pulled facts from — for
   // an Operating Agreement need this is normally the only document anyway.
   const factsDoc = visibleDocuments.find((d) => d.aiExtractedFacts);
+  // Purchase agreement / payoff statement scan, from whichever document the AI read it off.
+  const scanDoc = visibleDocuments.find((d) => d.aiDocFacts);
 
   function selectDocument(id: string) {
     setCurrentId(id);
@@ -599,6 +607,16 @@ export function ClientNeedDocumentReviewDialog({
                       </div>
                     )}
                   </div>
+                )}
+
+                {scanDoc?.aiDocFacts && (
+                  <DocFactsCard
+                    dealId={dealId}
+                    documentId={scanDoc.id}
+                    facts={scanDoc.aiDocFacts}
+                    deal={dealFacts}
+                    onJump={(page) => jumpToFlag(scanDoc.id, page)}
+                  />
                 )}
 
                 {factsDoc && (

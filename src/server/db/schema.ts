@@ -1108,6 +1108,9 @@ export const deals = pgTable("deals", {
   rentalStrategy: rentalStrategyEnum("rental_strategy"),
   currentOccupancy: occupancyStatusEnum("current_occupancy"),
   estimatedClosingDate: timestamp("estimated_closing_date", { mode: "date" }),
+  // When the current mortgage payoff figure stops being good. Shown under Key Dates; filled by hand or from a
+  // reviewed AI scan of the payoff statement.
+  payoffExpirationDate: timestamp("payoff_expiration_date", { mode: "date" }),
   rural: boolean("rural"),
   maritalStatus: maritalStatusEnum("marital_status"),
   citizenship: citizenshipStatusEnum("citizenship"),
@@ -1348,6 +1351,14 @@ export const dealClientNeedDocuments = pgTable("deal_client_need_documents", {
     principalOffice: { value: string | null; page: number | null };
     signatureType: { value: string | null; page: number | null };
     unanimousConsentClause: { value: string | null; page: number | null };
+  }>(),
+  // What an AI scan read off a purchase agreement (price, closing date, buyer) or a mortgage payoff statement
+  // (total payoff, expiration date), each with its page. Staff review it before anything is copied onto the deal.
+  // Shape and rules live in src/lib/doc-facts.ts.
+  aiDocFacts: jsonb("ai_doc_facts").$type<{
+    kind: "purchase_contract" | "payoff_statement";
+    scannedAt: string;
+    fields: Record<string, { value: string | null; page: number | null }>;
   }>(),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });

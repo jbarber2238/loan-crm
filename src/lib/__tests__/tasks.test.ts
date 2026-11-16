@@ -12,6 +12,7 @@ import {
   updateAgeChip,
   updateAgeDays,
   withOutstandingSection,
+  withStandContext,
 } from "@/lib/tasks";
 
 describe("dueAtFrom", () => {
@@ -123,5 +124,32 @@ describe("update age", () => {
     expect(updateAgeChip(1).text).toBe("Posted yesterday");
     expect(updateAgeChip(3)).toEqual({ text: "3 days since update", tone: "warn" });
     expect(updateAgeChip(5).tone).toBe("bad");
+  });
+});
+
+describe("withStandContext", () => {
+  const lines = ["Appraisal: Scheduled (11/12/2026)", "Title: Not ordered"];
+  it("adds the block under Where we stand in a fresh draft", () => {
+    const out = withStandContext(EOD_TEMPLATE, lines);
+    expect(out.startsWith("WHERE WE STAND:\nKEY DATES AND STATUS:\n• Appraisal: Scheduled (11/12/2026)\n• Title: Not ordered\n")).toBe(true);
+    expect(out).toContain("ISSUES & HOW WE’RE RESOLVING:");
+  });
+  it("keeps what was already typed and doesn't double up when pulled again", () => {
+    const typed = "WHERE WE STAND:\nUnderwriting has the file.\n\n\nISSUES & HOW WE’RE RESOLVING:\nNone.\n";
+    const once = withStandContext(typed, lines);
+    expect(once).toContain("Underwriting has the file.");
+    const twice = withStandContext(once, ["Appraisal: Complete (11/14/2026)"]);
+    expect(twice.match(/KEY DATES AND STATUS:/g)).toHaveLength(1);
+    expect(twice).toContain("Appraisal: Complete (11/14/2026)");
+    expect(twice).not.toContain("Scheduled");
+    expect(twice).toContain("Underwriting has the file.");
+    expect(twice).toContain("None.");
+  });
+  it("still lands in the Where we stand section after an Outstanding section was added", () => {
+    const withOut = withOutstandingSection(EOD_TEMPLATE, ["W-9 (Awaiting docs)"]);
+    const out = withStandContext(withOut, lines);
+    const sections = parseUpdateSections(out)!;
+    expect(sections.find((s) => s.key === "stand")!.text).toContain("Appraisal: Scheduled");
+    expect(sections.find((s) => s.key === "outstanding")!.text).toContain("W-9");
   });
 });

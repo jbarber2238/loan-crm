@@ -2,6 +2,7 @@
 
 import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { db } from "@/server/db/client";
 import { dealClientNeeds, dealClientNeedDocuments } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
@@ -11,6 +12,8 @@ import { convertHeicIfNeeded } from "@/server/heic";
 import { addSingleCatalogNeedToDeal, addClientNeedToDeal } from "@/server/actions/client-needs";
 import { resolveStagedFiles } from "@/server/staged-uploads";
 import { BORROWER_MAX_FILE_BYTES, formatMb } from "@/lib/upload-limits";
+import { docFactKindForNeed } from "@/lib/doc-facts";
+import { autoScanAfterUpload } from "@/server/ai/key-document-facts";
 
 const MAX_FILE_SIZE = BORROWER_MAX_FILE_BYTES;
 
@@ -51,6 +54,8 @@ export async function attachDocumentToClientNeed(dealId: string, needId: string,
   }
 
   await recomputeNeedStatus(needId);
+  // A purchase agreement or payoff statement is scanned for its key facts right away, after the upload has finished.
+  if (need && docFactKindForNeed(need.itemName)) after(() => autoScanAfterUpload(dealId, needId));
   revalidatePath(`/deals/${dealId}/loan-center`);
 }
 

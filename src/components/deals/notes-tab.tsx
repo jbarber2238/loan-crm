@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { addDealNote, deleteDealNote, resolveDealNote } from "@/server/actions/deals";
-import { buildClientNeedsContextNote, getOutstandingClientNeedLines } from "@/server/actions/client-needs";
+import { buildClientNeedsContextNote, getOutstandingClientNeedLines, getStandContextLines } from "@/server/actions/client-needs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ActionForm } from "@/components/forms/action-form";
 import { SubmitButton } from "@/components/forms/submit-button";
 import { COMPOSE_UPDATE_EVENT, COMPOSE_UPDATE_KEY } from "@/lib/loan-center-events";
-import { EOD_TEMPLATE, hasOutstandingSection, withOutstandingSection } from "@/lib/tasks";
+import { EOD_TEMPLATE, hasOutstandingSection, withOutstandingSection, withStandContext } from "@/lib/tasks";
 
 interface Note {
   id: string;
@@ -105,7 +105,11 @@ export function NotesTab({ dealId, notes }: { dealId: string; notes: Note[] }) {
   function handlePullContext() {
     setPullingContext(true);
     const job = eod
-      ? getOutstandingClientNeedLines(dealId).then((lines) => setBody((current) => withOutstandingSection(current, lines)))
+      ? // Outstanding client needs go in their own section; appraisal, insurance, title and the key dates go under
+        // Where we stand.
+        Promise.all([getOutstandingClientNeedLines(dealId), getStandContextLines(dealId)]).then(([needLines, standLines]) =>
+          setBody((current) => withStandContext(withOutstandingSection(current, needLines), standLines)),
+        )
       : buildClientNeedsContextNote(dealId).then((text) => setBody(text));
     job
       .catch((err) => toast.error(err instanceof Error ? err.message : "Couldn't pull client need context."))

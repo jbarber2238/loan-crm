@@ -596,6 +596,7 @@ export async function updateDealDates(dealId: string, formData: FormData) {
       creditPullDate: dateOrNull("creditPullDate"),
       clearToCloseDate,
       closedDate,
+      payoffExpirationDate: dateOrNull("payoffExpirationDate"),
       driveLink: nullableStr(formData, "driveLink"),
       updatedAt: new Date(),
     })

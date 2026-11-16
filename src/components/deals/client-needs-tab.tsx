@@ -62,6 +62,7 @@ import { BulkDeleteClientNeedsDialog } from "@/components/deals/bulk-delete-clie
 import { ClientNeedReminderAuditDialog } from "@/components/deals/client-need-reminder-audit-dialog";
 import { MarkUnusedDialog } from "@/components/deals/mark-unused-dialog";
 import { EditRejectionReasonDialog } from "@/components/deals/edit-rejection-reason-dialog";
+import type { DealFileFacts } from "@/lib/doc-facts";
 import {
   ClientNeedDocumentReviewDialog,
   type ReviewableDocument,
@@ -719,6 +720,7 @@ function ClientNeedRow({
   need,
   allNeeds,
   catalog,
+  dealFacts,
   selected,
   onToggleSelected,
 }: {
@@ -726,6 +728,7 @@ function ClientNeedRow({
   need: ClientNeed;
   allNeeds: ClientNeed[];
   catalog: DealCatalogItem[];
+  dealFacts: DealFileFacts;
   selected: boolean;
   onToggleSelected: (checked: boolean) => void;
 }) {
@@ -956,6 +959,7 @@ function ClientNeedRow({
             description: n.description,
           }))}
           catalog={catalog}
+          dealFacts={dealFacts}
           initialDocumentId={reviewDocId}
           open={reviewOpen}
           onOpenChange={setReviewOpen}
@@ -1310,6 +1314,7 @@ export function ClientNeedsTab({
   reminderIntervalHours,
   hasAcceptedProduct,
   catalog,
+  dealFacts,
   entityDocOffer,
   entityDocAutoOpen,
   propertyLabel,
@@ -1324,6 +1329,8 @@ export function ClientNeedsTab({
   reminderIntervalHours: number;
   hasAcceptedProduct: boolean;
   catalog: DealCatalogItem[];
+  /** What the deal has on file, so a purchase agreement or payoff scan can be checked against it. */
+  dealFacts: DealFileFacts;
   /** Documents that can come over from an earlier deal for the same borrower; null when there's nothing to bring. */
   entityDocOffer: EntityDocOffer | null;
   /** Whether that offer opens by itself as a pop-up (as opposed to only from the menu). */
@@ -1482,6 +1489,7 @@ export function ClientNeedsTab({
               need={need}
               allNeeds={needs}
               catalog={catalog}
+              dealFacts={dealFacts}
               selected={selectedIds.has(need.id)}
               onToggleSelected={(checked) => toggleOne(need.id, checked)}
             />
@@ -1497,6 +1505,7 @@ export function ClientNeedsTab({
               need={need}
               allNeeds={needs}
               catalog={catalog}
+              dealFacts={dealFacts}
               selected={selectedIds.has(need.id)}
               onToggleSelected={(checked) => toggleOne(need.id, checked)}
             />

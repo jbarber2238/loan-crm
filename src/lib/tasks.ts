@@ -149,6 +149,7 @@ export function coverageActive(c: CoverageWindow, today: string): boolean {
 
 export const EOD_STAND = "WHERE WE STAND:";
 export const EOD_OUTSTANDING = "OUTSTANDING:";
+const STAND_CONTEXT_HEADING_TEXT = "KEY DATES AND STATUS:";
 export const EOD_ISSUES = "ISSUES & HOW WE’RE RESOLVING:";
 
 /** What "Start end-of-day update" fills in. Outstanding is added by Pull Client Need Context. */
@@ -179,6 +180,29 @@ export function withOutstandingSection(draft: string, lines: string[]): string {
   const issues = base.search(ISSUES_HEADING);
   if (issues >= 0) return `${base.slice(0, issues)}${block}\n${base.slice(issues)}`;
   return `${base.replace(/\s*$/, "")}\n\n${block}`;
+}
+
+const STAND_HEADING = /^WHERE WE STAND:[ \t]*$/im;
+const STAND_CONTEXT = /^KEY DATES AND STATUS:[ \t]*$/im;
+
+/**
+ * Puts the appraisal / insurance / title status and key dates (`lines`) right under "Where we stand", keeping whatever
+ * the processor already typed there. Pulling again replaces the earlier block instead of adding a second one.
+ */
+export function withStandContext(draft: string, lines: string[]): string {
+  let text = draft.trim() ? draft : EOD_TEMPLATE;
+  const old = text.search(STAND_CONTEXT);
+  if (old >= 0) {
+    const rest = text.slice(old);
+    const end = rest.search(/\n[ \t]*\n/);
+    text = text.slice(0, old) + (end >= 0 ? rest.slice(end).replace(/^\s*\n/, "") : "");
+  }
+  const block = `${STAND_CONTEXT_HEADING_TEXT}\n${lines.map((l) => `• ${l}`).join("\n")}\n`;
+  const m = STAND_HEADING.exec(text);
+  if (!m) return `${EOD_STAND}\n${block}\n${text.replace(/^\s+/, "")}`;
+  const at = m.index + m[0].length;
+  const after = text.slice(at).replace(/^\n+/, "");
+  return `${text.slice(0, at)}\n${block}\n${after}`.replace(/\n{4,}/g, "\n\n\n");
 }
 
 export interface UpdateSection {

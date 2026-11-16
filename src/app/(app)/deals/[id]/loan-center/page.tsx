@@ -59,6 +59,7 @@ export default async function DealLoanCenterPage({
             aiReviewFlags: true,
             aiReviewedAt: true,
             aiExtractedFacts: true,
+            aiDocFacts: true,
           },
           orderBy: (d, { asc }) => asc(d.createdAt),
         },
@@ -158,6 +159,14 @@ export default async function DealLoanCenterPage({
       creditPullDate={deal.creditPullDate}
       clearToCloseDate={deal.clearToCloseDate}
       closedDate={deal.closedDate}
+      payoffExpirationDate={deal.payoffExpirationDate}
+      dealFacts={{
+        purchasePrice: deal.purchasePrice ? Number(deal.purchasePrice) : null,
+        borrowerName: deal.borrowerName,
+        borrowerEntityName: deal.borrowerEntityName,
+        estimatedClosingDay: deal.estimatedClosingDate ? deal.estimatedClosingDate.toISOString().slice(0, 10) : null,
+        payoffExpirationDay: deal.payoffExpirationDate ? deal.payoffExpirationDate.toISOString().slice(0, 10) : null,
+      }}
       driveLink={deal.driveLink}
       titleCompanyAgentName={deal.titleCompanyAgentName}
       titleCompanyName={deal.titleCompanyName}

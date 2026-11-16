@@ -4,6 +4,7 @@ import { PAUSED_STAGES, TERMINAL_NEGATIVE_STAGES, hasReachedStage } from "@/lib/
 import { buildBorrowerKeyDates } from "@/lib/borrower-key-dates";
 import { and, eq, isNull, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { db } from "@/server/db/client";
 import { deals, dealClientNeeds, dealClientNeedDocuments, dealClientNeedAnswers, dealKeyDateEvents } from "@/server/db/schema";
 import { recomputeNeedStatus } from "@/server/client-need-status";
@@ -17,6 +18,8 @@ import { collectCustomFormAnswers, MAX_DRAFT_ANSWER_CHARS } from "@/lib/custom-n
 import { fail, type ActionError } from "@/lib/action-result";
 import { resolveStagedFiles } from "@/server/staged-uploads";
 import { BORROWER_MAX_FILE_BYTES, formatMb } from "@/lib/upload-limits";
+import { docFactKindForNeed } from "@/lib/doc-facts";
+import { autoScanAfterUpload } from "@/server/ai/key-document-facts";
 
 const MAX_FILE_SIZE = BORROWER_MAX_FILE_BYTES;
 
@@ -226,6 +229,9 @@ export async function uploadBorrowerDocument(token: string, needId: string, form
     await db.update(dealClientNeeds).set({ sentAt: new Date() }).where(eq(dealClientNeeds.id, needId));
   }
   await recomputeNeedStatus(needId);
+
+  // A purchase agreement or payoff statement is scanned for its key facts once the upload response has gone out.
+  if (docFactKindForNeed(need.itemName)) after(() => autoScanAfterUpload(deal.id, needId));
 
   // The upload itself already succeeded and is the important part — never
   // fail the borrower's request over a notification email hiccup.

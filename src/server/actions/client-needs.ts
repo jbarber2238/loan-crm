@@ -17,6 +17,8 @@ import { requireUser } from "@/server/auth/guards";
 import { fail } from "@/lib/action-result";
 import { createNotifications } from "@/server/notifications";
 import { normalizeClientNeedsNote } from "@/lib/client-needs-note";
+import { currentEventFor, type KeyDateEvent, type KeyDateItem } from "@/lib/key-date-tracker";
+import { standContextLines } from "@/lib/update-context";
 import { recomputeNeedStatus } from "@/server/client-need-status";
 import { copyQuestionsToNewNeeds } from "@/server/client-need-questions";
 import { createClientNeed } from "@/server/actions/client-need-catalog";
@@ -589,6 +591,57 @@ export async function getOutstandingClientNeedLines(dealId: string): Promise<str
     orderBy: (n, { asc }) => asc(n.sortOrder),
   });
   return needs.map((n) => `${n.itemName} (${n.onHoldAt ? "on hold" : (NEED_STATUS_LABEL[n.status] ?? n.status)})`);
+}
+
+/**
+ * Appraisal, insurance and title status plus the key dates, one line each, for the Where we stand part of an
+ * end-of-day update (the Pull Client Need Context button).
+ */
+export async function getStandContextLines(dealId: string): Promise<string[]> {
+  await requireUser();
+  const deal = await db.query.deals.findFirst({
+    where: eq(deals.id, dealId),
+    columns: {
+      estimatedClosingDate: true,
+      rateLocked: true,
+      rateLockExpiresAt: true,
+      payoffExpirationDate: true,
+      creditPullDate: true,
+      clearToCloseDate: true,
+      closedDate: true,
+      appraisalNotes: true,
+      insuranceNotes: true,
+      titleNotes: true,
+    },
+    with: { keyDateEvents: { with: { createdBy: { columns: { name: true } } } } },
+  });
+  if (!deal) throw new Error("Deal not found");
+
+  const events: KeyDateEvent[] = deal.keyDateEvents.map((e) => ({
+    id: e.id,
+    item: e.item,
+    status: e.status,
+    eventDate: e.eventDate,
+    createdAt: e.createdAt,
+    createdByName: e.createdBy?.name ?? null,
+  }));
+  const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+  const tracked = (item: KeyDateItem, notes: string | null) => {
+    const current = currentEventFor(item, events);
+    return { status: current?.status ?? null, day: day(current?.eventDate ?? null), notes };
+  };
+
+  return standContextLines({
+    appraisal: tracked("appraisal", deal.appraisalNotes),
+    insurance: tracked("insurance", deal.insuranceNotes),
+    title: tracked("title", deal.titleNotes),
+    estimatedClosingDay: day(deal.estimatedClosingDate),
+    rateLockExpiresDay: deal.rateLocked ? day(deal.rateLockExpiresAt) : null,
+    payoffExpirationDay: day(deal.payoffExpirationDate),
+    creditPullDay: day(deal.creditPullDate),
+    clearToCloseDay: day(deal.clearToCloseDate),
+    closedDay: day(deal.closedDate),
+  });
 }
 
 export async function buildClientNeedsContextNote(dealId: string): Promise<string> {

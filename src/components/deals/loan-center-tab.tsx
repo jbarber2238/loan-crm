@@ -15,6 +15,7 @@ import type { TaskRow } from "@/server/tasks";
 import { KeyDateTracker } from "@/components/deals/key-date-tracker";
 import type { DealFileRow } from "@/lib/deal-files";
 import { KeyDatesForm } from "@/components/deals/key-dates-form";
+import type { DealFileFacts } from "@/lib/doc-facts";
 import type { KeyDateEvent } from "@/lib/key-date-tracker";
 import type { DealCatalogItem } from "@/components/deals/add-client-need-to-deal-dialog";
 import { EmailLogTab } from "@/components/deals/email-log-tab";
@@ -71,6 +72,8 @@ export function LoanCenterTab({
   creditPullDate,
   clearToCloseDate,
   closedDate,
+  payoffExpirationDate,
+  dealFacts,
   driveLink,
   titleCompanyAgentName,
   titleCompanyName,
@@ -131,6 +134,9 @@ export function LoanCenterTab({
   creditPullDate: Date | null;
   clearToCloseDate: Date | null;
   closedDate: Date | null;
+  payoffExpirationDate: Date | null;
+  /** The deal's own values, for checking a purchase agreement or payoff scan against. */
+  dealFacts: DealFileFacts;
   driveLink: string | null;
   titleCompanyAgentName: string | null;
   titleCompanyName: string | null;
@@ -180,6 +186,7 @@ export function LoanCenterTab({
             dealId={dealId}
             needs={clientNeeds}
             catalog={clientNeedsCatalog}
+            dealFacts={dealFacts}
             loanCategoryProducts={loanCategoryProducts}
             allProducts={allProducts}
             currentProductId={currentProductId}
@@ -243,6 +250,7 @@ export function LoanCenterTab({
             creditPullDate={creditPullDate}
             clearToCloseDate={clearToCloseDate}
             closedDate={closedDate}
+            payoffExpirationDate={payoffExpirationDate}
             driveLink={driveLink}
           />
         </TabsContent>

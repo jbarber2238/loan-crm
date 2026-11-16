@@ -27,6 +27,7 @@ export function KeyDatesForm({
   creditPullDate,
   clearToCloseDate,
   closedDate,
+  payoffExpirationDate,
   driveLink,
 }: {
   dealId: string;
@@ -34,6 +35,7 @@ export function KeyDatesForm({
   creditPullDate: Date | null;
   clearToCloseDate: Date | null;
   closedDate: Date | null;
+  payoffExpirationDate: Date | null;
   driveLink: string | null;
 }) {
   const router = useRouter();
@@ -102,6 +104,11 @@ export function KeyDatesForm({
           <div className="space-y-1.5">
             <Label htmlFor="closedDate">Closed</Label>
             <Input id="closedDate" name="closedDate" type="date" defaultValue={savedClosed} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="payoffExpirationDate">Payoff expiration</Label>
+            <Input id="payoffExpirationDate" name="payoffExpirationDate" type="date" defaultValue={toDateInputValue(payoffExpirationDate)} />
+            <p className="text-xs text-muted-foreground">When the mortgage payoff figure stops being good.</p>
           </div>
           <div className="space-y-1.5 md:col-span-3">
             <Label htmlFor="driveLink">Google Drive link</Label>

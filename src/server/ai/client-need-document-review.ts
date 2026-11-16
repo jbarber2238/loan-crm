@@ -7,6 +7,7 @@ import { db } from "@/server/db/client";
 import { deals, dealClientNeeds, dealClientNeedDocuments } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import { detectImageMediaType } from "@/server/ai/image-media-type";
+import { scanKeyDocuments } from "@/server/ai/key-document-facts";
 
 const anthropic = process.env.ANTHROPIC_API_KEY
   ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -307,7 +308,11 @@ export async function reviewClientNeedDocuments(dealId: string, needId: string, 
   if (!documents.length) throw new Error("No documents to review");
 
   const dealContext = buildDealContextSummary(deal);
-  const result = await reviewNeed(documents, need, dealContext);
+  // A purchase agreement or payoff statement also gets its key facts read off (a separate, focused call).
+  const [result] = await Promise.all([
+    reviewNeed(documents, need, dealContext),
+    scanKeyDocuments(dealId, needId).catch((err) => console.error("Key-document scan failed:", err)),
+  ]);
 
   revalidatePath(`/deals/${dealId}/loan-center`);
 
@@ -340,7 +345,13 @@ export async function reviewAllClientNeedDocumentsForDeal(dealId: string) {
 
   const dealContext = buildDealContextSummary(deal);
   const results = await Promise.all(
-    reviewableNeeds.map((need) => reviewNeed(need.documents, need, dealContext))
+    reviewableNeeds.map(async (need) => {
+      const [result] = await Promise.all([
+        reviewNeed(need.documents, need, dealContext),
+        scanKeyDocuments(dealId, need.id).catch((err) => console.error("Key-document scan failed:", err)),
+      ]);
+      return result;
+    })
   );
 
   revalidatePath(`/deals/${dealId}/loan-center`);
