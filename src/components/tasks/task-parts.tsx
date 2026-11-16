@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TimePicker } from "@/components/tasks/time-picker";
 import { createTask, deleteTask, setTaskDone } from "@/server/actions/tasks";
 import { isActionError } from "@/lib/action-result";
 import { dueLabel } from "@/lib/tasks";
@@ -188,7 +189,7 @@ export function AddTaskForm({
           </select>
         )}
         <Input type="date" aria-label="Due date (optional)" value={date} onChange={(e) => { setDate(e.target.value); if (!e.target.value) setTime(""); }} className="w-auto" />
-        <Input type="time" aria-label="Due time (optional)" value={time} disabled={!date} onChange={(e) => setTime(e.target.value)} title={date ? "Optional. A pop-up reminder appears at this time." : "Pick a date first"} className="w-auto" />
+        <TimePicker value={time} disabled={!date} onChange={setTime} title={date ? "Optional. A pop-up reminder appears at this time." : "Pick a date first"} />
         <select aria-label="Assigned to" value={who} onChange={(e) => setWho(e.target.value)} className={SELECT_CLS}>
           {users.map((u) => (
             <option key={u.id} value={u.id}>
