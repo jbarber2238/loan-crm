@@ -213,7 +213,7 @@ export async function performEntityDocCarryOver(plan: CarryOverPlan, keys: strin
       nextSort += 1;
       const [created] = await db
         .insert(dealClientNeeds)
-        .values({ dealId, itemName: item.newNeed.itemName, description: item.newNeed.description, needType: "document_upload", minFiles: item.newNeed.minFiles, sortOrder: nextSort })
+        .values({ dealId, itemName: item.newNeed.itemName, description: item.newNeed.description, needType: "document_upload", isCustom: true, minFiles: item.newNeed.minFiles, sortOrder: nextSort })
         .returning({ id: dealClientNeeds.id });
       targetNeedId = created.id;
     }
