@@ -13,6 +13,7 @@ import { getDealFiles } from "@/server/data/deal-files";
 import { getCoverageInfo, listAssignableUsers, listVisibleTasks } from "@/server/tasks";
 import { todayEt } from "@/lib/tasks";
 import type { ClientNeed } from "@/components/deals/client-needs-tab";
+import { canEditDealNote } from "@/lib/note-permissions";
 
 export default async function DealLoanCenterPage({
   params,
@@ -154,7 +155,7 @@ export default async function DealLoanCenterPage({
       notes={deal.notes.map((n) => ({
         ...n,
         canDelete: n.authorUserId === user.id || user.isAdmin,
-        canEdit: n.source === "user" && n.authorUserId === user.id,
+        canEdit: canEditDealNote(n, user),
       }))}
       dealStage={deal.stage}
       creditPullDate={deal.creditPullDate}

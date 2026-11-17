@@ -20,6 +20,7 @@ import {
 } from "@/server/db/schema";
 import { requireUser, requireAdmin } from "@/server/auth/guards";
 import { formatAddress } from "@/lib/format";
+import { canEditDealNote } from "@/lib/note-permissions";
 import { autoAdvanceDealForwardTo } from "@/server/auto-stage-moves";
 import {
   PAUSED_STAGES,
@@ -914,16 +915,17 @@ export async function resolveDealNote(dealId: string, noteId: string) {
   revalidatePath(`/deals/${dealId}`);
 }
 
-// Only the person who wrote a note can edit it, and only a note a person wrote (AI and system notes have no author) —
-// not even an admin can reword someone else's note; admins can delete it instead. Enforced here, not just in the UI.
-// The original posting time is kept and the note is marked edited.
+// A note can be edited by the person who wrote it. Not even an admin can reword someone else's note (admins can delete
+// it instead). A note nobody wrote (no author: older notes, intake answers, system and AI notes) can be edited by an
+// admin, since there's no one else it belongs to. Enforced here, not just in the UI. The original posting time is kept
+// and the note is marked edited.
 export async function updateDealNote(dealId: string, noteId: string, body: string) {
   const user = await requireUser();
   const text = body.trim();
   if (!text) throw new Error("A note can't be empty. Delete it instead.");
   const note = await db.query.dealNotes.findFirst({ where: eq(dealNotes.id, noteId) });
   if (!note || note.dealId !== dealId) throw new Error("Note not found");
-  if (note.source !== "user" || note.authorUserId !== user.id) {
+  if (!canEditDealNote(note, user)) {
     throw new Error("You can only edit your own notes");
   }
   if (text === note.body) return;
