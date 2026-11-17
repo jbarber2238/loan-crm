@@ -1229,6 +1229,10 @@ export const dealClientNeeds = pgTable("deal_client_needs", {
     .references(() => deals.id, { onDelete: "cascade" }),
   itemName: text("item_name").notNull(),
   description: text("description"),
+  // True for a one-off need written for this deal (the Custom Need tab, or a catalog entry that was never made
+  // standard). Only these get the full edit form — type, link, questions, template file — because a standard need is
+  // meant to look the way the catalog defines it; a standard need only lets name and description be reworded.
+  isCustom: boolean("is_custom").notNull().default(false),
   status: dealClientNeedStatusEnum("status").notNull().default("not_sent"),
   // Copied from the catalog item at add-time (or set directly for a custom
   // need) — document_upload needs go through the document review pipeline

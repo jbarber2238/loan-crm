@@ -8,6 +8,7 @@ import {
   deals,
   dealClientNeeds,
   dealClientNeedDocuments,
+  dealClientNeedAnswers,
   productClientNeeds,
   categoryClientNeeds,
   products,
@@ -15,6 +16,8 @@ import {
 import { auth } from "@/server/auth";
 import { requireUser } from "@/server/auth/guards";
 import { fail } from "@/lib/action-result";
+import { getCustomFormDefinition } from "@/lib/custom-need-forms/registry";
+import { dealNeedTypeFrom, formNullable, formQuestionsFrom, formString, formTemplateFileFields } from "@/server/client-need-form-fields";
 import { createNotifications } from "@/server/notifications";
 import { normalizeClientNeedsNote } from "@/lib/client-needs-note";
 import { currentEventFor, type KeyDateEvent, type KeyDateItem } from "@/lib/key-date-tracker";
@@ -41,6 +44,8 @@ type CatalogNeedRow = {
   pandadocTemplateUuid: string | null;
   customFormKey: string | null;
   autoRule?: string | null;
+  // Catalog rows carry this; carried onto the deal need so custom ones get the full edit form.
+  isCustom?: boolean;
 };
 
 // Creates and sends the PandaDoc document for one need — called from
@@ -194,6 +199,7 @@ async function addCatalogNeedsToDeal(
         templateFileSize: n.templateFileSize,
         pandadocTemplateUuid: n.pandadocTemplateUuid,
         customFormKey: n.customFormKey,
+        isCustom: n.isCustom ?? false,
         requestedByUserId,
         sortOrder: maxSortOrder + i + 1,
       }))
@@ -430,6 +436,132 @@ export async function updateClientNeed(dealId: string, needId: string, formData:
     .where(and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)));
 
   revalidatePath(`/deals/${dealId}/loan-center`);
+}
+
+// The full edit for a CUSTOM need — everything the Custom Need tab offers when adding one: name, instructions, type, and
+// the per-type settings (link, PandaDoc template, built-in form, questions, downloadable file). Like the simple edit
+// above it changes only this deal's own copy, never the shared catalog, so the catalog-scope options (standard, applies
+// to loans, lender products, category) don't exist here.
+//
+// Changing the type is refused when it would throw away something real — documents already uploaded, answers the
+// borrower already gave, a PandaDoc document already created, or a built-in form already filled in — with a message
+// that says what to clear first.
+export async function updateCustomClientNeed(dealId: string, needId: string, formData: FormData) {
+  await requireUser();
+
+  const need = await db.query.dealClientNeeds.findFirst({
+    where: and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)),
+    with: { documents: { columns: { id: true } }, answers: { columns: { id: true, questionText: true, answerText: true } } },
+  });
+  if (!need) throw new Error("That client need no longer exists");
+  if (!need.isCustom) throw new Error("Only custom client needs can be edited this way");
+
+  const itemName = formString(formData, "itemName");
+  if (!itemName) throw new Error("Item name can't be empty");
+  const description = formNullable(formData, "description");
+  const needType = dealNeedTypeFrom(formData);
+  const typeChanged = needType !== need.needType;
+
+  // What the new type needs, and whether the change would orphan anything.
+  const linkUrl = needType === "link" ? formNullable(formData, "linkUrl") : null;
+  const pandadocTemplateUuid = needType === "pandadoc_form" ? formNullable(formData, "pandadocTemplateUuid") : null;
+  const customFormKey = needType === "custom_form" ? formNullable(formData, "customFormKey") : null;
+  if (needType === "link" && !linkUrl) throw new Error("Add the link the borrower should open");
+  if (needType === "pandadoc_form" && !pandadocTemplateUuid) throw new Error("Add the PandaDoc template UUID");
+  if (needType === "custom_form" && (!customFormKey || !getCustomFormDefinition(customFormKey))) {
+    throw new Error("Choose which form this is");
+  }
+
+  if (need.pandadocDocumentId && (typeChanged || pandadocTemplateUuid !== need.pandadocTemplateUuid)) {
+    throw new Error(
+      "A PandaDoc document was already created for this need, so its type and template can't change. Delete the need and add a new one instead."
+    );
+  }
+  const hasFormData = Boolean(
+    need.customFormSubmittedAt ||
+      (need.customFormData && Object.keys(need.customFormData).length) ||
+      (need.customFormDraft && Object.keys(need.customFormDraft).length)
+  );
+  if (hasFormData && (typeChanged || customFormKey !== need.customFormKey)) {
+    throw new Error(
+      "The borrower has already started or submitted this form, so its type can't change. Delete the need and add a new one instead."
+    );
+  }
+  if (needType !== "document_upload" && need.documents.length) {
+    throw new Error("Documents are already uploaded to this need. Move or delete them before changing its type.");
+  }
+  const questions = needType === "questionnaire" ? formQuestionsFrom(formData) : [];
+  if (needType === "questionnaire" && !questions.length) throw new Error("Add at least one question");
+  if (needType !== "questionnaire" && need.answers.some((a) => a.answerText && a.answerText.trim())) {
+    throw new Error("The borrower has already answered questions on this need. Delete it and add a new one to change its type.");
+  }
+
+  // Only a document-upload need can hold a downloadable file.
+  const fileFields = needType === "document_upload" ? await formTemplateFileFields(formData) : {};
+  const clearFile =
+    needType !== "document_upload"
+      ? { templateFileName: null, templateFileMimeType: null, templateFileData: null, templateFileSize: null }
+      : {};
+
+  await db
+    .update(dealClientNeeds)
+    .set({
+      itemName,
+      description,
+      needType,
+      linkUrl,
+      pandadocTemplateUuid,
+      // Cleared with the template only when the document was never created (checked above), so this can't drop a live link.
+      ...(pandadocTemplateUuid ? {} : { pandadocStatus: null }),
+      customFormKey,
+      ...clearFile,
+      ...fileFields,
+    })
+    .where(and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)));
+
+  await syncDealNeedQuestions(needId, need.answers, questions);
+
+  await recomputeNeedStatus(needId);
+  revalidatePath(`/deals/${dealId}/loan-center`);
+}
+
+// Brings a deal need's question rows in line with the edited list while keeping answers the borrower already gave:
+// a row is matched by its id, kept as-is when its wording is unchanged, and has its answer cleared when the wording
+// changed (it's a different question now). Rows no longer in the list are deleted; new questions are added.
+async function syncDealNeedQuestions(
+  needId: string,
+  existing: { id: string; questionText: string; answerText: string | null }[],
+  wanted: { id: string | null; questionText: string; required: boolean }[]
+) {
+  const existingById = new Map(existing.map((e) => [e.id, e]));
+  const keepIds = new Set<string>();
+
+  for (const [i, q] of wanted.entries()) {
+    const prior = q.id ? existingById.get(q.id) : undefined;
+    if (prior && !keepIds.has(prior.id)) {
+      keepIds.add(prior.id);
+      const reworded = prior.questionText !== q.questionText;
+      await db
+        .update(dealClientNeedAnswers)
+        .set({
+          questionText: q.questionText,
+          required: q.required,
+          sortOrder: i,
+          ...(reworded ? { answerText: null, answeredAt: null } : {}),
+        })
+        .where(eq(dealClientNeedAnswers.id, prior.id));
+    } else {
+      await db.insert(dealClientNeedAnswers).values({
+        clientNeedId: needId,
+        questionText: q.questionText,
+        required: q.required,
+        sortOrder: i,
+      });
+    }
+  }
+
+  const dropIds = existing.filter((e) => !keepIds.has(e.id)).map((e) => e.id);
+  if (dropIds.length) await db.delete(dealClientNeedAnswers).where(inArray(dealClientNeedAnswers.id, dropIds));
 }
 
 // Deleting a need deletes the documents uploaded against it, EXCEPT rejected

@@ -35,7 +35,10 @@ export interface ExistingClientNeed {
   isCustom: boolean;
   isGlobal: boolean;
   loanCategories: string[];
-  questions: { questionText: string; required: boolean }[];
+  // `id` is the deal-level answer row, set only when editing a need on a deal so a reworded question keeps its place.
+  questions: { id?: string; questionText: string; required: boolean }[];
+  // Where the attached file is served from — the catalog's route by default, a deal need's own when editing on a deal.
+  templateFileUrl?: string;
 }
 
 export function ClientNeedForm({
@@ -46,6 +49,7 @@ export function ClientNeedForm({
   submitLabel,
   pending,
   error,
+  scope = "catalog",
 }: {
   formId: string;
   clientNeed?: ExistingClientNeed;
@@ -54,8 +58,13 @@ export function ClientNeedForm({
   submitLabel: string;
   pending: boolean;
   error: string | null;
+  // "deal": editing one deal's own copy of a custom need. Everything about what the need IS stays (name, instructions,
+  // type and the per-type settings); the options that decide where the shared catalog uses it (standard, applies to
+  // loans / lender products, category) and the AI starter draft are left out, because a deal edit never touches the catalog.
+  scope?: "catalog" | "deal";
 }) {
   const isEdit = !!clientNeed;
+  const isDeal = scope === "deal";
 
   const [itemName, setItemName] = useState(clientNeed?.itemName ?? "");
   const [description, setDescription] = useState(clientNeed?.description ?? "");
@@ -64,16 +73,16 @@ export function ClientNeedForm({
   const [isGlobal, setIsGlobal] = useState(clientNeed?.isGlobal ?? false);
   const [loanCategories, setLoanCategories] = useState<string[]>(clientNeed?.loanCategories ?? []);
   const [productIds, setProductIds] = useState<string[]>([]);
-  const [productIdsLoading, setProductIdsLoading] = useState(isEdit);
+  const [productIdsLoading, setProductIdsLoading] = useState(isEdit && !isDeal);
   const [productSearch, setProductSearch] = useState("");
   const [needType, setNeedType] = useState<NeedType>(clientNeed?.needType ?? "document_upload");
   const [esignVendor, setEsignVendor] = useState(clientNeed?.esignVendor ?? "");
   const [linkUrl, setLinkUrl] = useState(clientNeed?.linkUrl ?? "");
   const [pandadocTemplateUuid, setPandadocTemplateUuid] = useState(clientNeed?.pandadocTemplateUuid ?? "");
   const [customFormKey, setCustomFormKey] = useState(clientNeed?.customFormKey ?? "");
-  const [questions, setQuestions] = useState<{ text: string; required: boolean }[]>(
+  const [questions, setQuestions] = useState<{ id?: string; text: string; required: boolean }[]>(
     clientNeed?.questions.length
-      ? clientNeed.questions.map((q) => ({ text: q.questionText, required: q.required }))
+      ? clientNeed.questions.map((q) => ({ id: q.id, text: q.questionText, required: q.required }))
       : [{ text: "", required: false }]
   );
   const [removeFile, setRemoveFile] = useState(false);
@@ -89,7 +98,7 @@ export function ClientNeedForm({
   // from the true, complete cross-lender attachment list and never
   // silently drops one this page's own data happened not to include.
   useEffect(() => {
-    if (!clientNeed) return;
+    if (!clientNeed || isDeal) return;
     let cancelled = false;
     getClientNeedProductIds(clientNeed.id).then((ids) => {
       if (!cancelled) {
@@ -130,7 +139,7 @@ export function ClientNeedForm({
 
   return (
     <div className="space-y-4">
-      {!isEdit && (
+      {!isEdit && !isDeal && (
         <div className="space-y-2 rounded-md border border-dashed p-3">
           <Label htmlFor={`${formId}-aiPrompt`} className="flex items-center gap-1.5 text-sm">
             <Sparkles className="size-3.5" />
@@ -176,6 +185,8 @@ export function ClientNeedForm({
           />
         </div>
 
+        {!isDeal && (
+          <>
         <label className="flex items-start gap-2 rounded-md border p-3 text-sm">
           <Checkbox
             name="isStandard"
@@ -286,6 +297,10 @@ export function ClientNeedForm({
           )}
         </div>
 
+          </>
+        )}
+
+        {!isDeal && (
         <div className="space-y-1.5">
           <Label htmlFor={`${formId}-category`}>Category</Label>
           <Select name="category" value={category} onValueChange={setCategory}>
@@ -301,6 +316,7 @@ export function ClientNeedForm({
             </SelectContent>
           </Select>
         </div>
+        )}
 
         <div className="space-y-1.5">
           <Label htmlFor={`${formId}-needType`}>Type</Label>
@@ -328,7 +344,7 @@ export function ClientNeedForm({
             {isEdit && clientNeed?.templateFileName && !removeFile && (
               <div className="flex items-center justify-between rounded-md border px-2.5 py-1.5 text-sm">
                 <a
-                  href={`/api/client-needs/${clientNeed.id}/file`}
+                  href={clientNeed.templateFileUrl ?? `/api/client-needs/${clientNeed.id}/file`}
                   target="_blank"
                   rel="noreferrer"
                   className="hover:underline"
@@ -345,7 +361,7 @@ export function ClientNeedForm({
           </div>
         )}
 
-        {needType === "esign" && (
+        {needType === "esign" && !isDeal && (
           <div className="space-y-1.5">
             <Label htmlFor={`${formId}-esignVendor`}>E-sign vendor (optional)</Label>
             <Input
@@ -437,6 +453,7 @@ export function ClientNeedForm({
                   placeholder={`Question ${i + 1}`}
                 />
                 <input type="hidden" name="questionRequired" value={q.required ? "1" : "0"} />
+                <input type="hidden" name="questionId" value={q.id ?? ""} />
                 <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
                   <Checkbox
                     checked={q.required}

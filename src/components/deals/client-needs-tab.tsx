@@ -9,6 +9,7 @@ import {
   markNonDocumentNeedAccepted,
   reopenNonDocumentNeed,
   updateClientNeed,
+  updateCustomClientNeed,
   deleteClientNeedFromDeal,
   autoGenerateClientNeedsForProduct,
   putClientNeedOnHold,
@@ -54,6 +55,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ClientNeedForm } from "@/components/client-needs/client-need-form";
 import { CopyClientNeedsButton } from "@/components/deals/copy-client-needs-button";
 import { EntityDocCarryOverDialog } from "@/components/deals/entity-doc-carryover-dialog";
 import type { EntityDocOffer } from "@/lib/entity-doc-carryover";
@@ -80,12 +82,15 @@ export interface ClientNeedAnswer {
   id: string;
   questionText: string;
   answerText: string | null;
+  required: boolean;
 }
 
 export interface ClientNeed {
   id: string;
   itemName: string;
   description: string | null;
+  // A one-off need written for this deal — these get the full edit form (type, link, questions, file), not just name + description.
+  isCustom: boolean;
   // "unused" is a valid DB value but deliberately excluded from this type —
   // the query feeding this component filters those needs out entirely (see
   // loan-center/page.tsx), so a ClientNeed here never actually has it.
@@ -104,6 +109,7 @@ export interface ClientNeed {
   linkUrl: string | null;
   templateFileName: string | null;
   pandadocDocumentId: string | null;
+  pandadocTemplateUuid: string | null;
   customFormKey: string | null;
   customFormData: Record<string, string> | null;
   documents: ReviewableDocument[];
@@ -504,13 +510,11 @@ function EditNeedDialog({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  function save(formData: FormData) {
     setError(null);
-    const formData = new FormData(e.currentTarget);
     startTransition(async () => {
       try {
-        await updateClientNeed(dealId, need.id, formData);
+        await (need.isCustom ? updateCustomClientNeed : updateClientNeed)(dealId, need.id, formData);
         onOpenChange(false);
         toast.success("Need saved");
         router.refresh();
@@ -520,6 +524,50 @@ function EditNeedDialog({
         toast.error(message);
       }
     });
+  }
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    save(new FormData(e.currentTarget));
+  }
+
+  // A custom need gets everything the Custom Need tab offered when it was added; a standard need only has its wording
+  // edited, since it's meant to match the catalog.
+  if (need.isCustom) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit client need</DialogTitle>
+          </DialogHeader>
+          <ClientNeedForm
+            scope="deal"
+            formId={`deal-need-${need.id}`}
+            clientNeed={{
+              id: need.id,
+              itemName: need.itemName,
+              description: need.description,
+              category: null,
+              needType: need.needType,
+              esignVendor: null,
+              linkUrl: need.linkUrl,
+              pandadocTemplateUuid: need.pandadocTemplateUuid,
+              customFormKey: need.customFormKey,
+              templateFileName: need.templateFileName,
+              templateFileUrl: `/api/deal-client-needs/${need.id}/template-file`,
+              isCustom: true,
+              isGlobal: false,
+              loanCategories: [],
+              questions: need.answers.map((a) => ({ id: a.id, questionText: a.questionText, required: a.required })),
+            }}
+            onSubmit={save}
+            submitLabel="Save changes"
+            pending={pending}
+            error={error}
+          />
+        </DialogContent>
+      </Dialog>
+    );
   }
 
   return (

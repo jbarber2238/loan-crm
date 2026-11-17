@@ -199,6 +199,7 @@ export async function cloneNewConstructionDeal(originalDealId: string, formData:
         dealId: clone.id,
         itemName: need.itemName,
         description: need.description,
+        isCustom: need.isCustom,
         needType: need.needType,
         minFiles: need.minFiles,
         linkUrl: need.linkUrl,

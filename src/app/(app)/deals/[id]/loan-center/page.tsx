@@ -64,7 +64,7 @@ export default async function DealLoanCenterPage({
           orderBy: (d, { asc }) => asc(d.createdAt),
         },
         answers: {
-          columns: { id: true, questionText: true, answerText: true },
+          columns: { id: true, questionText: true, answerText: true, required: true },
           orderBy: (a, { asc }) => asc(a.sortOrder),
         },
       },
