@@ -914,6 +914,26 @@ export async function resolveDealNote(dealId: string, noteId: string) {
   revalidatePath(`/deals/${dealId}`);
 }
 
+// Only the person who wrote a note can edit it, and only a note a person wrote (AI and system notes have no author) —
+// not even an admin can reword someone else's note; admins can delete it instead. Enforced here, not just in the UI.
+// The original posting time is kept and the note is marked edited.
+export async function updateDealNote(dealId: string, noteId: string, body: string) {
+  const user = await requireUser();
+  const text = body.trim();
+  if (!text) throw new Error("A note can't be empty. Delete it instead.");
+  const note = await db.query.dealNotes.findFirst({ where: eq(dealNotes.id, noteId) });
+  if (!note || note.dealId !== dealId) throw new Error("Note not found");
+  if (note.source !== "user" || note.authorUserId !== user.id) {
+    throw new Error("You can only edit your own notes");
+  }
+  if (text === note.body) return;
+
+  await db.update(dealNotes).set({ body: text, editedAt: new Date() }).where(eq(dealNotes.id, noteId));
+  // The Latest update banner lives in the deal layout.
+  revalidatePath(`/deals/${dealId}`, note.isUpdate ? "layout" : "page");
+  revalidatePath(`/deals/${dealId}/loan-center`);
+}
+
 // Only the note's own author or an admin can delete it — enforced here, not
 // just hidden in the UI, since the delete button's visibility is only ever
 // a convenience, never the actual guard.

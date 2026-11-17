@@ -44,6 +44,8 @@ interface Note {
   createdAt: Date;
   author?: { name: string | null } | null;
   canDelete: boolean;
+  canEdit: boolean;
+  editedAt?: Date | null;
 }
 
 export function LoanCenterTab({

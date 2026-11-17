@@ -1544,6 +1544,8 @@ export const dealNotes = pgTable("deal_notes", {
   // "Latest update" shown under the deal header; regular, AI and system notes never are.
   isUpdate: boolean("is_update").notNull().default(false),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  // Set when the author rewrites the note after posting; created_at stays the original posting time.
+  editedAt: timestamp("edited_at", { mode: "date" }),
 });
 
 // Internal staff tasks on a deal. Assigned to one person (default: whoever made it). Staff only ever see their own,

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { addDealNote, deleteDealNote, resolveDealNote } from "@/server/actions/deals";
+import { addDealNote, deleteDealNote, resolveDealNote, updateDealNote } from "@/server/actions/deals";
 import { buildClientNeedsContextNote, getOutstandingClientNeedLines, getStandContextLines } from "@/server/actions/client-needs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,6 +23,40 @@ interface Note {
   createdAt: Date;
   author?: { name: string | null } | null;
   canDelete: boolean;
+  canEdit: boolean;
+  editedAt?: Date | null;
+}
+
+// A posted note, reworded in place by its author.
+function NoteEditor({ dealId, note, onDone }: { dealId: string; note: Note; onDone: () => void }) {
+  const [text, setText] = useState(note.body);
+  const [saving, startSaving] = useTransition();
+
+  function save() {
+    startSaving(async () => {
+      try {
+        await updateDealNote(dealId, note.id, text);
+        toast.success("Note updated");
+        onDone();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't save that. Try again.");
+      }
+    });
+  }
+
+  return (
+    <div className="space-y-2">
+      <Textarea rows={Math.min(14, Math.max(4, text.split("\n").length + 1))} value={text} onChange={(e) => setText(e.target.value)} autoFocus />
+      <div className="flex gap-2">
+        <Button type="button" size="sm" disabled={saving || !text.trim()} onClick={save}>
+          {saving ? "Saving…" : "Save"}
+        </Button>
+        <Button type="button" size="sm" variant="ghost" disabled={saving} onClick={onDone}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 export function NotesTab({ dealId, notes }: { dealId: string; notes: Note[] }) {
@@ -36,6 +70,7 @@ export function NotesTab({ dealId, notes }: { dealId: string; notes: Note[] }) {
   const [pullingContext, setPullingContext] = useState(false);
   const [posting, startPosting] = useTransition();
   const [outstandingPrompt, setOutstandingPrompt] = useState<string[] | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const eod = mode === "eod";
 
@@ -203,6 +238,7 @@ export function NotesTab({ dealId, notes }: { dealId: string; notes: Note[] }) {
                     {note.isUpdate && <Badge variant="default">End-of-day update</Badge>}
                     {note.id === latestUpdateId && <Badge variant="success">Shown under the header</Badge>}
                     <span>{note.createdAt.toLocaleString()}</span>
+                    {note.editedAt && <span title={note.editedAt.toLocaleString()}>(edited)</span>}
                   </div>
                   <div className="flex items-center gap-2">
                     {note.source === "ai" && !note.resolved && (
@@ -214,6 +250,11 @@ export function NotesTab({ dealId, notes }: { dealId: string; notes: Note[] }) {
                     )}
                     {note.source === "ai" && note.resolved && (
                       <span className="text-[10px]">Dismissed</span>
+                    )}
+                    {note.canEdit && editingId !== note.id && (
+                      <Button type="button" size="sm" variant="ghost" onClick={() => setEditingId(note.id)}>
+                        Edit
+                      </Button>
                     )}
                     {note.canDelete && (
                       <ActionForm
@@ -228,7 +269,11 @@ export function NotesTab({ dealId, notes }: { dealId: string; notes: Note[] }) {
                     )}
                   </div>
                 </div>
-                <p className="text-sm whitespace-pre-wrap">{note.body}</p>
+                {editingId === note.id ? (
+                  <NoteEditor dealId={dealId} note={note} onDone={() => setEditingId(null)} />
+                ) : (
+                  <p className="text-sm whitespace-pre-wrap">{note.body}</p>
+                )}
               </CardContent>
             </Card>
           );

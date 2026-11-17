@@ -154,6 +154,7 @@ export default async function DealLoanCenterPage({
       notes={deal.notes.map((n) => ({
         ...n,
         canDelete: n.authorUserId === user.id || user.isAdmin,
+        canEdit: n.source === "user" && n.authorUserId === user.id,
       }))}
       dealStage={deal.stage}
       creditPullDate={deal.creditPullDate}
