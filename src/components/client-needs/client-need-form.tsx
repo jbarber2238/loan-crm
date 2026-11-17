@@ -325,7 +325,8 @@ export function ClientNeedForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {CLIENT_NEED_TYPES.map((t) => (
+              {/* E-Sign is retired as a choice (signing goes through PandaDoc); it only shows for an existing need that already uses it. */}
+              {CLIENT_NEED_TYPES.filter((t) => t.value !== "esign" || clientNeed?.needType === "esign").map((t) => (
                 <SelectItem key={t.value} value={t.value}>
                   {t.label}
                 </SelectItem>
