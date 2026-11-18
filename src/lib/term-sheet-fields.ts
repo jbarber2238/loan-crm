@@ -249,16 +249,24 @@ export function lenderChargesUpfrontFee(lenderName: string | null | undefined): 
   return /\bYAE\b/i.test(lenderName ?? "");
 }
 
-const LENDER_UPFRONT_FEE_FIELD: TermSheetField = {
-  key: "lenderUpfrontFee",
-  label: "Lender Up-Front Fee",
-  type: "currency",
-  helperText: "The lender's own fee, charged before they'll do the loan. Shown under Paid Prior to Closing and counted in the cash due.",
-};
+const LENDER_UPFRONT_FEE_FIELDS: TermSheetField[] = [
+  {
+    key: "lenderUpfrontFee",
+    label: "Lender Up-Front Fee",
+    type: "currency",
+    helperText: "The lender's own fee, charged before they'll do the loan. Shown under Paid Prior to Closing and counted in the cash due.",
+  },
+  {
+    key: "lenderUpfrontFeeDescription",
+    label: "Up-Front Fee Description",
+    type: "text",
+    helperText: "What the fee is for. Printed on the term sheet next to the fee.",
+  },
+];
 
 export function termSheetFieldsFor(category: string, lenderName?: string | null): TermSheetField[] {
   const fields: TermSheetField[] = [...baseFields(category), ...feesFields(category)];
-  if (lenderChargesUpfrontFee(lenderName)) fields.push(LENDER_UPFRONT_FEE_FIELD);
+  if (lenderChargesUpfrontFee(lenderName)) fields.push(...LENDER_UPFRONT_FEE_FIELDS);
 
   if (HARD_MONEY_DRAW_CATEGORIES.has(category)) {
     fields.push(...hardMoneyDrawFields(category));

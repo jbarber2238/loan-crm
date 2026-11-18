@@ -225,6 +225,7 @@ export function TermSheetPdf({
   const creditPullFee = estimatedFeeFrom(fields.creditPullFee, STANDARD_CREDIT_PULL_ESTIMATE);
   const processingFee = STANDARD_PROCESSING_FEE;
   const lenderUpfrontFee = num(fields, "lenderUpfrontFee");
+  const lenderUpfrontFeeNote = typeof fields.lenderUpfrontFeeDescription === "string" ? fields.lenderUpfrontFeeDescription.trim() : "";
 
   const isBridge = loanCategory.startsWith("bridge_");
   const reservesRule = reservesRuleFor(loanCategory);
@@ -438,7 +439,7 @@ export function TermSheetPdf({
               <Row label="Processing Fee (non-refundable)" value={money(processingFee)} />
               <Row label="Appraisal (Estimated)" value={money(appraisalFee)} />
               <Row label="Credit Pull (Estimated)" value={money(creditPullFee)} />
-              {lenderUpfrontFee > 0 && <Row label="Lender Fee (paid up front)" value={money(lenderUpfrontFee)} />}
+              {lenderUpfrontFee > 0 && <Row label={lenderUpfrontFeeNote ? `Lender Fee: ${lenderUpfrontFeeNote}` : "Lender Fee (paid up front)"} value={money(lenderUpfrontFee)} />}
               <TotalRow label="Subtotal — Paid Prior to Closing" value={money(paidPriorTotal)} />
             </View>
 
