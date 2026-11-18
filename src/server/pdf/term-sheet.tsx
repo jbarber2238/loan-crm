@@ -225,6 +225,7 @@ export function TermSheetPdf({
   const creditPullFee = estimatedFeeFrom(fields.creditPullFee, STANDARD_CREDIT_PULL_ESTIMATE);
   const processingFee = STANDARD_PROCESSING_FEE;
   const lenderUpfrontFee = num(fields, "lenderUpfrontFee");
+  const monthlyServicingFee = num(fields, "monthlyServicingFee");
   const lenderUpfrontFeeNote = typeof fields.lenderUpfrontFeeDescription === "string" ? fields.lenderUpfrontFeeDescription.trim() : "";
 
   const isBridge = loanCategory.startsWith("bridge_");
@@ -430,6 +431,36 @@ export function TermSheetPdf({
                     value={monthlyInterestOnly !== null ? money(monthlyInterestOnly) : "—"}
                     compact
                   />
+                </>
+              )}
+              {/* A lender-specific monthly servicing fee (YAE Solutions) is added on top of the interest payment. */}
+              {monthlyServicingFee > 0 && (isHardMoneyDraw || isBridge) && (
+                <>
+                  <Row label="Monthly Servicing Fee" value={money(monthlyServicingFee)} compact />
+                  {isHardMoneyDraw && interestType === "Non-Dutch" ? (
+                    <>
+                      <Row
+                        label="Total Initial Monthly Payment"
+                        value={money(calculateInitialMonthlyInterest(num(fields, "initialAdvance"), rate) + monthlyServicingFee)}
+                        compact
+                      />
+                      <Row
+                        label="Total Max Monthly Payment"
+                        value={money(calculateDutchMonthlyInterest(loanAmount, rate) + monthlyServicingFee)}
+                        compact
+                      />
+                    </>
+                  ) : (
+                    <Row
+                      label="Total Monthly Payment"
+                      value={
+                        (isBridge ? monthlyInterestOnly : calculateDutchMonthlyInterest(loanAmount, rate)) !== null
+                          ? money((isBridge ? (monthlyInterestOnly ?? 0) : calculateDutchMonthlyInterest(loanAmount, rate)) + monthlyServicingFee)
+                          : "—"
+                      }
+                      compact
+                    />
+                  )}
                 </>
               )}
             </View>

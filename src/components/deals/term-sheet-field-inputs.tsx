@@ -37,7 +37,7 @@ const LENDER_PRODUCT_KEYS = [
 const ADDITIONAL_TERM_KEYS = ["creditPullType", "creditPullFee", "appraisalFee", "prepaymentPenalty"];
 const BROKER_FEE_KEYS = ["originationPoints", "originationFee", "rateBuydownPoints"];
 const LOAN_NUMBER_KEYS = ["loanAmount", "initialAdvance", "approvedRehabCost", "interestReserve", "reservesMonths", "reservesRequired", "approvedArv", "netProceedsCap"];
-const LENDER_FEE_KEYS = ["lenderOriginationPoints", "underwritingDocFee", "lenderUpfrontFee", "lenderUpfrontFeeDescription", "drawFee"];
+const LENDER_FEE_KEYS = ["lenderOriginationPoints", "underwritingDocFee", "lenderUpfrontFee", "lenderUpfrontFeeDescription", "drawFee", "monthlyServicingFee"];
 
 function pickInOrder(fields: TermSheetField[], keys: string[]): TermSheetField[] {
   const byKey = new Map(fields.map((f) => [f.key, f] as const));

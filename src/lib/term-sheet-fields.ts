@@ -262,6 +262,13 @@ const LENDER_UPFRONT_FEE_FIELDS: TermSheetField[] = [
     type: "text",
     helperText: "What the fee is for. Printed on the term sheet next to the fee.",
   },
+  {
+    key: "monthlyServicingFee",
+    label: "Monthly Servicing Fee",
+    type: "currency",
+    defaultValue: "25",
+    helperText: "Charged on top of the monthly payment. Shown on the term sheet under the monthly interest payment, with the total payment including it.",
+  },
 ];
 
 export function termSheetFieldsFor(category: string, lenderName?: string | null): TermSheetField[] {

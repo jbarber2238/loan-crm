@@ -12,7 +12,7 @@ describe("lender up-front fee", () => {
 
   it("adds the field to the term sheet form for that lender and nobody else", () => {
     const keys = (name?: string) => termSheetFieldsFor("dscr_purchase", name).map((f) => f.key);
-    expect(keys("YAE Solutions LLC")).toEqual(expect.arrayContaining(["lenderUpfrontFee", "lenderUpfrontFeeDescription"]));
+    expect(keys("YAE Solutions LLC")).toEqual(expect.arrayContaining(["lenderUpfrontFee", "lenderUpfrontFeeDescription", "monthlyServicingFee"]));
     expect(keys("Visio Financial")).not.toContain("lenderUpfrontFee");
     expect(keys()).not.toContain("lenderUpfrontFee");
   });
