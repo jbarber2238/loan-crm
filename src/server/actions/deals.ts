@@ -425,13 +425,13 @@ export async function updateAcceptedTerms(dealId: string, formData: FormData) {
 
   const deal = await db.query.deals.findFirst({
     where: eq(deals.id, dealId),
-    with: { termSheets: true },
+    with: { termSheets: { with: { lender: { columns: { name: true } } } } },
   });
   if (!deal) throw new Error("Deal not found");
 
   const acceptedTermSheet = deal.termSheets.find((t) => t.status === "accepted");
   const isHardMoneyDraw = HARD_MONEY_DRAW_CATEGORIES.has(deal.loanCategory);
-  const termFields = extractTermSheetFields(formData, deal.loanCategory, false);
+  const termFields = extractTermSheetFields(formData, deal.loanCategory, false, acceptedTermSheet?.lender.name);
 
   const loanAmount = typeof termFields.loanAmount === "number" ? termFields.loanAmount : null;
   const rehabCost = typeof termFields.approvedRehabCost === "number" ? termFields.approvedRehabCost : null;

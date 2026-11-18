@@ -342,6 +342,7 @@ export function calculateEstimatedCashToClose({
   appraisalFee = STANDARD_APPRAISAL_ESTIMATE,
   creditPullFee = STANDARD_CREDIT_PULL_ESTIMATE,
   processingFee = STANDARD_PROCESSING_FEE,
+  lenderUpfrontFee = 0,
   netProceedsCap = null,
   propertyAlreadyOwned = false,
 }: {
@@ -355,13 +356,15 @@ export function calculateEstimatedCashToClose({
   appraisalFee?: number;
   creditPullFee?: number;
   processingFee?: number;
+  // A lender's own fee charged before they'll do the loan (e.g. YAE Solutions); paid up front like the others.
+  lenderUpfrontFee?: number;
   // A rate & term lender's cap on net proceeds: the term sheet holds the net
   // at the cap when the estimate runs over (the loan shrinks at closing), so
   // the cash-to-close here does too.
   netProceedsCap?: number | null;
   propertyAlreadyOwned?: boolean;
 }): number {
-  const paidPrior = appraisalFee + creditPullFee + processingFee;
+  const paidPrior = appraisalFee + creditPullFee + processingFee + lenderUpfrontFee;
 
   if (REFINANCE_CATEGORIES.has(loanCategory) || isOwnedPropertyDrawLoan(loanCategory, propertyAlreadyOwned)) {
     // A refinance has no purchase happening, so purchasePrice (the

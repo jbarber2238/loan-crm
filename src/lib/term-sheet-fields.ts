@@ -243,8 +243,22 @@ export const ADMIN_ONLY_FIELDS: TermSheetField[] = [
   { key: "yieldSpreadNotes", label: "Yield Spread / Comp Notes", type: "textarea", adminOnly: true },
 ];
 
-export function termSheetFieldsFor(category: string): TermSheetField[] {
+// A few lenders charge their own fee up front, before they'll start the loan. It's collected with the other
+// "paid prior to closing" items, so it only appears on a term sheet for those lenders.
+export function lenderChargesUpfrontFee(lenderName: string | null | undefined): boolean {
+  return /\bYAE\b/i.test(lenderName ?? "");
+}
+
+const LENDER_UPFRONT_FEE_FIELD: TermSheetField = {
+  key: "lenderUpfrontFee",
+  label: "Lender Up-Front Fee",
+  type: "currency",
+  helperText: "The lender's own fee, charged before they'll do the loan. Shown under Paid Prior to Closing and counted in the cash due.",
+};
+
+export function termSheetFieldsFor(category: string, lenderName?: string | null): TermSheetField[] {
   const fields: TermSheetField[] = [...baseFields(category), ...feesFields(category)];
+  if (lenderChargesUpfrontFee(lenderName)) fields.push(LENDER_UPFRONT_FEE_FIELD);
 
   if (HARD_MONEY_DRAW_CATEGORIES.has(category)) {
     fields.push(...hardMoneyDrawFields(category));
@@ -270,9 +284,10 @@ export function termSheetFieldsFor(category: string): TermSheetField[] {
 export function extractTermSheetFields(
   formData: FormData,
   category: string,
-  isAdmin: boolean
+  isAdmin: boolean,
+  lenderName?: string | null
 ): Record<string, unknown> {
-  const fieldDefs = [...termSheetFieldsFor(category), ...(isAdmin ? ADMIN_ONLY_FIELDS : [])];
+  const fieldDefs = [...termSheetFieldsFor(category, lenderName), ...(isAdmin ? ADMIN_ONLY_FIELDS : [])];
   const fields: Record<string, unknown> = {};
   for (const field of fieldDefs) {
     const value = formData.get(field.key);

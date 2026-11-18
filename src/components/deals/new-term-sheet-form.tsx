@@ -51,7 +51,7 @@ export function NewTermSheetForm({
   const product = products.find((p) => p.id === productId);
 
   const fields = useMemo(
-    () => (product ? termSheetFieldsFor(product.category) : []),
+    () => (product ? termSheetFieldsFor(product.category, product.lenderName) : []),
     [product]
   );
 

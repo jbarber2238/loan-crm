@@ -29,6 +29,7 @@ function money(n: number): string {
 export function EditAcceptedTermsDialog({
   dealId,
   loanCategory,
+  lenderName,
   termSheetFields,
   hasAcceptedTermSheet,
   purchasePrice,
@@ -54,6 +55,7 @@ export function EditAcceptedTermsDialog({
 }: {
   dealId: string;
   loanCategory: string;
+  lenderName?: string | null;
   // The accepted term sheet's own fields — the starting point for every
   // field this dialog shares with the term sheet form. Deal-level
   // approved*/final* overrides (below) win when set, since those reflect
@@ -180,7 +182,7 @@ export function EditAcceptedTermsDialog({
   // since those reflect what's actually true now (post-appraisal,
   // post-credit-pull) — falling back to the term sheet's own fields for
   // anything never overridden.
-  const fieldDefs = termSheetFieldsFor(loanCategory);
+  const fieldDefs = termSheetFieldsFor(loanCategory, lenderName);
   const values: Record<string, unknown> = {
     ...termSheetFields,
     ...(approvedLoanAmount !== null ? { loanAmount: approvedLoanAmount } : {}),

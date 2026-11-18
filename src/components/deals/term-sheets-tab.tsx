@@ -407,7 +407,7 @@ function TermSheetCard({
   const updateFields = updateTermSheetFields.bind(null, dealId, termSheet.id);
   const clone = cloneTermSheet.bind(null, dealId, termSheet.id);
   const deleteThisTermSheet = deleteTermSheet.bind(null, dealId, termSheet.id);
-  const fieldDefs = [...termSheetFieldsFor(termSheet.product.category), ...(isAdmin ? ADMIN_ONLY_FIELDS : [])];
+  const fieldDefs = [...termSheetFieldsFor(termSheet.product.category, termSheet.lender.name), ...(isAdmin ? ADMIN_ONLY_FIELDS : [])];
   const display = termSheetDisplayStatus(termSheet);
   const summary = termSheetSummary(termSheet.product.category, termSheet.fields, purchasePrice, estimatedAsIsValue);
   // Only meaningful while the sheet is still a live option: once signed (or

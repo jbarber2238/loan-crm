@@ -224,6 +224,7 @@ export function TermSheetPdf({
   const appraisalFee = estimatedFeeFrom(fields.appraisalFee, STANDARD_APPRAISAL_ESTIMATE);
   const creditPullFee = estimatedFeeFrom(fields.creditPullFee, STANDARD_CREDIT_PULL_ESTIMATE);
   const processingFee = STANDARD_PROCESSING_FEE;
+  const lenderUpfrontFee = num(fields, "lenderUpfrontFee");
 
   const isBridge = loanCategory.startsWith("bridge_");
   const reservesRule = reservesRuleFor(loanCategory);
@@ -281,7 +282,7 @@ export function TermSheetPdf({
       })
     : null;
   const ltvAtCap = loanAtCap !== null && estimatedAsIsValue ? (loanAtCap / estimatedAsIsValue) * 100 : null;
-  const paidPriorTotal = appraisalFee + creditPullFee + processingFee;
+  const paidPriorTotal = appraisalFee + creditPullFee + processingFee + lenderUpfrontFee;
   // Net position across the whole deal: for a purchase this is always the
   // full amount due (closing costs + pre-paid fees, both cash out of
   // pocket); for a refinance, proceeds received at closing offset the fees
@@ -437,6 +438,7 @@ export function TermSheetPdf({
               <Row label="Processing Fee (non-refundable)" value={money(processingFee)} />
               <Row label="Appraisal (Estimated)" value={money(appraisalFee)} />
               <Row label="Credit Pull (Estimated)" value={money(creditPullFee)} />
+              {lenderUpfrontFee > 0 && <Row label="Lender Fee (paid up front)" value={money(lenderUpfrontFee)} />}
               <TotalRow label="Subtotal — Paid Prior to Closing" value={money(paidPriorTotal)} />
             </View>
 

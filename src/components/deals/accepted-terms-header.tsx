@@ -218,6 +218,8 @@ export function AcceptedTermsHeader({
   // sheet" is used in the edit dialog.
   const underwritingDocFeeValue = acceptedTermSheetFields?.underwritingDocFee;
   const underwritingDocFeeNum = typeof underwritingDocFeeValue === "number" ? underwritingDocFeeValue : 0;
+  const lenderUpfrontFeeValue = acceptedTermSheetFields?.lenderUpfrontFee;
+  const lenderUpfrontFee = typeof lenderUpfrontFeeValue === "number" ? lenderUpfrontFeeValue : 0;
   const netProceedsCapValue = acceptedTermSheetFields?.netProceedsCap;
   const netProceedsCap = typeof netProceedsCapValue === "number" ? netProceedsCapValue : null;
   const closingDisbursement = isHardMoneyDraw && initialAdvanceNum > 0 ? initialAdvanceNum : loanAmountNum;
@@ -232,6 +234,7 @@ export function AcceptedTermsHeader({
     appraisalFee: estimatedFeeFrom(acceptedTermSheetFields?.appraisalFee, STANDARD_APPRAISAL_ESTIMATE),
     creditPullFee: estimatedFeeFrom(acceptedTermSheetFields?.creditPullFee, STANDARD_CREDIT_PULL_ESTIMATE),
     processingFee,
+    lenderUpfrontFee,
     netProceedsCap,
     propertyAlreadyOwned,
   });
@@ -326,6 +329,7 @@ export function AcceptedTermsHeader({
         <EditAcceptedTermsDialog
           dealId={dealId}
           loanCategory={loanCategory}
+          lenderName={lenderName}
           termSheetFields={acceptedTermSheetFields ?? {}}
           hasAcceptedTermSheet={acceptedTermSheetFields !== null}
           purchasePrice={purchasePrice ? Number(purchasePrice) : null}

@@ -35,7 +35,7 @@ export async function createTermSheet(dealId: string, formData: FormData) {
   if (typeof productId !== "string" || !productId) throw new Error("A product is required");
 
   const [product, deal] = await Promise.all([
-    db.query.products.findFirst({ where: eq(products.id, productId) }),
+    db.query.products.findFirst({ where: eq(products.id, productId), with: { lender: { columns: { name: true } } } }),
     db.query.deals.findFirst({ where: eq(deals.id, dealId), columns: { loanCategory: true } }),
   ]);
   if (!product) throw new Error("Product not found");
@@ -46,7 +46,7 @@ export async function createTermSheet(dealId: string, formData: FormData) {
     );
   }
 
-  const fields = extractTermSheetFields(formData, product.category, user.isAdmin);
+  const fields = extractTermSheetFields(formData, product.category, user.isAdmin, product.lender.name);
 
   const [termSheet] = await db
     .insert(termSheets)
@@ -92,7 +92,7 @@ export async function cloneTermSheet(dealId: string, termSheetId: string, formDa
   const requestedProductId = formData?.get("productId");
   if (typeof requestedProductId === "string" && requestedProductId && requestedProductId !== source.productId) {
     const [product, deal] = await Promise.all([
-      db.query.products.findFirst({ where: eq(products.id, requestedProductId) }),
+      db.query.products.findFirst({ where: eq(products.id, requestedProductId), with: { lender: { columns: { name: true } } } }),
       db.query.deals.findFirst({ where: eq(deals.id, dealId), columns: { loanCategory: true } }),
     ]);
     if (!product) throw new Error("Product not found");
@@ -105,7 +105,7 @@ export async function cloneTermSheet(dealId: string, termSheetId: string, formDa
     lenderId = product.lenderId;
     productId = product.id;
     if (product.category !== source.product.category) {
-      const keep = new Set([...termSheetFieldsFor(product.category), ...ADMIN_ONLY_FIELDS].map((f) => f.key));
+      const keep = new Set([...termSheetFieldsFor(product.category, product.lender.name), ...ADMIN_ONLY_FIELDS].map((f) => f.key));
       fields = Object.fromEntries(Object.entries(source.fields).filter(([key]) => keep.has(key)));
     }
   }
@@ -159,11 +159,11 @@ export async function updateTermSheetFields(
 
   const termSheet = await db.query.termSheets.findFirst({
     where: eq(termSheets.id, termSheetId),
-    with: { product: true },
+    with: { product: true, lender: { columns: { name: true } } },
   });
   if (!termSheet) throw new Error("Term sheet not found");
 
-  const fields = extractTermSheetFields(formData, termSheet.product.category, user.isAdmin);
+  const fields = extractTermSheetFields(formData, termSheet.product.category, user.isAdmin, termSheet.lender.name);
 
   await db.update(termSheets).set({ fields }).where(eq(termSheets.id, termSheetId));
 
