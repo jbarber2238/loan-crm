@@ -6,6 +6,7 @@ import { ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NoteText } from "@/components/deals/note-text";
+import { notePlainText } from "@/lib/note-format";
 import { COMPOSE_UPDATE_EVENT, COMPOSE_UPDATE_KEY, LOAN_CENTER_GOTO_EVENT } from "@/lib/loan-center-events";
 import { BANNER_REOPEN_MS, parseUpdateSections, updateAgeChip, updateAgeDays, type AgeTone } from "@/lib/tasks";
 import type { LatestUpdate } from "@/server/tasks";
@@ -108,7 +109,7 @@ export function LatestUpdateBanner({ dealId, userId, update }: { dealId: string;
 
   const age = now === null ? null : updateAgeDays(new Date(update.createdAt), new Date(now));
   const chip = age === null ? null : updateAgeChip(age);
-  const firstLine = (sections ? sections[0].text : update.body).split("\n").find((l) => l.trim()) ?? "";
+  const firstLine = notePlainText((sections ? sections[0].text : update.body).split("\n").find((l) => l.trim()) ?? "");
   const fresh = expanded && opened === "auto";
 
   return (
