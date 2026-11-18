@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { NoteText } from "@/components/deals/note-text";
 import { COMPOSE_UPDATE_EVENT, COMPOSE_UPDATE_KEY, LOAN_CENTER_GOTO_EVENT } from "@/lib/loan-center-events";
 import { BANNER_REOPEN_MS, parseUpdateSections, updateAgeChip, updateAgeDays, type AgeTone } from "@/lib/tasks";
 import type { LatestUpdate } from "@/server/tasks";
@@ -138,12 +139,12 @@ export function LatestUpdateBanner({ dealId, userId, update }: { dealId: string;
               {sections.map((s) => (
                 <div key={s.key}>
                   <h4 className="mb-0.5 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">{s.label}</h4>
-                  <p className="text-sm whitespace-pre-wrap">{s.text || "—"}</p>
+                  {s.text ? <NoteText body={s.text} /> : <p className="text-sm">—</p>}
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-sm whitespace-pre-wrap">{update.body}</p>
+            <NoteText body={update.body} />
           )}
 
           {age !== null && age >= 2 && (

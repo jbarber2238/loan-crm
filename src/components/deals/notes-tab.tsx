@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import { addDealNote, deleteDealNote, resolveDealNote, updateDealNote } from "@/server/actions/deals";
 import { buildClientNeedsContextNote, getOutstandingClientNeedLines, getStandContextLines } from "@/server/actions/client-needs";
 import { Card, CardContent } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
+import { RichNoteField } from "@/components/deals/rich-note-field";
+import { NoteText } from "@/components/deals/note-text";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -46,7 +47,7 @@ function NoteEditor({ dealId, note, onDone }: { dealId: string; note: Note; onDo
 
   return (
     <div className="space-y-2">
-      <Textarea rows={Math.min(14, Math.max(4, text.split("\n").length + 1))} value={text} onChange={(e) => setText(e.target.value)} autoFocus />
+      <RichNoteField rows={Math.min(14, Math.max(4, text.split("\n").length + 1))} value={text} onChange={setText} autoFocus />
       <div className="flex gap-2">
         <Button type="button" size="sm" disabled={saving || !text.trim()} onClick={save}>
           {saving ? "Saving…" : "Save"}
@@ -156,12 +157,12 @@ export function NotesTab({ dealId, notes }: { dealId: string; notes: Note[] }) {
       <Card data-hi>
         <CardContent className="space-y-3 pt-6">
           {eod && <p className="text-sm font-semibold">End-of-day update</p>}
-          <Textarea
-            ref={bodyRef}
+          <RichNoteField
+            textareaRef={bodyRef}
             rows={eod ? 10 : 5}
             placeholder={eod ? "Where we stand, and the issues we're working through…" : "Add a note..."}
             value={body}
-            onChange={(e) => setBody(e.target.value)}
+            onChange={setBody}
           />
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" disabled={posting} onClick={handlePost}>
@@ -272,7 +273,7 @@ export function NotesTab({ dealId, notes }: { dealId: string; notes: Note[] }) {
                 {editingId === note.id ? (
                   <NoteEditor dealId={dealId} note={note} onDone={() => setEditingId(null)} />
                 ) : (
-                  <p className="text-sm whitespace-pre-wrap">{note.body}</p>
+                  <NoteText body={note.body} />
                 )}
               </CardContent>
             </Card>
