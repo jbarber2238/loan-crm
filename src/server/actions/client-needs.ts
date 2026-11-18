@@ -459,11 +459,27 @@ export async function updateClientNeed(dealId: string, needId: string, formData:
     throw new Error("Item name can't be empty");
   }
 
+  const need = await db.query.dealClientNeeds.findFirst({
+    where: and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)),
+    columns: { needType: true },
+  });
+  if (!need) throw new Error("Client need not found");
+
+  // The one other thing a standard need can be edited for: where a link need sends the borrower (every lender has its own).
+  let linkUrl: string | undefined;
+  if (need.needType === "link") {
+    const raw = formData.get("linkUrl");
+    const trimmed = typeof raw === "string" ? raw.trim() : "";
+    if (!/^https?:\/\/\S+$/i.test(trimmed)) throw new Error("Add the link the borrower should open (it has to start with https://)");
+    linkUrl = trimmed;
+  }
+
   await db
     .update(dealClientNeeds)
     .set({
       itemName: itemName.trim(),
       description: typeof description === "string" && description.trim() ? description.trim() : null,
+      ...(linkUrl ? { linkUrl } : {}),
     })
     .where(and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)));
 

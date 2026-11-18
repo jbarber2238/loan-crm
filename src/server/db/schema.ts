@@ -1364,6 +1364,9 @@ export const dealClientNeedDocuments = pgTable("deal_client_need_documents", {
     scannedAt: string;
     fields: Record<string, { value: string | null; page: number | null }>;
   }>(),
+  // Set when one document was marked unused: it moves into a hidden holding need on the deal, and this remembers the
+  // need it came out of so "Put back" can return it. The need's own status is never touched by this.
+  unusedFromNeedId: uuid("unused_from_need_id").references(() => dealClientNeeds.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 

@@ -77,6 +77,7 @@ import { stageLargeFiles } from "@/lib/stage-large-files";
 import { batchFiles, describeSkipped, expandZipFiles } from "@/lib/zip-uploads";
 import { BORROWER_MAX_FILE_BYTES, formatMb, readableUploadError } from "@/lib/upload-limits";
 import { stageUploadChunk } from "@/server/actions/staged-upload";
+import { formatUploadedAt } from "@/lib/format-upload-time";
 
 export interface ClientNeedAnswer {
   id: string;
@@ -373,7 +374,10 @@ function DocumentRow({
       onClick={onClick}
       className="flex w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-sm hover:bg-muted/50"
     >
-      <span className="min-w-0 truncate">{document.fileName}</span>
+      <span className="min-w-0">
+        <span className="block truncate">{document.fileName}</span>
+        <span className="block text-[11px] text-muted-foreground">Uploaded {formatUploadedAt(document.createdAt)}</span>
+      </span>
       {document.reviewStatus === "approved" && <Badge variant="success">Approved</Badge>}
       {document.reviewStatus === "pending" && <Badge variant="warning">Review needed</Badge>}
     </button>
@@ -531,8 +535,8 @@ function EditNeedDialog({
     save(new FormData(e.currentTarget));
   }
 
-  // A custom need gets everything the Custom Need tab offered when it was added; a standard need only has its wording
-  // edited, since it's meant to match the catalog.
+  // A custom need gets everything the Custom Need tab offered when it was added; a standard need has only its wording (and,
+  // for a link need, the link) edited, since it's meant to match the catalog.
   if (need.isCustom) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -585,6 +589,13 @@ function EditNeedDialog({
             <Label htmlFor={`edit-desc-${need.id}`}>Description</Label>
             <Textarea id={`edit-desc-${need.id}`} name="description" rows={3} defaultValue={need.description ?? ""} />
           </div>
+          {need.needType === "link" && (
+            <div className="space-y-1.5">
+              <Label htmlFor={`edit-link-${need.id}`}>Link URL</Label>
+              <Input id={`edit-link-${need.id}`} name="linkUrl" type="url" required defaultValue={need.linkUrl ?? ""} placeholder="https://…" />
+              <p className="text-xs text-muted-foreground">Only this deal&apos;s link changes. The standard need keeps its own.</p>
+            </div>
+          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" className="w-full" disabled={pending}>
             {pending ? "Saving…" : "Save"}

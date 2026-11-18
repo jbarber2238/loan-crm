@@ -10,6 +10,7 @@ import {
   acceptClientNeed,
   renameClientNeedDocument,
   setRejectionNoteArchived,
+  markClientNeedDocumentUnused,
 } from "@/server/actions/client-need-documents";
 import { ChangeNeedDialog, type ChangeNeedCandidate } from "@/components/deals/change-need-dialog";
 import { EditRejectionReasonDialog } from "@/components/deals/edit-rejection-reason-dialog";
@@ -37,12 +38,15 @@ import { documentViewUrl } from "@/lib/spreadsheet-preview";
 import { useIsPhone } from "@/lib/use-is-phone";
 import { PhoneDocumentViewer } from "@/components/deals/phone-document-viewer";
 import { DocFactsCard } from "@/components/deals/doc-facts-card";
+import { formatUploadedAt } from "@/lib/format-upload-time";
 import type { DealFileFacts, DocFacts } from "@/lib/doc-facts";
 
 export interface ReviewableDocument {
   id: string;
   fileName: string;
   mimeType: string;
+  /** When the file was uploaded. */
+  createdAt: Date;
   reviewStatus: "pending" | "approved" | "rejected";
   rejectionNote: string | null;
   // Set when staff archived the reason: kept for the audit list, left out of borrower emails.
@@ -278,6 +282,13 @@ export function ClientNeedDocumentReviewDialog({
     });
   }
 
+  function markUnused(documentId: string) {
+    run(async () => {
+      await markClientNeedDocumentUnused(dealId, documentId);
+      toast.success("Marked unused. It's under Unused on the Documents tab; the borrower wasn't notified.");
+    });
+  }
+
   function archiveReason(documentId: string, archived: boolean) {
     run(async () => {
       await setRejectionNoteArchived(dealId, needId, documentId, archived);
@@ -456,7 +467,10 @@ export function ClientNeedDocumentReviewDialog({
                     </div>
                   ) : (
                     <div className="flex items-start justify-between gap-1">
-                      <p className="text-sm font-medium break-words">{current.fileName}</p>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium break-words">{current.fileName}</p>
+                        <p className="text-[11px] text-muted-foreground">Uploaded {formatUploadedAt(current.createdAt)}</p>
+                      </div>
                       <div className="flex shrink-0 items-center gap-1">
                         <button
                           type="button"
@@ -514,6 +528,18 @@ export function ClientNeedDocumentReviewDialog({
                   >
                     Disapprove
                   </Button>
+                  {current.reviewStatus !== "rejected" && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() => markUnused(current.id)}
+                      title="Files it under Unused on the Documents tab without rejecting it or telling the borrower"
+                    >
+                      Unused
+                    </Button>
+                  )}
                 </div>
 
                 {disapprovingDocId === current.id && (

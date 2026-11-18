@@ -3,20 +3,105 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Download, FileText, Undo2, Pencil, Check, X, ArrowRightLeft, Plus } from "lucide-react";
+import { AlertTriangle, Download, EyeOff, FileText, Undo2, Pencil, Check, X, ArrowRightLeft, Plus, Trash2 } from "lucide-react";
 import { CollapsibleSection } from "@/components/email-templates/collapsible-section";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { restoreRejectedDocuments, renameClientNeedDocument } from "@/server/actions/client-need-documents";
+import {
+  restoreRejectedDocuments,
+  renameClientNeedDocument,
+  markClientNeedDocumentUnused,
+  restoreUnusedDocuments,
+  deleteClientNeedDocument,
+} from "@/server/actions/client-need-documents";
 import { restoreClientNeeds } from "@/server/actions/client-needs";
 import type { DealDocumentRow } from "@/server/actions/client-need-documents";
 import { ChangeNeedDialog, type ChangeNeedCandidate } from "@/components/deals/change-need-dialog";
 import { DealFileEntry, DealFileUploadForm, formatStamp } from "@/components/deals/deal-file-parts";
 import { downloadZip } from "@/lib/download-zip";
+import { formatUploadedAt } from "@/lib/format-upload-time";
 import { DEAL_FILE_CATEGORY_LABELS, type DealFileRow } from "@/lib/deal-files";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import type { DealCatalogItem } from "@/components/deals/add-client-need-to-deal-dialog";
+
+const DELETE_WORD = "delete";
+
+/** Permanent delete of one uploaded document. The button stays off until "delete" is typed. */
+function DeleteDocumentDialog({ dealId, row, onClose }: { dealId: string; row: DealDocumentRow; onClose: () => void }) {
+  const router = useRouter();
+  const [typed, setTyped] = useState("");
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const ready = typed.trim().toLowerCase() === DELETE_WORD;
+
+  function confirm() {
+    if (!ready) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        await deleteClientNeedDocument(dealId, row.clientNeedId, row.id);
+        toast.success("Document deleted");
+        onClose();
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Couldn't delete this document");
+      }
+    });
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Delete this document?</DialogTitle>
+          <DialogDescription>
+            This permanently removes the file from the deal. It can&apos;t be undone. If it just doesn&apos;t belong in this need, use Mark unused or Change need instead.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-2.5 text-sm">
+          <FileText className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0">
+            <p className="break-words font-medium">{row.fileName}</p>
+            <p className="text-xs text-muted-foreground">
+              {row.cameFrom ?? row.itemName} · uploaded {formatUploadedAt(row.createdAt)}
+            </p>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <label htmlFor="delete-doc-confirm" className="text-sm">
+            Type <span className="font-mono font-semibold">{DELETE_WORD}</span> to confirm
+          </label>
+          <Input
+            id="delete-doc-confirm"
+            autoFocus
+            autoComplete="off"
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") confirm();
+            }}
+          />
+        </div>
+        {error && (
+          <p className="flex items-center gap-1.5 text-sm text-destructive">
+            <AlertTriangle className="size-4" />
+            {error}
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="button" variant="destructive" disabled={!ready || pending} onClick={confirm}>
+            <Trash2 className="size-3.5" />
+            {pending ? "Deleting…" : "Delete document"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function DocumentSection({
   dealId,
@@ -25,6 +110,7 @@ function DocumentSection({
   propertyLabel,
   showReason,
   restore,
+  canMarkUnused = false,
   needs,
   catalog,
 }: {
@@ -36,10 +122,14 @@ function DocumentSection({
   // "documents": put selected rejected documents back under review.
   // "needs": put the client needs the selected documents belong to back on the list.
   restore: "documents" | "needs" | null;
+  // Offers "Mark unused" per document (only where the document is still in use).
+  canMarkUnused?: boolean;
   needs: ChangeNeedCandidate[];
   catalog: DealCatalogItem[];
 }) {
   const router = useRouter();
+  const [deleting, setDeleting] = useState<DealDocumentRow | null>(null);
+  const [unusedPending, startUnused] = useTransition();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [downloading, setDownloading] = useState(false);
   const [restoring, startRestore] = useTransition();
@@ -92,15 +182,39 @@ function DocumentSection({
     }
   }
 
+  function markUnused(row: DealDocumentRow) {
+    startUnused(async () => {
+      try {
+        await markClientNeedDocumentUnused(dealId, row.id);
+        toast.success("Marked unused. It's under Unused below; the client need and the borrower weren't touched.");
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't mark this document unused");
+      }
+    });
+  }
+
   function handleRestore() {
     const ids = [...selected];
     if (!ids.length) return;
     startRestore(async () => {
       try {
         if (restore === "needs") {
-          const needIds = [...new Set(rows.filter((r) => selected.has(r.id)).map((r) => r.clientNeedId))];
-          const count = await restoreClientNeeds(dealId, needIds);
-          toast.success(`Restored ${count} client need${count === 1 ? "" : "s"} to the Client Needs list`);
+          const chosen = rows.filter((r) => selected.has(r.id));
+          // One document marked unused goes back on its own need; a whole need marked unused comes back as that need.
+          const docIds = chosen.filter((r) => r.unusedFromNeedId).map((r) => r.id);
+          const needIds = [...new Set(chosen.filter((r) => !r.unusedFromNeedId).map((r) => r.clientNeedId))];
+          const messages: string[] = [];
+          if (docIds.length) {
+            const { restored, skipped } = await restoreUnusedDocuments(dealId, docIds);
+            if (restored) messages.push(`Put ${restored} document${restored === 1 ? "" : "s"} back on ${restored === 1 ? "its" : "their"} client need`);
+            if (skipped) toast.error(`${skipped} document${skipped === 1 ? "" : "s"} couldn't go back because the original need was removed. Use Change need to file ${skipped === 1 ? "it" : "them"}.`);
+          }
+          if (needIds.length) {
+            const count = await restoreClientNeeds(dealId, needIds);
+            messages.push(`Restored ${count} client need${count === 1 ? "" : "s"} to the Client Needs list`);
+          }
+          if (messages.length) toast.success(messages.join(". "));
         } else {
           await restoreRejectedDocuments(dealId, ids);
           toast.success(`Restored ${ids.length} document${ids.length === 1 ? "" : "s"} for review`);
@@ -139,7 +253,7 @@ function DocumentSection({
                   onClick={handleRestore}
                   title={
                     restore === "needs"
-                      ? "Puts the client need(s) these documents belong to back on the Client Needs list"
+                      ? "Puts each document back on the client need it came out of (or restores the whole need, if the entire need was marked unused)"
                       : "Puts the selected document(s) back under review on their original client need"
                   }
                 >
@@ -147,7 +261,7 @@ function DocumentSection({
                   {restoring
                     ? "Restoring…"
                     : restore === "needs"
-                      ? `Restore need (${selected.size})`
+                      ? `Put back (${selected.size})`
                       : `Restore selection (${selected.size})`}
                 </Button>
               )}
@@ -181,8 +295,9 @@ function DocumentSection({
                   <th className="w-10 px-3 py-2" />
                   <th className="px-3 py-2">Document Name</th>
                   <th className="px-3 py-2">Client Need Name</th>
+                  <th className="px-3 py-2">Uploaded</th>
                   {showReason && <th className="px-3 py-2">Reason for Rejection</th>}
-                  <th className="w-16 px-3 py-2" />
+                  <th className="w-28 px-3 py-2" />
                 </tr>
               </thead>
               <tbody>
@@ -229,7 +344,8 @@ function DocumentSection({
                         </a>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-muted-foreground">{r.itemName}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{r.cameFrom ?? r.itemName}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{formatUploadedAt(r.createdAt)}</td>
                     {showReason && (
                       <td className="px-3 py-2 text-muted-foreground">
                         {r.rejectionNote ?? "—"}
@@ -250,6 +366,17 @@ function DocumentSection({
                         >
                           <Pencil className="size-3.5" />
                         </button>
+                        {canMarkUnused && (
+                          <button
+                            type="button"
+                            disabled={unusedPending}
+                            onClick={() => markUnused(r)}
+                            className="text-muted-foreground hover:text-foreground disabled:opacity-50"
+                            title="Mark unused: moves it to Unused without rejecting it or telling the borrower"
+                          >
+                            <EyeOff className="size-3.5" />
+                          </button>
+                        )}
                         <ChangeNeedDialog
                           dealId={dealId}
                           documentId={r.id}
@@ -263,6 +390,14 @@ function DocumentSection({
                             </button>
                           }
                         />
+                        <button
+                          type="button"
+                          onClick={() => setDeleting(r)}
+                          className="text-muted-foreground hover:text-destructive"
+                          title="Delete document"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -272,6 +407,7 @@ function DocumentSection({
           </div>
         </div>
       )}
+      {deleting && <DeleteDocumentDialog dealId={dealId} row={deleting} onClose={() => setDeleting(null)} />}
     </CollapsibleSection>
   );
 }
@@ -460,6 +596,7 @@ export function DocumentsTab({
         propertyLabel={propertyLabel}
         showReason={false}
         restore={null}
+        canMarkUnused
         needs={needs}
         catalog={catalog}
       />

@@ -257,12 +257,108 @@ export async function renameClientNeedDocument(
   revalidatePath(`/deals/${dealId}/loan-center`);
 }
 
+/**
+ * Permanently deletes one uploaded document from the deal. The Documents tab asks for a typed "delete" first.
+ * Checked against the deal so a stale or edited id can never remove a file from another loan.
+ */
 export async function deleteClientNeedDocument(dealId: string, needId: string, documentId: string) {
   await requireUser();
+  const doc = await db.query.dealClientNeedDocuments.findFirst({
+    where: eq(dealClientNeedDocuments.id, documentId),
+    columns: { id: true, clientNeedId: true },
+    with: { clientNeed: { columns: { dealId: true } } },
+  });
+  if (!doc || doc.clientNeed.dealId !== dealId || doc.clientNeedId !== needId) throw new Error("Document not found on this deal");
   await db.delete(dealClientNeedDocuments).where(eq(dealClientNeedDocuments.id, documentId));
   await recomputeNeedStatus(needId);
   await removeNeedIfHiddenAndEmpty(needId);
   revalidatePath(`/deals/${dealId}/loan-center`);
+}
+
+// The hidden need that holds individually unused documents (status "unused", so every list and count already ignores
+// it). Created the first time a document is marked unused and removed again once its last document leaves.
+const UNUSED_HOLDING_NEED_NAME = "Unused documents";
+
+async function getOrCreateUnusedHoldingNeed(dealId: string): Promise<string> {
+  const existing = await db.query.dealClientNeeds.findFirst({
+    where: and(eq(dealClientNeeds.dealId, dealId), eq(dealClientNeeds.status, "unused"), eq(dealClientNeeds.itemName, UNUSED_HOLDING_NEED_NAME), eq(dealClientNeeds.isCustom, true)),
+    columns: { id: true },
+  });
+  if (existing) return existing.id;
+  const [created] = await db
+    .insert(dealClientNeeds)
+    .values({ dealId, itemName: UNUSED_HOLDING_NEED_NAME, needType: "document_upload", isCustom: true, status: "unused", sortOrder: 0 })
+    .returning({ id: dealClientNeeds.id });
+  return created.id;
+}
+
+/**
+ * Marks one document unused: it leaves its client need and shows under Unused on the Documents tab (for a file that
+ * went into the wrong need, or one nobody needs). The need's accepted state is left alone and the borrower is told
+ * nothing. Unlike a rejection, nothing is sent and no reason is asked for. A need showing "Review Needed" keeps
+ * showing it as long as other documents remain in it.
+ */
+export async function markClientNeedDocumentUnused(dealId: string, documentId: string) {
+  await requireUser();
+  const doc = await db.query.dealClientNeedDocuments.findFirst({
+    where: eq(dealClientNeedDocuments.id, documentId),
+    columns: { id: true, clientNeedId: true, reviewStatus: true },
+    with: { clientNeed: { columns: { dealId: true, status: true } } },
+  });
+  if (!doc || doc.clientNeed.dealId !== dealId) throw new Error("Document not found on this deal");
+  if (doc.clientNeed.status === "unused") throw new Error("This document is already unused");
+  if (doc.reviewStatus === "rejected") throw new Error("Rejected documents already sit under Rejected. Restore it first, or delete it.");
+
+  const sourceNeedId = doc.clientNeedId;
+  const holdingId = await getOrCreateUnusedHoldingNeed(dealId);
+  await db
+    .update(dealClientNeedDocuments)
+    .set({ clientNeedId: holdingId, unusedFromNeedId: sourceNeedId })
+    .where(eq(dealClientNeedDocuments.id, documentId));
+  // A need that was showing Review Needed keeps showing it while other documents are still in it. Only a need left
+  // with no documents (or one not in review) has its status worked out again.
+  const stillHasDocuments = await db.query.dealClientNeedDocuments.findFirst({
+    where: eq(dealClientNeedDocuments.clientNeedId, sourceNeedId),
+    columns: { id: true },
+  });
+  if (!(doc.clientNeed.status === "review_needed" && stillHasDocuments)) await recomputeNeedStatus(sourceNeedId);
+  revalidatePath(`/deals/${dealId}/loan-center`);
+}
+
+/** Puts documents marked unused back on the client need they came out of. Skips (and counts) any whose need is gone. */
+export async function restoreUnusedDocuments(dealId: string, documentIds: string[]): Promise<{ restored: number; skipped: number }> {
+  await requireUser();
+  if (!documentIds.length) return { restored: 0, skipped: 0 };
+  const docs = await db.query.dealClientNeedDocuments.findMany({
+    where: inArray(dealClientNeedDocuments.id, documentIds),
+    columns: { id: true, clientNeedId: true, unusedFromNeedId: true },
+    with: { clientNeed: { columns: { dealId: true } } },
+  });
+  let restored = 0;
+  let skipped = 0;
+  for (const doc of docs) {
+    if (doc.clientNeed.dealId !== dealId) continue;
+    const origin = doc.unusedFromNeedId
+      ? await db.query.dealClientNeeds.findFirst({
+          where: and(eq(dealClientNeeds.id, doc.unusedFromNeedId), eq(dealClientNeeds.dealId, dealId)),
+          columns: { id: true, status: true },
+        })
+      : null;
+    if (!origin || origin.status === "unused") {
+      skipped += 1;
+      continue;
+    }
+    await db
+      .update(dealClientNeedDocuments)
+      .set({ clientNeedId: origin.id, unusedFromNeedId: null })
+      .where(eq(dealClientNeedDocuments.id, doc.id));
+    await recomputeNeedStatus(origin.id);
+    await recomputeNeedStatus(doc.clientNeedId);
+    await removeNeedIfHiddenAndEmpty(doc.clientNeedId);
+    restored += 1;
+  }
+  revalidatePath(`/deals/${dealId}/loan-center`);
+  return { restored, skipped };
 }
 
 export interface DealDocumentRow {
@@ -273,6 +369,10 @@ export interface DealDocumentRow {
   rejectionNote: string | null;
   rejectionNoteArchived: boolean;
   createdAt: Date;
+  /** Set when this one document was marked unused: the need it can be put back on. */
+  unusedFromNeedId: string | null;
+  /** Name of the need a document marked unused came out of (itemName is the hidden holding need then). */
+  cameFrom: string | null;
 }
 
 /** Every accepted/rejected/unused document on a deal, for the Documents tab — grouped client-side by status. */
@@ -289,10 +389,17 @@ export async function getDealDocumentsForDocumentsTab(dealId: string): Promise<{
         db.select({ id: dealClientNeeds.id }).from(dealClientNeeds).where(eqD(dealClientNeeds.dealId, dealId))
       ),
     // Never the file bytes: this runs on every Loan Center load, and a deal's documents can be tens of MB of base64.
-    columns: { id: true, fileName: true, clientNeedId: true, rejectionNote: true, rejectionNoteArchivedAt: true, reviewStatus: true, createdAt: true },
+    columns: { id: true, fileName: true, clientNeedId: true, rejectionNote: true, rejectionNoteArchivedAt: true, reviewStatus: true, createdAt: true, unusedFromNeedId: true },
     with: { clientNeed: { columns: { itemName: true, status: true } } },
     orderBy: (d, { desc }) => desc(d.createdAt),
   });
+
+  const originIds = [...new Set(rows.map((r) => r.unusedFromNeedId).filter((x): x is string => !!x))];
+  const originNames = new Map(
+    originIds.length
+      ? (await db.query.dealClientNeeds.findMany({ where: inArray(dealClientNeeds.id, originIds), columns: { id: true, itemName: true } })).map((n) => [n.id, n.itemName] as const)
+      : []
+  );
 
   const accepted: DealDocumentRow[] = [];
   const rejected: DealDocumentRow[] = [];
@@ -306,6 +413,8 @@ export async function getDealDocumentsForDocumentsTab(dealId: string): Promise<{
       rejectionNote: r.rejectionNote,
       rejectionNoteArchived: r.rejectionNoteArchivedAt !== null,
       createdAt: r.createdAt,
+      unusedFromNeedId: r.unusedFromNeedId,
+      cameFrom: r.unusedFromNeedId ? (originNames.get(r.unusedFromNeedId) ?? null) : null,
     };
     // A rejected document is always listed as Rejected, with the need it came
     // in under — even if that need has since been deleted (kept hidden just as

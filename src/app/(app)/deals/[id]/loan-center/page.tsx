@@ -53,6 +53,7 @@ export default async function DealLoanCenterPage({
             id: true,
             fileName: true,
             mimeType: true,
+            createdAt: true,
             reviewStatus: true,
             rejectionNote: true,
             rejectionNoteArchivedAt: true,
