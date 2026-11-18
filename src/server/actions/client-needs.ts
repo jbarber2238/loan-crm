@@ -397,6 +397,35 @@ export async function addCatalogItemsToDeal(dealId: string, formData: FormData) 
   return added.length;
 }
 
+// "Select from List" with a staging area: each entry is one catalog need to add, and the same catalog need can appear
+// several times (three Operating Agreements for layered entities). The processor may reword the name and the borrower
+// instructions per entry before adding; everything else (type, link, template, questions) comes from the catalog row.
+export async function addStagedCatalogNeedsToDeal(
+  dealId: string,
+  items: { catalogId: string; itemName: string; description: string | null }[]
+): Promise<number> {
+  const user = await requireUser();
+  if (!items.length) return 0;
+  if (items.length > 100) throw new Error("That's a lot at once. Add them in smaller batches.");
+
+  const ids = [...new Set(items.map((i) => i.catalogId))];
+  const rows = await db.query.clientNeeds.findMany({ where: (cn, { inArray }) => inArray(cn.id, ids) });
+  const byId = new Map(rows.map((r) => [r.id, r]));
+
+  const toAdd = items.map((item) => {
+    const row = byId.get(item.catalogId);
+    if (!row) throw new Error("One of those needs is no longer in the catalog. Remove it from the list and try again.");
+    const name = item.itemName.trim();
+    const description = item.description?.trim();
+    return { ...row, itemName: name || row.itemName, description: description ? description : null };
+  });
+
+  // Never deduped: a deliberate pick, and a second copy is the point.
+  const added = await addCatalogNeedsToDeal(dealId, toAdd, false, user.id);
+  revalidatePath(`/deals/${dealId}/loan-center`);
+  return added.length;
+}
+
 // The deal's "Custom Need" tab — full parity with the catalog's own create
 // form (needType, questionnaire questions, a link URL, or a downloadable
 // template file), since a one-off custom need is still just a catalog entry
