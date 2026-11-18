@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canMarkSentToLender, conditionOwner, needsClientNeed, type OwnerInput } from "../condition-owner";
+import { canMarkSentToLender, canMarkSentToLenderAnyway, conditionOwner, isUnbackedBorrowerCondition, needsClientNeed, type OwnerInput } from "../condition-owner";
 
 const base: OwnerInput = { category: "borrower", status: "open", sentToLenderAt: null, linkedNeed: { status: "not_sent", onHoldAt: null } };
 const owner = (patch: Partial<OwnerInput>) => conditionOwner({ ...base, ...patch })?.key ?? null;
@@ -55,5 +55,20 @@ describe("needsClientNeed", () => {
     expect(needsClientNeed({ ...base, linkedClientNeedId: "n1" })).toBe(false);
     expect(needsClientNeed({ ...base, status: "cleared", linkedClientNeedId: null })).toBe(false);
     expect(needsClientNeed({ ...base, category: "title", linkedClientNeedId: null })).toBe(false);
+  });
+});
+
+describe("legacy clean-up", () => {
+  it("lets a borrower condition with no client need be marked sent, but not one whose need is still in progress", () => {
+    expect(isUnbackedBorrowerCondition({ ...base, linkedNeed: null })).toBe(true);
+    expect(canMarkSentToLenderAnyway({ ...base, linkedNeed: null })).toBe(true);
+    expect(canMarkSentToLenderAnyway({ ...base, ...need("accepted") })).toBe(true);
+    expect(canMarkSentToLenderAnyway({ ...base, ...need("awaiting_docs") })).toBe(false);
+    expect(canMarkSentToLenderAnyway({ ...base, ...need("review_needed") })).toBe(false);
+  });
+  it("leaves other categories, cleared and already-sent conditions alone", () => {
+    expect(isUnbackedBorrowerCondition({ ...base, category: "title", linkedNeed: null })).toBe(false);
+    expect(isUnbackedBorrowerCondition({ ...base, status: "cleared", linkedNeed: null })).toBe(false);
+    expect(isUnbackedBorrowerCondition({ ...base, sentToLenderAt: new Date(), linkedNeed: null })).toBe(false);
   });
 });

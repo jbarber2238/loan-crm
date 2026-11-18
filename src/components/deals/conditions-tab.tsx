@@ -22,7 +22,7 @@ import { CollapsibleSection } from "@/components/email-templates/collapsible-sec
 import { AddClientNeedToDealDialog, type ConditionToCover, type DealCatalogItem } from "@/components/deals/add-client-need-to-deal-dialog";
 import { DealFileUploadForm } from "@/components/deals/deal-file-parts";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { canMarkSentToLender, conditionOwner, needsClientNeed, type ConditionOwner } from "@/lib/condition-owner";
+import { canMarkSentToLender, canMarkSentToLenderAnyway, conditionOwner, isUnbackedBorrowerCondition, needsClientNeed, type ConditionOwner } from "@/lib/condition-owner";
 import { currentEventFor, type KeyDateEvent } from "@/lib/key-date-tracker";
 import { stageLargeFiles } from "@/lib/stage-large-files";
 import { stageUploadChunk } from "@/server/actions/staged-upload";
@@ -79,6 +79,8 @@ function ConditionRow({
   const isBorrower = condition.category === "borrower";
   const owner = conditionOwner(condition);
   const readyForLender = canMarkSentToLender(condition);
+  // Older conditions with no client need: marked sent by hand, to clean up the list.
+  const unbacked = isUnbackedBorrowerCondition(condition);
 
   function handleToggle(checked: boolean) {
     startTransition(async () => {
@@ -106,6 +108,7 @@ function ConditionRow({
   }
 
   function setSentToLender(sent: boolean) {
+    if (sent && isUnbackedBorrowerCondition(condition) && !window.confirm("This condition has no client need behind it. Mark it sent to the lender anyway?")) return;
     startTransition(async () => {
       try {
         await markConditionsSentToLender(dealId, [condition.id], sent);
@@ -144,9 +147,14 @@ function ConditionRow({
             Add a client need
           </Button>
         )}
-        {readyForLender && (
-          <Button type="button" size="sm" variant="secondary" disabled={pending} onClick={() => setSentToLender(true)}>
+        {(readyForLender || unbacked) && (
+          <Button type="button" size="sm" variant={readyForLender ? "secondary" : "ghost"} disabled={pending} onClick={() => setSentToLender(true)}>
             Mark sent to lender
+          </Button>
+        )}
+        {isBorrower && cleared && !condition.sentToLenderAt && (
+          <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => handleToggle(false)} title="Open this condition again">
+            Reopen
           </Button>
         )}
         {condition.sentToLenderAt && (
@@ -314,7 +322,8 @@ export function ConditionsTab({
   const borrowerSelectable = conditions.filter((c) => c.category === "borrower" && c.status === "open");
   const pickedConditions = borrowerSelectable.filter((c) => selected.has(c.id));
   const pickedNeedingNeed = pickedConditions.filter(needsClientNeed);
-  const pickedReady = pickedConditions.filter(canMarkSentToLender);
+  const pickedMarkable = pickedConditions.filter(canMarkSentToLenderAnyway);
+  const pickedUnbacked = pickedMarkable.filter((c) => !canMarkSentToLender(c));
   const existingCounts = existingNeedNames.reduce<Record<string, number>>((acc, name) => {
     acc[name.toLowerCase()] = (acc[name.toLowerCase()] ?? 0) + 1;
     return acc;
@@ -348,7 +357,11 @@ export function ConditionsTab({
   }
 
   function sendPickedToLender() {
-    const ids = pickedReady.map((c) => c.id);
+    if (pickedUnbacked.length) {
+      const n = pickedUnbacked.length;
+      if (!window.confirm(`${n} of these ${n === 1 ? "has" : "have"} no client need behind ${n === 1 ? "it" : "them"}. Mark ${pickedMarkable.length === 1 ? "it" : "them all"} sent to the lender anyway?`)) return;
+    }
+    const ids = pickedMarkable.map((c) => c.id);
     startBulk(async () => {
       try {
         const { updated } = await markConditionsSentToLender(dealId, ids, true);
@@ -496,11 +509,11 @@ export function ConditionsTab({
                       type="button"
                       size="sm"
                       variant="secondary"
-                      disabled={bulkPending || pickedReady.length === 0}
+                      disabled={bulkPending || pickedMarkable.length === 0}
                       onClick={sendPickedToLender}
-                      title="Only conditions whose client need has been accepted can be marked sent"
+                      title="Works for conditions whose client need is accepted, and for older ones with no client need. One whose need is still in progress has to finish first."
                     >
-                      Mark sent to lender ({pickedReady.length})
+                      Mark sent to lender ({pickedMarkable.length})
                     </Button>
                   </div>
                 </div>

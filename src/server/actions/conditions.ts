@@ -4,7 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { dealClientNeeds, dealConditions } from "@/server/db/schema";
-import { canMarkSentToLender } from "@/lib/condition-owner";
+import { canMarkSentToLenderAnyway } from "@/lib/condition-owner";
 import { requireUser } from "@/server/auth/guards";
 import { autoAdvanceDeal } from "@/server/auto-stage-moves";
 import { extractConditions } from "@/server/ai/condition-extraction";
@@ -91,8 +91,9 @@ export async function linkConditionToClientNeed(dealId: string, conditionId: str
 }
 
 /**
- * Marks borrower conditions as sent to the lender, which also checks them off. Several at once. Only conditions whose
- * client need the processor has accepted can be marked, so nothing goes to the lender that she hasn't approved.
+ * Marks borrower conditions as sent to the lender, which also checks them off. Several at once. A condition can be
+ * marked when its client need has been accepted, or when it has no client need at all (older conditions being cleaned
+ * up by hand). One whose need is still in progress can't, so nothing goes to the lender that she hasn't approved.
  * Taking the mark back reopens the condition.
  */
 export async function markConditionsSentToLender(dealId: string, conditionIds: string[], sent: boolean): Promise<{ updated: number }> {
@@ -107,8 +108,8 @@ export async function markConditionsSentToLender(dealId: string, conditionIds: s
 
   let targets = rows;
   if (sent) {
-    const blocked = rows.filter((r) => !canMarkSentToLender({ category: r.category, status: r.status, sentToLenderAt: r.sentToLenderAt, linkedNeed: r.linkedClientNeed }));
-    if (blocked.length) throw new Error("Only conditions whose client need has been accepted can be marked sent to the lender.");
+    const blocked = rows.filter((r) => !canMarkSentToLenderAnyway({ category: r.category, status: r.status, sentToLenderAt: r.sentToLenderAt, linkedNeed: r.linkedClientNeed }));
+    if (blocked.length) throw new Error("A condition can be marked sent to the lender once its client need is accepted, or if it has no client need. One whose client need is still in progress has to finish first.");
   } else {
     // Only reopen what was actually sent; a condition cleared some other way is left alone.
     targets = rows.filter((r) => r.sentToLenderAt);

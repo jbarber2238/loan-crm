@@ -58,3 +58,16 @@ export function canMarkSentToLender(c: OwnerInput): boolean {
 export function needsClientNeed(c: OwnerInput & { linkedClientNeedId: string | null }): boolean {
   return c.category === "borrower" && c.status === "open" && !c.linkedClientNeedId;
 }
+
+/**
+ * Open borrower conditions with no client need behind them: older conditions from before client needs were tied to
+ * conditions, or ones handled outside the system. They can be marked sent to the lender by hand to clean up the list.
+ */
+export function isUnbackedBorrowerCondition(c: OwnerInput): boolean {
+  return c.category === "borrower" && c.status === "open" && !c.sentToLenderAt && !c.linkedNeed;
+}
+
+/** Everything the processor is allowed to mark sent to the lender: accepted needs, plus unbacked conditions (with a confirm). */
+export function canMarkSentToLenderAnyway(c: OwnerInput): boolean {
+  return canMarkSentToLender(c) || isUnbackedBorrowerCondition(c);
+}
