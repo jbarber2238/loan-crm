@@ -21,10 +21,10 @@ export default async function DealLoanCenterPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; highlight?: string }>;
 }) {
   const { id } = await params;
-  const { tab } = await searchParams;
+  const { tab, highlight } = await searchParams;
   const teamChatRoomId = await getDealRoomId(id);
   const user = await requireUser();
   const deal = await getDealDetail(id);
@@ -110,6 +110,7 @@ export default async function DealLoanCenterPage({
   return (
     <LoanCenterTab
       initialTab={tab}
+      highlight={highlight}
       entityDocOffer={entityDocOffer}
       entityDocAutoOpen={entityDocAutoOpen}
       teamChat={

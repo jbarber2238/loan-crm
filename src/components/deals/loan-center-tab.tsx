@@ -99,6 +99,7 @@ export function LoanCenterTab({
   appraisalDocumentFileName,
   emailLog,
   initialTab,
+  highlight,
   teamChat,
   entityDocOffer,
   entityDocAutoOpen,
@@ -162,6 +163,8 @@ export function LoanCenterTab({
   appraisalDocumentFileName: string | null;
   emailLog: EmailLogEntry[];
   initialTab?: string;
+  /** "review" outlines the client needs waiting on the processor's review. */
+  highlight?: string;
   /** Server-rendered internal team chat for this deal. */
   teamChat: React.ReactNode;
   /** Repeat borrower: documents that can come over from an earlier deal (null when there's nothing to offer). */
@@ -199,6 +202,7 @@ export function LoanCenterTab({
             entityDocOffer={entityDocOffer}
             entityDocAutoOpen={entityDocAutoOpen}
             propertyLabel={propertyLabel}
+            highlight={highlight}
           />
         </TabsContent>
 

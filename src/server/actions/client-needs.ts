@@ -921,7 +921,7 @@ export async function saveClientNeedsNote(dealId: string, raw: string) {
         type: "client_needs_note",
         title: `Note for client needs — ${deal.propertyAddress.split(",")[0]}`,
         body: result.note.length > 140 ? `${result.note.slice(0, 137)}…` : result.note,
-        href: `/deals/${dealId}/loan-center`,
+        href: `/deals/${dealId}/loan-center?tab=client-needs`,
         dealId,
       }
     );

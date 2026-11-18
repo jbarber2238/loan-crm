@@ -68,7 +68,7 @@ async function sendDigestForDeal(dealId: string, events: Event[]) {
     type: "client_needs_completed",
     title: `${deal.borrowerName} has completed client needs for ${deal.propertyAddress}`,
     body: activityNotificationBody(events.map((e) => e.itemName)),
-    href: `/deals/${deal.id}/loan-center`,
+    href: `/deals/${deal.id}/loan-center?tab=client-needs&highlight=review`,
     dealId: deal.id,
   });
 

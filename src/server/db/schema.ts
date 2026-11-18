@@ -238,6 +238,10 @@ export const users = pgTable("user", {
   // Appearance (My Profile): 'light' is today's look; 'dark' is the optional alternative theme.
   // dark_mode_welcome_seen_at is set once the one-time "try dark mode" dialog has been dealt with.
   uiTheme: text("ui_theme").notNull().default("light"),
+  // Pipeline page (saved as they change it): board or processor list, all deals or only mine, and the list's sort.
+  pipelineView: text("pipeline_view").notNull().default("board"),
+  pipelineScope: text("pipeline_scope").notNull().default("all"),
+  pipelineSort: text("pipeline_sort").notNull().default("last_touched"),
   darkModeWelcomeSeenAt: timestamp("dark_mode_welcome_seen_at", { mode: "date" }),
   inboundHoursStart: time("inbound_hours_start"),
   inboundHoursEnd: time("inbound_hours_end"),

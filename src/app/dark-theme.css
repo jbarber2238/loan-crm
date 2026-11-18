@@ -114,6 +114,11 @@ html.dark,
   background-color: var(--c-card);
   box-shadow: none;
 }
+/* A client need opened from "To review" or a notification: outlined so the new ones stand out. */
+.dark [data-slot="card"][data-highlighted="true"] {
+  border-color: #fa5f05;
+  box-shadow: 0 0 0 2px rgba(250, 95, 5, 0.55);
+}
 .dark [data-slot="card"][data-size="sm"] {
   --card-spacing: 18px;
   border-radius: 18px;

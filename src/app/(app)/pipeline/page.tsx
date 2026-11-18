@@ -1,6 +1,6 @@
 import { and, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { deals } from "@/server/db/schema";
+import { deals, users } from "@/server/db/schema";
 import { requireUser } from "@/server/auth/guards";
 import Link from "next/link";
 import { licenseFlagsFor } from "@/server/licensing";
@@ -8,6 +8,10 @@ import { KanbanBoard, type BoardDeal } from "@/components/board/kanban-board";
 import { BoardFilters } from "@/components/board/board-filters";
 import { BoardSearch } from "@/components/board/board-search";
 import { PipelineTabs } from "@/components/board/pipeline-tabs";
+import { PipelineViewControls } from "@/components/board/pipeline-view-controls";
+import { ProcessorList } from "@/components/board/processor-list";
+import { loadDealActivity } from "@/server/pipeline-activity";
+import { latestOf, parsePipelineScope, parsePipelineSort, parsePipelineView, type PipelineListDeal } from "@/lib/pipeline-list";
 
 export default async function PipelinePage({
   searchParams,
@@ -16,6 +20,15 @@ export default async function PipelinePage({
 }) {
   const user = await requireUser();
   const params = await searchParams;
+
+  // How this person likes the page (saved whenever they change it): board or list, all deals or only theirs, list sort.
+  const prefsRow = await db.query.users.findFirst({
+    where: eq(users.id, user.id),
+    columns: { pipelineView: true, pipelineScope: true, pipelineSort: true },
+  });
+  const view = parsePipelineView(prefsRow?.pipelineView);
+  const scope = parsePipelineScope(prefsRow?.pipelineScope);
+  const sort = parsePipelineSort(prefsRow?.pipelineSort);
 
   const hasSearch = typeof params.q === "string" && params.q.trim().length > 0;
 
@@ -27,6 +40,11 @@ export default async function PipelinePage({
   const conditions = [isNull(deals.deletedAt)];
   if (!hasSearch) {
     conditions.push(isNull(deals.archivedAt));
+  }
+  if (scope === "mine") {
+    conditions.push(
+      or(eq(deals.assignedLoanOfficerId, user.id), eq(deals.assignedProcessorId, user.id), eq(deals.assignedAssistantId, user.id))!
+    );
   }
   if (typeof params.loanOfficerId === "string") {
     conditions.push(eq(deals.assignedLoanOfficerId, params.loanOfficerId));
@@ -90,6 +108,34 @@ export default async function PipelinePage({
     };
   });
 
+  // The processor list also shows when each deal was last touched and what is waiting on the processor.
+  let listDeals: PipelineListDeal[] = [];
+  if (view === "list") {
+    const activity = await loadDealActivity(allDeals.map((d) => d.id));
+    listDeals = allDeals.map((deal, index) => {
+      const board = boardDeals[index];
+      const a = activity.get(deal.id);
+      return {
+        id: deal.id,
+        loanNumber: deal.loanNumber,
+        borrowerName: deal.borrowerName,
+        propertyAddress: deal.propertyAddress,
+        loanCategory: deal.loanCategory,
+        stage: deal.stage,
+        loanAmount: Number(deal.approvedLoanAmount ?? deal.loanAmountRequested),
+        estimatedClosingDate: deal.estimatedClosingDate ? deal.estimatedClosingDate.toISOString() : null,
+        currentStageEnteredAt: board.currentStageEnteredAt,
+        lastTouchedAt: (latestOf([deal.updatedAt, new Date(board.currentStageEnteredAt), a?.lastActivityAt]) ?? deal.createdAt).toISOString(),
+        assignedLoanOfficerName: board.assignedLoanOfficerName,
+        assignedProcessorName: board.assignedProcessorName,
+        lenderName: board.lenderName,
+        needsToReview: a?.needsToReview ?? 0,
+        openConditions: a?.openConditions ?? 0,
+        isArchived: board.isArchived,
+      };
+    });
+  }
+
   const loanOfficers = allUsers
     .filter((u) => u.baseRole === "loan_officer")
     .map((u) => ({ value: u.id, label: u.name ?? u.email ?? "Unknown" }));
@@ -119,9 +165,10 @@ export default async function PipelinePage({
       </div>
       <div data-board-toolbar className="space-y-4">
         <PipelineTabs showLeads={user.isAdmin || user.baseRole === "loan_officer"} />
+        <PipelineViewControls view={view} scope={scope} sort={sort} />
         <BoardFilters loanOfficers={loanOfficers} processors={processors} lenders={lenderOptions} />
       </div>
-      <KanbanBoard deals={boardDeals} />
+      {view === "list" ? <ProcessorList deals={listDeals} sort={sort} /> : <KanbanBoard deals={boardDeals} />}
     </div>
   );
 }

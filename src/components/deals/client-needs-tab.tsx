@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ChevronDown, ChevronRight, Download, Loader2, MoreVertical, Sparkles, Trash2 } from "lucide-react";
@@ -841,6 +841,8 @@ function ClientNeedRow({
   dealFacts,
   selected,
   onToggleSelected,
+  highlighted = false,
+  scrollToMe = false,
 }: {
   dealId: string;
   need: ClientNeed;
@@ -849,12 +851,20 @@ function ClientNeedRow({
   dealFacts: DealFileFacts;
   selected: boolean;
   onToggleSelected: (checked: boolean) => void;
+  /** Outlined in orange: opened from "To review" or a notification. */
+  highlighted?: boolean;
+  scrollToMe?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewDocId, setReviewDocId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollToMe) cardRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [scrollToMe]);
 
   function runAction(action: () => Promise<void>) {
     startTransition(async () => {
@@ -883,7 +893,11 @@ function ClientNeedRow({
   }
 
   return (
-    <Card>
+    <Card
+      ref={cardRef}
+      data-highlighted={highlighted ? "true" : undefined}
+      className={highlighted ? "border-[#fa5f05] ring-2 ring-[#fa5f05]/60" : undefined}
+    >
       <CardContent className="space-y-3 py-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div className="flex min-w-0 items-start gap-3">
@@ -1428,6 +1442,7 @@ export function ClientNeedsTab({
   entityDocOffer,
   entityDocAutoOpen,
   propertyLabel,
+  highlight,
 }: {
   dealId: string;
   needs: ClientNeed[];
@@ -1447,13 +1462,23 @@ export function ClientNeedsTab({
   entityDocAutoOpen: boolean;
   /** Names the zip when documents are downloaded. */
   propertyLabel: string;
+  /** "review" outlines the needs the borrower has answered that are waiting on the processor. */
+  highlight?: string;
 }) {
   const [addNeedOpen, setAddNeedOpen] = useState(false);
   const [autoGenerateOpen, setAutoGenerateOpen] = useState(false);
   const [carryOverOpen, setCarryOverOpen] = useState(entityDocAutoOpen);
   const [downloading, setDownloading] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState<"docs" | "esign">("docs");
+  // Needs the borrower has answered and the processor still has to review, when the page was opened to show them.
+  const highlightIds = new Set(
+    highlight === "review" ? needs.filter((n) => n.status === "review_needed" && !n.onHoldAt).map((n) => n.id) : []
+  );
+  const firstHighlightId = needs.find((n) => highlightIds.has(n.id))?.id ?? null;
+  const [activeTab, setActiveTab] = useState<"docs" | "esign">(() => {
+    const first = needs.find((n) => highlightIds.has(n.id));
+    return first && ESIGN_NEED_TYPES.has(first.needType) ? "esign" : "docs";
+  });
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
@@ -1498,6 +1523,8 @@ export function ClientNeedsTab({
                 dealFacts={dealFacts}
                 selected={selectedIds.has(need.id)}
                 onToggleSelected={(checked) => toggleOne(need.id, checked)}
+                highlighted={highlightIds.has(need.id)}
+                scrollToMe={need.id === firstHighlightId}
               />
             ))}
         </section>
