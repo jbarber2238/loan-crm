@@ -1,80 +1,131 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bold, List, ListOrdered } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { continueList, toggleBold, toggleList, type EditResult } from "@/lib/note-format";
+import { cn } from "@/lib/utils";
+import { readNoteFrom, renderNoteInto } from "@/lib/note-editor-dom";
+
+type Command = "bold" | "insertUnorderedList" | "insertOrderedList";
 
 /**
- * A note box with a small toolbar: bold, bullets, numbered list. The text underneath stays plain
- * (**bold**, • bullets, 1. numbers), so it reads fine anywhere and old notes need no conversion.
+ * A note box where bold and lists show as you type. Underneath, the note is still plain text
+ * (**bold**, • bullets, 1. numbers), so saving, old notes and the AI note tools are unchanged.
  */
 export function RichNoteField({
   value,
   onChange,
   textareaRef,
-  rows,
+  rows = 4,
   placeholder,
   autoFocus,
 }: {
   value: string;
   onChange: (next: string) => void;
-  textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
+  /** Lets the parent focus the box (kept under the old name so callers read the same). */
+  textareaRef?: React.RefObject<HTMLDivElement | null>;
   rows?: number;
   placeholder?: string;
   autoFocus?: boolean;
 }) {
-  const own = useRef<HTMLTextAreaElement | null>(null);
-  const inner = textareaRef ?? own;
+  const own = useRef<HTMLDivElement | null>(null);
+  const editor = textareaRef ?? own;
+  // What the editor last told the parent. A different `value` means the parent changed it (template, pulled context, cleared after posting).
+  const synced = useRef<string | null>(null);
+  const [active, setActive] = useState<Record<Command, boolean>>({ bold: false, insertUnorderedList: false, insertOrderedList: false });
+  const empty = value.trim() === "";
 
-  function apply(edit: (text: string, start: number, end: number) => EditResult) {
-    const el = inner.current;
+  useEffect(() => {
+    const el = editor.current;
+    if (!el || synced.current === value) return;
+    renderNoteInto(el, value);
+    synced.current = value;
+  }, [value, editor]);
+
+  useEffect(() => {
+    if (autoFocus) editor.current?.focus();
+  }, [autoFocus, editor]);
+
+  // Keep the toolbar's lit buttons in step with where the cursor is.
+  useEffect(() => {
+    function refresh() {
+      const el = editor.current;
+      const sel = document.getSelection();
+      if (!el || !sel?.anchorNode || !el.contains(sel.anchorNode)) return;
+      setActive({
+        bold: document.queryCommandState("bold"),
+        insertUnorderedList: document.queryCommandState("insertUnorderedList"),
+        insertOrderedList: document.queryCommandState("insertOrderedList"),
+      });
+    }
+    document.addEventListener("selectionchange", refresh);
+    return () => document.removeEventListener("selectionchange", refresh);
+  }, [editor]);
+
+  function emit() {
+    const el = editor.current;
     if (!el) return;
-    const result = edit(el.value, el.selectionStart, el.selectionEnd);
-    onChange(result.text);
-    // Put the selection back once React has written the new text.
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(result.start, result.end);
-    });
+    const text = readNoteFrom(el);
+    synced.current = text;
+    onChange(text);
   }
 
-  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
-      e.preventDefault();
-      apply(toggleBold);
-      return;
-    }
-    if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && !e.nativeEvent.isComposing) {
-      const el = e.currentTarget;
-      if (el.selectionStart !== el.selectionEnd) return;
-      const result = continueList(el.value, el.selectionStart);
-      if (result) {
-        e.preventDefault();
-        onChange(result.text);
-        requestAnimationFrame(() => el.setSelectionRange(result.start, result.end));
-      }
-    }
+  function run(command: Command) {
+    editor.current?.focus();
+    document.execCommand(command);
+    emit();
   }
 
-  // Buttons take the click without pulling focus out of the text box.
+  function onPaste(e: React.ClipboardEvent<HTMLDivElement>) {
+    // Paste as plain words so nothing from another page's styling comes along.
+    e.preventDefault();
+    document.execCommand("insertText", false, e.clipboardData.getData("text/plain"));
+    emit();
+  }
+
+  // Buttons take the click without pulling the cursor out of the note.
   const keepFocus = (e: React.MouseEvent) => e.preventDefault();
+  const tool = (command: Command, label: string, title: string, icon: React.ReactNode) => (
+    <Button
+      type="button"
+      size="sm"
+      variant={active[command] ? "secondary" : "outline"}
+      title={title}
+      aria-label={label}
+      aria-pressed={active[command]}
+      onMouseDown={keepFocus}
+      onClick={() => run(command)}
+    >
+      {icon}
+    </Button>
+  );
 
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-1" role="toolbar" aria-label="Text formatting">
-        <Button type="button" size="sm" variant="outline" title="Bold (Ctrl/⌘ B)" aria-label="Bold" onMouseDown={keepFocus} onClick={() => apply(toggleBold)}>
-          <Bold className="size-3.5" />
-        </Button>
-        <Button type="button" size="sm" variant="outline" title="Bulleted list" aria-label="Bulleted list" onMouseDown={keepFocus} onClick={() => apply((t, s, e) => toggleList(t, s, e, "ul"))}>
-          <List className="size-3.5" />
-        </Button>
-        <Button type="button" size="sm" variant="outline" title="Numbered list" aria-label="Numbered list" onMouseDown={keepFocus} onClick={() => apply((t, s, e) => toggleList(t, s, e, "ol"))}>
-          <ListOrdered className="size-3.5" />
-        </Button>
+        {tool("bold", "Bold", "Bold (Ctrl/⌘ B)", <Bold className="size-3.5" />)}
+        {tool("insertUnorderedList", "Bulleted list", "Bulleted list", <List className="size-3.5" />)}
+        {tool("insertOrderedList", "Numbered list", "Numbered list", <ListOrdered className="size-3.5" />)}
       </div>
-      <Textarea ref={inner} rows={rows} placeholder={placeholder} value={value} autoFocus={autoFocus} onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown} />
+      <div className="relative">
+        <div
+          ref={editor}
+          contentEditable
+          suppressContentEditableWarning
+          role="textbox"
+          aria-multiline="true"
+          aria-label={placeholder ?? "Note"}
+          onInput={emit}
+          onPaste={onPaste}
+          style={{ minHeight: `${rows * 1.5 + 1}rem` }}
+          className={cn(
+            "w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base transition-colors outline-none md:text-sm dark:bg-input/30",
+            "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+            "[&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-semibold [&_b]:font-semibold",
+          )}
+        />
+        {empty && placeholder && <span className="pointer-events-none absolute top-2 left-2.5 text-base text-muted-foreground md:text-sm">{placeholder}</span>}
+      </div>
     </div>
   );
 }

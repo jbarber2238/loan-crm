@@ -72,7 +72,7 @@ export function NotesTab({ dealId, notes }: { dealId: string; notes: Note[] }) {
   const [posting, startPosting] = useTransition();
   const [outstandingPrompt, setOutstandingPrompt] = useState<string[] | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const eod = mode === "eod";
 
   function startUpdate() {
