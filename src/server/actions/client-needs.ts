@@ -352,7 +352,7 @@ export async function markNonDocumentNeedAccepted(dealId: string, needId: string
     with: { answers: true },
   });
 
-  await db.update(dealClientNeeds).set({ status: "accepted" }).where(eq(dealClientNeeds.id, needId));
+  await db.update(dealClientNeeds).set({ status: "accepted", touchedAt: new Date() }).where(eq(dealClientNeeds.id, needId));
 
   const fieldMap = need ? KEY_CONTACT_FIELD_MAP[need.itemName] : undefined;
   if (need && fieldMap) {
@@ -374,7 +374,7 @@ export async function reopenNonDocumentNeed(dealId: string, needId: string) {
   const need = await db.query.dealClientNeeds.findFirst({ where: eq(dealClientNeeds.id, needId) });
   await db
     .update(dealClientNeeds)
-    .set({ status: need?.sentAt ? "awaiting_docs" : "not_sent" })
+    .set({ status: need?.sentAt ? "awaiting_docs" : "not_sent", touchedAt: new Date() })
     .where(eq(dealClientNeeds.id, needId));
   revalidatePath(`/deals/${dealId}/loan-center`);
 }
@@ -480,6 +480,7 @@ export async function updateClientNeed(dealId: string, needId: string, formData:
       itemName: itemName.trim(),
       description: typeof description === "string" && description.trim() ? description.trim() : null,
       ...(linkUrl ? { linkUrl } : {}),
+      touchedAt: new Date(),
     })
     .where(and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)));
 
@@ -564,6 +565,7 @@ export async function updateCustomClientNeed(dealId: string, needId: string, for
       customFormKey,
       ...clearFile,
       ...fileFields,
+      touchedAt: new Date(),
     })
     .where(and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)));
 
@@ -687,7 +689,7 @@ export async function putClientNeedOnHold(dealId: string, needId: string, note: 
   if (!trimmed) throw new Error("Add a note explaining why this need is on hold");
   await db
     .update(dealClientNeeds)
-    .set({ onHoldAt: new Date(), onHoldNote: trimmed })
+    .set({ onHoldAt: new Date(), onHoldNote: trimmed, touchedAt: new Date() })
     .where(and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)));
   revalidatePath(`/deals/${dealId}/loan-center`);
 }
@@ -720,7 +722,7 @@ export async function resumeClientNeedFromHold(dealId: string, needId: string) {
   await requireUser();
   await db
     .update(dealClientNeeds)
-    .set({ onHoldAt: null, onHoldNote: null })
+    .set({ onHoldAt: null, onHoldNote: null, touchedAt: new Date() })
     .where(and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)));
   revalidatePath(`/deals/${dealId}/loan-center`);
 }

@@ -104,6 +104,32 @@ export async function acceptClientNeed(dealId: string, needId: string) {
 }
 
 /**
+ * Reverses "Accept Need" (clicked by mistake, or accepted too soon) without rejecting anything: the need is no longer
+ * accepted, nothing is sent to the borrower, and every file that was approved goes back under review so the need reads
+ * Review Needed again.
+ */
+export async function unacceptClientNeed(dealId: string, needId: string) {
+  await requireUser();
+  const need = await db.query.dealClientNeeds.findFirst({
+    where: and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)),
+    columns: { id: true },
+  });
+  if (!need) throw new Error("Client need not found");
+
+  await db
+    .update(dealClientNeedDocuments)
+    .set({ reviewStatus: "pending", reviewedAt: null, reviewedByUserId: null })
+    .where(and(eq(dealClientNeedDocuments.clientNeedId, needId), eq(dealClientNeedDocuments.reviewStatus, "approved")));
+  await db
+    .update(dealClientNeeds)
+    .set({ acceptedAt: null, acceptedByUserId: null, touchedAt: new Date() })
+    .where(eq(dealClientNeeds.id, needId));
+
+  await recomputeNeedStatus(needId);
+  revalidatePath(`/deals/${dealId}/loan-center`);
+}
+
+/**
  * Undoes an accidental rejection — puts the document(s) back to "pending"
  * under whatever client need they already belong to, clearing the
  * rejection note, so they re-enter the normal review flow rather than

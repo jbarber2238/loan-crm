@@ -19,6 +19,7 @@ import {
 import {
   attachDocumentToClientNeed,
   acceptClientNeed,
+  unacceptClientNeed,
   rejectClientNeedDocuments,
 } from "@/server/actions/client-need-documents";
 import {
@@ -78,6 +79,7 @@ import { batchFiles, describeSkipped, expandZipFiles } from "@/lib/zip-uploads";
 import { BORROWER_MAX_FILE_BYTES, formatMb, readableUploadError } from "@/lib/upload-limits";
 import { stageUploadChunk } from "@/server/actions/staged-upload";
 import { formatUploadedAt } from "@/lib/format-upload-time";
+import { groupNeedsIntoSections } from "@/lib/client-need-sections";
 
 export interface ClientNeedAnswer {
   id: string;
@@ -115,6 +117,8 @@ export interface ClientNeed {
   customFormData: Record<string, string> | null;
   documents: ReviewableDocument[];
   answers: ClientNeedAnswer[];
+  /** Newest activity on the need (an upload, review, send, accept, hold or edit): what each section sorts by. */
+  lastTouchedAt: Date;
 }
 
 // Splits the list into two toggleable tabs — signature-oriented needs
@@ -132,25 +136,6 @@ const STATUS_LABEL: Record<ClientNeed["status"], string> = {
   review_needed: "Review Needed",
   accepted: "Accepted",
 };
-
-// Rejected-and-not-yet-resent sorts above everything, including plain Not
-// Sent — a processor needs to see these first since they require a manual
-// resend before the borrower is ever told. Otherwise: not sent yet → sent
-// and waiting → submitted and awaiting review → accepted, last. Array.sort
-// is stable, so needs sharing a status keep whatever order they arrived in
-// (currently creation order) rather than being shuffled.
-const STATUS_SORT_ORDER: Record<ClientNeed["status"], number> = {
-  need_rejected_not_sent: 0,
-  document_rejected_not_sent: 0,
-  not_sent: 1,
-  awaiting_docs: 2,
-  review_needed: 3,
-  accepted: 4,
-};
-
-function sortByStatus(list: ClientNeed[]): ClientNeed[] {
-  return [...list].sort((a, b) => STATUS_SORT_ORDER[a.status] - STATUS_SORT_ORDER[b.status]);
-}
 
 const STATUS_VARIANT: Record<ClientNeed["status"], "destructive" | "secondary" | "warning" | "success"> = {
   need_rejected_not_sent: "destructive",
@@ -451,7 +436,20 @@ function CustomFormAnswersSummary({
   );
 }
 
-function RejectNeedDialog({ dealId, needId, documentIds, disabled }: { dealId: string; needId: string; documentIds: string[]; disabled: boolean }) {
+function RejectNeedDialog({
+  dealId,
+  needId,
+  documentIds,
+  disabled,
+  trigger,
+}: {
+  dealId: string;
+  needId: string;
+  documentIds: string[];
+  disabled: boolean;
+  /** Replaces the red button, e.g. with a menu item. */
+  trigger?: React.ReactNode;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -479,9 +477,11 @@ function RejectNeedDialog({ dealId, needId, documentIds, disabled }: { dealId: s
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button type="button" size="sm" variant="destructive" disabled={disabled}>
-          Reject Need
-        </Button>
+        {trigger ?? (
+          <Button type="button" size="sm" variant="destructive" disabled={disabled}>
+            Reject Need
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -671,6 +671,23 @@ function NeedActionsMenu({ dealId, need }: { dealId: string; need: ClientNeed })
   const rejectedDocuments = need.documents.filter((d) => d.reviewStatus === "rejected");
   // Reasons staff archived no longer apply, so only the live ones are editable from the menu.
   const editableReasonDocuments = rejectedDocuments.filter((d) => !d.rejectionNoteArchivedAt);
+  const isAccepted = need.status === "accepted";
+  const hasDocumentFlow = need.needType === "document_upload" || need.needType === "pandadoc_form";
+  const nonRejectedIds = need.documents.filter((d) => d.reviewStatus !== "rejected").map((d) => d.id);
+
+  // Reverses an accept (usually a mis-click) without rejecting anything or telling the borrower.
+  function handleUnaccept() {
+    startTransition(async () => {
+      try {
+        if (hasDocumentFlow) await unacceptClientNeed(dealId, need.id);
+        else await reopenNonDocumentNeed(dealId, need.id);
+        toast.success(`"${need.itemName}" is no longer accepted`);
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't un-accept this need");
+      }
+    });
+  }
 
   function handleResume() {
     startTransition(async () => {
@@ -728,6 +745,20 @@ function NeedActionsMenu({ dealId, need }: { dealId: string; need: ClientNeed })
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => setEditOpen(true)}>Edit</DropdownMenuItem>
+          {isAccepted && <DropdownMenuItem onClick={handleUnaccept}>Un-accept</DropdownMenuItem>}
+          {isAccepted && hasDocumentFlow && nonRejectedIds.length > 0 && (
+            <RejectNeedDialog
+              dealId={dealId}
+              needId={need.id}
+              documentIds={nonRejectedIds}
+              disabled={pending}
+              trigger={
+                <DropdownMenuItem variant="destructive" onSelect={(e) => e.preventDefault()}>
+                  Reject need
+                </DropdownMenuItem>
+              }
+            />
+          )}
           {need.onHoldAt ? (
             <DropdownMenuItem onClick={handleResume}>Resume (take off hold)</DropdownMenuItem>
           ) : need.status !== "accepted" ? (
@@ -771,6 +802,34 @@ function NeedActionsMenu({ dealId, need }: { dealId: string; need: ClientNeed })
         onOpenChange={setAuditOpen}
       />
     </>
+  );
+}
+
+// Every file on one need as a zip, whether or not the need has been accepted (rejected files were sent back, so they stay out).
+function DownloadNeedButton({ needId, itemName, documentIds }: { needId: string; itemName: string; documentIds: string[] }) {
+  const [busy, setBusy] = useState(false);
+  async function handleClick() {
+    setBusy(true);
+    try {
+      await downloadZip(documentIds, itemName.replace(/[\\/:*?"<>|]+/g, " ").trim() || `Need ${needId.slice(0, 8)}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't download these documents");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Button
+      type="button"
+      size="icon-sm"
+      variant="ghost"
+      disabled={busy}
+      onClick={handleClick}
+      title={documentIds.length === 1 ? "Download this document" : `Download all ${documentIds.length} documents`}
+      aria-label={`Download documents for ${itemName}`}
+    >
+      {busy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+    </Button>
   );
 }
 
@@ -930,8 +989,10 @@ function ClientNeedRow({
             {need.needType === "document_upload" || need.needType === "pandadoc_form" ? (
               <>
                 {need.needType === "document_upload" && <AttachDocumentButton dealId={dealId} needId={need.id} />}
+                {nonRejectedIds.length > 0 && <DownloadNeedButton needId={need.id} itemName={need.itemName} documentIds={nonRejectedIds} />}
                 {need.documents.length > 0 && <AiReviewButton dealId={dealId} needId={need.id} />}
-                {nonRejectedIds.length > 0 && (
+                {/* Once a need is accepted, Accept and Reject step aside into the three-dot menu (with Un-accept). */}
+                {need.status !== "accepted" && nonRejectedIds.length > 0 && (
                   <Button
                     type="button"
                     size="sm"
@@ -942,7 +1003,7 @@ function ClientNeedRow({
                     Accept Need
                   </Button>
                 )}
-                {nonRejectedIds.length > 0 && (
+                {need.status !== "accepted" && nonRejectedIds.length > 0 && (
                   <RejectNeedDialog dealId={dealId} needId={need.id} documentIds={nonRejectedIds} disabled={pending} />
                 )}
               </>
@@ -956,17 +1017,7 @@ function ClientNeedRow({
               >
                 Mark Accepted
               </Button>
-            ) : (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                disabled={pending}
-                onClick={() => runAction(() => reopenNonDocumentNeed(dealId, need.id))}
-              >
-                Reopen
-              </Button>
-            )}
+            ) : null}
             <NeedActionsMenu dealId={dealId} need={need} />
           </div>
         </div>
@@ -1404,10 +1455,55 @@ export function ClientNeedsTab({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<"docs" | "esign">("docs");
 
-  const sortedNeeds = sortByStatus(needs);
-  const docsNeeds = sortedNeeds.filter((n) => !ESIGN_NEED_TYPES.has(n.needType));
-  const esignNeeds = sortedNeeds.filter((n) => ESIGN_NEED_TYPES.has(n.needType));
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  const docsNeeds = needs.filter((n) => !ESIGN_NEED_TYPES.has(n.needType));
+  const esignNeeds = needs.filter((n) => ESIGN_NEED_TYPES.has(n.needType));
   const visibleNeeds = activeTab === "docs" ? docsNeeds : esignNeeds;
+
+  function toggleSection(key: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  // Needs grouped by where they stand (Accepted, Review Needed, Not Sent, Awaiting Docs, Rejected, On Hold),
+  // the most recently touched first inside each group.
+  function renderSections(list: ClientNeed[]) {
+    return groupNeedsIntoSections(list).map((section) => {
+      const isCollapsed = collapsed.has(section.key);
+      return (
+        <section key={section.key} aria-label={section.label} className="space-y-2">
+          <button
+            type="button"
+            onClick={() => toggleSection(section.key)}
+            aria-expanded={!isCollapsed}
+            className="flex w-full items-center gap-1.5 pt-2 text-left text-xs font-semibold tracking-wide text-muted-foreground uppercase hover:text-foreground"
+          >
+            {isCollapsed ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+            {section.label}
+            <span className="font-normal">({section.needs.length})</span>
+          </button>
+          {!isCollapsed &&
+            section.needs.map((need) => (
+              <ClientNeedRow
+                key={need.id}
+                dealId={dealId}
+                need={need}
+                allNeeds={needs}
+                catalog={catalog}
+                dealFacts={dealFacts}
+                selected={selectedIds.has(need.id)}
+                onToggleSelected={(checked) => toggleOne(need.id, checked)}
+              />
+            ))}
+        </section>
+      );
+    });
+  }
 
   const selectedNeeds = needs.filter((n) => selectedIds.has(n.id) && !n.onHoldAt);
   // Deletion doesn't care about hold status, unlike sending to the borrower.
@@ -1541,34 +1637,12 @@ export function ClientNeedsTab({
         </TabsList>
 
         <TabsContent value="docs" className="space-y-2 pt-2">
-          {docsNeeds.map((need) => (
-            <ClientNeedRow
-              key={need.id}
-              dealId={dealId}
-              need={need}
-              allNeeds={needs}
-              catalog={catalog}
-              dealFacts={dealFacts}
-              selected={selectedIds.has(need.id)}
-              onToggleSelected={(checked) => toggleOne(need.id, checked)}
-            />
-          ))}
+          {renderSections(docsNeeds)}
           {docsNeeds.length === 0 && <p className="text-sm text-muted-foreground">No docs or forms yet.</p>}
         </TabsContent>
 
         <TabsContent value="esign" className="space-y-2 pt-2">
-          {esignNeeds.map((need) => (
-            <ClientNeedRow
-              key={need.id}
-              dealId={dealId}
-              need={need}
-              allNeeds={needs}
-              catalog={catalog}
-              dealFacts={dealFacts}
-              selected={selectedIds.has(need.id)}
-              onToggleSelected={(checked) => toggleOne(need.id, checked)}
-            />
-          ))}
+          {renderSections(esignNeeds)}
           {esignNeeds.length === 0 && <p className="text-sm text-muted-foreground">No e-sign tasks yet.</p>}
         </TabsContent>
       </Tabs>

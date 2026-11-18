@@ -8,6 +8,7 @@ import {
   approveClientNeedDocuments,
   rejectClientNeedDocuments,
   acceptClientNeed,
+  unacceptClientNeed,
   renameClientNeedDocument,
   setRejectionNoteArchived,
   markClientNeedDocumentUnused,
@@ -154,6 +155,7 @@ export function ClientNeedDocumentReviewDialog({
   const isPhone = useIsPhone();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const needAccepted = allNeeds.find((n) => n.id === needId)?.status === "accepted";
   // The Reject Need confirmation popup's own note — separate from the
   // per-document rejection notes below, which each get their own inline box
   // right under the button that opened them, not a shared one.
@@ -795,14 +797,26 @@ export function ClientNeedDocumentReviewDialog({
                 Close
               </Button>
               <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="success"
-                  disabled={pending || nonRejectedIds.length === 0}
-                  onClick={() => run(() => acceptClientNeed(dealId, needId))}
-                >
-                  Accept Need
-                </Button>
+                {needAccepted ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={pending}
+                    title="Reverses the accept. Nothing is rejected and the borrower isn't told; approved files go back under review."
+                    onClick={() => run(() => unacceptClientNeed(dealId, needId))}
+                  >
+                    Unaccept Need
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="success"
+                    disabled={pending || nonRejectedIds.length === 0}
+                    onClick={() => run(() => acceptClientNeed(dealId, needId))}
+                  >
+                    Accept Need
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="destructive"

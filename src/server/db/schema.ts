@@ -1295,6 +1295,9 @@ export const dealClientNeeds = pgTable("deal_client_needs", {
   // Accepted once something in it has been flagged. See deriveNeedStatus.
   acceptedAt: timestamp("accepted_at", { mode: "date" }),
   acceptedByUserId: uuid("accepted_by_user_id").references(() => users.id),
+  // Set when someone changes the need in a way no other timestamp records (un-accepting it, editing it, holding or
+  // resuming it). The Client Needs tab sorts each section by the newest of this and every other time on the need.
+  touchedAt: timestamp("touched_at", { mode: "date" }),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   // Read-only Claude connector (src/server/mcp): who asked for this need,
   // who owes it, and what it holds up. All nullable on purpose. null means

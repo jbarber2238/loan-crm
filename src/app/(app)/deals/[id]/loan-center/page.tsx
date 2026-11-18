@@ -14,6 +14,7 @@ import { getCoverageInfo, listAssignableUsers, listVisibleTasks } from "@/server
 import { todayEt } from "@/lib/tasks";
 import type { ClientNeed } from "@/components/deals/client-needs-tab";
 import { canEditDealNote } from "@/lib/note-permissions";
+import { lastTouchedAt } from "@/lib/client-need-sections";
 
 export default async function DealLoanCenterPage({
   params,
@@ -54,6 +55,7 @@ export default async function DealLoanCenterPage({
             fileName: true,
             mimeType: true,
             createdAt: true,
+            reviewedAt: true,
             reviewStatus: true,
             rejectionNote: true,
             rejectionNoteArchivedAt: true,
@@ -88,6 +90,7 @@ export default async function DealLoanCenterPage({
   const userNameById = new Map(allUsers.map((u) => [u.id, u.name ?? u.email]));
   const clientNeedsForTab = clientNeeds.map(({ documents, ...need }) => ({
     ...need,
+    lastTouchedAt: lastTouchedAt(need, documents),
     documents: documents.map(({ rejectionNoteArchivedByUserId, ...doc }) => ({
       ...doc,
       rejectionNoteArchivedByName: rejectionNoteArchivedByUserId
