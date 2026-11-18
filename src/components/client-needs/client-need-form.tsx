@@ -50,6 +50,7 @@ export function ClientNeedForm({
   pending,
   error,
   scope = "catalog",
+  initialValues,
 }: {
   formId: string;
   clientNeed?: ExistingClientNeed;
@@ -62,12 +63,14 @@ export function ClientNeedForm({
   // type and the per-type settings); the options that decide where the shared catalog uses it (standard, applies to
   // loans / lender products, category) and the AI starter draft are left out, because a deal edit never touches the catalog.
   scope?: "catalog" | "deal";
+  // Starts a brand-new need with the name and instructions already typed in (e.g. from a lender condition). Ignored when editing.
+  initialValues?: { itemName: string; description: string };
 }) {
   const isEdit = !!clientNeed;
   const isDeal = scope === "deal";
 
-  const [itemName, setItemName] = useState(clientNeed?.itemName ?? "");
-  const [description, setDescription] = useState(clientNeed?.description ?? "");
+  const [itemName, setItemName] = useState(clientNeed?.itemName ?? initialValues?.itemName ?? "");
+  const [description, setDescription] = useState(clientNeed?.description ?? initialValues?.description ?? "");
   const [category, setCategory] = useState(clientNeed?.category ?? "other");
   const [isStandard, setIsStandard] = useState(clientNeed?.isCustom === false);
   const [isGlobal, setIsGlobal] = useState(clientNeed?.isGlobal ?? false);

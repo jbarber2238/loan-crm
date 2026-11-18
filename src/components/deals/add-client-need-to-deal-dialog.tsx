@@ -28,9 +28,21 @@ export interface DealCatalogItem {
 
 // One entry in the "Ready to add" list. Catalog entries can repeat (three Operating Agreements); custom entries hold the
 // filled-in custom-need form until everything is added together.
-type Staged =
+type Staged = (
   | { key: number; kind: "catalog"; catalogId: string; itemName: string; description: string; linkUrl: string; needType: DealCatalogItem["needType"]; isCustom: boolean }
-  | { key: number; kind: "custom"; formData: FormData; itemName: string; description: string; linkUrl: string; needType: DealCatalogItem["needType"] };
+  | { key: number; kind: "custom"; formData: FormData; itemName: string; description: string; linkUrl: string; needType: DealCatalogItem["needType"] }
+) & {
+  /** The lender condition this need is for, when the dialog was opened from the Conditions tab. */
+  conditionId?: string;
+};
+
+/** A lender condition the dialog is working through: its pre-filled custom need, and how to refer to it. */
+export interface ConditionToCover {
+  id: string;
+  label: string;
+  itemName: string;
+  description: string;
+}
 
 const isWebLink = (v: string) => /^https?:\/\/\S+$/i.test(v.trim());
 
@@ -41,6 +53,8 @@ export function AddClientNeedToDealDialog({
   existingCounts = {},
   open,
   onOpenChange,
+  conditions,
+  onNeedAdded,
 }: {
   dealId: string;
   catalog: DealCatalogItem[];
@@ -49,6 +63,13 @@ export function AddClientNeedToDealDialog({
   existingCounts?: Record<string, number>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Opened from lender conditions: works through them one at a time. The Custom Need form loads pre-filled for the
+   * first condition; adding a need to the list (custom or standard) moves on to the next. Nothing is created until
+   * "Add to deal", which then reports each new need with the condition it was for.
+   */
+  conditions?: ConditionToCover[];
+  onNeedAdded?: (conditionId: string, needId: string) => Promise<void> | void;
 }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -56,6 +77,12 @@ export function AddClientNeedToDealDialog({
   const [addError, setAddError] = useState<string | null>(null);
   const [adding, startAdding] = useTransition();
   const nextKey = useRef(1);
+  // Conditions the processor chose to skip; the current one is the first not yet covered by a staged need or skipped.
+  const [skipped, setSkipped] = useState<Set<string>>(() => new Set());
+  const covered = new Set(staged.map((s) => s.conditionId).filter((id): id is string => !!id));
+  const queue = conditions ?? [];
+  const current = queue.find((c) => !covered.has(c.id) && !skipped.has(c.id));
+  const currentIndex = current ? queue.indexOf(current) : -1;
   // Bumped after each custom need is staged so the form starts blank for the next one.
   const [customFormVersion, setCustomFormVersion] = useState(0);
 
@@ -74,7 +101,7 @@ export function AddClientNeedToDealDialog({
     setAddError(null);
     setStaged((prev) => [
       ...prev,
-      { key: nextKey.current++, kind: "catalog", catalogId: item.id, itemName: item.itemName, description: item.description ?? "", linkUrl: item.linkUrl ?? "", needType: item.needType, isCustom: item.isCustom },
+      { key: nextKey.current++, kind: "catalog", catalogId: item.id, itemName: item.itemName, description: item.description ?? "", linkUrl: item.linkUrl ?? "", needType: item.needType, isCustom: item.isCustom, conditionId: current?.id },
     ]);
   }
 
@@ -91,10 +118,12 @@ export function AddClientNeedToDealDialog({
         description: String(formData.get("description") ?? ""),
         linkUrl: String(formData.get("linkUrl") ?? ""),
         needType: (typeof type === "string" ? type : "document_upload") as DealCatalogItem["needType"],
+        conditionId: current?.id,
       },
     ]);
     setCustomFormVersion((v) => v + 1);
-    toast.success("Added to the list. Add another, or use Add to deal when you're ready.");
+    const next = queue.find((c) => c.id !== current?.id && !covered.has(c.id) && !skipped.has(c.id));
+    toast.success(next ? "Added to the list. On to the next condition." : "Added to the list. Add another, or use Add to deal when you're ready.");
   }
 
   function patchStaged(key: number, patch: Partial<Pick<Staged, "itemName" | "description" | "linkUrl">>) {
@@ -106,6 +135,11 @@ export function AddClientNeedToDealDialog({
     startAdding(async () => {
       let remaining = staged;
       let added = 0;
+      // Ties a new need to the condition it was staged for, as soon as it exists, even if a later one in the batch fails.
+      async function report(conditionId: string | undefined, needId: string | undefined) {
+        if (!conditionId || !needId) return;
+        await onNeedAdded?.(conditionId, needId);
+      }
       try {
         // In the order they were staged; neighbouring catalog entries go up together.
         while (remaining.length) {
@@ -116,7 +150,7 @@ export function AddClientNeedToDealDialog({
               if (s.kind !== "catalog") break;
               run.push(s);
             }
-            await addStagedCatalogNeedsToDeal(
+            const createdCatalog = await addStagedCatalogNeedsToDeal(
               dealId,
               run.map((r) => ({
                 catalogId: r.catalogId,
@@ -125,13 +159,15 @@ export function AddClientNeedToDealDialog({
                 linkUrl: r.needType === "link" ? r.linkUrl.trim() : null,
               })),
             );
+            for (let i = 0; i < run.length; i++) await report(run[i].conditionId, createdCatalog[i]?.id);
             remaining = remaining.slice(run.length);
             added += run.length;
           } else {
             first.formData.set("itemName", first.itemName.trim());
             first.formData.set("description", first.description.trim());
             if (first.needType === "link") first.formData.set("linkUrl", first.linkUrl.trim());
-            await addClientNeedToDeal(dealId, first.formData);
+            const createdCustom = await addClientNeedToDeal(dealId, first.formData);
+            await report(first.conditionId, createdCustom?.id);
             remaining = remaining.slice(1);
             added += 1;
           }
@@ -179,6 +215,30 @@ export function AddClientNeedToDealDialog({
             reword them, then add them all at once.
           </DialogDescription>
         </DialogHeader>
+
+        {queue.length > 0 && (
+          <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+            {current ? (
+              <>
+                <span className="min-w-0">
+                  <b>
+                    {queue.length > 1 ? `Condition ${currentIndex + 1} of ${queue.length}: ` : "For the condition: "}
+                  </b>
+                  {current.label}
+                </span>
+                {queue.length > 1 && (
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setSkipped((prev) => new Set(prev).add(current.id))}>
+                    Skip this one
+                  </Button>
+                )}
+              </>
+            ) : (
+              <span>
+                {queue.length > 1 ? `All ${queue.length} conditions are in the list.` : "The condition is in the list."} Review them, then use Add to deal.
+              </span>
+            )}
+          </div>
+        )}
 
         <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <section aria-label="Ready to add" className="flex min-h-0 flex-col gap-2 rounded-lg border bg-muted/30 p-3 max-md:order-2">
@@ -230,6 +290,9 @@ export function AddClientNeedToDealDialog({
                     )}
                     <span className="text-xs text-muted-foreground">{labelFor(CLIENT_NEED_TYPES, s.needType)}</span>
                   </div>
+                  {s.conditionId && (
+                    <p className="line-clamp-2 text-xs text-muted-foreground">For: {queue.find((c) => c.id === s.conditionId)?.label}</p>
+                  )}
                 </div>
               ))}
             </div>
@@ -241,7 +304,7 @@ export function AddClientNeedToDealDialog({
             </Button>
           </section>
 
-          <Tabs defaultValue="list" className="min-w-0 max-md:order-1">
+          <Tabs defaultValue={queue.length ? "custom" : "list"} className="min-w-0 max-md:order-1">
             <TabsList>
               <TabsTrigger value="list">Select from List</TabsTrigger>
               <TabsTrigger value="custom">Custom Need</TabsTrigger>
@@ -290,8 +353,10 @@ export function AddClientNeedToDealDialog({
 
             <TabsContent value="custom" className="max-h-[60vh] overflow-y-auto pt-2 pr-1">
               <ClientNeedForm
-                key={customFormVersion}
+                key={`${customFormVersion}-${current?.id ?? "none"}`}
                 formId="deal-custom-need"
+                // Pre-filled from the condition being worked on; blank once every condition has its need.
+                initialValues={current ? { itemName: current.itemName, description: current.description } : undefined}
                 allProducts={allProducts}
                 onSubmit={stageCustom}
                 submitLabel="Add to list"

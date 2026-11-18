@@ -203,7 +203,14 @@ export function LoanCenterTab({
         </TabsContent>
 
         <TabsContent value="conditions">
-          <ConditionsTab dealId={dealId} conditions={conditions} />
+          <ConditionsTab
+            dealId={dealId}
+            conditions={conditions}
+            catalog={clientNeedsCatalog}
+            allProducts={allProducts}
+            existingNeedNames={clientNeeds.map((n) => n.itemName)}
+            keyDateEvents={keyDateEvents}
+          />
         </TabsContent>
 
         <TabsContent value="roles">

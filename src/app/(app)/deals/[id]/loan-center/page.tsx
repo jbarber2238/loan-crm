@@ -39,6 +39,7 @@ export default async function DealLoanCenterPage({
     }),
     db.query.dealConditions.findMany({
       where: (dc, { eq }) => eq(dc.dealId, id),
+      with: { linkedClientNeed: { columns: { status: true, onHoldAt: true } } },
       orderBy: (dc, { asc }) => asc(dc.createdAt),
     }),
     db.query.dealClientNeeds.findMany({
@@ -155,7 +156,7 @@ export default async function DealLoanCenterPage({
         updatedAt: deal.clientNeedsNoteUpdatedAt?.toISOString() ?? null,
         updatedByName: noteAuthor?.name ?? null,
       }}
-      conditions={conditions}
+      conditions={conditions.map(({ linkedClientNeed, ...c }) => ({ ...c, linkedNeed: linkedClientNeed }))}
       notes={deal.notes.map((n) => ({
         ...n,
         canDelete: n.authorUserId === user.id || user.isAdmin,

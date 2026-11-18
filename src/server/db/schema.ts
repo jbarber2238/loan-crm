@@ -1410,6 +1410,10 @@ export const dealConditions = pgTable("deal_conditions", {
   linkedClientNeedId: uuid("linked_client_need_id").references(() => dealClientNeeds.id, {
     onDelete: "set null",
   }),
+  // Set by hand once the processor has sent what satisfies this borrower condition (the accepted client need's
+  // documents) on to the lender. The condition itself stays open until the lender clears it.
+  sentToLenderAt: timestamp("sent_to_lender_at", { mode: "date" }),
+  sentToLenderByUserId: uuid("sent_to_lender_by_user_id").references(() => users.id),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 

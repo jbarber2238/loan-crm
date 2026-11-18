@@ -403,9 +403,9 @@ export async function addCatalogItemsToDeal(dealId: string, formData: FormData) 
 export async function addStagedCatalogNeedsToDeal(
   dealId: string,
   items: { catalogId: string; itemName: string; description: string | null; linkUrl?: string | null }[]
-): Promise<number> {
+): Promise<{ id: string; itemName: string }[]> {
   const user = await requireUser();
-  if (!items.length) return 0;
+  if (!items.length) return [];
   if (items.length > 100) throw new Error("That's a lot at once. Add them in smaller batches.");
 
   const ids = [...new Set(items.map((i) => i.catalogId))];
@@ -426,7 +426,7 @@ export async function addStagedCatalogNeedsToDeal(
   // Never deduped: a deliberate pick, and a second copy is the point.
   const added = await addCatalogNeedsToDeal(dealId, toAdd, false, user.id);
   revalidatePath(`/deals/${dealId}/loan-center`);
-  return added.length;
+  return added;
 }
 
 // The deal's "Custom Need" tab — full parity with the catalog's own create
@@ -444,7 +444,7 @@ export async function addClientNeedToDeal(dealId: string, formData: FormData): P
   revalidatePath(`/deals/${dealId}/loan-center`);
   if (formData.get("isStandard") === "on") revalidatePath("/client-needs");
   // The actual inserted deal-need row, not the catalog row createClientNeed
-  // returned — callers (e.g. createClientNeedFromCondition) need the id that
+  // returned — callers (e.g. linking a condition to the need made from it) need the id that
   // dealClientNeeds-referencing foreign keys actually point to.
   return dealNeed;
 }

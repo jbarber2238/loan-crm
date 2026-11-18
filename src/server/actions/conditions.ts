@@ -1,13 +1,13 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
-import { dealConditions } from "@/server/db/schema";
+import { dealClientNeeds, dealConditions } from "@/server/db/schema";
+import { canMarkSentToLender } from "@/lib/condition-owner";
 import { requireUser } from "@/server/auth/guards";
 import { autoAdvanceDeal } from "@/server/auto-stage-moves";
 import { extractConditions } from "@/server/ai/condition-extraction";
-import { addClientNeedToDeal } from "@/server/actions/client-needs";
 import { resolveStagedFiles } from "@/server/staged-uploads";
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
@@ -76,24 +76,53 @@ export async function deleteCondition(dealId: string, conditionId: string) {
   revalidatePath(`/deals/${dealId}/loan-center`);
 }
 
-// Reuses the existing client-need creation path (custom, one-off for this
-// deal by default) so a condition promoted to a client need shows up exactly
-// like any other manually-added one — then marks the condition resolved and
-// linked, since ongoing collection tracking now lives on the Client Needs tab.
-export async function createClientNeedFromCondition(dealId: string, conditionId: string, formData: FormData) {
-  const user = await requireUser();
+// A borrower condition is tied to the client need made from it, so the Conditions tab can show who it is waiting on
+// (borrower, processor, lender) as that need moves. The condition stays open until it is marked sent to the lender.
+export async function linkConditionToClientNeed(dealId: string, conditionId: string, needId: string) {
+  await requireUser();
+  const [condition, need] = await Promise.all([
+    db.query.dealConditions.findFirst({ where: and(eq(dealConditions.id, conditionId), eq(dealConditions.dealId, dealId)), columns: { id: true, category: true } }),
+    db.query.dealClientNeeds.findFirst({ where: and(eq(dealClientNeeds.id, needId), eq(dealClientNeeds.dealId, dealId)), columns: { id: true } }),
+  ]);
+  if (!condition || !need) throw new Error("Condition or client need not found on this deal");
+  if (condition.category !== "borrower") throw new Error("Only borrower conditions are linked to client needs");
+  await db.update(dealConditions).set({ linkedClientNeedId: need.id }).where(eq(dealConditions.id, condition.id));
+  revalidatePath(`/deals/${dealId}/loan-center`);
+}
 
-  const created = await addClientNeedToDeal(dealId, formData);
+/**
+ * Marks borrower conditions as sent to the lender, which also checks them off. Several at once. Only conditions whose
+ * client need the processor has accepted can be marked, so nothing goes to the lender that she hasn't approved.
+ * Taking the mark back reopens the condition.
+ */
+export async function markConditionsSentToLender(dealId: string, conditionIds: string[], sent: boolean): Promise<{ updated: number }> {
+  const user = await requireUser();
+  if (!conditionIds.length) return { updated: 0 };
+  const rows = await db.query.dealConditions.findMany({
+    where: and(eq(dealConditions.dealId, dealId), inArray(dealConditions.id, conditionIds)),
+    columns: { id: true, category: true, status: true, sentToLenderAt: true },
+    with: { linkedClientNeed: { columns: { status: true, onHoldAt: true } } },
+  });
+  if (!rows.length) throw new Error("Those conditions weren't found on this deal");
+
+  let targets = rows;
+  if (sent) {
+    const blocked = rows.filter((r) => !canMarkSentToLender({ category: r.category, status: r.status, sentToLenderAt: r.sentToLenderAt, linkedNeed: r.linkedClientNeed }));
+    if (blocked.length) throw new Error("Only conditions whose client need has been accepted can be marked sent to the lender.");
+  } else {
+    // Only reopen what was actually sent; a condition cleared some other way is left alone.
+    targets = rows.filter((r) => r.sentToLenderAt);
+  }
+  if (!targets.length) return { updated: 0 };
 
   await db
     .update(dealConditions)
-    .set({
-      status: "cleared",
-      clearedAt: new Date(),
-      clearedByUserId: user.id,
-      linkedClientNeedId: created?.id ?? null,
-    })
-    .where(eq(dealConditions.id, conditionId));
-
+    .set(
+      sent
+        ? { status: "cleared", clearedAt: new Date(), clearedByUserId: user.id, sentToLenderAt: new Date(), sentToLenderByUserId: user.id }
+        : { status: "open", clearedAt: null, clearedByUserId: null, sentToLenderAt: null, sentToLenderByUserId: null }
+    )
+    .where(inArray(dealConditions.id, targets.map((r) => r.id)));
   revalidatePath(`/deals/${dealId}/loan-center`);
+  return { updated: targets.length };
 }
