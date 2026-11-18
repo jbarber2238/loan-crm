@@ -399,10 +399,10 @@ export async function addCatalogItemsToDeal(dealId: string, formData: FormData) 
 
 // "Select from List" with a staging area: each entry is one catalog need to add, and the same catalog need can appear
 // several times (three Operating Agreements for layered entities). The processor may reword the name and the borrower
-// instructions per entry before adding; everything else (type, link, template, questions) comes from the catalog row.
+// instructions (and the link, for a link need) per entry before adding; everything else (type, template, questions) comes from the catalog row.
 export async function addStagedCatalogNeedsToDeal(
   dealId: string,
-  items: { catalogId: string; itemName: string; description: string | null }[]
+  items: { catalogId: string; itemName: string; description: string | null; linkUrl?: string | null }[]
 ): Promise<number> {
   const user = await requireUser();
   if (!items.length) return 0;
@@ -417,7 +417,10 @@ export async function addStagedCatalogNeedsToDeal(
     if (!row) throw new Error("One of those needs is no longer in the catalog. Remove it from the list and try again.");
     const name = item.itemName.trim();
     const description = item.description?.trim();
-    return { ...row, itemName: name || row.itemName, description: description ? description : null };
+    // A link need can be pointed at this lender's own link; blank keeps the catalog's.
+    const linkUrl = row.needType === "link" ? item.linkUrl?.trim() || row.linkUrl : row.linkUrl;
+    if (row.needType === "link" && linkUrl && !/^https?:\/\/\S+$/i.test(linkUrl)) throw new Error("The link has to start with https://");
+    return { ...row, itemName: name || row.itemName, description: description ? description : null, linkUrl };
   });
 
   // Never deduped: a deliberate pick, and a second copy is the point.

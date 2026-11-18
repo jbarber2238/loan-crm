@@ -20,6 +20,8 @@ export interface DealCatalogItem {
   itemName: string;
   /** The catalog's borrower instructions, which the staging list starts from and the processor can reword. */
   description?: string | null;
+  /** For "link" needs: where the borrower is sent. The staging list lets the processor swap in this lender's link. */
+  linkUrl?: string | null;
   needType: "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form" | "custom_form";
   isCustom: boolean;
 }
@@ -27,8 +29,10 @@ export interface DealCatalogItem {
 // One entry in the "Ready to add" list. Catalog entries can repeat (three Operating Agreements); custom entries hold the
 // filled-in custom-need form until everything is added together.
 type Staged =
-  | { key: number; kind: "catalog"; catalogId: string; itemName: string; description: string; needType: DealCatalogItem["needType"]; isCustom: boolean }
-  | { key: number; kind: "custom"; formData: FormData; itemName: string; description: string; needType: DealCatalogItem["needType"] };
+  | { key: number; kind: "catalog"; catalogId: string; itemName: string; description: string; linkUrl: string; needType: DealCatalogItem["needType"]; isCustom: boolean }
+  | { key: number; kind: "custom"; formData: FormData; itemName: string; description: string; linkUrl: string; needType: DealCatalogItem["needType"] };
+
+const isWebLink = (v: string) => /^https?:\/\/\S+$/i.test(v.trim());
 
 export function AddClientNeedToDealDialog({
   dealId,
@@ -64,12 +68,13 @@ export function AddClientNeedToDealDialog({
     return acc;
   }, {});
   const hasBlankName = staged.some((s) => !s.itemName.trim());
+  const hasBlankLink = staged.some((s) => s.needType === "link" && !isWebLink(s.linkUrl));
 
   function stageCatalog(item: DealCatalogItem) {
     setAddError(null);
     setStaged((prev) => [
       ...prev,
-      { key: nextKey.current++, kind: "catalog", catalogId: item.id, itemName: item.itemName, description: item.description ?? "", needType: item.needType, isCustom: item.isCustom },
+      { key: nextKey.current++, kind: "catalog", catalogId: item.id, itemName: item.itemName, description: item.description ?? "", linkUrl: item.linkUrl ?? "", needType: item.needType, isCustom: item.isCustom },
     ]);
   }
 
@@ -84,6 +89,7 @@ export function AddClientNeedToDealDialog({
         formData,
         itemName: String(formData.get("itemName") ?? ""),
         description: String(formData.get("description") ?? ""),
+        linkUrl: String(formData.get("linkUrl") ?? ""),
         needType: (typeof type === "string" ? type : "document_upload") as DealCatalogItem["needType"],
       },
     ]);
@@ -91,7 +97,7 @@ export function AddClientNeedToDealDialog({
     toast.success("Added to the list. Add another, or use Add to deal when you're ready.");
   }
 
-  function patchStaged(key: number, patch: Partial<Pick<Staged, "itemName" | "description">>) {
+  function patchStaged(key: number, patch: Partial<Pick<Staged, "itemName" | "description" | "linkUrl">>) {
     setStaged((prev) => prev.map((s) => (s.key === key ? { ...s, ...patch } : s)));
   }
 
@@ -112,13 +118,19 @@ export function AddClientNeedToDealDialog({
             }
             await addStagedCatalogNeedsToDeal(
               dealId,
-              run.map((r) => ({ catalogId: r.catalogId, itemName: r.itemName, description: r.description.trim() || null })),
+              run.map((r) => ({
+                catalogId: r.catalogId,
+                itemName: r.itemName,
+                description: r.description.trim() || null,
+                linkUrl: r.needType === "link" ? r.linkUrl.trim() : null,
+              })),
             );
             remaining = remaining.slice(run.length);
             added += run.length;
           } else {
             first.formData.set("itemName", first.itemName.trim());
             first.formData.set("description", first.description.trim());
+            if (first.needType === "link") first.formData.set("linkUrl", first.linkUrl.trim());
             await addClientNeedToDeal(dealId, first.formData);
             remaining = remaining.slice(1);
             added += 1;
@@ -199,6 +211,17 @@ export function AddClientNeedToDealDialog({
                     onChange={(e) => patchStaged(s.key, { description: e.target.value })}
                     className="min-h-0 text-sm"
                   />
+                  {s.needType === "link" && (
+                    <Input
+                      aria-label="Link the borrower will open"
+                      type="url"
+                      placeholder="Link for the borrower, https://…"
+                      value={s.linkUrl}
+                      onChange={(e) => patchStaged(s.key, { linkUrl: e.target.value })}
+                      aria-invalid={!isWebLink(s.linkUrl)}
+                      className="h-8 text-sm"
+                    />
+                  )}
                   <div className="flex items-center gap-1.5">
                     {(s.kind === "custom" || s.isCustom) && (
                       <Badge variant="secondary" className="text-[10px]">
@@ -212,7 +235,8 @@ export function AddClientNeedToDealDialog({
             </div>
             {addError && <p className="text-sm text-destructive">{addError}</p>}
             {hasBlankName && <p className="text-xs text-destructive">Every need needs a title.</p>}
-            <Button type="button" className="w-full" disabled={adding || staged.length === 0 || hasBlankName} onClick={addAll}>
+            {hasBlankLink && <p className="text-xs text-destructive">Add the link for each link-type need (it has to start with https://).</p>}
+            <Button type="button" className="w-full" disabled={adding || staged.length === 0 || hasBlankName || hasBlankLink} onClick={addAll}>
               {adding ? "Adding…" : staged.length ? `Add ${staged.length} to deal` : "Add to deal"}
             </Button>
           </section>

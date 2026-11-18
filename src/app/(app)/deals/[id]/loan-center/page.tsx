@@ -33,7 +33,7 @@ export default async function DealLoanCenterPage({
   const [allUsers, clientNeedsCatalog, conditions, clientNeeds, categoryProducts, allProducts, documents, emailLog, dealFiles] = await Promise.all([
     db.query.users.findMany({ where: (users, { eq }) => eq(users.active, true) }),
     db.query.clientNeeds.findMany({
-      columns: { id: true, itemName: true, description: true, needType: true, isCustom: true },
+      columns: { id: true, itemName: true, description: true, linkUrl: true, needType: true, isCustom: true },
       orderBy: (cn, { asc }) => asc(cn.itemName),
     }),
     db.query.dealConditions.findMany({
