@@ -396,7 +396,8 @@ function Composer({
           Recording… {formatDuration(voice.seconds)} — tap the mic again to stop
         </p>
       )}
-      <div className="flex items-end gap-2">
+      {/* Desktop: the text box takes the full width on top and the buttons sit in a row beneath it, so a narrow chat panel never squeezes the box. Phone keeps the one-line messenger layout. */}
+      <div className={phone ? "flex items-end gap-2" : "flex flex-wrap items-center gap-2"}>
         <input
           ref={fileInput}
           type="file"
@@ -459,7 +460,7 @@ function Composer({
             }
           }}
           // The box grows with what's typed, up to a cap; past that the text scrolls inside it, so Send never leaves the screen.
-          className={cn("max-h-40 min-h-9 resize-none overflow-y-auto", phone && "max-h-32 min-h-10 rounded-3xl px-4 py-2")}
+          className={cn("max-h-40 min-h-9 resize-none overflow-y-auto", phone ? "max-h-32 min-h-10 rounded-3xl px-4 py-2" : "order-first min-h-16 basis-full")}
         />
         {phone ? (
           <Button
@@ -473,7 +474,7 @@ function Composer({
             <ArrowUp className="size-5" />
           </Button>
         ) : (
-          <Button type="button" size="sm" disabled={pending || voice.recording || !canSend} onClick={submit}>
+          <Button type="button" size="sm" className="ml-auto" disabled={pending || voice.recording || !canSend} onClick={submit}>
             {pending ? "Sending…" : "Send"}
           </Button>
         )}
