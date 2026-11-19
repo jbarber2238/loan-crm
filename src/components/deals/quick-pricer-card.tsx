@@ -74,6 +74,10 @@ export function QuickPricerCard({
           category: loanCategory,
           file: { fileName: file.name, mimeType: file.type || "image/png", dataBase64 },
         });
+        if ("error" in result) {
+          setError(result.error);
+          return;
+        }
         setOptions(
           result.options.map((opt) => {
             const loanAmount = Number(opt.fields.loanAmount);

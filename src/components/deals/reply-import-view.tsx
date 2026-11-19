@@ -92,6 +92,11 @@ export function ReplyImportView({
           pricingRequestId,
           category: loanCategory,
         });
+        if ("error" in result) {
+          setExtractError(result.error);
+          toast.error(result.error);
+          return;
+        }
         setOptions(
           result.options.map((opt) => {
             const loanAmount = Number(opt.fields.loanAmount);

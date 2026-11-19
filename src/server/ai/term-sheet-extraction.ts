@@ -246,13 +246,32 @@ function finalizeOption(
   };
 }
 
-export async function extractTermSheetFromReply({
-  pricingRequestId,
-  category,
-}: {
+export async function extractTermSheetFromReply(input: {
   pricingRequestId: string;
   category: string;
-}): Promise<TermSheetExtractionResult> {
+}): Promise<TermSheetExtractionResult | { error: string }> {
+  // A thrown error from a server action reaches the browser as an unreadable "Minified React error #441" on the live
+  // site, so failures come back as a plain message the person can act on (and the real cause goes to the server log).
+  try {
+    return await readReply(input);
+  } catch (err) {
+    console.error("Term sheet extraction from a lender reply failed:", err);
+    return { error: friendlyExtractionError(err) };
+  }
+}
+
+function friendlyExtractionError(err: unknown): string {
+  const message = err instanceof Error ? err.message : "";
+  if (/overloaded|529|rate.?limit|429|timeout|timed out|ECONNRESET|fetch failed/i.test(message)) {
+    return "The AI reader is busy right now. Wait a few seconds and press the button again.";
+  }
+  if (/too large|exceeds|5 MB|image.*size|request_too_large|413/i.test(message)) {
+    return "That attachment is too large for the AI to read. Try a smaller screenshot or a PDF.";
+  }
+  return message || "Couldn't read the lender's reply. Try again, or enter the terms by hand.";
+}
+
+async function readReply({ pricingRequestId, category }: { pricingRequestId: string; category: string }): Promise<TermSheetExtractionResult> {
   await requireUser();
 
   const request = await db.query.pricingRequests.findFirst({
@@ -263,6 +282,9 @@ export async function extractTermSheetFromReply({
   const attachmentRows = await db.query.pricingRequestReplyAttachments.findMany({
     where: eq(pricingRequestReplyAttachments.pricingRequestId, pricingRequestId),
   });
+
+  // Read everything from the database before the (slow) AI call, so no query runs on a connection that sat idle through it.
+  const deal = await db.query.deals.findFirst({ where: eq(deals.id, request.dealId) });
 
   const replyBodyText = request.replyBodyText ?? "";
 
@@ -291,7 +313,6 @@ export async function extractTermSheetFromReply({
   // a refinance, purchase price for a purchase, same basis this term
   // sheet's own LTV will be computed against once it's created, so the two
   // never disagree).
-  const deal = await db.query.deals.findFirst({ where: eq(deals.id, request.dealId) });
   const valueBasis = deal
     ? valueBasisFor(
         deal.loanCategory,
@@ -308,7 +329,19 @@ export async function extractTermSheetFromReply({
 
 // The quick-pricer flow has no lender email to read — just a screenshot of
 // whatever the pricer showed on screen, snapped right after pricing it.
-export async function extractTermSheetFromScreenshot({
+export async function extractTermSheetFromScreenshot(input: {
+  category: string;
+  file: { fileName: string; mimeType: string; dataBase64: string };
+}): Promise<TermSheetExtractionResult | { error: string }> {
+  try {
+    return await readScreenshot(input);
+  } catch (err) {
+    console.error("Term sheet extraction from a screenshot failed:", err);
+    return { error: friendlyExtractionError(err) };
+  }
+}
+
+async function readScreenshot({
   category,
   file,
 }: {
