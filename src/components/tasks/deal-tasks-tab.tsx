@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { compareTasks } from "@/lib/tasks";
 import type { TaskRow } from "@/server/tasks";
 import { AddTaskForm, TaskRowItem, type TaskUser } from "@/components/tasks/task-parts";
+import { TaskVoiceDrafter } from "@/components/tasks/task-voice-drafter";
 
 /** The Tasks tab inside a deal's Loan Center: this deal's tasks (the ones this person may see) and a form to add one. */
 export function DealTasksTab({
@@ -34,6 +35,13 @@ export function DealTasksTab({
           <p className="pt-1 text-xs text-muted-foreground">
             {isAdmin ? "You see everyone's tasks on this deal." : `You see your own tasks on this deal${hasCover ? ", plus the tasks of anyone you're covering" : ""}.`}
           </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="space-y-1 pt-6">
+          <h3 className="mb-2 text-sm font-semibold">Dictate tasks</h3>
+          <TaskVoiceDrafter dealId={dealId} viewerId={viewerId} users={users} />
         </CardContent>
       </Card>
 

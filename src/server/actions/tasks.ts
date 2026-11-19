@@ -74,6 +74,21 @@ export async function createTask(input: NewTaskInput): Promise<Ok | ActionError>
   return { ok: true };
 }
 
+/** Adds several tasks to one deal at once (the dictated drafts, after the person has reviewed and edited them). */
+export async function createTasks(dealId: string, items: Omit<NewTaskInput, "dealId">[]): Promise<{ ok: true; added: number } | ActionError> {
+  if (!Array.isArray(items) || items.length === 0) return fail("Pick at least one task to add.");
+  if (items.length > 20) return fail("That's a lot at once. Add 20 or fewer at a time.");
+  let added = 0;
+  for (const item of items) {
+    const result = await createTask({ ...item, dealId });
+    if ("error" in result) {
+      return fail(added ? `Added ${added}, then hit a problem: ${result.error}` : result.error);
+    }
+    added++;
+  }
+  return { ok: true, added };
+}
+
 export async function setTaskDone(taskId: string, done: boolean): Promise<Ok | ActionError> {
   const user = await requireUser();
   const task = await db.query.dealTasks.findFirst({ where: eq(dealTasks.id, taskId) });
