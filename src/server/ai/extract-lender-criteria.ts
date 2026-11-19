@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { resolveDocContent } from "@/server/lender-documents/resolve-content";
+import { resolveExtractionBlocks } from "@/server/lender-documents/resolve-content";
 import { LOAN_CATEGORIES } from "@/lib/labels";
 
 const anthropic = process.env.ANTHROPIC_API_KEY
@@ -58,6 +58,8 @@ const FIELD_GUIDE = `Extract these fields where the document states them; use nu
 - tiers: if the matrix has a grid of rows (e.g. FICO band x experience level, each with its own max LTC/LTARV/LTV), one entry per row with whichever of ficoMin/ficoMax/experienceMin/maxLtc/maxLtarv/maxLtv that row states (null for whatever that row doesn't state), plus "notes" for anything about that specific row worth keeping in plain English. Empty array if the matrix isn't tiered.
 - extractionNotes: 1-3 sentences of anything important you read that doesn't fit the fields above (unusual overlays, exclusions, special programs) — this is shown to a human reviewer, so be concrete and cite the actual numbers/terms.`;
 
+const TABLE_RULE = `COMPLETENESS AND TABLE ACCURACY: a loan officer will make go/no-go decisions from these numbers, so a missing or misplaced row is worse than a blank. For every grid, list EVERY row (each combination of FICO band, experience level, rehab level, property class or loan purpose the document gives a number for) as its own tier; never skip, average or merge rows. Read each value from the cell under its own column header and on its own row label, not from the order the text happens to come out in. Before answering, count the rows in each source table and make sure your tiers match. Put the row's full context in its "notes" (e.g. "Single-family, Moderate Rehab, 5-10 flips"). Also record, in extractionNotes, every other decision-relevant fact that has no field above: maximum loan amounts, loan term and amortization options, prepayment penalty options, leverage for refinance and cash-out when the grid only covers purchase, minimum property value, and special conditions or footnotes attached to a number.`;
+
 const CONSISTENCY_RULE = `CONSISTENCY REQUIREMENT: before writing extractionNotes, check every one of the structured fields above (minFico, minLoanAmount, maxLoanAmount, minDscr, maxLtv, maxLtc, maxLtarv, minExperienceCount, msaPopulationMinimum) — if the document states an overall (non-tiered) value for one of them, that value MUST be set in the structured field itself, not only mentioned in extractionNotes prose. Never describe a concrete overall limit in extractionNotes while leaving its own structured field null.`;
 
 const SYSTEM_PROMPT = `You extract structured underwriting criteria from ONE lender's rate matrix or guideline document, for a mortgage broker's internal database. You are given the document as text or as image(s) of its pages.
@@ -66,6 +68,8 @@ ${FIELD_GUIDE}
 - detectedCategory: which ONE loan program this document's matrix/guideline is for, chosen from EXACTLY this list of values: ${CATEGORY_VALUES.join(", ")}. Use null if the document isn't clearly about a single one of these programs (e.g. it's a general company overview, a multi-program summary, or genuinely ambiguous) — never guess.
 
 ${CONSISTENCY_RULE}
+
+${TABLE_RULE}
 
 If the document doesn't contain usable underwriting criteria at all (e.g. it's a servicing guide, a cover page, or genuinely illegible), return every field null/empty and say why in extractionNotes.
 
@@ -89,6 +93,8 @@ ${FIELD_GUIDE}
 - detectedCategory: the category for this entry (see above); never null in this list.
 
 ${CONSISTENCY_RULE}
+
+${TABLE_RULE} For a program entry, extractionNotes may run to 6-8 sentences to hold all of that.
 
 "general" holds facts that apply to the lender as a whole rather than one program: foreignNationalEligible, itinEligible and ruralEligible (same meaning as above, null when not addressed) and extractionNotes (1-3 sentences on anything important that isn't captured in the programs, including programs you left out).
 
@@ -221,39 +227,14 @@ export async function extractLenderCriteria(doc: {
     throw new Error("AI extraction isn't configured (missing ANTHROPIC_API_KEY).");
   }
 
-  const content = await resolveDocContent(doc, EXTRACTION_LIMITS);
-  if (content.kind === "none") {
-    return {
-      minFico: null,
-      minLoanAmount: null,
-      maxLoanAmount: null,
-      statesAllowed: null,
-      propertyTypesAllowed: null,
-      minDscr: null,
-      maxLtv: null,
-      maxLtc: null,
-      maxLtarv: null,
-      minExperienceCount: null,
-      entityOnlyRequired: null,
-      gcLicenseRequired: null,
-      msaPopulationMinimum: null,
-      foreignNationalEligible: null,
-      itinEligible: null,
-      ruralEligible: null,
-      tiers: [],
-      extractionNotes: "Couldn't extract any readable text or images from this document.",
-      detectedCategory: null,
-    };
+  const blocks = await resolveExtractionBlocks(doc, EXTRACTION_LIMITS);
+  if (!blocks) {
+    return emptyCriteria("Couldn't extract any readable text or images from this document.");
   }
-
-  const blocks: Anthropic.ContentBlockParam[] =
-    content.kind === "text"
-      ? [{ type: "text", text: content.text }]
-      : [{ type: "text", text: `Document "${doc.fileName}":` }, ...content.blocks];
 
   const response = await anthropic.messages.create({
     model: "claude-sonnet-5",
-    max_tokens: 4000,
+    max_tokens: 8000,
     thinking: { type: "disabled" },
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: blocks }],
@@ -347,15 +328,10 @@ export async function extractLenderPrograms(doc: { fileName: string; mimeType: s
     throw new Error("AI extraction isn't configured (missing ANTHROPIC_API_KEY).");
   }
 
-  const content = await resolveDocContent(doc, EXTRACTION_LIMITS);
-  if (content.kind === "none") {
+  const blocks = await resolveExtractionBlocks(doc, EXTRACTION_LIMITS);
+  if (!blocks) {
     return { programs: [], general: emptyCriteria("Couldn't extract any readable text or images from this document.") };
   }
-
-  const blocks: Anthropic.ContentBlockParam[] =
-    content.kind === "text"
-      ? [{ type: "text", text: content.text }]
-      : [{ type: "text", text: `Document "${doc.fileName}":` }, ...content.blocks];
 
   const response = await anthropic.messages.create({
     model: "claude-sonnet-5",

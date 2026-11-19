@@ -84,3 +84,41 @@ export function headerNoteFor(content: DocContent, fileName: string, label: stri
   const truncated = content.totalPages > content.pageCount ? ` (first ${content.pageCount} of ${content.totalPages} pages)` : "";
   return `${label} — scanned PDF rendered as page images below${truncated} ("${fileName}")`;
 }
+
+/**
+ * What the one-time criteria extraction sends the model. A real PDF's text layer loses table layout (which value sits
+ * on which row, which column of a side-by-side table), so for a PDF the model gets the text AND the page images and
+ * is told to trust the images for any table. Spreadsheets, plain text and scanned/raw images go as before.
+ */
+export async function resolveExtractionBlocks(
+  doc: { fileName: string; mimeType: string; data: string },
+  limits: { maxChars: number; maxScannedPages: number }
+): Promise<Anthropic.ContentBlockParam[] | null> {
+  const content = await resolveDocContent(doc, limits);
+  if (content.kind === "none") return null;
+  if (content.kind === "images") return [{ type: "text", text: `Document "${doc.fileName}":` }, ...content.blocks];
+
+  const blocks: Anthropic.ContentBlockParam[] = [];
+  if (isPdfFile(doc.fileName, doc.mimeType)) {
+    try {
+      const { pages, totalPages } = await renderPdfPagesAsImages(doc.data, limits.maxScannedPages);
+      if (pages.length) {
+        blocks.push({
+          type: "text",
+          text:
+            `Document "${doc.fileName}" (${totalPages} pages). Below are (1) the text pulled from the PDF, then (2) an image of each page` +
+            `${pages.length < totalPages ? ` (the first ${pages.length})` : ""}. The text is reliable for wording but it often scrambles tables: ` +
+            `rows and side-by-side columns can come out in the wrong order. For every table, read the row labels, column headers and values from the page images; ` +
+            `if the text and an image disagree on a table value, the image is right.`,
+        });
+        blocks.push({ type: "text", text: `TEXT:\n${content.text}` });
+        blocks.push(...pages.map((p) => ({ type: "image" as const, source: { type: "base64" as const, media_type: p.mediaType, data: p.base64 } })));
+        return blocks;
+      }
+    } catch (err) {
+      // Page images are an accuracy boost, not a requirement: fall back to the text alone.
+      console.error("Couldn't render PDF pages for extraction, using text only:", err);
+    }
+  }
+  return [{ type: "text", text: content.text }];
+}

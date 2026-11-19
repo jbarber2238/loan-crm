@@ -3,9 +3,9 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
-import { lenderCriteria, lenderCriteriaTiers, lenderDocuments, lenderWideCriteria } from "@/server/db/schema";
+import { lenderCriteria, lenderCriteriaTiers, lenderDocuments, lenderWideCriteria, products } from "@/server/db/schema";
 import { requireAdmin } from "@/server/auth/guards";
-import { extractLenderCriteria, type ExtractedCriteria } from "@/server/ai/extract-lender-criteria";
+import { extractLenderCriteria, extractLenderPrograms, type ExtractedCriteria } from "@/server/ai/extract-lender-criteria";
 import { resolveStagedFiles } from "@/server/staged-uploads";
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB — plenty for rate sheets/matrices
@@ -244,7 +244,18 @@ export async function reextractProductCriteria(lenderId: string, productId: stri
   });
   if (!doc) throw new Error("This product has no uploaded document to extract from.");
 
-  await extractAndStoreCriteria(productId, doc);
+  // The document may be a package covering several programs (the same file can sit behind more than one product),
+  // so read it program by program and take this product's own section. A document with no section for this
+  // product's category (an older single-program matrix) is read the original way.
+  const product = await db.query.products.findFirst({ where: eq(products.id, productId) });
+  let own: ExtractedCriteria | null | undefined;
+  try {
+    const { programs } = await extractLenderPrograms(doc);
+    own = programs.find((p) => p.detectedCategory === product?.category) ?? undefined;
+  } catch (err) {
+    console.error("Program-by-program re-extraction failed, reading the document as one program:", err);
+  }
+  await extractAndStoreCriteria(productId, doc, own);
 
   revalidatePath(`/lenders/${lenderId}`);
 }
