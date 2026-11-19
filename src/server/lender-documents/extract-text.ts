@@ -117,7 +117,10 @@ export interface RenderedPdfPage {
  */
 export async function renderPdfPagesAsImages(
   base64Data: string,
-  maxPages: number = MAX_SCANNED_PDF_PAGES
+  maxPages: number = MAX_SCANNED_PDF_PAGES,
+  // The one-time criteria extraction asks for a sharper render than the per-deal lender match does: a dense matrix is
+  // hard to read at 1100px, and an extraction only ever happens once per document.
+  opts: { width?: number; quality?: number } = {}
 ): Promise<{ pages: RenderedPdfPage[]; totalPages: number }> {
   await ensurePdfjsNodeSetup();
   const { PDFParse } = await import("pdf-parse");
@@ -131,13 +134,13 @@ export async function renderPdfPagesAsImages(
       // token cost of the original 1400px — image cost scales with pixel
       // count, so this and the quality setting below matter a lot when
       // multiplied across every lender's documents on every run.
-      desiredWidth: 1100,
+      desiredWidth: opts.width ?? 1100,
       imageBuffer: true,
       imageDataUrl: false,
     });
     const pages: RenderedPdfPage[] = [];
     for (const page of result.pages) {
-      const jpeg = await sharp(Buffer.from(page.data)).jpeg({ quality: 76 }).toBuffer();
+      const jpeg = await sharp(Buffer.from(page.data)).jpeg({ quality: opts.quality ?? 76 }).toBuffer();
       pages.push({ pageNumber: page.pageNumber, base64: jpeg.toString("base64"), mediaType: "image/jpeg" });
     }
     return { pages, totalPages: result.total };

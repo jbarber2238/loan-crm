@@ -5,7 +5,9 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { lenderCriteria, lenderCriteriaTiers, lenderDocuments, lenderWideCriteria, products } from "@/server/db/schema";
 import { requireAdmin } from "@/server/auth/guards";
-import { extractLenderCriteria, extractLenderPrograms, type ExtractedCriteria } from "@/server/ai/extract-lender-criteria";
+import { extractLenderCriteria, extractLenderProgramsFromDocuments, type ExtractedCriteria } from "@/server/ai/extract-lender-criteria";
+import { loadLenderDocuments, reextractLenderPrograms } from "@/server/lender-documents/reextract-lender";
+import { LOAN_CATEGORIES, labelFor } from "@/lib/labels";
 import { resolveStagedFiles } from "@/server/staged-uploads";
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB — plenty for rate sheets/matrices
@@ -244,20 +246,37 @@ export async function reextractProductCriteria(lenderId: string, productId: stri
   });
   if (!doc) throw new Error("This product has no uploaded document to extract from.");
 
-  // The document may be a package covering several programs (the same file can sit behind more than one product),
-  // so read it program by program and take this product's own section. A document with no section for this
-  // product's category (an older single-program matrix) is read the original way.
   const product = await db.query.products.findFirst({ where: eq(products.id, productId) });
   let own: ExtractedCriteria | null | undefined;
   try {
-    const { programs } = await extractLenderPrograms(doc);
-    own = programs.find((p) => p.detectedCategory === product?.category) ?? undefined;
+    // When the lender has several documents, a program is often described across them (a rate sheet plus a guide),
+    // so read them all together and take this product's own program. A lone document is read by itself.
+    const lenderDocs = await loadLenderDocuments(lenderId);
+    const { programs } = await extractLenderProgramsFromDocuments(lenderDocs.length > 1 ? lenderDocs : [doc]);
+    const standardName = product ? labelFor(LOAN_CATEGORIES, product.category).toLowerCase() : "";
+    const productName = product?.name.trim().toLowerCase() ?? "";
+    own =
+      programs.find(
+        (p) =>
+          p.detectedCategory === product?.category &&
+          (p.programName ? p.programName.trim().toLowerCase() === productName : productName === standardName)
+      ) ??
+      programs.find((p) => p.detectedCategory === product?.category && !p.programName && productName !== standardName) ??
+      undefined;
   } catch (err) {
     console.error("Program-by-program re-extraction failed, reading the document as one program:", err);
   }
   await extractAndStoreCriteria(productId, doc, own);
 
   revalidatePath(`/lenders/${lenderId}`);
+}
+
+// Re-reads every one of a lender's documents together and refreshes all of its programs (see reextract-lender.ts).
+export async function reextractLenderCriteria(lenderId: string) {
+  await requireAdmin();
+  const { report } = await reextractLenderPrograms(lenderId);
+  revalidatePath(`/lenders/${lenderId}`);
+  return report;
 }
 
 // Mirrors reextractProductCriteria, but for a lender's own most recent

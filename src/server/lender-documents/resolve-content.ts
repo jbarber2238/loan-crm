@@ -101,7 +101,7 @@ export async function resolveExtractionBlocks(
   const blocks: Anthropic.ContentBlockParam[] = [];
   if (isPdfFile(doc.fileName, doc.mimeType)) {
     try {
-      const { pages, totalPages } = await renderPdfPagesAsImages(doc.data, limits.maxScannedPages);
+      const { pages, totalPages } = await renderPdfPagesAsImages(doc.data, limits.maxScannedPages, { width: 1568, quality: 85 });
       if (pages.length) {
         blocks.push({
           type: "text",

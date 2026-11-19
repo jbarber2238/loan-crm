@@ -90,7 +90,7 @@ export async function uploadLenderDocumentsWithAI(
     let doc: typeof lenderDocuments.$inferSelect | null = null;
     for (const program of programs) {
       const category = program.detectedCategory as (typeof LOAN_CATEGORIES)[number]["value"];
-      const product = await findOrCreateProduct(lenderId, category);
+      const product = await findOrCreateProduct(lenderId, category, program.programName);
       if (!doc) {
         [doc] = await db
           .insert(lenderDocuments)
@@ -106,7 +106,7 @@ export async function uploadLenderDocumentsWithAI(
           .returning();
       }
       await extractAndStoreCriteria(product.id, doc, program);
-      filedUnder.push(labelFor(LOAN_CATEGORIES, category));
+      filedUnder.push(program.programName ? `${program.programName} (${labelFor(LOAN_CATEGORIES, category)})` : labelFor(LOAN_CATEGORIES, category));
       revalidatePath(`/products/${product.id}`);
     }
     results.push({ fileName: file.name, filedUnder });

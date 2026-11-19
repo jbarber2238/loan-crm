@@ -48,3 +48,18 @@ describe("dedupePrograms", () => {
     expect(dedupePrograms([program(null), program("fix_and_flip")]).map((p) => p.detectedCategory)).toEqual(["fix_and_flip"]);
   });
 });
+
+describe("dedupePrograms with named programs", () => {
+  it("keeps a separately-named program apart from the standard program in the same category", () => {
+    const out = dedupePrograms([program("dscr_purchase"), program("dscr_purchase", { programName: "Equity First" })]);
+    expect(out.map((p) => p.programName ?? null)).toEqual([null, "Equity First"]);
+  });
+});
+
+describe("firstJsonObject", () => {
+  it("returns the first complete object even when the reply has more after it", async () => {
+    const { firstJsonObject } = await import("@/server/ai/extract-lender-criteria");
+    expect(firstJsonObject('```json\n{"a":{"b":"}"}}\n```\n{"c":1} thanks')).toBe('{"a":{"b":"}"}}');
+    expect(firstJsonObject("no json")).toBeNull();
+  });
+});

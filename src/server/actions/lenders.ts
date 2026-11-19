@@ -197,16 +197,30 @@ const productSchema = z.object({
 // auto-creates whatever product category a classified document belongs to.
 export async function findOrCreateProduct(
   lenderId: string,
-  category: (typeof products.category.enumValues)[number]
+  category: (typeof products.category.enumValues)[number],
+  // A separately-named program in a category the lender also has a standard program for (e.g. "Equity First" next to
+  // its regular DSCR loans). Without a name this finds the lender's standard product for the category.
+  programName?: string | null
 ): Promise<{ id: string }> {
-  const existing = await db.query.products.findFirst({
+  const named = programName?.trim();
+  const all = await db.query.products.findMany({
     where: and(eq(products.lenderId, lenderId), eq(products.category, category)),
+    orderBy: (p, { asc }) => asc(p.createdAt),
   });
+
+  let existing;
+  if (named) {
+    existing = all.find((p) => p.name.trim().toLowerCase() === named.toLowerCase());
+  } else {
+    // The standard product is the one still carrying the category's own label; fall back to the oldest.
+    const label = labelFor(LOAN_CATEGORIES, category).toLowerCase();
+    existing = all.find((p) => p.name.trim().toLowerCase() === label) ?? all[0];
+  }
   if (existing) return { id: existing.id };
 
   const [product] = await db
     .insert(products)
-    .values({ lenderId, category, name: labelFor(LOAN_CATEGORIES, category) })
+    .values({ lenderId, category, name: named || labelFor(LOAN_CATEGORIES, category) })
     .returning({ id: products.id });
   await db.insert(lenderCriteria).values({ productId: product.id });
 

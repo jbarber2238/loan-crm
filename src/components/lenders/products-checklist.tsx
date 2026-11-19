@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import {
   cloneClientNeedsToProduct,
@@ -99,6 +99,19 @@ interface OtherProduct {
   lender: { name: string };
 }
 
+// A lender grid often repeats the same FICO ladder once per loan-amount band, with the band named in each row's notes.
+// Consecutive rows with identical notes are shown under one heading instead of repeating the sentence on every row.
+function groupTiersByNotes<T extends { notes: string | null }>(tiers: T[]): { heading: string | null; rows: T[] }[] {
+  const groups: { heading: string | null; rows: T[] }[] = [];
+  for (const tier of tiers) {
+    const last = groups[groups.length - 1];
+    if (last && tier.notes && last.rows[0].notes === tier.notes) last.rows.push(tier);
+    else groups.push({ heading: null, rows: [tier] });
+  }
+  for (const g of groups) if (g.rows.length > 1) g.heading = g.rows[0].notes;
+  return groups;
+}
+
 export function ProductsChecklist({
   lenderId,
   products,
@@ -170,6 +183,11 @@ export function ProductsChecklist({
               <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 p-3 text-left text-sm">
                 <span className="flex items-center gap-2">
                   {product.name}
+                  {product.name !== labelFor(LOAN_CATEGORIES, product.category) && (
+                    <span className="text-xs font-normal text-muted-foreground">
+                      {labelFor(LOAN_CATEGORIES, product.category)}
+                    </span>
+                  )}
                   {!product.active && <Badge variant="secondary">Inactive</Badge>}
                 </span>
                 <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
@@ -505,18 +523,29 @@ export function ProductsChecklist({
                                 </tr>
                               </thead>
                               <tbody>
-                                {product.criteria.tiers.map((tier) => (
-                                  <tr key={tier.id} className="border-t">
-                                    <td className="p-2">
-                                      {tier.ficoMin ?? "—"}
-                                      {tier.ficoMax ? `–${tier.ficoMax}` : "+"}
-                                    </td>
-                                    <td className="p-2">{tier.experienceMin ?? "—"}</td>
-                                    <td className="p-2">{tier.maxLtc ? `${tier.maxLtc}%` : "—"}</td>
-                                    <td className="p-2">{tier.maxLtarv ? `${tier.maxLtarv}%` : "—"}</td>
-                                    <td className="p-2">{tier.maxLtv ? `${tier.maxLtv}%` : "—"}</td>
-                                    <td className="p-2 text-muted-foreground">{tier.notes ?? ""}</td>
-                                  </tr>
+                                {groupTiersByNotes(product.criteria.tiers).map((group) => (
+                                  <Fragment key={group.rows[0].id}>
+                                    {group.heading && (
+                                      <tr className="border-t bg-muted/40">
+                                        <td colSpan={6} className="p-2 font-medium text-foreground">
+                                          {group.heading}
+                                        </td>
+                                      </tr>
+                                    )}
+                                    {group.rows.map((tier) => (
+                                      <tr key={tier.id} className="border-t">
+                                        <td className="p-2">
+                                          {tier.ficoMin ?? "—"}
+                                          {tier.ficoMax ? `–${tier.ficoMax}` : "+"}
+                                        </td>
+                                        <td className="p-2">{tier.experienceMin ?? "—"}</td>
+                                        <td className="p-2">{tier.maxLtc ? `${tier.maxLtc}%` : "—"}</td>
+                                        <td className="p-2">{tier.maxLtarv ? `${tier.maxLtarv}%` : "—"}</td>
+                                        <td className="p-2">{tier.maxLtv ? `${tier.maxLtv}%` : "—"}</td>
+                                        <td className="p-2 text-muted-foreground">{group.heading ? "" : (tier.notes ?? "")}</td>
+                                      </tr>
+                                    ))}
+                                  </Fragment>
                                 ))}
                               </tbody>
                             </table>
