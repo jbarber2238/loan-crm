@@ -114,6 +114,8 @@ export async function cloneNewConstructionDeal(originalDealId: string, formData:
       numFlips: original.numFlips,
       numRentals: original.numRentals,
       numNewConstruction: original.numNewConstruction,
+      experienceConfirmedAt: original.experienceConfirmedAt,
+      singleRentalPurchaseDate: original.singleRentalPurchaseDate,
       mortgageLatesLast12mo: original.mortgageLatesLast12mo,
       taxLiensBkForeclosureLast24mo: original.taxLiensBkForeclosureLast24mo,
       exitStrategy: original.exitStrategy,

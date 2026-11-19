@@ -43,6 +43,7 @@ import { onDealStageChanged, onReferralCreated } from "@/server/partner/stage-ev
 import { syncConditionalClientNeeds } from "@/server/actions/client-needs";
 import { notifyAdminOfNewDeal, notifyBorrowerOfSubmission, notifyProcessorOfPaidDeal } from "@/server/deal-notifications";
 import { resolveStagedFiles } from "@/server/staged-uploads";
+import { needsExperienceConfirmation, parseMonthInput } from "@/lib/borrower-experience";
 
 const HARD_MONEY_DRAW_CATEGORIES = new Set(["fix_and_flip", "new_construction"]);
 
@@ -92,6 +93,7 @@ export async function createDeal(formData: FormData) {
     driveLink,
     noteAuthorUserId: user.id,
     stageChangedByUserId: user.id,
+    requireExperienceConfirmation: true,
   });
 
   // Started from an Inbox conversation (a call/text that didn't match any
@@ -132,10 +134,21 @@ export async function createDealFromIntake(
     noteAuthorUserId: string | null;
     stageChangedByUserId: string;
     referredByAffiliateId?: string | null;
+    /** Borrower-facing forms set this: flips or new construction above 0 must come with the borrower's confirmation. */
+    requireExperienceConfirmation?: boolean;
   }
 ) {
   const parsed = parseIntakeFormData(formData);
   if (!parsed.loanCategory) throw new Error("Loan type is required");
+
+  if (
+    options.requireExperienceConfirmation &&
+    needsExperienceConfirmation({ numFlips: parsed.numFlips, numNewConstruction: parsed.numNewConstruction, confirmed: parsed.experienceConfirmed })
+  ) {
+    throw new Error(
+      "Please confirm your flips and new construction are finished: you bought it and were on title, you renovated or built it, and you sold or refinanced it. If any are still in progress, enter only the ones that are finished."
+    );
+  }
 
   if (parsed.loanCategory === "portfolio") {
     const ineligible = findIneligiblePortfolioProperty(parsed.portfolioProperties);
@@ -287,6 +300,8 @@ export async function updateDealDetails(dealId: string, formData: FormData) {
       numFlips: nullableInt(formData, "numFlips"),
       numRentals: nullableInt(formData, "numRentals"),
       numNewConstruction: nullableInt(formData, "numNewConstruction"),
+      // Only kept while there is exactly one rental; the confirmation stamp is the borrower's and isn't edited here.
+      singleRentalPurchaseDate: nullableInt(formData, "numRentals") === 1 ? parseMonthInput(str(formData, "singleRentalPurchaseDate")) : null,
       propertyAlreadyOwned: boolField(formData, "propertyAlreadyOwned"),
       propertyPurchaseDate: dateOrNull(formData, "propertyPurchaseDate"),
       didRehabSincePurchase: yesNoOrNull(formData, "didRehabSincePurchase"),

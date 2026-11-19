@@ -1,5 +1,6 @@
 import { CITIZENSHIP_STATUSES, EXIT_STRATEGIES, LOAN_CATEGORIES, PROPERTY_TYPES, labelFor } from "@/lib/labels";
 import { ratioMetricsFor, valueBasisFor } from "@/lib/term-sheet-calculations";
+import { rentalSummary } from "@/lib/borrower-experience";
 import type { deals } from "@/server/db/schema";
 
 type Deal = typeof deals.$inferSelect;
@@ -70,7 +71,7 @@ ${ratioLines.join("\n")}
 - Rural property: ${yesNo(deal.rural)}
 - Unit count: ${deal.unitCount ?? "not provided"}
 - Exit strategy: ${deal.exitStrategy ? labelFor(EXIT_STRATEGIES, deal.exitStrategy) : "not provided"}
-- Borrower experience: ${deal.numFlips ?? 0} flips, ${deal.numRentals ?? 0} rentals, ${deal.numNewConstruction ?? 0} new construction (completed, last 36mo)
+- Borrower experience: ${deal.numFlips ?? 0} flips, ${rentalSummary(deal.numRentals ?? 0, deal.singleRentalPurchaseDate)}, ${deal.numNewConstruction ?? 0} new construction (flips and new construction completed in the last 36mo${deal.experienceConfirmedAt ? "; borrower confirmed these are finished deals they were on title for" : ""})
 - Current rent: ${deal.currentRent ? `$${deal.currentRent}` : "not provided"}
 - Annual taxes/insurance/HOA: ${deal.annualTaxes ? `$${deal.annualTaxes}` : "?"} / ${deal.annualInsurance ? `$${deal.annualInsurance}` : "?"} / ${deal.annualHoa ? `$${deal.annualHoa}` : "?"}
 - Citizenship: ${deal.citizenship ? labelFor(CITIZENSHIP_STATUSES, deal.citizenship) : "not provided"}

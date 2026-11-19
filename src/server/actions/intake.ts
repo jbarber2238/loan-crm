@@ -35,6 +35,7 @@ export async function submitPublicIntake(
     noteAuthorUserId: null,
     stageChangedByUserId: loanOfficerId,
     referredByAffiliateId: referredByAffiliateId ?? null,
+    requireExperienceConfirmation: true,
   });
 
   redirect(`${redirectTo ?? `${redirectBasePath}/${loanOfficerId}`}?submitted=1`);

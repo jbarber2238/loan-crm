@@ -76,6 +76,7 @@ export async function submitConversionIntake(token: string, formData: FormData) 
     driveLink: null,
     noteAuthorUserId: null,
     stageChangedByUserId: sourceDeal.assignedLoanOfficerId,
+    requireExperienceConfirmation: true,
   });
 
   await db

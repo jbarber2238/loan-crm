@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { TriangleAlert } from "lucide-react";
 import { cn } from "cn";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +25,8 @@ import {
   RESIDENTIAL_PROPERTY_TYPES,
 } from "@/lib/labels";
 import { sectionsFor, rehabOrConstructionLabel } from "@/lib/loan-sections";
+import { BorrowerExperienceFields } from "@/components/deals/borrower-experience-fields";
+import { DSCR_MIN_CLOSING_DAYS, daysAwayPhrase, dscrClosingTooSoon, localDateKey } from "@/lib/closing-timeline";
 
 // A carried-over field (from src/server/actions/deal-conversion.ts's DSCR
 // refinance intake) gets a visibly different treatment than a blank
@@ -205,6 +208,7 @@ export function IntakeFormFields({
   defaultValues,
   highlightNames,
   categoryOptions,
+  askExperienceConfirmation = true,
 }: {
   defaultBorrowerPhone?: string;
   // Pre-selects and locks in the conditional sections for a category the
@@ -221,6 +225,9 @@ export function IntakeFormFields({
   // Restricts the Loan Type dropdown to a specific subset (e.g. just the
   // two DSCR refinance categories) instead of the full LOAN_CATEGORIES list.
   categoryOptions?: readonly { value: string; label: string }[];
+  // Everyone entering a deal (the borrower, or staff on the New Deal form) confirms their flips and new construction
+  // in a pop-up. Turning this off only shows the rules.
+  askExperienceConfirmation?: boolean;
 } = {}) {
   const [category, setCategory] = useState(defaultCategory ?? "");
   const [fixFlipOwned, setFixFlipOwned] = useState(false);
@@ -235,8 +242,11 @@ export function IntakeFormFields({
   const [didCashOutRehab, setDidCashOutRehab] = useState(false);
   const [addressType, setAddressType] = useState<"address" | "parcel">("address");
   const [portfolioCount, setPortfolioCount] = useState<number | null>(null);
+  const [closingDate, setClosingDate] = useState(defaultValues?.estimatedClosingDate ?? "");
 
   const s = useMemo(() => sectionsFor(category), [category]);
+  // Only worked out once a date is picked (in the browser), so the server and browser never disagree about "today".
+  const closingDaysOut = dscrClosingTooSoon(category, closingDate, localDateKey());
   const dv = (name: string) => defaultValues?.[name];
   const hl = (name: string) => highlightNames?.has(name) ?? false;
 
@@ -407,43 +417,34 @@ export function IntakeFormFields({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="estimatedClosingDate">Estimated Closing Date (optional)</Label>
-                <Input id="estimatedClosingDate" name="estimatedClosingDate" type="date" />
+                <Input
+                  id="estimatedClosingDate"
+                  name="estimatedClosingDate"
+                  type="date"
+                  value={closingDate}
+                  onChange={(e) => setClosingDate(e.target.value)}
+                />
               </div>
+              {closingDaysOut !== null && (
+                <div
+                  className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-900 md:col-span-3 dark:bg-amber-950/30 dark:text-amber-300"
+                  role="status"
+                >
+                  <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                  <p>
+                    {daysAwayPhrase(closingDaysOut)} DSCR loans typically take a minimum of {DSCR_MIN_CLOSING_DAYS} days to close. We will do our
+                    best to expedite, but you will most likely need an extension that gives you 35 to 45 days.
+                  </p>
+                </div>
+              )}
             </div>
 
-            <div>
-              <Label>
-                Borrower Experience
-                <Req />
-              </Label>
-              <p className="text-xs text-muted-foreground mb-2">
-                How many COMPLETED rentals/flips/new construction in the last 36 months? Enter 0 if none —
-                pricing depends on having an answer for all three.
-              </p>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <div className={cn("space-y-1.5", reviewFieldClass(hl("numFlips")))}>
-                  <Label htmlFor="numFlips"># of Flips</Label>
-                  <Input id="numFlips" name="numFlips" type="number" defaultValue={dv("numFlips")} required />
-                  {hl("numFlips") && <ReviewNote />}
-                </div>
-                <div className={cn("space-y-1.5", reviewFieldClass(hl("numRentals")))}>
-                  <Label htmlFor="numRentals"># of Rentals</Label>
-                  <Input id="numRentals" name="numRentals" type="number" defaultValue={dv("numRentals")} required />
-                  {hl("numRentals") && <ReviewNote />}
-                </div>
-                <div className={cn("space-y-1.5", reviewFieldClass(hl("numNewConstruction")))}>
-                  <Label htmlFor="numNewConstruction"># of New Construction</Label>
-                  <Input
-                    id="numNewConstruction"
-                    name="numNewConstruction"
-                    type="number"
-                    defaultValue={dv("numNewConstruction")}
-                    required
-                  />
-                  {hl("numNewConstruction") && <ReviewNote />}
-                </div>
-              </div>
-            </div>
+            <BorrowerExperienceFields
+              defaultValues={defaultValues}
+              highlightNames={highlightNames}
+              askConfirmation={askExperienceConfirmation}
+              Req={Req}
+            />
           </section>
 
           {!s.isPortfolio && (

@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { rentalSummary } from "@/lib/borrower-experience";
 import { db } from "@/server/db/client";
 import { deals, users, lenders } from "@/server/db/schema";
 import {
@@ -100,7 +101,7 @@ export async function buildAllDealTokens(deal: Deal): Promise<Record<string, str
     experience:
       deal.numFlips === null && deal.numRentals === null && deal.numNewConstruction === null
         ? "Not provided"
-        : `${deal.numFlips ?? 0} flips, ${deal.numRentals ?? 0} rentals, ${deal.numNewConstruction ?? 0} new construction (36mo)`,
+        : `${deal.numFlips ?? 0} flips, ${rentalSummary(deal.numRentals ?? 0, deal.singleRentalPurchaseDate)}, ${deal.numNewConstruction ?? 0} new construction (36mo)`,
     liquidity: money(deal.borrowerLiquidity),
     mortgageLatesLast12mo: yesNo(deal.mortgageLatesLast12mo),
     taxLiensBkForeclosureLast24mo: yesNo(deal.taxLiensBkForeclosureLast24mo),

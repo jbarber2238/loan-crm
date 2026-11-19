@@ -1,5 +1,6 @@
 import { COMMERCIAL_PROPERTY_TYPES } from "@/server/db/schema";
 import { toE164 } from "@/server/twilio-client";
+import { hasExperienceToConfirm, parseMonthInput } from "@/lib/borrower-experience";
 
 function str(formData: FormData, key: string): string | null {
   const value = formData.get(key);
@@ -74,6 +75,9 @@ export interface ParsedIntake {
   numFlips: number | null;
   numRentals: number | null;
   numNewConstruction: number | null;
+  /** The borrower ticked the confirmation that their flips and new construction are finished deals. */
+  experienceConfirmed: boolean;
+  singleRentalPurchaseDate: Date | null;
   streetAddress: string | null;
   parcelId: string | null;
   city: string | null;
@@ -147,6 +151,9 @@ export function parseIntakeFormData(formData: FormData): ParsedIntake {
     numFlips: int(formData, "numFlips"),
     numRentals: int(formData, "numRentals"),
     numNewConstruction: int(formData, "numNewConstruction"),
+    experienceConfirmed: formData.get("experienceConfirmed") === "yes",
+    // Only meaningful with exactly one rental; otherwise any leftover value is ignored.
+    singleRentalPurchaseDate: int(formData, "numRentals") === 1 ? parseMonthInput(str(formData, "singleRentalPurchaseDate")) : null,
     streetAddress: str(formData, "streetAddress"),
     parcelId: str(formData, "parcelId"),
     city: str(formData, "city"),
@@ -201,6 +208,9 @@ export function intakeToDealFields(parsed: ParsedIntake) {
     numFlips: parsed.numFlips,
     numRentals: parsed.numRentals,
     numNewConstruction: parsed.numNewConstruction,
+    experienceConfirmedAt:
+      parsed.experienceConfirmed && hasExperienceToConfirm(parsed) ? new Date() : null,
+    singleRentalPurchaseDate: parsed.singleRentalPurchaseDate,
     propertyAlreadyOwned: parsed.propertyAlreadyOwned,
     propertyPurchaseDate: parsed.propertyPurchaseDate,
     didRehabSincePurchase: parsed.didRehabSincePurchase,

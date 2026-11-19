@@ -1083,6 +1083,11 @@ export const deals = pgTable("deals", {
   numFlips: integer("num_flips"),
   numRentals: integer("num_rentals"),
   numNewConstruction: integer("num_new_construction"),
+  // When the borrower confirmed, on the intake form, that every flip and new construction they entered is finished
+  // (on title, renovated or built, then sold or refinanced). Null when none were entered or it was typed in by staff.
+  experienceConfirmedAt: timestamp("experience_confirmed_at", { mode: "date" }),
+  // Purchase month of the borrower's one rental, only asked when # of rentals is 1 (lenders look at how long it's been owned).
+  singleRentalPurchaseDate: timestamp("single_rental_purchase_date", { mode: "date" }),
   // Shared by the Fix & Flip "already own this property?" branch (delayed-
   // purchase lender programs) and the New Construction "already own the
   // land?" branch — same underlying question, different label per category.

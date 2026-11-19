@@ -1,4 +1,5 @@
 import { parsePropertyAddress } from "@/lib/format";
+import { toMonthInput } from "@/lib/borrower-experience";
 import type { deals as dealsTable } from "@/server/db/schema";
 
 type Deal = typeof dealsTable.$inferSelect;
@@ -45,6 +46,9 @@ export function buildConversionPrefill(deal: Deal): {
     numFlips: numStr(deal.numFlips),
     numRentals: numStr(deal.numRentals),
     numNewConstruction: numStr(deal.numNewConstruction),
+    // The borrower already confirmed these on the earlier deal, so the pop-up only comes back if they change a number.
+    experienceConfirmed: deal.experienceConfirmedAt ? "yes" : "",
+    singleRentalPurchaseDate: toMonthInput(deal.singleRentalPurchaseDate),
     borrowerLiquidity: deal.borrowerLiquidity ?? "",
     streetAddress: address.street,
     city: address.city,

@@ -1,4 +1,4 @@
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, TriangleAlert } from "lucide-react";
 import { updateDealDetails } from "@/server/actions/deals";
 import { ActionForm } from "@/components/forms/action-form";
 import { SubmitButton } from "@/components/forms/submit-button";
@@ -28,6 +28,10 @@ import { HardMoneyCalculator } from "@/components/deals/hard-money-calculator";
 import { CollapseAllButton } from "@/components/deals/collapse-all-button";
 import { AiLenderMatchSection } from "@/components/deals/ai-lender-match-section";
 import { sectionsFor, rehabOrConstructionLabel, rehabOrConstructionBudgetLabel } from "@/lib/loan-sections";
+import { rentalSummary, toMonthInput } from "@/lib/borrower-experience";
+import { SingleRentalPurchasedField } from "@/components/deals/single-rental-purchased-field";
+import { EstimatedClosingDateField } from "@/components/deals/estimated-closing-date-field";
+import { easternDateKey, dscrClosingTooSoon, submittedGapPhrase } from "@/lib/closing-timeline";
 import { conservativeValueBasis } from "@/lib/term-sheet-calculations";
 import type { deals as dealsTable } from "@/server/db/schema";
 import type { ReactNode } from "react";
@@ -79,6 +83,12 @@ const HARD_MONEY_DRAW_CATEGORIES = new Set(["fix_and_flip", "new_construction"])
 export function OverviewTab({ deal }: { deal: Deal }) {
   const updateDetails = updateDealDetails.bind(null, deal.id);
   const s = sectionsFor(deal.loanCategory);
+  // Measured from when the deal came in, so it still reads right a few days later when you review it.
+  const closingDaysAtSubmission = dscrClosingTooSoon(
+    deal.loanCategory,
+    deal.estimatedClosingDate ? toDateInputValue(deal.estimatedClosingDate) : null,
+    easternDateKey(deal.createdAt)
+  );
 
   const purchasePrice = deal.purchasePrice ? Number(deal.purchasePrice) : null;
   const estimatedAsIsValue = deal.estimatedAsIsValue ? Number(deal.estimatedAsIsValue) : null;
@@ -175,6 +185,34 @@ export function OverviewTab({ deal }: { deal: Deal }) {
               <p className="text-xs text-muted-foreground">Information the borrower provided</p>
             </div>
             <CollapseAllButton containerId="loan-inquiry-sections" />
+          </div>
+
+          {/* What to check first when reviewing: the borrower's experience, and a DSCR closing date that is too close. */}
+          <div className="space-y-2 rounded-lg bg-muted/40 p-3 text-sm" aria-label="Review at a glance">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+              <span className="font-medium">Experience (36 mo):</span>
+              <span>
+                {deal.numFlips ?? "?"} {deal.numFlips === 1 ? "flip" : "flips"} · {rentalSummary(deal.numRentals, deal.singleRentalPurchaseDate)} ·{" "}
+                {deal.numNewConstruction ?? "?"} new construction
+              </span>
+              {deal.experienceConfirmedAt ? (
+                <Badge variant="success">
+                  Borrower confirmed{" "}
+                  {deal.experienceConfirmedAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/New_York" })}
+                </Badge>
+              ) : (deal.numFlips ?? 0) > 0 || (deal.numNewConstruction ?? 0) > 0 ? (
+                <Badge variant="warning">Not confirmed by the borrower</Badge>
+              ) : null}
+            </div>
+            {closingDaysAtSubmission !== null && (
+              <p className="flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2 text-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                <span>
+                  {submittedGapPhrase(closingDaysAtSubmission)} DSCR loans typically take a minimum of 30 days, so expect the borrower to need an
+                  extension to 35 to 45 days.
+                </span>
+              </p>
+            )}
           </div>
 
         <Section title="Borrower" defaultOpen>
@@ -305,6 +343,24 @@ export function OverviewTab({ deal }: { deal: Deal }) {
                 type="number"
                 defaultValue={deal.numNewConstruction ?? ""}
               />
+            </div>
+            <SingleRentalPurchasedField defaultValue={toMonthInput(deal.singleRentalPurchaseDate)} numRentals={deal.numRentals} />
+            <div className="space-y-1.5 md:col-span-2">
+              <Label>Borrower confirmation</Label>
+              <p className="text-sm">
+                {deal.experienceConfirmedAt ? (
+                  <Badge variant="success">
+                    Confirmed {deal.experienceConfirmedAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/New_York" })}
+                  </Badge>
+                ) : (deal.numFlips ?? 0) > 0 || (deal.numNewConstruction ?? 0) > 0 ? (
+                  <span className="text-muted-foreground">Not confirmed by the borrower (entered by staff or before this was asked).</span>
+                ) : (
+                  <span className="text-muted-foreground">Nothing to confirm: no flips or new construction.</span>
+                )}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                The borrower confirmed their flips and new construction are finished deals they were on title for.
+              </p>
             </div>
           </div>
         </Section>
@@ -504,15 +560,11 @@ export function OverviewTab({ deal }: { deal: Deal }) {
               <Label htmlFor="estimatedFico">Estimated FICO</Label>
               <Input id="estimatedFico" name="estimatedFico" type="number" defaultValue={deal.estimatedFico ?? ""} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="estimatedClosingDate">Estimated closing date</Label>
-              <Input
-                id="estimatedClosingDate"
-                name="estimatedClosingDate"
-                type="date"
-                defaultValue={toDateInputValue(deal.estimatedClosingDate)}
-              />
-            </div>
+            <EstimatedClosingDateField
+              defaultValue={toDateInputValue(deal.estimatedClosingDate)}
+              loanCategory={deal.loanCategory}
+              submittedOn={easternDateKey(deal.createdAt)}
+            />
           </div>
         </Section>
 
