@@ -1,6 +1,7 @@
 "use server";
 
 import { eq } from "drizzle-orm";
+import { firstJsonObject } from "@/server/ai/extract-lender-criteria";
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/server/db/client";
 import { deals, pricingRequestReplyAttachments, pricingRequests } from "@/server/db/schema";
@@ -109,34 +110,35 @@ Reserves: DSCR and Portfolio loans use reservesMonths (a number of months, not a
 
 Interest reserve (interestReserve, fix-and-flip/new-construction only): some lenders let the borrower FINANCE their interest — an extra amount is added on top of the loan (initial advance + rehab/construction holdback + interest reserve) and the monthly interest is drawn from it, so the borrower makes no monthly payments out of pocket. Lenders call this many things: "interest reserve," "funded/financed interest reserve," "capitalized interest," "interest holdback," "interest escrow," "built-in interest," or "interest paid from loan proceeds." Only set interestReserve when the lender is actually offering to include it IN the loan (added to the loan amount or taken out of the loan proceeds). Do NOT confuse it with "reserves required" / "post-closing liquidity" / "months of reserves to show" — that is cash the borrower must already have (handled by reservesRequired), not money borrowed — and do NOT set it just because the lender mentions that interest accrues or that payments are due monthly. Return a dollar amount: if the lender states a dollar figure, use it; if they state it as a number of months of interest (e.g. "6 month interest reserve") or a percentage, compute the dollars from that formula using this loan's own numbers (interest on the full loan amount at the quoted rate unless the lender specifies otherwise), and mention the assumption in "notes". If a lender offers an interest reserve only on some of its options, put it only in those options. If no interest reserve is offered, leave interestReserve out of "fields" entirely and do NOT list it in "notFoundKeys" — most lenders don't offer one, and it isn't an expected field. When the lender states the total loan amount, keep loanAmount as they stated it (it normally already includes the reserve).`;
 
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-5",
-    max_tokens: 1500,
-    thinking: { type: "disabled" },
-    system: systemPrompt,
-    messages: [{ role: "user", content: contentBlocks }],
-  });
-
-  const textBlock = response.content.find((block) => block.type === "text");
-  const raw = textBlock && textBlock.type === "text" ? textBlock.text : "";
-  const match = raw.match(/\{[\s\S]*\}/);
-  if (!match) {
-    throw new Error("Couldn't parse an extraction result from the AI response — try again or enter terms manually.");
+  // A pricing screenshot can hold a dozen options (every point level a lender quotes), each with its own full set of
+  // fields, so the answer is long: leave plenty of room, and try once more if the first answer is cut off or isn't valid.
+  const PARSE_ERROR = "Couldn't parse an extraction result from the AI response — try again or enter terms manually.";
+  let parsed: { options?: unknown; notes?: unknown } | null = null;
+  for (let attempt = 0; attempt < 2 && !parsed; attempt++) {
+    const response = await anthropic.messages
+      .stream({
+        model: "claude-sonnet-5",
+        max_tokens: 12000,
+        thinking: { type: "disabled" },
+        system: systemPrompt,
+        messages: [{ role: "user", content: contentBlocks }],
+      })
+      .finalMessage();
+    if (response.stop_reason === "max_tokens") {
+      console.error("Term sheet extraction ran out of room (attempt " + (attempt + 1) + ")", response.usage);
+      continue;
+    }
+    const textBlock = response.content.find((block) => block.type === "text");
+    const json = textBlock && textBlock.type === "text" ? firstJsonObject(textBlock.text) : null;
+    if (!json) continue;
+    try {
+      const candidate = JSON.parse(json) as { options?: unknown; notes?: unknown };
+      if (Array.isArray(candidate.options) && candidate.options.length > 0) parsed = candidate;
+    } catch {
+      // try again
+    }
   }
-
-  let parsed: {
-    options?: unknown;
-    notes?: unknown;
-  };
-  try {
-    parsed = JSON.parse(match[0]);
-  } catch {
-    throw new Error("Couldn't parse an extraction result from the AI response — try again or enter terms manually.");
-  }
-
-  if (!Array.isArray(parsed.options) || parsed.options.length === 0) {
-    throw new Error("Couldn't parse an extraction result from the AI response — try again or enter terms manually.");
-  }
+  if (!parsed || !Array.isArray(parsed.options)) throw new Error(PARSE_ERROR);
 
   const validKeys = new Set(fieldDefs.map((f) => f.key));
 
