@@ -1495,7 +1495,7 @@ export function ClientNeedsTab({
     });
   }
 
-  // Needs grouped by where they stand (Accepted, Review Needed, Not Sent, Awaiting Docs, Rejected, On Hold),
+  // Needs grouped by where they stand (Review Needed, Rejected, Not Sent, Awaiting Docs, Accepted, On Hold),
   // the most recently touched first inside each group.
   function renderSections(list: ClientNeed[]) {
     return groupNeedsIntoSections(list).map((section) => {

@@ -3,12 +3,14 @@
 
 export type NeedSectionKey = "accepted" | "review_needed" | "not_sent" | "awaiting" | "rejected" | "on_hold";
 
+// Order set by the processor: what needs action first (rejected, not sent, awaiting docs), then what is done, then parked.
+// Review Needed leads because an uploaded file is waiting on staff.
 export const NEED_SECTIONS: { key: NeedSectionKey; label: string }[] = [
-  { key: "accepted", label: "Accepted" },
   { key: "review_needed", label: "Review Needed" },
+  { key: "rejected", label: "Rejected" },
   { key: "not_sent", label: "Not Sent" },
   { key: "awaiting", label: "Awaiting Docs" },
-  { key: "rejected", label: "Rejected" },
+  { key: "accepted", label: "Accepted" },
   { key: "on_hold", label: "On Hold" },
 ];
 

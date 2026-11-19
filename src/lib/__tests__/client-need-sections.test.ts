@@ -40,8 +40,19 @@ describe("groupNeedsIntoSections", () => {
       n("c", "not_sent", "2026-11-09"),
       n("d", "review_needed", "2026-11-03", d("2026-11-04")),
     ]);
-    expect(groups.map((g) => g.key)).toEqual(["accepted", "not_sent", "on_hold"]);
-    expect(groups[1].needs.map((x) => x.id)).toEqual(["c", "a"]);
+    expect(groups.map((g) => g.key)).toEqual(["not_sent", "accepted", "on_hold"]);
+    expect(groups[0].needs.map((x) => x.id)).toEqual(["c", "a"]);
+  });
+  it("uses the processor's order: review needed, rejected, not sent, awaiting docs, accepted, on hold", () => {
+    const groups = groupNeedsIntoSections([
+      n("h", "accepted", "2026-11-01", d("2026-11-02")),
+      n("ac", "accepted", "2026-11-01"),
+      n("aw", "awaiting_docs", "2026-11-01"),
+      n("ns", "not_sent", "2026-11-01"),
+      n("rj", "document_rejected_not_sent", "2026-11-01"),
+      n("rv", "review_needed", "2026-11-01"),
+    ]);
+    expect(groups.map((g) => g.key)).toEqual(["review_needed", "rejected", "not_sent", "awaiting", "accepted", "on_hold"]);
   });
   it("keeps the original order for needs touched at the same moment", () => {
     const groups = groupNeedsIntoSections([n("x", "not_sent", "2026-11-01"), n("y", "not_sent", "2026-11-01"), n("z", "not_sent", "2026-11-01")]);
