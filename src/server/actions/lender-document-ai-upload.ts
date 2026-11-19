@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
 import { lenderDocuments } from "@/server/db/schema";
 import { requireAdmin } from "@/server/auth/guards";
-import { extractLenderCriteria } from "@/server/ai/extract-lender-criteria";
+import { extractLenderPrograms, type ExtractedCriteria } from "@/server/ai/extract-lender-criteria";
 import { extractAndStoreCriteria, extractAndStoreLenderWideCriteria } from "@/server/actions/lender-documents";
 import { findOrCreateProduct } from "@/server/actions/lenders";
 import { LOAN_CATEGORIES, labelFor } from "@/lib/labels";
@@ -19,14 +19,15 @@ export interface AiFiledDocument {
 
 /**
  * The primary way matrices/guidelines get uploaded now: no "applies to"
- * picker — one AI pass reads the file, decides which product category it
- * belongs to, and extracts its underwriting criteria, all in the same call.
- * The document gets filed under that category's product (creating the
+ * picker — one AI pass reads the whole file, finds every loan program in it
+ * (one for a single matrix, several for a lender's complete package) and
+ * extracts each program's underwriting criteria, all in the same call.
+ * Each program is filed under its category's product (creating the
  * product if it doesn't exist yet) with its criteria already populated, so
  * AI Lender Match can use the cheap stored-data path immediately instead of
  * falling back to re-reading the raw document. Falls back to an unscoped
- * lender-wide document (no extraction) when the category can't be
- * confidently determined, rather than guessing.
+ * lender-wide document when no loan program can be found in it, rather
+ * than guessing.
  */
 export async function uploadLenderDocumentsWithAI(
   lenderId: string,
@@ -51,16 +52,15 @@ export async function uploadLenderDocumentsWithAI(
     const mimeType = file.type || "application/octet-stream";
     const draft = { fileName: file.name, mimeType, data: dataBase64 };
 
-    let extracted;
+    let programs: ExtractedCriteria[] = [];
+    let general: ExtractedCriteria | null = null;
     try {
-      extracted = await extractLenderCriteria(draft);
+      ({ programs, general } = await extractLenderPrograms(draft));
     } catch (err) {
-      extracted = null;
       console.error("Lender document classification/extraction failed:", err);
     }
-    const category = extracted?.detectedCategory as (typeof LOAN_CATEGORIES)[number]["value"] | null | undefined;
 
-    if (!category) {
+    if (programs.length === 0) {
       const [doc] = await db
         .insert(lenderDocuments)
         .values({
@@ -73,35 +73,43 @@ export async function uploadLenderDocumentsWithAI(
           uploadedBy: user.id,
         })
         .returning();
-      // Couldn't pin this to one product category, but it may still be a
+      // Couldn't find a loan program in this one, but it may still be a
       // real cross-program overlay (a foreign-national matrix, a general
-      // guideline) — extract lender-wide eligibility facts from it too,
-      // reusing the same extraction pass rather than paying for another one.
-      await extractAndStoreLenderWideCriteria(lenderId, doc, extracted);
-      results.push({ fileName: file.name, filedUnder: ["General (couldn't confidently categorize)"] });
+      // guideline) — keep the lender-wide eligibility facts from the same
+      // extraction pass rather than paying for another one.
+      await extractAndStoreLenderWideCriteria(lenderId, doc, general);
+      results.push({ fileName: file.name, filedUnder: ["General (couldn't find a loan program in it)"] });
       continue;
     }
 
-    const product = await findOrCreateProduct(lenderId, category);
-    const [doc] = await db
-      .insert(lenderDocuments)
-      .values({
-        lenderId,
-        productId: product.id,
-        fileName: file.name,
-        mimeType,
-        fileSize: file.size,
-        data: dataBase64,
-        uploadedBy: user.id,
-      })
-      .returning();
-
-    // Reuse the extraction already run above for classification — no need
-    // to pay for a second AI pass over the same document.
-    await extractAndStoreCriteria(product.id, doc, extracted);
-
-    results.push({ fileName: file.name, filedUnder: [labelFor(LOAN_CATEGORIES, category)] });
-    revalidatePath(`/products/${product.id}`);
+    // A package can hold several programs (fix and flip, new construction,
+    // bridge, long-term rental...). The file is stored once, under the first
+    // program's product, and every program gets its own criteria pointing
+    // back at it — no duplicate copy of a multi-megabyte PDF per product.
+    const filedUnder: string[] = [];
+    let doc: typeof lenderDocuments.$inferSelect | null = null;
+    for (const program of programs) {
+      const category = program.detectedCategory as (typeof LOAN_CATEGORIES)[number]["value"];
+      const product = await findOrCreateProduct(lenderId, category);
+      if (!doc) {
+        [doc] = await db
+          .insert(lenderDocuments)
+          .values({
+            lenderId,
+            productId: product.id,
+            fileName: file.name,
+            mimeType,
+            fileSize: file.size,
+            data: dataBase64,
+            uploadedBy: user.id,
+          })
+          .returning();
+      }
+      await extractAndStoreCriteria(product.id, doc, program);
+      filedUnder.push(labelFor(LOAN_CATEGORIES, category));
+      revalidatePath(`/products/${product.id}`);
+    }
+    results.push({ fileName: file.name, filedUnder });
   }
 
   revalidatePath(`/lenders/${lenderId}`);

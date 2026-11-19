@@ -40,9 +40,8 @@ export interface ExtractedCriteria {
 
 const CATEGORY_VALUES: string[] = LOAN_CATEGORIES.map((c) => c.value);
 
-const SYSTEM_PROMPT = `You extract structured underwriting criteria from ONE lender's rate matrix or guideline document, for a mortgage broker's internal database. You are given the document as text or as image(s) of its pages.
-
-Extract these fields where the document states them; use null for anything not stated (never guess a number that isn't actually written down):
+// The field-by-field instructions are shared by the single-program and multi-program prompts.
+const FIELD_GUIDE = `Extract these fields where the document states them; use null for anything not stated (never guess a number that isn't actually written down):
 - minFico: the single minimum FICO score, ONLY if the matrix isn't tiered by FICO band (if it IS tiered, leave this null and use "tiers" instead).
 - minLoanAmount / maxLoanAmount: the program's overall loan amount range, in dollars.
 - statesAllowed: array of 2-letter state codes explicitly listed as eligible; null if not restricted or not stated.
@@ -57,15 +56,48 @@ Extract these fields where the document states them; use null for anything not s
 - itinEligible: true if the document explicitly says ITIN borrowers (no SSN, tax ID only) are eligible, false if explicitly excluded, null if not addressed at all.
 - ruralEligible: true if the document explicitly says rural properties are eligible, false if rural properties are explicitly excluded/ineligible, null if not addressed at all.
 - tiers: if the matrix has a grid of rows (e.g. FICO band x experience level, each with its own max LTC/LTARV/LTV), one entry per row with whichever of ficoMin/ficoMax/experienceMin/maxLtc/maxLtarv/maxLtv that row states (null for whatever that row doesn't state), plus "notes" for anything about that specific row worth keeping in plain English. Empty array if the matrix isn't tiered.
-- extractionNotes: 1-3 sentences of anything important you read that doesn't fit the fields above (unusual overlays, exclusions, special programs) — this is shown to a human reviewer, so be concrete and cite the actual numbers/terms.
+- extractionNotes: 1-3 sentences of anything important you read that doesn't fit the fields above (unusual overlays, exclusions, special programs) — this is shown to a human reviewer, so be concrete and cite the actual numbers/terms.`;
+
+const CONSISTENCY_RULE = `CONSISTENCY REQUIREMENT: before writing extractionNotes, check every one of the structured fields above (minFico, minLoanAmount, maxLoanAmount, minDscr, maxLtv, maxLtc, maxLtarv, minExperienceCount, msaPopulationMinimum) — if the document states an overall (non-tiered) value for one of them, that value MUST be set in the structured field itself, not only mentioned in extractionNotes prose. Never describe a concrete overall limit in extractionNotes while leaving its own structured field null.`;
+
+const SYSTEM_PROMPT = `You extract structured underwriting criteria from ONE lender's rate matrix or guideline document, for a mortgage broker's internal database. You are given the document as text or as image(s) of its pages.
+
+${FIELD_GUIDE}
 - detectedCategory: which ONE loan program this document's matrix/guideline is for, chosen from EXACTLY this list of values: ${CATEGORY_VALUES.join(", ")}. Use null if the document isn't clearly about a single one of these programs (e.g. it's a general company overview, a multi-program summary, or genuinely ambiguous) — never guess.
 
-CONSISTENCY REQUIREMENT: before writing extractionNotes, check every one of the structured fields above (minFico, minLoanAmount, maxLoanAmount, minDscr, maxLtv, maxLtc, maxLtarv, minExperienceCount, msaPopulationMinimum) — if the document states an overall (non-tiered) value for one of them, that value MUST be set in the structured field itself, not only mentioned in extractionNotes prose. Never describe a concrete overall limit in extractionNotes while leaving its own structured field null.
+${CONSISTENCY_RULE}
 
 If the document doesn't contain usable underwriting criteria at all (e.g. it's a servicing guide, a cover page, or genuinely illegible), return every field null/empty and say why in extractionNotes.
 
 Respond with ONLY a JSON object, no prose outside it, matching this shape exactly:
 {"minFico":null,"minLoanAmount":null,"maxLoanAmount":null,"statesAllowed":null,"propertyTypesAllowed":null,"minDscr":null,"maxLtv":null,"maxLtc":null,"maxLtarv":null,"minExperienceCount":null,"entityOnlyRequired":null,"gcLicenseRequired":null,"msaPopulationMinimum":null,"foreignNationalEligible":null,"itinEligible":null,"ruralEligible":null,"tiers":[],"extractionNotes":null,"detectedCategory":null}`;
+
+// For a lender's "complete package" or multi-program matrix: one pass that reads the whole document and returns a
+// separate set of criteria for every loan program in it, so each can be filed under its own product.
+const PROGRAMS_SYSTEM_PROMPT = `You extract structured underwriting criteria from ONE lender's rate matrix, guideline sheet or marketing package, for a mortgage broker's internal database. The document may cover ONE loan program or SEVERAL (for example fix-and-flip, new construction, bridge and long-term rental programs in the same package). You are given the whole document as text or as image(s) of its pages; read all of it.
+
+Return one entry in "programs" for each loan program the document gives criteria for. Tag each entry with "detectedCategory", chosen from EXACTLY this list of values: ${CATEGORY_VALUES.join(", ")}.
+- Map the document's own program names onto that list: fix and flip / rehab → fix_and_flip; new construction / ground-up → new_construction; bridge / stabilized bridge → bridge_purchase and bridge_refinance; long-term rental / DSCR / rental → dscr_purchase, dscr_rate_term_refinance and dscr_cash_out_refinance.
+- When the document gives separate purchase, refinance and cash-out numbers for a program, make a separate entry for each matching category using that scenario's own numbers. When it gives one set of numbers that apply to both purchase and refinance, repeat the entry for each of those categories.
+- Exactly ONE entry per category. When a category appears in more than one sub-program (for example a 1-4 unit program and a 5+ unit program), merge them into one entry: use the widest loan amount range, list the property types of both, put every sub-program's grid rows in "tiers" with the sub-program named in that row's "notes" (e.g. "Single-family 1-4 units: ..." or "Multi-family 5+ units: ..."), and say in extractionNotes how the sub-programs differ (minimum loan amount, minimum property value, term and so on).
+- A program that doesn't fit any category in the list is left out; mention it in "general.extractionNotes".
+- If the document has no usable underwriting criteria at all (a servicing guide, a cover page, illegible), return "programs": [] and say why in "general.extractionNotes".
+
+Each entry in "programs" has these fields:
+
+${FIELD_GUIDE}
+- detectedCategory: the category for this entry (see above); never null in this list.
+
+${CONSISTENCY_RULE}
+
+"general" holds facts that apply to the lender as a whole rather than one program: foreignNationalEligible, itinEligible and ruralEligible (same meaning as above, null when not addressed) and extractionNotes (1-3 sentences on anything important that isn't captured in the programs, including programs you left out).
+
+Respond with ONLY a JSON object, no prose outside it, matching this shape exactly:
+{"programs":[{"minFico":null,"minLoanAmount":null,"maxLoanAmount":null,"statesAllowed":null,"propertyTypesAllowed":null,"minDscr":null,"maxLtv":null,"maxLtc":null,"maxLtarv":null,"minExperienceCount":null,"entityOnlyRequired":null,"gcLicenseRequired":null,"msaPopulationMinimum":null,"foreignNationalEligible":null,"itinEligible":null,"ruralEligible":null,"tiers":[],"extractionNotes":null,"detectedCategory":"fix_and_flip"}],"general":{"foreignNationalEligible":null,"itinEligible":null,"ruralEligible":null,"extractionNotes":null}}`;
+
+// The one-time extraction reads far more of a document than the per-deal lender match does (which re-reads on every
+// run and so stays small): the whole of a typical lender package, text or page images.
+const EXTRACTION_LIMITS = { maxChars: 60000, maxScannedPages: 12 };
 
 function isNumOrNull(v: unknown): v is number | null {
   return v === null || typeof v === "number";
@@ -105,11 +137,8 @@ function parseTier(t: unknown): ExtractedCriteriaTier | null {
   };
 }
 
-function parseExtraction(text: string): ExtractedCriteria | null {
-  const match = text.match(/\{[\s\S]*\}/);
-  if (!match) return null;
-  try {
-    const p = JSON.parse(match[0]) as Record<string, unknown>;
+function parseExtractionObject(p: Record<string, unknown>): ExtractedCriteria | null {
+  {
     if (
       !isNumOrNull(p.minFico) ||
       !isNumOrNull(p.minLoanAmount) ||
@@ -162,6 +191,14 @@ function parseExtraction(text: string): ExtractedCriteria | null {
       extractionNotes: p.extractionNotes,
       detectedCategory,
     };
+  }
+}
+
+function parseExtraction(text: string): ExtractedCriteria | null {
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try {
+    return parseExtractionObject(JSON.parse(match[0]) as Record<string, unknown>);
   } catch {
     return null;
   }
@@ -184,7 +221,7 @@ export async function extractLenderCriteria(doc: {
     throw new Error("AI extraction isn't configured (missing ANTHROPIC_API_KEY).");
   }
 
-  const content = await resolveDocContent(doc);
+  const content = await resolveDocContent(doc, EXTRACTION_LIMITS);
   if (content.kind === "none") {
     return {
       minFico: null,
@@ -216,7 +253,7 @@ export async function extractLenderCriteria(doc: {
 
   const response = await anthropic.messages.create({
     model: "claude-sonnet-5",
-    max_tokens: 2000,
+    max_tokens: 4000,
     thinking: { type: "disabled" },
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: blocks }],
@@ -248,4 +285,111 @@ export async function extractLenderCriteria(doc: {
     };
   }
   return parsed;
+}
+
+function emptyCriteria(extractionNotes: string | null): ExtractedCriteria {
+  return {
+    minFico: null,
+    minLoanAmount: null,
+    maxLoanAmount: null,
+    statesAllowed: null,
+    propertyTypesAllowed: null,
+    minDscr: null,
+    maxLtv: null,
+    maxLtc: null,
+    maxLtarv: null,
+    minExperienceCount: null,
+    entityOnlyRequired: null,
+    gcLicenseRequired: null,
+    msaPopulationMinimum: null,
+    foreignNationalEligible: null,
+    itinEligible: null,
+    ruralEligible: null,
+    tiers: [],
+    extractionNotes,
+    detectedCategory: null,
+  };
+}
+
+export interface ExtractedPrograms {
+  /** One entry per loan program in the document, each tagged with its category (never two for the same category). */
+  programs: ExtractedCriteria[];
+  /** Lender-wide facts (foreign national / ITIN / rural) and notes about anything not captured in a program. */
+  general: ExtractedCriteria;
+}
+
+/** Keeps one entry per category, so a model that repeats a category can't overwrite its own earlier entry. */
+export function dedupePrograms(programs: ExtractedCriteria[]): ExtractedCriteria[] {
+  const byCategory = new Map<string, ExtractedCriteria>();
+  for (const p of programs) {
+    if (!p.detectedCategory) continue;
+    const seen = byCategory.get(p.detectedCategory);
+    if (!seen) {
+      byCategory.set(p.detectedCategory, p);
+    } else {
+      byCategory.set(p.detectedCategory, {
+        ...seen,
+        tiers: [...seen.tiers, ...p.tiers],
+        extractionNotes: [seen.extractionNotes, p.extractionNotes].filter(Boolean).join(" ") || null,
+      });
+    }
+  }
+  return [...byCategory.values()];
+}
+
+/**
+ * Same one-time read as extractLenderCriteria, for a document that may hold several loan programs (a lender's
+ * "complete package"): returns separate criteria for each program found so each can be filed under its own
+ * product, instead of giving up on the whole document because it isn't about a single program.
+ */
+export async function extractLenderPrograms(doc: { fileName: string; mimeType: string; data: string }): Promise<ExtractedPrograms> {
+  if (!anthropic) {
+    throw new Error("AI extraction isn't configured (missing ANTHROPIC_API_KEY).");
+  }
+
+  const content = await resolveDocContent(doc, EXTRACTION_LIMITS);
+  if (content.kind === "none") {
+    return { programs: [], general: emptyCriteria("Couldn't extract any readable text or images from this document.") };
+  }
+
+  const blocks: Anthropic.ContentBlockParam[] =
+    content.kind === "text"
+      ? [{ type: "text", text: content.text }]
+      : [{ type: "text", text: `Document "${doc.fileName}":` }, ...content.blocks];
+
+  const response = await anthropic.messages.create({
+    model: "claude-sonnet-5",
+    max_tokens: 12000,
+    thinking: { type: "disabled" },
+    system: PROGRAMS_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: blocks }],
+  });
+
+  const textBlock = response.content.find((b) => b.type === "text");
+  const match = textBlock && textBlock.type === "text" ? textBlock.text.match(/\{[\s\S]*\}/) : null;
+  let raw: Record<string, unknown> | null = null;
+  try {
+    raw = match ? (JSON.parse(match[0]) as Record<string, unknown>) : null;
+  } catch {
+    raw = null;
+  }
+  if (!raw || !Array.isArray(raw.programs)) {
+    return { programs: [], general: emptyCriteria("Extraction ran but the response couldn't be parsed — needs a manual look or a re-run.") };
+  }
+
+  // An entry the checker rejects is dropped rather than failing the whole document; the others still get filed.
+  const programs = dedupePrograms(
+    raw.programs.flatMap((entry) => {
+      const parsed = entry && typeof entry === "object" ? parseExtractionObject(entry as Record<string, unknown>) : null;
+      return parsed ? [parsed] : [];
+    })
+  );
+
+  const g = raw.general && typeof raw.general === "object" ? (raw.general as Record<string, unknown>) : {};
+  const general = emptyCriteria(typeof g.extractionNotes === "string" ? g.extractionNotes : null);
+  if (isBoolOrNull(g.foreignNationalEligible)) general.foreignNationalEligible = g.foreignNationalEligible ?? null;
+  if (isBoolOrNull(g.itinEligible)) general.itinEligible = g.itinEligible ?? null;
+  if (isBoolOrNull(g.ruralEligible)) general.ruralEligible = g.ruralEligible ?? null;
+
+  return { programs, general };
 }

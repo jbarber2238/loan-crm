@@ -43,18 +43,23 @@ export type DocContent =
  * feature and the one-time structured-criteria extraction pass, so a lender
  * document is only ever read one way.
  */
-export async function resolveDocContent(doc: { fileName: string; mimeType: string; data: string }): Promise<DocContent> {
+export async function resolveDocContent(
+  doc: { fileName: string; mimeType: string; data: string },
+  // The per-deal lender match keeps the small defaults (it re-reads these on every run). The one-time criteria
+  // extraction passes bigger limits so a multi-program package is read all the way through, not just its first pages.
+  limits?: { maxChars?: number; maxScannedPages?: number }
+): Promise<DocContent> {
   if (isImageFile(doc.fileName, doc.mimeType)) {
     return { kind: "images", blocks: [imageBlock(doc)], source: "raw-image" };
   }
 
-  const text = await extractDocumentText(doc.fileName, doc.mimeType, doc.data);
+  const text = await extractDocumentText(doc.fileName, doc.mimeType, doc.data, limits?.maxChars);
   if (text && !isPdfTextSparse(text)) {
     return { kind: "text", text };
   }
 
   if (isPdfFile(doc.fileName, doc.mimeType)) {
-    const { pages, totalPages } = await renderPdfPagesAsImages(doc.data);
+    const { pages, totalPages } = await renderPdfPagesAsImages(doc.data, limits?.maxScannedPages);
     if (pages.length) {
       return {
         kind: "images",

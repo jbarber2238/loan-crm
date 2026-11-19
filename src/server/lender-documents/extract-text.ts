@@ -1,9 +1,7 @@
 const MAX_EXTRACTED_CHARS = 4000;
 
-function truncate(text: string) {
-  return text.length > MAX_EXTRACTED_CHARS
-    ? `${text.slice(0, MAX_EXTRACTED_CHARS)}\n…(truncated)`
-    : text;
+function truncate(text: string, maxChars: number = MAX_EXTRACTED_CHARS) {
+  return text.length > maxChars ? `${text.slice(0, maxChars)}\n…(truncated)` : text;
 }
 
 async function extractFromSpreadsheet(buffer: Buffer): Promise<string> {
@@ -118,7 +116,8 @@ export interface RenderedPdfPage {
  * pages regardless of total length.
  */
 export async function renderPdfPagesAsImages(
-  base64Data: string
+  base64Data: string,
+  maxPages: number = MAX_SCANNED_PDF_PAGES
 ): Promise<{ pages: RenderedPdfPage[]; totalPages: number }> {
   await ensurePdfjsNodeSetup();
   const { PDFParse } = await import("pdf-parse");
@@ -127,7 +126,7 @@ export async function renderPdfPagesAsImages(
   const parser = new PDFParse({ data: new Uint8Array(buffer) });
   try {
     const result = await parser.getScreenshot({
-      first: MAX_SCANNED_PDF_PAGES,
+      first: maxPages,
       // Still legible for a dense matrix table at a fraction of the vision
       // token cost of the original 1400px — image cost scales with pixel
       // count, so this and the quality setting below matter a lot when
@@ -183,7 +182,8 @@ export async function renderPdfPageJpeg(base64Data: string, pageNumber: number):
 export async function extractDocumentText(
   fileName: string,
   mimeType: string,
-  base64Data: string
+  base64Data: string,
+  maxChars: number = MAX_EXTRACTED_CHARS
 ): Promise<string | null> {
   const buffer = Buffer.from(base64Data, "base64");
   const lowerName = fileName.toLowerCase();
@@ -194,15 +194,15 @@ export async function extractDocumentText(
       mimeType === "application/vnd.ms-excel" ||
       /\.(xlsx|xls|csv)$/.test(lowerName)
     ) {
-      return truncate(await extractFromSpreadsheet(buffer));
+      return truncate(await extractFromSpreadsheet(buffer), maxChars);
     }
 
     if (mimeType === "application/pdf" || lowerName.endsWith(".pdf")) {
-      return truncate(await extractFromPdf(buffer));
+      return truncate(await extractFromPdf(buffer), maxChars);
     }
 
     if (mimeType.startsWith("text/") || lowerName.endsWith(".txt")) {
-      return truncate(buffer.toString("utf-8"));
+      return truncate(buffer.toString("utf-8"), maxChars);
     }
   } catch {
     return null;
