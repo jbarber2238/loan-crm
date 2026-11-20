@@ -60,8 +60,15 @@ export function TermSheetExtractionReview({
     return defaultProduct?.id ?? "";
   });
   const [creating, startCreate] = useTransition();
+  // Which row of a lender's rate-buydown grid is chosen, per option (a grid is a menu of rates for the same loan).
+  const [pickedRows, setPickedRows] = useState<Record<number, number>>({});
 
   const option = options[selected];
+  const grid = option.buydownOptions ?? [];
+  const pickedRow = grid.length
+    ? (pickedRows[selected] ?? Math.max(0, grid.findIndex((r) => r.interestRate === Number(option.fields.interestRate))))
+    : -1;
+  const pickedBuydown = pickedRow >= 0 ? grid[pickedRow] : null;
 
   // The fields follow the product picked here, not just the deal's loan type: a bridge product quotes its term in
   // months, a DSCR one in years. (The picker can hold products of any type, e.g. a bridge quote on a DSCR deal.)
@@ -72,9 +79,18 @@ export function TermSheetExtractionReview({
   // The reply was read against the deal's loan type, so a lender's "12 months" can sit under the other term key.
   // Carry the number across when the right key is empty; the label shows the unit so it can be checked and fixed.
   const values = useMemo(() => {
-    const v = option.fields;
-    return v[termKey] === undefined && v[otherTermKey] !== undefined ? { ...v, [termKey]: v[otherTermKey] } : v;
-  }, [option, termKey, otherTermKey]);
+    const v: Record<string, string | number> = { ...option.fields };
+    if (v[termKey] === undefined && v[otherTermKey] !== undefined) v[termKey] = v[otherTermKey];
+    // The picked buydown row sets the rate, the points paid for it, and (worked out from them) the buydown fee.
+    if (pickedBuydown) {
+      const loan = pickedBuydown.loanAmount ?? Number(v.loanAmount);
+      v.interestRate = pickedBuydown.interestRate;
+      v.rateBuydownPoints = pickedBuydown.points;
+      if (pickedBuydown.loanAmount) v.loanAmount = pickedBuydown.loanAmount;
+      if (Number.isFinite(loan) && loan > 0) v.costToBorrowerFee = Math.round((loan * pickedBuydown.points) / 100);
+    }
+    return v;
+  }, [option, termKey, otherTermKey, pickedBuydown]);
   const notFoundLabels = option.notFoundKeys.map((key) => {
     const k = key === "loanTermYears" || key === "loanTermMonths" ? termKey : key;
     return fieldDefs.find((f) => f.key === k)?.label ?? key;
@@ -141,7 +157,52 @@ export function TermSheetExtractionReview({
         </p>
       )}
 
-      <form key={selected} onSubmit={handleCreateTermSheet} className="space-y-3">
+      {grid.length > 0 && (
+        <div className="space-y-1.5">
+          <Label>Pick the rate (buy it down with points)</Label>
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/50 text-muted-foreground">
+                <tr>
+                  <th className="w-8 p-2" />
+                  <th className="p-2 text-left font-medium">Buydown points</th>
+                  <th className="p-2 text-left font-medium">Rate</th>
+                  <th className="p-2 text-left font-medium">Buydown fee</th>
+                  <th className="p-2 text-left font-medium">Monthly payment</th>
+                  <th className="p-2 text-left font-medium">DSCR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {grid.map((row, i) => {
+                  const loan = row.loanAmount ?? Number(option.fields.loanAmount);
+                  const fee = Number.isFinite(loan) && loan > 0 ? Math.round((loan * row.points) / 100) : null;
+                  const on = i === pickedRow;
+                  const pick = () => setPickedRows((p) => ({ ...p, [selected]: i }));
+                  return (
+                    <tr key={i} onClick={pick} className={cn("cursor-pointer border-t", on ? "bg-primary/10" : "hover:bg-muted/50")}>
+                      <td className="p-2">
+                        <input type="radio" name={`buydown-${selected}`} checked={on} onChange={pick} aria-label={`${row.points}% points at ${row.interestRate}%`} />
+                      </td>
+                      <td className="p-2 tabular-nums">{row.points === 0 ? "0% (par rate)" : `${row.points}%`}</td>
+                      <td className="p-2 font-medium tabular-nums">{row.interestRate}%</td>
+                      <td className="p-2 tabular-nums">{fee ? `$${fee.toLocaleString()}` : "—"}</td>
+                      <td className="p-2 tabular-nums">
+                        {row.monthlyPayment === null ? "—" : `$${row.monthlyPayment.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                      </td>
+                      <td className="p-2 tabular-nums">{row.dscr ?? "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            The row you pick fills the interest rate, buydown points and buydown fee below. The lender&apos;s monthly payment is shown for comparison only.
+          </p>
+        </div>
+      )}
+
+      <form key={`${selected}-${pickedRow}`} onSubmit={handleCreateTermSheet} className="space-y-3">
         <input type="hidden" name="productId" value={productId} />
         <TermSheetFieldInputs
           fields={fieldDefs}

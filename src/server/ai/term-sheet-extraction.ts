@@ -1,6 +1,7 @@
 "use server";
 
 import { eq } from "drizzle-orm";
+import { mergeSplitBuydownOptions } from "@/lib/term-sheet-buydown";
 import { firstJsonObject } from "@/server/ai/extract-lender-criteria";
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/server/db/client";
@@ -32,6 +33,18 @@ const BROKER_ONLY_FIELDS = new Set([
   "appraisalFee",
 ]);
 
+/** One row of a lender's rate-buydown grid: pay this many points, get this rate. */
+export interface BuydownOption {
+  /** Points paid to buy the rate down, as a percent of the loan (0.25 means 0.25%). 0 is the par (no buydown) rate. */
+  points: number;
+  interestRate: number;
+  /** Only when the grid gives a loan size per row (it can differ, e.g. max proceeds). */
+  loanAmount: number | null;
+  /** The lender's quoted monthly payment for that row (PITIA or P&I, whatever the sheet shows), if any. */
+  monthlyPayment: number | null;
+  dscr: number | null;
+}
+
 export interface TermSheetExtractionOption {
   // A short, specific description of what makes this option distinct from
   // the others in the same reply — e.g. "30 Year Fixed, 5-yr step-down PPP
@@ -41,6 +54,8 @@ export interface TermSheetExtractionOption {
   fields: Record<string, string | number>;
   foundKeys: string[];
   notFoundKeys: string[];
+  /** Present when the lender's sheet is a grid of rate-buydown rows to pick from (see BuydownOption). */
+  buydownOptions?: BuydownOption[];
 }
 
 export interface TermSheetExtractionResult {
@@ -55,6 +70,7 @@ interface RawOption {
   fields: Record<string, string | number>;
   notFoundKeys: string[];
   quotedLtvPercent: number | null;
+  buydownOptions: BuydownOption[];
 }
 
 interface RawExtractionResult {
@@ -84,7 +100,7 @@ Target fields for this loan category:
 ${fieldListDescription(fieldDefs)}
 
 Respond with ONLY a JSON object, no prose outside it, in this exact shape:
-{"options": [{"label": "<short description of this specific option>", "fields": {"<key>": <value>, ...}, "notFoundKeys": ["<key>", ...], "quotedLtvPercent": <number or null>}, ...], "notes": "<string or null>"}
+{"options": [{"label": "<short description of this specific option>", "fields": {"<key>": <value>, ...}, "notFoundKeys": ["<key>", ...], "quotedLtvPercent": <number or null>, "buydownOptions": [{"points": <number>, "interestRate": <number>, "loanAmount": <number or null>, "monthlyPayment": <number or null>, "dscr": <number or null>}, ...]}, ...], "notes": "<string or null>"}
 
 Rules:
 - Only include a key in an option's "fields" if you're reasonably confident you found it in the reply (text or attachments). Every lender formats these differently — read carefully across all the content provided, including tables and screenshots.
@@ -94,7 +110,9 @@ Rules:
 - Do not include any field key that isn't in the target field list above.
 - Top-level "notes" is for anything worth flagging that isn't specific to one option (a caveat, a condition, something odd about the reply). Set it to null if there's nothing to add.
 
-Multiple pricing options: if the lender offers more than one distinct rate/points/program combination, give EACH one its own separate entry in "options" — do not collapse them into a single "primary" one. Give each entry a short, specific "label" naming what makes it distinct: the lender's own program name if they gave one, the amortization/rate type, and the rate itself — e.g. "30 Year Fixed, 5-yr step-down PPP @ 7.525%" or "5/6 ARM PRO, 3-yr fixed PPP @ 7.05%". If the lender only offered one option, "options" still has exactly one entry. Each entry needs its own COMPLETE "fields"/"notFoundKeys"/"quotedLtvPercent" — a fee or term that's identical across every option (like a shared underwriting fee) still gets repeated in each option's own "fields", not factored out.
+Rate buydown grids (DSCR and portfolio): many lenders show ONE loan with a table of rows, each row a different amount of "Lender Points" (0.00%, 0.25%, 0.50% ... up to several points) and the interest rate that amount of points buys, often with the monthly payment (PITIA) and DSCR for that row. That table is a menu of ways to buy the SAME loan's rate down, NOT separate loan programs: do not make one option per row. Make ONE option for the loan (its loan amount, term, prepay, amortization, interest-only, etc.), and list every row of the table, in the order shown, in that option's "buydownOptions": points as a plain percent number (0.25 for 0.25%), interestRate as a plain number (7.919 for 7.919%), loanAmount only if the table gives a different loan size per row (else null), monthlyPayment from the payment column (the PITIA column if there is one), dscr if given. Include EVERY row. Set the option's "interestRate" field to the rate of the row with 0 points (the par rate), or of the row the sheet marks as the current selection if there is one, and do NOT put a dollar amount in costToBorrowerFee for a grid (the app works the fee out from the points the person picks). Ignore columns that are not points, rate, loan size, payment or DSCR (such as a break-even or "buydown" ratio column). Leave "buydownOptions" as [] for any option that isn't a grid.
+
+Multiple pricing options (NOT for rate-buydown grids: several rows of the same loan at different points/rates, even when the email text quotes one or two of those rows, are ONE option with a "buydownOptions" list, and the quoted row only sets that option's interestRate): if the lender offers more than one distinct rate/points/program combination, give EACH one its own separate entry in "options" — do not collapse them into a single "primary" one. Give each entry a short, specific "label" naming what makes it distinct: the lender's own program name if they gave one, the amortization/rate type, and the rate itself — e.g. "30 Year Fixed, 5-yr step-down PPP @ 7.525%" or "5/6 ARM PRO, 3-yr fixed PPP @ 7.05%". If the lender only offered one option, "options" still has exactly one entry. Each entry needs its own COMPLETE "fields"/"notFoundKeys"/"quotedLtvPercent" — a fee or term that's identical across every option (like a shared underwriting fee) still gets repeated in each option's own "fields", not factored out.
 
 Loan amount vs. a quoted LTV: lenders sometimes price a refinance or a DSCR purchase as a percentage — "75% LTV cash-out," "we can go up to 80% LTV" — instead of, or without also giving, an actual dollar loan amount. If an option's loanAmount is explicitly stated as a dollar figure, use that as normal. If it is NOT, but the reply states an LTV percentage for that same option instead, put that percentage as a plain number in that option's "quotedLtvPercent" field (not inside "fields") — the loan amount will be computed separately from the deal's own value basis. Leave "quotedLtvPercent" null if that option didn't quote a percentage at all, or if you already found a dollar loanAmount for it.
 
@@ -172,12 +190,24 @@ Interest reserve (interestReserve, fix-and-flip/new-construction only): some len
     const label =
       typeof rawOption.label === "string" && rawOption.label.trim() ? rawOption.label.trim() : `Option ${i + 1}`;
 
-    return { label, fields, notFoundKeys, quotedLtvPercent };
+    const buydownRaw = (raw as { buydownOptions?: unknown }).buydownOptions;
+    const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+    const buydownOptions: BuydownOption[] = Array.isArray(buydownRaw)
+      ? buydownRaw.flatMap((row): BuydownOption[] => {
+          const r = (row ?? {}) as Record<string, unknown>;
+          const points = num(r.points);
+          const interestRate = num(r.interestRate);
+          if (points === null || interestRate === null || points < 0) return [];
+          return [{ points, interestRate, loanAmount: num(r.loanAmount), monthlyPayment: num(r.monthlyPayment), dscr: num(r.dscr) }];
+        })
+      : [];
+
+    return { label, fields, notFoundKeys, quotedLtvPercent, buydownOptions };
   });
 
   const notes = typeof parsed.notes === "string" && parsed.notes.trim().length ? parsed.notes.trim() : null;
 
-  return { options, notes };
+  return { options: validKeys.has("rateBuydownPoints") ? mergeSplitBuydownOptions(options) : options, notes };
 }
 
 // Hard-money draw loans (fix-and-flip/new construction) are almost always
@@ -242,8 +272,23 @@ function finalizeOption(
     notes.push(`Lender origination computed as ${lenderPts} point(s) × $${loanAmt.toLocaleString()} loan amount.`);
   }
 
+  // A buydown grid: the loan's rate and fee follow whichever row is picked, so start on the par row and never carry a
+  // stray dollar fee from the model.
+  if (raw.buydownOptions.length > 0) {
+    const par = raw.buydownOptions.find((r) => r.points === 0) ?? raw.buydownOptions[0];
+    if (!("interestRate" in fields)) fields.interestRate = par.interestRate;
+    delete fields.costToBorrowerFee;
+    notFoundKeys = notFoundKeys.filter((k) => k !== "costToBorrowerFee");
+  }
+
   return {
-    option: { label: raw.label, fields, foundKeys: Object.keys(fields), notFoundKeys },
+    option: {
+      label: raw.label,
+      fields,
+      foundKeys: Object.keys(fields),
+      notFoundKeys,
+      ...(raw.buydownOptions.length > 0 ? { buydownOptions: raw.buydownOptions } : {}),
+    },
     computedNote: notes.length ? `${raw.label}: ${notes.join(" ")}` : null,
   };
 }
