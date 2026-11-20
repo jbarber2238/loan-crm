@@ -37,11 +37,14 @@ const MUTED = "text-muted-foreground dark:text-[#605d5b]";
 
 const HEADERS = ["Borrower", "Property", "Loan type", "Amount", "Loan officer", "Processor", "To review", "Conditions", "Est. closing", "In stage", "Last touched"];
 
+const COLLAPSED_BY_DEFAULT = ["on_hold", "lost", "disqualified"];
+
 // The processor's view of the pipeline: one line per deal, grouped by stage. Every row is a real link, so a deal can be
 // opened in its own tab (middle-click or Cmd/Ctrl-click) without losing the list.
 export function ProcessorList({ deals, sort }: { deals: PipelineListDeal[]; sort: PipelineSort }) {
   const groups = groupDealsByStage(deals, STAGES, sort);
-  const [closed, setClosed] = useState<Set<string>>(() => new Set());
+  // Deals that are parked or dead start folded away: they're only opened on purpose, to look one up.
+  const [closed, setClosed] = useState<Set<string>>(() => new Set(COLLAPSED_BY_DEFAULT));
 
   if (groups.length === 0) {
     return <p className="rounded-lg border p-6 text-center text-sm text-muted-foreground">No deals match these filters.</p>;
