@@ -19,9 +19,10 @@ import {
 import { CLIENT_NEED_CATEGORIES, CLIENT_NEED_TYPES, LOAN_CATEGORIES } from "@/lib/labels";
 import { CUSTOM_NEED_FORM_OPTIONS } from "@/lib/custom-need-forms/registry";
 import { LenderTagBadge } from "@/components/client-needs/lender-tag-badge";
+import { findLenderMention, replaceLenderInText, stripLenderFromTitle } from "@/lib/lender-mention";
 
-type DraftLender = NonNullable<ClientNeedDraft["lender"]>;
-// The answer to "which of this lender's products get the need?", asked after the AI spots a lender in the request.
+type TaggedLender = NonNullable<ClientNeedDraft["lender"]>;
+// The answer to "which of this lender's products get the need?", asked whenever a need is tagged for a lender.
 type ProductAssignChoice = "all" | "certain" | "none";
 
 type NeedType = "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form" | "custom_form";
@@ -86,7 +87,7 @@ export function ClientNeedForm({
   const [productIdsLoading, setProductIdsLoading] = useState(isEdit && !isDeal);
   const [productSearch, setProductSearch] = useState("");
   const [lenderTagId, setLenderTagId] = useState<string>(clientNeed?.lenderTagId ?? "none");
-  const [lenderOptions, setLenderOptions] = useState<{ id: string; name: string }[] | null>(null);
+  const [lenderOptions, setLenderOptions] = useState<TaggedLender[] | null>(null);
   const [needType, setNeedType] = useState<NeedType>(clientNeed?.needType ?? "document_upload");
   const [esignVendor, setEsignVendor] = useState(clientNeed?.esignVendor ?? "");
   const [linkUrl, setLinkUrl] = useState(clientNeed?.linkUrl ?? "");
@@ -102,9 +103,13 @@ export function ClientNeedForm({
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiPending, startAiTransition] = useTransition();
   const [aiError, setAiError] = useState<string | null>(null);
-  // The lender the AI found in the request. It is tagged straight away; which products get the need is asked, not assumed.
-  const [aiLender, setAiLender] = useState<DraftLender | null>(null);
+  // The lender the last AI draft found in the request. It is tagged straight away.
+  const [aiLender, setAiLender] = useState<TaggedLender | null>(null);
+  // Which of the tagged lender's products get the need is asked, never assumed. Null until it is answered.
   const [assignChoice, setAssignChoice] = useState<ProductAssignChoice | null>(null);
+  const lenderQuestionRef = useRef<HTMLDivElement>(null);
+  // A lender the request named that isn't in the Lenders list, so there was nothing to tag.
+  const [unlistedLender, setUnlistedLender] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -157,50 +162,74 @@ export function ClientNeedForm({
         setQuestions(
           draft.questions.length ? draft.questions.map((text) => ({ text, required: false })) : [{ text: "", required: false }]
         );
-        // A lender picked up by an earlier draft is undone first, so drafting again never leaves the wrong one behind.
-        const previous = aiLender;
-        if (previous) {
-          const previousIds = new Set(previous.products.map((p) => p.id));
-          setProductIds((prev) => prev.filter((id) => !previousIds.has(id)));
-        }
-        if (draft.lender) setLenderTagId(draft.lender.id);
-        else if (previous && lenderTagId === previous.id) setLenderTagId("none");
+        // A lender picked up by an earlier draft is undone when the new draft names a different one, or none.
+        if (draft.lender) changeLenderTag(draft.lender.id);
+        else if (aiLender && lenderTagId === aiLender.id) changeLenderTag("none");
         setAiLender(draft.lender);
-        setAssignChoice(null);
+        setUnlistedLender(draft.unlistedLenderName);
       } catch (err) {
         setAiError(err instanceof Error ? err.message : "Couldn't generate a draft.");
       }
     });
   }
 
+  // The lender this need is tagged for, with its products. The AI's own answer covers the moment before the list loads.
+  const taggedLender: TaggedLender | null =
+    lenderTagId === "none"
+      ? null
+      : (lenderOptions?.find((l) => l.id === lenderTagId) ?? (aiLender?.id === lenderTagId ? aiLender : null));
+  const taggedProductIds = taggedLender ? taggedLender.products.map((p) => p.id) : [];
+  const taggedAssignedCount = taggedProductIds.filter((id) => productIds.includes(id)).length;
+
+  function changeLenderTag(nextId: string) {
+    if (nextId === lenderTagId) return;
+    // Products handed out through the question belong to the lender that was tagged, so they go when the tag does.
+    if (assignChoice !== null && taggedProductIds.length) {
+      setProductIds((prev) => prev.filter((id) => !taggedProductIds.includes(id)));
+    }
+    setLenderTagId(nextId);
+    setAssignChoice(null);
+  }
+
   function chooseProductAssignment(choice: ProductAssignChoice) {
-    if (!aiLender) return;
-    const lenderProductIds = aiLender.products.map((p) => p.id);
+    if (!taggedLender) return;
     setAssignChoice(choice);
     if (choice === "all") {
-      setProductIds((prev) => [...new Set([...prev, ...lenderProductIds])]);
+      setProductIds((prev) => [...new Set([...prev, ...taggedProductIds])]);
     } else if (choice === "none") {
-      setProductIds((prev) => prev.filter((id) => !lenderProductIds.includes(id)));
+      setProductIds((prev) => prev.filter((id) => !taggedProductIds.includes(id)));
     }
     // A need tied to one lender's products can't also be "every loan" (that setting ignores the product list).
     if (choice !== "none") setIsGlobal(false);
   }
 
-  function removeAiLender() {
-    if (!aiLender) return;
-    const lenderProductIds = aiLender.products.map((p) => p.id);
-    setProductIds((prev) => prev.filter((id) => !lenderProductIds.includes(id)));
-    if (lenderTagId === aiLender.id) setLenderTagId("none");
-    setAiLender(null);
-    setAssignChoice(null);
+  // A lender named in what the borrower reads (typed by hand, with no AI draft to catch it).
+  const namedLender =
+    !isDeal && lenderOptions
+      ? findLenderMention([itemName, description, ...questions.map((q) => q.text)].join("\n"), lenderOptions)
+      : null;
+
+  function moveLenderNameToTag(lender: TaggedLender) {
+    setItemName((prev) => stripLenderFromTitle(prev, lender.name) || prev);
+    setDescription((prev) => replaceLenderInText(prev, lender.name));
+    setQuestions((prev) => prev.map((q) => ({ ...q, text: replaceLenderInText(q.text, lender.name) })));
+    changeLenderTag(lender.id);
   }
+
+  // Once a draft tags a lender, bring the product question into view so it isn't missed further down the form.
+  useEffect(() => {
+    if (aiLender) lenderQuestionRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [aiLender]);
 
   const visibleProducts = allProducts.filter((p) => p.label.toLowerCase().includes(productSearch.toLowerCase()));
   // Checked products with no checkbox on screen (hidden by the search box, or on a page that didn't load the product
   // list) still have to be sent with the form, or saving would quietly drop them.
   const visibleProductIds = new Set(visibleProducts.map((p) => p.id));
   const unseenProductIds = productIdsLoading ? [] : productIds.filter((id) => !visibleProductIds.has(id));
-  const aiLenderAssignedCount = aiLender ? aiLender.products.filter((p) => productIds.includes(p.id)).length : 0;
+  // What the question's buttons show as picked: the answer given, or what the saved product list already says.
+  const shownChoice: ProductAssignChoice | null =
+    assignChoice ??
+    (taggedAssignedCount === 0 ? null : taggedAssignedCount === taggedProductIds.length ? "all" : "certain");
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -227,85 +256,19 @@ export function ClientNeedForm({
             </Button>
           </div>
           {aiError && <p className="text-sm text-destructive">{aiError}</p>}
-          {aiLender && (
-            <div className="space-y-2 rounded-md border border-primary/40 bg-primary/5 p-3 text-sm">
-              <div className="flex flex-wrap items-center gap-2">
-                <LenderTagBadge name={aiLender.name} />
-                <span>
-                  Tagged for {aiLender.name}. Only your team sees the tag, and the lender&apos;s name was kept out of what
-                  the borrower reads.
-                </span>
-              </div>
-              {aiLender.products.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  {aiLender.name} has no active products yet, so there is nothing to assign this to.
-                </p>
-              ) : (
-                <>
-                  <p className="font-medium">Which {aiLender.name} products should get this need?</p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={assignChoice === "all" ? "default" : "outline"}
-                      onClick={() => chooseProductAssignment("all")}
-                    >
-                      {aiLender.products.length === 1
-                        ? `Their one product (${aiLender.products[0].name})`
-                        : `All ${aiLender.products.length} products`}
-                    </Button>
-                    {aiLender.products.length > 1 && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={assignChoice === "certain" ? "default" : "outline"}
-                        onClick={() => chooseProductAssignment("certain")}
-                      >
-                        Just certain products
-                      </Button>
-                    )}
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={assignChoice === "none" ? "default" : "outline"}
-                      onClick={() => chooseProductAssignment("none")}
-                    >
-                      None for now
-                    </Button>
-                  </div>
-                  {assignChoice === "certain" && (
-                    <div className="space-y-0.5 rounded-md border bg-background p-2">
-                      {aiLender.products.map((p) => (
-                        <label key={p.id} className="flex items-center gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-accent/50">
-                          <Checkbox
-                            checked={productIds.includes(p.id)}
-                            onCheckedChange={(v) =>
-                              setProductIds((prev) => (v === true ? [...new Set([...prev, p.id])] : prev.filter((x) => x !== p.id)))
-                            }
-                          />
-                          {p.name}
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                  {assignChoice === null ? (
-                    <p className="text-xs text-muted-foreground">
-                      Until you pick, it isn&apos;t assigned to any product.
-                    </p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      {aiLenderAssignedCount === 0
-                        ? `Not assigned to any ${aiLender.name} product. You can still add it to a deal by hand.`
-                        : aiLenderAssignedCount === aiLender.products.length
-                          ? `Deals on any ${aiLender.name} product will get this need.`
-                          : `Deals on the ${aiLenderAssignedCount} ${aiLender.name} product${aiLenderAssignedCount === 1 ? "" : "s"} you checked will get this need.`}
-                    </p>
-                  )}
-                </>
-              )}
-              <button type="button" className="text-xs text-muted-foreground underline underline-offset-2" onClick={removeAiLender}>
-                Not a {aiLender.name} need? Remove the tag
-              </button>
+          {unlistedLender && (
+            <p className="rounded-md border border-amber-500/50 bg-amber-500/10 p-2 text-sm">
+              &ldquo;{unlistedLender}&rdquo; isn&apos;t in your Lenders list, so this wasn&apos;t tagged. Its name was still kept
+              out of what the borrower reads. Add the lender first, or pick a lender tag below.
+            </p>
+          )}
+          {aiLender && lenderTagId === aiLender.id && (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <LenderTagBadge name={aiLender.name} />
+              <span>
+                Tagged for {aiLender.name}, and its name was kept out of what the borrower reads. Pick which of its
+                products get this need, just below.
+              </span>
             </div>
           )}
         </div>
@@ -336,10 +299,22 @@ export function ClientNeedForm({
           />
         </div>
 
+        {namedLender && (
+          <div className="space-y-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
+            <p>
+              This names <span className="font-medium">{namedLender.name}</span>, and the borrower reads the item name
+              and instructions.
+            </p>
+            <Button type="button" size="sm" variant="outline" onClick={() => moveLenderNameToTag(namedLender)}>
+              Tag {namedLender.name} and take the name out
+            </Button>
+          </div>
+        )}
+
         {!isDeal && (
           <div className="space-y-1.5">
             <Label htmlFor={`${formId}-lenderTag`}>Lender tag (internal only)</Label>
-            <Select name="lenderTagId" value={lenderTagId} onValueChange={setLenderTagId}>
+            <Select name="lenderTagId" value={lenderTagId} onValueChange={changeLenderTag}>
               <SelectTrigger id={`${formId}-lenderTag`} className="w-full">
                 <SelectValue placeholder="No specific lender" />
               </SelectTrigger>
@@ -358,6 +333,75 @@ export function ClientNeedForm({
               Marks this as one lender&apos;s form so your team can find it by lender. The borrower never sees this, so
               keep the lender&apos;s name out of the item name above.
             </p>
+            {taggedLender && !productIdsLoading && (
+              <div ref={lenderQuestionRef} className="space-y-2 rounded-md border border-primary/40 bg-primary/5 p-3 text-sm">
+                {taggedLender.products.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    {taggedLender.name} has no active products yet, so there is nothing to assign this to.
+                  </p>
+                ) : (
+                  <>
+                    <p className="font-medium">Which {taggedLender.name} products should get this need?</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={shownChoice === "all" ? "default" : "outline"}
+                        onClick={() => chooseProductAssignment("all")}
+                      >
+                        {taggedLender.products.length === 1
+                          ? `Their one product (${taggedLender.products[0].name})`
+                          : `All ${taggedLender.products.length} products`}
+                      </Button>
+                      {taggedLender.products.length > 1 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={shownChoice === "certain" ? "default" : "outline"}
+                          onClick={() => chooseProductAssignment("certain")}
+                        >
+                          Just certain products
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={assignChoice === "none" ? "default" : "outline"}
+                        onClick={() => chooseProductAssignment("none")}
+                      >
+                        None for now
+                      </Button>
+                    </div>
+                    {shownChoice === "certain" && (
+                      <div className="space-y-0.5 rounded-md border bg-background p-2">
+                        {taggedLender.products.map((p) => (
+                          <label key={p.id} className="flex items-center gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-accent/50">
+                            <Checkbox
+                              checked={productIds.includes(p.id)}
+                              onCheckedChange={(v) => {
+                                setProductIds((prev) => (v === true ? [...new Set([...prev, p.id])] : prev.filter((x) => x !== p.id)));
+                                setAssignChoice("certain");
+                                if (v === true) setIsGlobal(false);
+                              }}
+                            />
+                            {p.name}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {taggedAssignedCount === 0
+                        ? shownChoice === null
+                          ? `Until you pick, it isn't assigned to any ${taggedLender.name} product.`
+                          : `Not assigned to any ${taggedLender.name} product. You can still add it to a deal by hand.`
+                        : taggedAssignedCount === taggedLender.products.length
+                          ? `Deals on any ${taggedLender.name} product will get this need.`
+                          : `Deals on the ${taggedAssignedCount} ${taggedLender.name} product${taggedAssignedCount === 1 ? "" : "s"} you checked will get this need.`}
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
 

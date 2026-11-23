@@ -99,11 +99,26 @@ async function lenderTagIdFrom(formData: FormData): Promise<string | null> {
   return lender.id;
 }
 
-/** Every lender (id + name), for the internal "lender tag" picker on a client need. */
-export async function getLenderTagOptions(): Promise<{ id: string; name: string }[]> {
+/**
+ * Every lender with its active products, for the internal "lender tag" picker on a client need and the question that
+ * follows it (which of that lender's products get the need).
+ */
+export async function getLenderTagOptions(): Promise<{ id: string; name: string; products: { id: string; name: string }[] }[]> {
   await requireUser();
-  const rows = await db.query.lenders.findMany({ columns: { id: true, name: true } });
-  return rows.sort((a, b) => a.name.localeCompare(b.name));
+  const rows = await db.query.lenders.findMany({
+    columns: { id: true, name: true },
+    with: { products: { columns: { id: true, name: true, active: true } } },
+  });
+  return rows
+    .map((l) => ({
+      id: l.id,
+      name: l.name,
+      products: l.products
+        .filter((p) => p.active)
+        .map((p) => ({ id: p.id, name: p.name }))
+        .sort((x, y) => x.name.localeCompare(y.name)),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function productIdsFrom(formData: FormData): string[] {

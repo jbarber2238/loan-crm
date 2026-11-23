@@ -19,8 +19,8 @@ export async function draftClientNeedWithAI(prompt: string): Promise<ClientNeedD
   await requireClientNeedsEditor();
 
   const lenders = await db.query.lenders.findMany({ columns: { id: true, name: true } });
-  const { draft, lender } = await generateClientNeedDraft(prompt, lenders);
-  if (!lender) return { ...draft, lender: null };
+  const { draft, lender, unlistedLenderName } = await generateClientNeedDraft(prompt, lenders);
+  if (!lender) return { ...draft, lender: null, unlistedLenderName };
 
   const lenderProducts = await db.query.products.findMany({
     where: and(eq(products.lenderId, lender.id), eq(products.active, true)),
@@ -28,5 +28,5 @@ export async function draftClientNeedWithAI(prompt: string): Promise<ClientNeedD
   });
   lenderProducts.sort((a, b) => a.name.localeCompare(b.name));
 
-  return { ...draft, lender: { id: lender.id, name: lender.name, products: lenderProducts } };
+  return { ...draft, lender: { id: lender.id, name: lender.name, products: lenderProducts }, unlistedLenderName: null };
 }
