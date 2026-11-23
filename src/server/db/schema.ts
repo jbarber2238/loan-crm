@@ -733,6 +733,9 @@ export const clientNeeds = pgTable("client_needs", {
   // lender). categoryClientNeeds below is the second layer; productClientNeeds
   // is the third and narrowest. "Auto Generate" unions all three that apply.
   isGlobal: boolean("is_global").notNull().default(false),
+  // Internal only: which lender this need belongs to (their application, their ACH form). Staff see and search it; it
+  // is never shown to the borrower, so the item name can stay generic and not give away who the loan is closing with.
+  lenderTagId: uuid("lender_tag_id").references(() => lenders.id, { onDelete: "set null" }),
   createdByUserId: uuid("created_by_user_id").references(() => users.id),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
@@ -1242,6 +1245,8 @@ export const dealClientNeeds = pgTable("deal_client_needs", {
   // standard). Only these get the full edit form — type, link, questions, template file — because a standard need is
   // meant to look the way the catalog defines it; a standard need only lets name and description be reworded.
   isCustom: boolean("is_custom").notNull().default(false),
+  // Internal only, copied from the catalog item at add-time: the lender this need is for. Never shown to the borrower.
+  lenderTagId: uuid("lender_tag_id").references(() => lenders.id, { onDelete: "set null" }),
   status: dealClientNeedStatusEnum("status").notNull().default("not_sent"),
   // Copied from the catalog item at add-time (or set directly for a custom
   // need) — document_upload needs go through the document review pipeline
@@ -1865,7 +1870,8 @@ export const lenderCriteriaTiersRelations = relations(lenderCriteriaTiers, ({ on
   }),
 }));
 
-export const clientNeedsRelations = relations(clientNeeds, ({ many }) => ({
+export const clientNeedsRelations = relations(clientNeeds, ({ one, many }) => ({
+  lenderTag: one(lenders, { fields: [clientNeeds.lenderTagId], references: [lenders.id] }),
   questions: many(clientNeedQuestions),
   products: many(productClientNeeds),
   categoryLinks: many(categoryClientNeeds),
@@ -1983,6 +1989,7 @@ export const dealKeyDateEventsRelations = relations(dealKeyDateEvents, ({ one })
 
 export const dealClientNeedsRelations = relations(dealClientNeeds, ({ one, many }) => ({
   deal: one(deals, { fields: [dealClientNeeds.dealId], references: [deals.id] }),
+  lenderTag: one(lenders, { fields: [dealClientNeeds.lenderTagId], references: [lenders.id] }),
   documents: many(dealClientNeedDocuments),
   answers: many(dealClientNeedAnswers),
 }));

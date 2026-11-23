@@ -63,7 +63,9 @@ export default async function CustomNeedFormPage({
       companyName={companyName}
       headerExtra={
         <>
-          <h1 className="mt-3 text-xl font-semibold text-balance">{definition.label}</h1>
+          {/* The need's own name, not the form definition's label: that label names the lender, and the borrower
+              shouldn't learn who the loan is closing with from a page heading. */}
+          <h1 className="mt-3 text-xl font-semibold text-balance">{data.need.itemName}</h1>
           {data.need.description && <p className={`mt-1 text-sm ${mutedStrong}`}>{data.need.description}</p>}
           <p className={`mt-3 text-xs ${muted}`}>
             {data.dealSummary.propertyAddress} · Loan #{data.dealSummary.loanNumber}

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { addClientNeedToDeal, addDocumentForSignatureToDeal, addStagedCatalogNeedsToDeal } from "@/server/actions/client-needs";
 import { ClientNeedForm } from "@/components/client-needs/client-need-form";
+import { LenderTagBadge } from "@/components/client-needs/lender-tag-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +25,8 @@ export interface DealCatalogItem {
   linkUrl?: string | null;
   needType: "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form" | "custom_form";
   isCustom: boolean;
+  /** Internal lender tag's name, when the need is one lender's form. Staff-only. */
+  lenderTagName?: string | null;
 }
 
 // One entry in the "Ready to add" list. Catalog entries can repeat (three Operating Agreements); custom entries hold the
@@ -315,7 +318,7 @@ export function AddClientNeedToDealDialog({
               <Input placeholder="Search…" value={search} onChange={(e) => setSearch(e.target.value)} />
               <div className="max-h-[52vh] space-y-1 overflow-y-auto rounded-md border p-2">
                 {sorted.map((item) => {
-                  const matches = item.itemName.toLowerCase().includes(search.toLowerCase());
+                  const matches = `${item.itemName} ${item.lenderTagName ?? ""}`.toLowerCase().includes(search.toLowerCase());
                   const existingCount = existingCounts[item.itemName.toLowerCase()] ?? 0;
                   const stagedCount = stagedCounts[item.id] ?? 0;
                   return (
@@ -328,6 +331,7 @@ export function AddClientNeedToDealDialog({
                     >
                       <Plus className="size-3.5 shrink-0 text-muted-foreground" />
                       <span className="flex-1">{item.itemName}</span>
+                      {item.lenderTagName && <LenderTagBadge name={item.lenderTagName} />}
                       {stagedCount > 0 && (
                         <Badge variant="default" className="text-[10px]">
                           In list{stagedCount > 1 ? ` ×${stagedCount}` : ""}

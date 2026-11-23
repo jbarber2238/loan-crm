@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { ClientNeedDialog } from "@/components/client-needs/client-need-dialog";
 import { DeleteClientNeedButton } from "@/components/client-needs/delete-client-need-button";
+import { LenderTagBadge } from "@/components/client-needs/lender-tag-badge";
 import { CollapsibleSection } from "@/components/email-templates/collapsible-section";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,8 @@ export interface BrowsableClientNeed {
   templateFileName: string | null;
   isCustom: boolean;
   isGlobal: boolean;
+  lenderTagId: string | null;
+  lenderTagName: string | null;
   loanCategories: string[];
   questions: { questionText: string; required: boolean }[];
   productCount: number;
@@ -69,6 +72,7 @@ function Row({
           <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
         )}
         <span className="flex-1 truncate text-sm font-medium">{item.itemName}</span>
+        {item.lenderTagName && <LenderTagBadge name={item.lenderTagName} />}
         {item.isCustom && (
           <Badge variant="outline" className="text-[10px]">
             Custom
@@ -88,6 +92,12 @@ function Row({
             {labelFor(CLIENT_NEED_TYPES, item.needType)} · {scopeLabel(item)} · used on {item.productCount} lender
             product{item.productCount === 1 ? "" : "s"} directly
           </p>
+          {item.lenderTagName && (
+            <p className="text-xs text-muted-foreground">
+              Lender tag: <span className="font-medium text-foreground">{item.lenderTagName}</span> (internal only, the
+              borrower never sees it)
+            </p>
+          )}
           {item.needType === "esign" && item.esignVendor && (
             <p className="text-xs text-muted-foreground">Via {item.esignVendor}</p>
           )}
@@ -125,6 +135,7 @@ function Row({
                 templateFileName: item.templateFileName,
                 isCustom: item.isCustom,
                 isGlobal: item.isGlobal,
+                lenderTagId: item.lenderTagId,
                 loanCategories: item.loanCategories,
                 questions: item.questions,
               }}
@@ -151,17 +162,38 @@ export function ClientNeedsBrowser({
   allProducts: { id: string; label: string }[];
 }) {
   const [search, setSearch] = useState("");
+  // "all", "none" (no lender tag) or a lender's id.
+  const [lenderFilter, setLenderFilter] = useState("all");
 
   const standard = items.filter((i) => !i.isCustom);
   const custom = items.filter((i) => i.isCustom);
 
+  // Only lenders that actually have a tagged need, so the filter never lists dead ends.
+  const taggedLenders = useMemo(() => {
+    const byId = new Map<string, { id: string; name: string; count: number }>();
+    for (const i of items) {
+      if (!i.lenderTagId || !i.lenderTagName) continue;
+      const entry = byId.get(i.lenderTagId) ?? { id: i.lenderTagId, name: i.lenderTagName, count: 0 };
+      entry.count += 1;
+      byId.set(i.lenderTagId, entry);
+    }
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [items]);
+
   const searchResults = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return null;
-    return items.filter(
-      (i) => i.itemName.toLowerCase().includes(q) || (i.description ?? "").toLowerCase().includes(q)
-    );
-  }, [search, items]);
+    if (!q && lenderFilter === "all") return null;
+    return items.filter((i) => {
+      if (lenderFilter === "none" && i.lenderTagId) return false;
+      if (lenderFilter !== "all" && lenderFilter !== "none" && i.lenderTagId !== lenderFilter) return false;
+      if (!q) return true;
+      return (
+        i.itemName.toLowerCase().includes(q) ||
+        (i.description ?? "").toLowerCase().includes(q) ||
+        (i.lenderTagName ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [search, lenderFilter, items]);
 
   const standardByCategory = useMemo(() => {
     const groups = new Map<string, BrowsableClientNeed[]>();
@@ -198,10 +230,26 @@ export function ClientNeedsBrowser({
     <div className="space-y-6">
       <div className="flex items-center gap-2">
         <Input
-          placeholder="Search client needs by name or description…"
+          placeholder="Search by name, description or lender…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        {taggedLenders.length > 0 && (
+          <select
+            aria-label="Filter by lender tag"
+            value={lenderFilter}
+            onChange={(e) => setLenderFilter(e.target.value)}
+            className="h-9 shrink-0 rounded-md border border-input bg-transparent px-2 text-sm"
+          >
+            <option value="all">All lenders</option>
+            {taggedLenders.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name} ({l.count})
+              </option>
+            ))}
+            <option value="none">No lender tag</option>
+          </select>
+        )}
         <ClientNeedDialog
           allProducts={allProducts}
           trigger={<Button size="sm" className="shrink-0">+ New Custom Need</Button>}

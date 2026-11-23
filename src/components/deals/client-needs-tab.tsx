@@ -57,6 +57,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ClientNeedForm } from "@/components/client-needs/client-need-form";
+import { LenderTagBadge } from "@/components/client-needs/lender-tag-badge";
 import { CopyClientNeedsButton } from "@/components/deals/copy-client-needs-button";
 import { EntityDocCarryOverDialog } from "@/components/deals/entity-doc-carryover-dialog";
 import type { EntityDocOffer } from "@/lib/entity-doc-carryover";
@@ -91,6 +92,8 @@ export interface ClientNeedAnswer {
 export interface ClientNeed {
   id: string;
   itemName: string;
+  // Internal lender tag's name (whose form this is). Staff-only: never sent to the borrower.
+  lenderTagName?: string | null;
   description: string | null;
   // A one-off need written for this deal — these get the full edit form (type, link, questions, file), not just name + description.
   isCustom: boolean;
@@ -920,6 +923,7 @@ function ClientNeedRow({
               ) : (
                 need.itemName
               )}
+              {need.lenderTagName && <LenderTagBadge name={need.lenderTagName} />}
               {hasExpandableContent ? (
                 <button
                   type="button"

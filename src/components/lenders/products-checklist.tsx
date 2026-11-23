@@ -11,6 +11,7 @@ import { toggleProductActive, deleteProduct, updateProduct, updateLenderCriteria
 import { AddProductDialog } from "@/components/lenders/add-product-dialog";
 import { AddClientNeedDialog } from "@/components/client-needs/add-client-need-dialog";
 import { ClientNeedDialog } from "@/components/client-needs/client-need-dialog";
+import { LenderTagBadge } from "@/components/client-needs/lender-tag-badge";
 import type { ExistingClientNeed } from "@/components/client-needs/client-need-form";
 import { Button } from "@/components/ui/button";
 import { ActionForm } from "@/components/forms/action-form";
@@ -25,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CLIENT_NEED_TYPES, LOAN_CATEGORIES, labelFor } from "@/lib/labels";
 import { formatFileSize } from "@/lib/format";
 
-type NeedForProduct = Omit<ExistingClientNeed, "loanCategories"> & { categoryLinks: { category: string }[] };
+type NeedForProduct = Omit<ExistingClientNeed, "loanCategories"> & { categoryLinks: { category: string }[]; lenderTag?: { name: string } | null };
 
 interface ProductLink {
   id: string;
@@ -91,6 +92,7 @@ interface CatalogItem {
   itemName: string;
   needType: "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form" | "custom_form";
   isCustom: boolean;
+  lenderTagName?: string | null;
 }
 
 interface OtherProduct {
@@ -664,6 +666,7 @@ export function ProductsChecklist({
                             <div className="space-y-1">
                               <div className="flex items-center gap-2">
                                 <p className="font-medium">{need.itemName}</p>
+                                {need.lenderTag && <LenderTagBadge name={need.lenderTag.name} />}
                                 <Badge variant="secondary">{typeLabel}</Badge>
                                 {need.isCustom && (
                                   <Badge variant="outline" className="text-[10px]">

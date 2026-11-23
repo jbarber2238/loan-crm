@@ -26,6 +26,7 @@ import { recomputeNeedStatus } from "@/server/client-need-status";
 import { copyQuestionsToNewNeeds } from "@/server/client-need-questions";
 import { createClientNeed } from "@/server/actions/client-need-catalog";
 import { activeRulesFor } from "@/server/client-need-rules";
+import { needsNotAlreadyOnDeal } from "@/lib/client-need-dedupe";
 import { createDocumentFromTemplate, createDocumentFromPdfFile, waitUntilDraft, sendDocumentSilently } from "@/server/pandadoc";
 import { reopenPandaDocNeed } from "@/server/pandadoc-reopen";
 import { addSignaturePage } from "@/server/pdf/signature-page";
@@ -46,6 +47,8 @@ type CatalogNeedRow = {
   autoRule?: string | null;
   // Catalog rows carry this; carried onto the deal need so custom ones get the full edit form.
   isCustom?: boolean;
+  // Internal lender tag (never shown to the borrower), carried onto the deal need so staff can tell whose form it is.
+  lenderTagId?: string | null;
 };
 
 // Creates and sends the PandaDoc document for one need — called from
@@ -167,10 +170,10 @@ async function addCatalogNeedsToDeal(
   if (dedupeByName) {
     const existing = await db.query.dealClientNeeds.findMany({
       where: eq(dealClientNeeds.dealId, dealId),
-      columns: { itemName: true },
+      columns: { itemName: true, lenderTagId: true },
     });
-    const existingNames = new Set(existing.map((e) => e.itemName.toLowerCase()));
-    toAdd = catalogNeeds.filter((n) => !existingNames.has(n.itemName.toLowerCase()));
+    // Same name, unless both copies are tagged for different lenders (see client-need-dedupe).
+    toAdd = needsNotAlreadyOnDeal(existing, catalogNeeds);
   }
   if (!toAdd.length) return [];
 
@@ -200,6 +203,7 @@ async function addCatalogNeedsToDeal(
         pandadocTemplateUuid: n.pandadocTemplateUuid,
         customFormKey: n.customFormKey,
         isCustom: n.isCustom ?? false,
+        lenderTagId: n.lenderTagId ?? null,
         requestedByUserId,
         sortOrder: maxSortOrder + i + 1,
       }))

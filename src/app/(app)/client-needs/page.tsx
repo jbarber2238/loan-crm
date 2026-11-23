@@ -8,7 +8,10 @@ export default async function ClientNeedsPage() {
 
   const [items, allProducts] = await Promise.all([
     db.query.clientNeeds.findMany({
+      // Never the template file bytes: this page only lists the catalog.
+      columns: { templateFileData: false },
       with: {
+        lenderTag: { columns: { name: true } },
         questions: true,
         products: { columns: { id: true } },
         categoryLinks: { columns: { category: true } },
@@ -31,6 +34,8 @@ export default async function ClientNeedsPage() {
     templateFileName: item.templateFileName,
     isCustom: item.isCustom,
     isGlobal: item.isGlobal,
+    lenderTagId: item.lenderTagId,
+    lenderTagName: item.lenderTag?.name ?? null,
     loanCategories: item.categoryLinks.map((l) => l.category),
     questions: item.questions,
     productCount: item.products.length,

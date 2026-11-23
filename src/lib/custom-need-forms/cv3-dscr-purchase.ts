@@ -92,7 +92,8 @@ export const CV3_DSCR_PURCHASE: CustomFormDefinition = {
           label: "Borrower Estimated Credit Score",
           type: "number",
           syncDealField: "estimatedFico",
-          helpText: "Carried over from the original loan inquiry — CV3's own site asks for a range, so pick the bucket this number falls into when entering it there.",
+          // Shown to the borrower, so it must not name the lender.
+          helpText: "Carried over from your original loan inquiry.",
         },
         { name: "borrowerDateOfBirth", label: "Borrower Date of Birth", type: "date" },
         {

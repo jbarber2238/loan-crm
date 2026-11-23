@@ -35,6 +35,8 @@ export default async function DealLoanCenterPage({
     db.query.users.findMany({ where: (users, { eq }) => eq(users.active, true) }),
     db.query.clientNeeds.findMany({
       columns: { id: true, itemName: true, description: true, linkUrl: true, needType: true, isCustom: true },
+      // The internal lender tag, so the picker can show whose form each need is.
+      with: { lenderTag: { columns: { name: true } } },
       orderBy: (cn, { asc }) => asc(cn.itemName),
     }),
     db.query.dealConditions.findMany({
@@ -72,6 +74,7 @@ export default async function DealLoanCenterPage({
           columns: { id: true, questionText: true, answerText: true, required: true },
           orderBy: (a, { asc }) => asc(a.sortOrder),
         },
+        lenderTag: { columns: { name: true } },
       },
       orderBy: (dcn, { asc }) => asc(dcn.sortOrder),
     }),
@@ -89,8 +92,9 @@ export default async function DealLoanCenterPage({
   const noteAuthor = deal.clientNeedsNoteUpdatedByUserId ? allUsers.find((u) => u.id === deal.clientNeedsNoteUpdatedByUserId) : null;
   // Who archived a rejection reason, by name, for the audit list in the review window.
   const userNameById = new Map(allUsers.map((u) => [u.id, u.name ?? u.email]));
-  const clientNeedsForTab = clientNeeds.map(({ documents, ...need }) => ({
+  const clientNeedsForTab = clientNeeds.map(({ documents, lenderTag, ...need }) => ({
     ...need,
+    lenderTagName: lenderTag?.name ?? null,
     lastTouchedAt: lastTouchedAt(need, documents),
     documents: documents.map(({ rejectionNoteArchivedByUserId, ...doc }) => ({
       ...doc,
@@ -141,7 +145,7 @@ export default async function DealLoanCenterPage({
       // The query already excludes status "unused" above — this narrows the
       // type to match, since Drizzle can't express that from a `where` clause.
       clientNeeds={clientNeedsForTab}
-      clientNeedsCatalog={clientNeedsCatalog}
+      clientNeedsCatalog={clientNeedsCatalog.map(({ lenderTag, ...c }) => ({ ...c, lenderTagName: lenderTag?.name ?? null }))}
       loanCategoryProducts={categoryProducts.map((p) => ({
         id: p.id,
         label: `${p.lender.name} — ${p.name}`,

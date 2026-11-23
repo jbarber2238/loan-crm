@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { attachClientNeedsToProduct, createClientNeed } from "@/server/actions/client-need-catalog";
 import { ClientNeedForm } from "@/components/client-needs/client-need-form";
+import { LenderTagBadge } from "@/components/client-needs/lender-tag-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -24,6 +25,8 @@ export interface CatalogItem {
   itemName: string;
   needType: "document_upload" | "esign" | "questionnaire" | "link" | "pandadoc_form" | "custom_form";
   isCustom: boolean;
+  /** Internal lender tag's name, when the need is one lender's form. */
+  lenderTagName?: string | null;
 }
 
 export function AddClientNeedDialog({
@@ -98,11 +101,11 @@ export function AddClientNeedDialog({
           </TabsList>
 
           <TabsContent value="list" className="space-y-3 pt-2">
-            <Input placeholder="Search…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input placeholder="Search by name or lender…" value={search} onChange={(e) => setSearch(e.target.value)} />
             <form ref={formRef} onSubmit={handleAttach} className="space-y-3">
               <div className="max-h-72 space-y-1 overflow-y-auto rounded-md border p-2">
                 {sorted.map((item) => {
-                  const matches = item.itemName.toLowerCase().includes(search.toLowerCase());
+                  const matches = `${item.itemName} ${item.lenderTagName ?? ""}`.toLowerCase().includes(search.toLowerCase());
                   return (
                     <label
                       key={item.id}
@@ -110,6 +113,7 @@ export function AddClientNeedDialog({
                     >
                       <Checkbox name="clientNeedId" value={item.id} />
                       <span className="flex-1">{item.itemName}</span>
+                      {item.lenderTagName && <LenderTagBadge name={item.lenderTagName} />}
                       {item.isCustom && (
                         <Badge variant="secondary" className="text-[10px]">
                           Custom

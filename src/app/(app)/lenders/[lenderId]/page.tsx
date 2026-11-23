@@ -44,7 +44,7 @@ export default async function LenderDetailPage({
       products: {
         with: {
           criteria: { with: { tiers: true } },
-          clientNeeds: { with: { clientNeed: { with: { questions: true, categoryLinks: true } } } },
+          clientNeeds: { with: { clientNeed: { with: { questions: true, categoryLinks: true, lenderTag: { columns: { name: true } } } } } },
         },
       },
       documents: {
@@ -64,6 +64,7 @@ export default async function LenderDetailPage({
     }),
     db.query.clientNeeds.findMany({
       columns: { id: true, itemName: true, needType: true, isCustom: true },
+      with: { lenderTag: { columns: { name: true } } },
       orderBy: (cn, { asc }) => asc(cn.itemName),
     }),
     getAllProductOptions(),
@@ -218,7 +219,7 @@ export default async function LenderDetailPage({
         lenderId={lenderId}
         products={lender.products}
         lenderDocuments={lender.documents}
-        fullCatalog={fullCatalog}
+        fullCatalog={fullCatalog.map(({ lenderTag, ...c }) => ({ ...c, lenderTagName: lenderTag?.name ?? null }))}
         otherProducts={otherProducts}
         allProductOptions={allProductOptions}
         availableCategories={availableCategories}

@@ -3,7 +3,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db/client";
-import { clientNeedQuestions, clientNeeds, productClientNeeds, categoryClientNeeds, loanCategoryEnum, products } from "@/server/db/schema";
+import { clientNeedQuestions, clientNeeds, productClientNeeds, categoryClientNeeds, lenders, loanCategoryEnum, products } from "@/server/db/schema";
 import { requireClientNeedsEditor, requireUser } from "@/server/auth/guards";
 
 type LoanCategory = (typeof loanCategoryEnum.enumValues)[number];
@@ -89,6 +89,23 @@ async function syncCategoryLinks(clientNeedId: string, categories: LoanCategory[
   }
 }
 
+// The internal lender tag: blank or "none" clears it, and an id that isn't a real lender is refused.
+async function lenderTagIdFrom(formData: FormData): Promise<string | null> {
+  const value = str(formData, "lenderTagId");
+  if (!value || value === "none") return null;
+  if (!/^[0-9a-f-]{36}$/i.test(value)) throw new Error("Pick a lender from the list.");
+  const lender = await db.query.lenders.findFirst({ where: eq(lenders.id, value), columns: { id: true } });
+  if (!lender) throw new Error("That lender no longer exists.");
+  return lender.id;
+}
+
+/** Every lender (id + name), for the internal "lender tag" picker on a client need. */
+export async function getLenderTagOptions(): Promise<{ id: string; name: string }[]> {
+  await requireUser();
+  const rows = await db.query.lenders.findMany({ columns: { id: true, name: true } });
+  return rows.sort((a, b) => a.name.localeCompare(b.name));
+}
+
 function productIdsFrom(formData: FormData): string[] {
   return formData.getAll("productIds").filter((v): v is string => typeof v === "string" && v.length > 0);
 }
@@ -171,6 +188,7 @@ export async function createClientNeed(formData: FormData, { attachToProductId }
 
   const needType = needTypeFrom(formData);
   const fileFields = needType === "document_upload" ? await templateFileFields(formData) : {};
+  const lenderTagId = await lenderTagIdFrom(formData);
 
   const [created] = await db
     .insert(clientNeeds)
@@ -185,6 +203,7 @@ export async function createClientNeed(formData: FormData, { attachToProductId }
       customFormKey: needType === "custom_form" ? nullableStr(formData, "customFormKey") : null,
       isCustom,
       isGlobal,
+      lenderTagId,
       createdByUserId: user.id,
       ...fileFields,
     })
@@ -224,6 +243,7 @@ export async function updateClientNeed(clientNeedId: string, formData: FormData)
       : { templateFileName: null, templateFileMimeType: null, templateFileData: null, templateFileSize: null };
   const isGlobal = str(formData, "isGlobal") === "on";
   const loanCategories = isGlobal ? [] : loanCategoriesFrom(formData);
+  const lenderTagId = await lenderTagIdFrom(formData);
 
   await db
     .update(clientNeeds)
@@ -240,6 +260,7 @@ export async function updateClientNeed(clientNeedId: string, formData: FormData)
       // asked for across more than one lender — no admin gate on that switch.
       isCustom: str(formData, "isStandard") !== "on",
       isGlobal,
+      lenderTagId,
       updatedAt: new Date(),
       ...fileFields,
     })
