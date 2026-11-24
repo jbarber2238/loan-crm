@@ -4,11 +4,14 @@ import { leads, users, type leadStatusEnum } from "@/server/db/schema";
 import { sendGmailAs } from "@/server/gmail/send";
 import { getCompanyName, getCompanyLogoHtml } from "@/server/settings";
 import { getUserEmailSignatureHtml } from "@/server/users";
-import { htmlButton, emailShell } from "@/lib/email-html";
+import { htmlButton, emailShell, escapeHtml } from "@/lib/email-html";
 import { leadMarketingEmailFooter } from "@/lib/lead-email-footer";
 import { NOTIFY_EMAIL, APPLY_URL } from "@/lib/lead-constants";
 import { generateMaxOfferExcelAttachment } from "@/server/max-offer-excel-server";
 import type { MaxOfferExcelInputs } from "@/lib/max-offer-excel-export";
+import { model, money, monthsText, type BuydownInputs } from "@/lib/buydown-calc";
+import { BUYDOWN_EXCEL_FILENAME, buildBuydownXlsx } from "@/lib/buydown-excel-export";
+import { BUYDOWN_WORKBOOK_PARTS_B64 } from "@/lib/buydown-workbook-parts";
 
 type Lead = typeof leads.$inferSelect;
 
@@ -85,6 +88,64 @@ export async function sendMaxOfferExcelEmail(
     to: lead.email,
     replyTo: NOTIFY_EMAIL,
     subject: "Your Max Allowable Offer Calculator",
+    body: logoHtml + body + signatureHtml + leadMarketingEmailFooter(lead.id),
+    html: true,
+    category: "lead_magnet_welcome",
+    attachments: [attachment],
+  });
+}
+
+export const BUYDOWN_CALCULATOR_URL = "https://mannalendingco.com/resources/rate-buydown-calculator";
+
+// The rate buy-down calculator's version of the email above: sent when someone fills in its download form. The file
+// already downloaded in their browser; this is the copy they can find again later, with their answer in a sentence.
+// `to` is only for sending a test copy somewhere other than the lead's own address.
+export async function sendBuydownExcelEmail(
+  lead: Pick<Lead, "id" | "name" | "email" | "unsubscribedAt">,
+  o: BuydownInputs,
+  holdMonths: number,
+  holdTimes: number[],
+  to: string = lead.email
+): Promise<void> {
+  if (lead.unsubscribedAt) return;
+
+  const sender = await getSystemSender();
+  if (!sender) return;
+
+  const [companyName, logoHtml, signatureHtml] = await Promise.all([getCompanyName(), getCompanyLogoHtml(), getUserEmailSignatureHtml(sender.id)]);
+  const attachment = {
+    fileName: BUYDOWN_EXCEL_FILENAME,
+    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    data: Buffer.from(buildBuydownXlsx(BUYDOWN_WORKBOOK_PARTS_B64, o, holdMonths, holdTimes)).toString("base64"),
+  };
+  const firstName = lead.name.trim().split(/\s+/)[0] || lead.name;
+
+  const m = model(o);
+  const at = m.at(holdMonths);
+  const answer =
+    m.be === null
+      ? "On the numbers you entered, the lower rate does not lower your monthly payment, so the buy-down never pays back."
+      : at.net >= 0
+        ? `On the numbers you entered, the buy-down pays for itself before you exit: break-even is month ${monthsText(m.be)}, and at month ${holdMonths} you come out ${money(at.net)} ahead.`
+        : `On the numbers you entered, you would exit before the buy-down pays back: break-even is month ${monthsText(m.be)}, and at month ${holdMonths} you would be ${money(Math.abs(at.net))} behind.`;
+
+  const body = emailShell({
+    companyName,
+    heading: "Here's your Excel file",
+    bodyHtml: `
+      <p style="margin:0 0 16px;">Hi ${escapeHtml(firstName)},</p>
+      <p style="margin:0 0 16px;">Your Rate Buy-Down Break-Even Calculator is attached as an Excel file, with your numbers already filled in. The formulas are live, so you can change any sand-colored cell and the rest recalculates.</p>
+      <p style="margin:0 0 16px;">${answer}</p>
+      <p style="margin:0 0 16px;">Here's your link back to the calculator any time:</p>
+      <p style="margin:0 0 16px;">${htmlButton("Open the calculator", BUYDOWN_CALCULATOR_URL)}</p>
+      <p style="margin:0 0 16px;">If you have any questions about your numbers, just reply to this email.</p>
+    `,
+  });
+
+  await sendGmailAs(sender.id, sender.email, {
+    to,
+    replyTo: NOTIFY_EMAIL,
+    subject: "Your Rate Buy-Down Calculator",
     body: logoHtml + body + signatureHtml + leadMarketingEmailFooter(lead.id),
     html: true,
     category: "lead_magnet_welcome",

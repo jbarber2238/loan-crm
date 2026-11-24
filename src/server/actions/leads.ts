@@ -8,7 +8,7 @@ import { leads, leadActivities, leadActivityTypeEnum } from "@/server/db/schema"
 import { requireAdminOrLoanOfficer } from "@/server/auth/guards";
 import { toE164 } from "@/server/twilio-client";
 import { computeStatusAfterEvent, type LeadStatus } from "@/lib/lead-scoring";
-import { sendMaxOfferExcelEmail, sendLeadCapturedAlert, sendHotLeadAlert } from "@/server/lead-notifications";
+import { sendMaxOfferExcelEmail, sendBuydownExcelEmail, sendLeadCapturedAlert, sendHotLeadAlert } from "@/server/lead-notifications";
 import type { MaxOfferExcelInputs } from "@/lib/max-offer-excel-export";
 import { model, money, monthsText, signed, type BuydownInputs } from "@/lib/buydown-calc";
 
@@ -166,12 +166,15 @@ export interface BuydownDownloadInputs {
   buydownFee: number;
   sameClosingCosts: number;
   holdMonths: number;
+  /** The seven hold times on the "By Hold Time" tab, in months. */
+  holdTimes: number[];
 }
 
 // Public, unauthenticated — called when someone downloads the Rate Buy-Down Calculator's Excel file (the file
 // itself is built in their browser). Saves the deal they ran on their lead record, logs the download, and, when
-// they have just filled in the form (`justSubmitted`), sends the internal "new lead" alert. Every number is
-// re-checked here and the results are worked out again on the server; nothing a visitor typed is trusted as text.
+// they have just filled in the form (`justSubmitted`), emails them the same file and sends the internal "new lead"
+// alert. Every number is re-checked here and the results are worked out again on the server; nothing a visitor
+// typed is trusted as text.
 export async function recordBuydownExcelDownload(leadId: string, raw: BuydownDownloadInputs, justSubmitted: boolean): Promise<void> {
   if (!/^[0-9a-f-]{36}$/i.test(String(leadId))) return;
   const lead = await db.query.leads.findFirst({ where: eq(leads.id, leadId) });
@@ -223,6 +226,9 @@ export async function recordBuydownExcelDownload(leadId: string, raw: BuydownDow
   await applyStatusEvent(leadId, lead.status, { kind: "excel_downloaded" });
 
   if (!justSubmitted) return;
+  const holdTimes = (Array.isArray(raw?.holdTimes) ? raw.holdTimes : []).slice(0, 7).map((k) => Math.round(n(k, 0, 600)));
+  while (holdTimes.length < 7) holdTimes.push([6, 12, 24, 36, 60, 84, 120][holdTimes.length]);
+  await sendBuydownExcelEmail(lead, o, inputs.holdMonths, holdTimes).catch((err) => console.error("Failed to send buy-down excel email:", err));
   await sendLeadCapturedAlert(lead, null, null, {
     calculator: "Rate Buy-Down Calculator",
     detailLines: [

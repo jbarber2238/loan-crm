@@ -232,6 +232,7 @@ export function BuydownCalculator() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloadedFor, setDownloadedFor] = useState<string | null>(null);
+  const [emailed, setEmailed] = useState(false);
 
   // Someone who filled in the form on an earlier visit isn't asked again.
   useEffect(() => {
@@ -400,9 +401,10 @@ export function BuydownCalculator() {
       }
       await downloadBuydownExcel(v.o, hold, v.holdsN.slice(0, 7));
       setDownloadedFor(dealKey);
+      setEmailed(justSubmitted && id !== NO_LEAD);
       recordBuydownExcelDownload(
         id,
-        { loanAmount: v.o.L, rateNoBuydown: num(r0), rateWithBuydown: num(r1), termYears: v.o.T, interestOnly: io, buydownFee: Math.max(0, num(fee)), sameClosingCosts: v.o.same, holdMonths: hold },
+        { loanAmount: v.o.L, rateNoBuydown: num(r0), rateWithBuydown: num(r1), termYears: v.o.T, interestOnly: io, buydownFee: Math.max(0, num(fee)), sameClosingCosts: v.o.same, holdMonths: hold, holdTimes: v.holdsN.slice(0, 7) },
         justSubmitted
       ).catch((err) => console.error("Failed to record the download:", err));
     } catch (err) {
@@ -804,7 +806,7 @@ export function BuydownCalculator() {
       <section aria-labelledby="dl-h" className={`${CARD} flex flex-wrap items-start gap-8 sm:gap-10`} style={{ borderColor: CARD_BORDER }}>
         <div className="flex flex-[1_1_300px] flex-col gap-2.5">
           <SectionHead n={6} id="dl-h" title="Take this deal with you">
-            Get the Excel version with your numbers already filled in. Change any sand cell and the rest recalculates.
+            Get the Excel version with your numbers already filled in. Change any sand cell and the rest recalculates. We&apos;ll email you a copy too.
           </SectionHead>
         </div>
         <div className="flex flex-[1_1_360px] flex-col gap-4">
@@ -855,7 +857,7 @@ export function BuydownCalculator() {
           )}
           {downloadedFor === dealKey && !error && (
             <p role="status" className="m-0 text-sm leading-[22px] font-semibold" style={{ color: TEAL }}>
-              Your Excel file is on its way, with the formulas intact.
+              Your Excel file is on its way, with the formulas intact.{emailed ? " We emailed you a copy too." : ""}
             </p>
           )}
         </div>
