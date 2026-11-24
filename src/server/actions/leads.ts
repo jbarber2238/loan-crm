@@ -10,6 +10,7 @@ import { toE164 } from "@/server/twilio-client";
 import { computeStatusAfterEvent, type LeadStatus } from "@/lib/lead-scoring";
 import { sendMaxOfferExcelEmail, sendLeadCapturedAlert, sendHotLeadAlert } from "@/server/lead-notifications";
 import type { MaxOfferExcelInputs } from "@/lib/max-offer-excel-export";
+import { model, money, monthsText, signed, type BuydownInputs } from "@/lib/buydown-calc";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
@@ -153,6 +154,83 @@ export async function sendMaxOfferExcelEmailAction(
       console.error("Failed to send new lead alert:", err)
     ),
   ]);
+}
+
+export interface BuydownDownloadInputs {
+  loanAmount: number;
+  /** Rates as percentages, e.g. 7.99. */
+  rateNoBuydown: number;
+  rateWithBuydown: number;
+  termYears: number;
+  interestOnly: boolean;
+  buydownFee: number;
+  sameClosingCosts: number;
+  holdMonths: number;
+}
+
+// Public, unauthenticated — called when someone downloads the Rate Buy-Down Calculator's Excel file (the file
+// itself is built in their browser). Saves the deal they ran on their lead record, logs the download, and, when
+// they have just filled in the form (`justSubmitted`), sends the internal "new lead" alert. Every number is
+// re-checked here and the results are worked out again on the server; nothing a visitor typed is trusted as text.
+export async function recordBuydownExcelDownload(leadId: string, raw: BuydownDownloadInputs, justSubmitted: boolean): Promise<void> {
+  if (!/^[0-9a-f-]{36}$/i.test(String(leadId))) return;
+  const lead = await db.query.leads.findFirst({ where: eq(leads.id, leadId) });
+  if (!lead) return;
+
+  const n = (v: unknown, min: number, max: number) => {
+    const x = Number(v);
+    return Number.isFinite(x) ? Math.min(max, Math.max(min, x)) : min;
+  };
+  const inputs = {
+    loanAmount: n(raw?.loanAmount, 0, 1e9),
+    rateNoBuydown: n(raw?.rateNoBuydown, 0, 100),
+    rateWithBuydown: n(raw?.rateWithBuydown, 0, 100),
+    termYears: n(raw?.termYears, 1, 50),
+    interestOnly: raw?.interestOnly === true,
+    buydownFee: n(raw?.buydownFee, 0, 1e9),
+    sameClosingCosts: n(raw?.sameClosingCosts, 0, 1e9),
+    holdMonths: Math.round(n(raw?.holdMonths, 0, 600)),
+  };
+  const o: BuydownInputs = {
+    L: inputs.loanAmount,
+    r0: inputs.rateNoBuydown / 100,
+    r1: inputs.rateWithBuydown / 100,
+    T: inputs.termYears,
+    io: inputs.interestOnly,
+    pts: inputs.loanAmount > 0 ? inputs.buydownFee / inputs.loanAmount : 0,
+    extra: 0,
+    same: inputs.sameClosingCosts,
+  };
+  const m = model(o);
+  const at = m.at(inputs.holdMonths);
+  const results = {
+    monthlySavings: Math.round(m.save * 100) / 100,
+    breakEvenMonths: m.be === null ? null : Math.round(m.be * 10) / 10,
+    netBenefitAtHold: Math.round(at.net),
+  };
+
+  const now = new Date();
+  await db
+    .update(leads)
+    .set({
+      lastCalculatorInputs: { calculator: "rate_buydown", ...inputs },
+      lastCalculatorResults: results,
+      excelDownloadedAt: now,
+      lastActivityAt: now,
+    })
+    .where(eq(leads.id, leadId));
+  await logActivity(leadId, "excel_downloaded", { calculator: "rate_buydown" });
+  await applyStatusEvent(leadId, lead.status, { kind: "excel_downloaded" });
+
+  if (!justSubmitted) return;
+  await sendLeadCapturedAlert(lead, null, null, {
+    calculator: "Rate Buy-Down Calculator",
+    detailLines: [
+      `Loan ${money(inputs.loanAmount)}, ${inputs.interestOnly ? "interest-only" : "amortizing"}, ${inputs.termYears} years`,
+      `Rate ${inputs.rateNoBuydown}% with no buy-down, ${inputs.rateWithBuydown}% for a ${money(inputs.buydownFee)} fee`,
+      `Plans to hold ${inputs.holdMonths} months. Break-even: ${m.be === null ? "never" : `month ${monthsText(m.be)}`}. Net at exit: ${signed(at.net)}`,
+    ],
+  }).catch((err) => console.error("Failed to send new lead alert:", err));
 }
 
 // Public, unauthenticated — lets the emailed "here's your calculator" link

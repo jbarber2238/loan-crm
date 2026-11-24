@@ -102,7 +102,10 @@ export async function sendMaxOfferExcelEmail(
 export async function sendLeadCapturedAlert(
   lead: Lead,
   hasDealUnderContract: boolean | null,
-  closingTimeline: string | null
+  closingTimeline: string | null,
+  // Which calculator's Excel file they asked for, plus any lines about the deal they ran. Built by the caller from
+  // numbers it has checked, never from text a visitor typed (this goes into an HTML email).
+  what: { calculator: string; detailLines?: string[] } = { calculator: "Max Allowable Offer Calculator" }
 ): Promise<void> {
   const sender = await getSystemSender();
   if (!sender) return;
@@ -121,12 +124,13 @@ export async function sendLeadCapturedAlert(
     companyName,
     heading: "New calculator lead",
     bodyHtml: `
-      <p style="margin:0 0 16px;"><strong>${lead.name}</strong> requested the Max Allowable Offer Calculator's Excel version.</p>
+      <p style="margin:0 0 16px;"><strong>${lead.name}</strong> requested the ${what.calculator}'s Excel version.</p>
       <p style="margin:0 0 16px;">
         Phone: <a href="tel:${lead.phone}">${lead.phone}</a><br/>
         Email: <a href="mailto:${lead.email}">${lead.email}</a>
       </p>
       ${dealLine ? `<p style="margin:0 0 16px;">${dealLine}</p>` : ""}
+      ${what.detailLines?.length ? `<p style="margin:0 0 16px;">${what.detailLines.join("<br/>")}</p>` : ""}
     `,
   });
 

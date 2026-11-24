@@ -62,6 +62,7 @@ export function isEmailable(p: Pick<AudiencePerson, "consent" | "email">): boole
 const SOURCE_LABELS: Record<string, string> = {
   friday_zoom: "Friday Zoom",
   max_allowable_offer_calculator: "Max Offer Calculator",
+  rate_buydown_calculator: "Rate Buy-Down Calculator",
 };
 
 export function sourceLabel(source: string): string {

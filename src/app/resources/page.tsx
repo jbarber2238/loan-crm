@@ -5,7 +5,7 @@ import { SiteFooter } from "@/components/marketing/site-footer";
 
 export const metadata: Metadata = {
   title: "Investor Resources — Manna Lending",
-  description: "Free DSCR and hard money leverage calculators for real estate investors, from Manna Lending.",
+  description: "Free DSCR, rate buy-down, hard money leverage and max allowable offer calculators for real estate investors, from Manna Lending.",
 };
 
 const OFF_WHITE = "#FAF7F2";
@@ -20,6 +20,12 @@ const CALCULATORS = [
     href: "/resources/dscr-calculator",
     description:
       "See whether a rental property's income covers its debt — the core number a DSCR loan qualifies against instead of your personal income.",
+  },
+  {
+    nameLines: ["Rate Buy-Down", "Calculator"],
+    href: "/resources/rate-buydown-calculator",
+    description:
+      "Is paying points worth it? Enter your loan quote and how long you plan to hold it, and see the month a lower rate pays you back.",
   },
   {
     nameLines: ["Hard Money", "Leverage Calculator"],

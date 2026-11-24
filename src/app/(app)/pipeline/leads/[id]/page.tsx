@@ -30,9 +30,30 @@ const CALCULATOR_LABELS: Record<string, string> = {
   profitMarginPct: "Profit Margin",
   cashInvested: "Cash Invested",
   cashOnCashPct: "Cash-on-Cash Return",
+  // Rate buy-down calculator
+  calculator: "Calculator",
+  rateNoBuydown: "Rate With No Buy-Down",
+  rateWithBuydown: "Rate With Buy-Down",
+  termYears: "Loan Term",
+  interestOnly: "Payment Type",
+  buydownFee: "Buy-Down Fee",
+  sameClosingCosts: "Other Closing Costs",
+  holdMonths: "Planned Hold",
+  monthlySavings: "Monthly Savings",
+  breakEvenMonths: "Break-Even",
+  netBenefitAtHold: "Net Benefit at Exit",
 };
 
-function formatCalculatorValue(key: string, value: number): string {
+function formatCalculatorValue(key: string, raw: unknown): string {
+  if (key === "calculator") return raw === "rate_buydown" ? "Rate Buy-Down" : String(raw);
+  if (key === "interestOnly") return raw ? "Interest-only" : "Amortizing";
+  if (key === "breakEvenMonths") return raw === null ? "Never" : `Month ${raw}`;
+  if (typeof raw !== "number") return raw == null ? "—" : String(raw);
+  const value = raw;
+  if (key === "rateNoBuydown" || key === "rateWithBuydown") return `${value}%`;
+  if (key === "termYears") return `${value} yr`;
+  if (key === "holdMonths") return `${value} mo`;
+  if (key === "monthlySavings") return value.toLocaleString("en-US", { style: "currency", currency: "USD" });
   if (key.endsWith("Pct")) return `${value.toFixed(1)}%`;
   if (key === "timelineMonths") return `${value} mo`;
   if (key === "originationPts") return `${value} pts`;
@@ -40,7 +61,7 @@ function formatCalculatorValue(key: string, value: number): string {
 }
 
 function CalculatorSnapshot({ title, data }: { title: string; data: unknown }) {
-  const entries = Object.entries((data ?? {}) as Record<string, number>);
+  const entries = Object.entries((data ?? {}) as Record<string, unknown>);
   if (!entries.length) return null;
   return (
     <div>

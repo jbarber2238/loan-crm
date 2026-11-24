@@ -29,6 +29,7 @@ const APPLY_HREF = `/intake/${LOAN_OFFICER_ID}`;
  */
 const RESOURCE_LINKS = [
   { href: "/resources/dscr-calculator", label: "DSCR Calculator" },
+  { href: "/resources/rate-buydown-calculator", label: "Rate Buy-Down Calculator" },
   { href: "/resources/hard-money-calculator", label: "Hard Money Leverage Calculator" },
   { href: "/resources/max-allowable-offer-calculator", label: "Max Allowable Offer Calculator" },
 ];
@@ -82,6 +83,14 @@ export function SiteHeader() {
                   style={{ color: BASALT }}
                 >
                   DSCR Calculator
+                </Link>
+                <Link
+                  href="/resources/rate-buydown-calculator"
+                  className="block px-4 py-3 text-sm leading-snug font-medium transition-colors hover:bg-[rgba(20,61,74,0.06)]"
+                  style={{ color: BASALT }}
+                >
+                  <span className="block">Rate Buy-Down</span>
+                  <span className="block">Calculator</span>
                 </Link>
                 <Link
                   href="/resources/hard-money-calculator"
