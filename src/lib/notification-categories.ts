@@ -15,7 +15,7 @@ export const NOTIFICATION_CATEGORIES: NotificationCategory[] = [
   { id: "texts", label: "Texts from clients", description: "A client texts one of my deals.", adminOnly: false, defaultPush: true },
   { id: "chat_direct", label: "Team chat: messages to me", description: "Direct messages, group chats I'm in, chats on my deals, and anyone who tags me with @ in any chat.", adminOnly: false, defaultPush: true },
   { id: "chat_general", label: "Team chat: the General room", description: "Every message in the team-wide chat. Busy, so it's off until you want it.", adminOnly: false, defaultPush: false },
-  { id: "tasks", label: "Task reminders", description: "A task of mine with a due time is due (or about to be), and tasks someone gives me. Sent to my phone when the CRM isn't open on screen.", adminOnly: false, defaultPush: true },
+  { id: "tasks", label: "Task reminders", description: "A task of mine with a due time is due (or about to be), a morning summary of what's due today and overdue, and tasks someone gives me. Sent to my phone when the CRM isn't open on screen.", adminOnly: false, defaultPush: true },
   { id: "leads", label: "Event signups and leads", description: "Someone registers for the Friday Zoom or becomes a lead.", adminOnly: true, defaultPush: true },
   { id: "partners", label: "Partner activity", description: "Partners accepting terms, sending referrals, sending banking or tax forms.", adminOnly: true, defaultPush: true },
   { id: "reviews", label: "Client reviews", description: "A client finishes the closing survey.", adminOnly: true, defaultPush: true },
@@ -25,6 +25,7 @@ export const NOTIFICATION_CATEGORIES: NotificationCategory[] = [
 
 const TYPE_TO_CATEGORY: Record<string, string> = {
   task_assigned: "tasks",
+  task_digest: "tasks",
   task_due: "tasks",
   client_needs_completed: "deals",
   client_needs_note: "deals",

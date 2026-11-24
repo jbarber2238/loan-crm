@@ -1,14 +1,20 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, notInArray, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/server/db/client";
 import { dealNotes, dealTasks, deals, notifications, taskCoverage, users } from "@/server/db/schema";
 import { pushToUsers } from "@/server/push";
+import { etParts } from "@/lib/friday-schedule";
 import {
+  DAY_DIGEST_HOUR_ET,
   HEADS_UP_MS,
   LATE_REMINDER_WINDOW_MS,
   coverageActive,
+  dayNudgeKind,
+  daysBetween,
+  dueCountText,
   reminderKind,
   todayEt,
+  type DayReminderKind,
   type ReminderKind,
   type ReminderMode,
 } from "@/lib/tasks";
@@ -322,6 +328,197 @@ export async function listDueReminders(viewer: { id: string }, now = new Date())
     });
   }
   return out.sort((a, b) => a.dueAtMs - b.dueAtMs);
+}
+
+// ---- Due today / overdue --------------------------------------------------------------------------------
+
+export interface DayReminder {
+  /** Task id plus the day, so putting it away today doesn't silence it tomorrow. */
+  key: string;
+  taskId: string;
+  kind: DayReminderKind;
+  title: string;
+  dealId: string;
+  dealLabel: string;
+  dueDate: string;
+  daysLate: number;
+  /** Set when the task belongs to someone the viewer is covering. */
+  forName: string | null;
+}
+
+/** Open tasks past their due day, or due today with no time. */
+function dueByDay(today: string) {
+  return and(
+    isNull(dealTasks.completedAt),
+    isNotNull(dealTasks.dueDate),
+    or(lt(dealTasks.dueDate, today), and(eq(dealTasks.dueDate, today), isNull(dealTasks.dueTime)))
+  );
+}
+
+/**
+ * For the notice at the top of a loan: its open tasks that are due today (with or without a time) or overdue, as far
+ * as this person may see them (their own, anyone they're covering; everyone's for an admin).
+ */
+export async function listDealTasksDue(viewer: TaskViewer, dealId: string, today = todayEt()) {
+  const who = await visibleAssigneeIds(viewer);
+  const rows = await db
+    .select({
+      id: dealTasks.id,
+      title: dealTasks.title,
+      dueDate: dealTasks.dueDate,
+      dueTime: dealTasks.dueTime,
+      assignedToUserId: dealTasks.assignedToUserId,
+      assigneeName: assignee.name,
+      assigneeEmail: assignee.email,
+    })
+    .from(dealTasks)
+    .innerJoin(assignee, eq(assignee.id, dealTasks.assignedToUserId))
+    .where(
+      and(
+        eq(dealTasks.dealId, dealId),
+        isNull(dealTasks.completedAt),
+        lte(dealTasks.dueDate, today),
+        who === "all" ? undefined : inArray(dealTasks.assignedToUserId, who)
+      )
+    )
+    .orderBy(asc(dealTasks.dueDate), asc(dealTasks.dueTime));
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    dueDate: r.dueDate,
+    dueTime: r.dueTime,
+    forName: r.assignedToUserId === viewer.id ? null : userLabel(r.assigneeName, r.assigneeEmail),
+  }));
+}
+
+/**
+ * What goes in the "due today / overdue" card: this person's open tasks (and those of anyone they're covering) that
+ * are past their due day or due today without a time. These have no moment to pop up at, so the card shows whenever
+ * the CRM is open, until it's put away for the day. Polled with the timed reminders, so it stays one small query.
+ */
+export async function listDayReminders(viewer: { id: string }, now = new Date()): Promise<DayReminder[]> {
+  const today = todayEt(now);
+  const rows = await db
+    .select({
+      id: dealTasks.id,
+      title: dealTasks.title,
+      dealId: dealTasks.dealId,
+      address: deals.propertyAddress,
+      borrower: deals.borrowerName,
+      dueDate: dealTasks.dueDate,
+      dueTime: dealTasks.dueTime,
+      dueAt: dealTasks.dueAt,
+      createdAt: dealTasks.createdAt,
+      assignedToUserId: dealTasks.assignedToUserId,
+      assigneeName: assignee.name,
+      assigneeEmail: assignee.email,
+    })
+    .from(dealTasks)
+    .innerJoin(deals, eq(deals.id, dealTasks.dealId))
+    .innerJoin(assignee, eq(assignee.id, dealTasks.assignedToUserId))
+    .where(
+      and(
+        dueByDay(today),
+        or(
+          eq(dealTasks.assignedToUserId, viewer.id),
+          inArray(
+            dealTasks.assignedToUserId,
+            db
+              .select({ id: taskCoverage.fromUserId })
+              .from(taskCoverage)
+              .where(and(eq(taskCoverage.coveredByUserId, viewer.id), lte(taskCoverage.startDate, today), gte(taskCoverage.endDate, today)))
+          )
+        )
+      )
+    );
+  if (rows.length === 0) return [];
+  const me = await db.query.users.findFirst({ where: eq(users.id, viewer.id), columns: { taskReminderMode: true } });
+  if (me?.taskReminderMode === "off") return [];
+  const out: DayReminder[] = [];
+  for (const r of rows) {
+    const kind = dayNudgeKind(r, now);
+    if (!kind || !r.dueDate) continue;
+    out.push({
+      key: `${r.id}:day:${today}`,
+      taskId: r.id,
+      kind,
+      title: r.title,
+      dealId: r.dealId,
+      dealLabel: `${r.address.split(",")[0]} · ${r.borrower}`,
+      dueDate: r.dueDate,
+      daysLate: Math.max(0, daysBetween(r.dueDate, today)),
+      forName: r.assignedToUserId === viewer.id ? null : userLabel(r.assigneeName, r.assigneeEmail),
+    });
+  }
+  // The longest overdue first, then today's.
+  return out.sort((a, b) => (a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0));
+}
+
+/**
+ * Once a morning (from 9 AM Eastern), one bell notification and one phone push per person: "3 tasks due today,
+ * 1 overdue". For tasks with a date but no time, and anything overdue, so they reach people who don't have the CRM
+ * open. Someone covering for a colleague gets that colleague's tasks counted in theirs.
+ */
+export async function sendTaskDayDigests(now = new Date()): Promise<number> {
+  if (etParts(now).hour < DAY_DIGEST_HOUR_ET) return 0;
+  const today = todayEt(now);
+  const rows = await db
+    .select({
+      title: dealTasks.title,
+      assignedToUserId: dealTasks.assignedToUserId,
+      dueDate: dealTasks.dueDate,
+      dueTime: dealTasks.dueTime,
+      dueAt: dealTasks.dueAt,
+      createdAt: dealTasks.createdAt,
+    })
+    .from(dealTasks)
+    .where(dueByDay(today))
+    .orderBy(asc(dealTasks.dueDate));
+  if (rows.length === 0) return 0;
+
+  const coverage = await db
+    .select({ from: taskCoverage.fromUserId, by: taskCoverage.coveredByUserId })
+    .from(taskCoverage)
+    .where(and(lte(taskCoverage.startDate, today), gte(taskCoverage.endDate, today)));
+  const totals = new Map<string, { today: number; overdue: number; first: string }>();
+  for (const r of rows) {
+    const kind = dayNudgeKind(r, now);
+    if (!kind) continue;
+    const recipients = [r.assignedToUserId, ...coverage.filter((c) => c.from === r.assignedToUserId).map((c) => c.by)];
+    for (const id of new Set(recipients)) {
+      const t = totals.get(id) ?? { today: 0, overdue: 0, first: r.title };
+      t[kind]++;
+      totals.set(id, t);
+    }
+  }
+  if (totals.size === 0) return 0;
+
+  const people = await db
+    .select({ id: users.id, mode: users.taskReminderMode, active: users.active, sentOn: users.taskDigestSentOn })
+    .from(users)
+    .where(inArray(users.id, [...totals.keys()]));
+  let sent = 0;
+  for (const p of people) {
+    if (!p.active || p.mode === "off" || p.sentOn === today) continue;
+    const claimed = await db
+      .update(users)
+      .set({ taskDigestSentOn: today })
+      .where(and(eq(users.id, p.id), or(isNull(users.taskDigestSentOn), ne(users.taskDigestSentOn, today))))
+      .returning({ id: users.id });
+    if (claimed.length === 0) continue;
+    const t = totals.get(p.id)!;
+    const count = t.today + t.overdue;
+    const title = dueCountText(t.today, t.overdue);
+    const body = count === 1 ? t.first : `${t.first}, and ${count - 1} more`;
+    try {
+      await db.insert(notifications).values({ userId: p.id, type: "task_digest", title, body, href: "/tasks" });
+      await pushToUsers([p.id], { title, body, href: "/tasks", category: "tasks", tag: `task-digest-${today}` });
+      sent++;
+    } catch (err) {
+      console.error("Failed to send the task summary:", err);
+    }
+  }
+  return sent;
 }
 
 /** Phone push for tasks that came due without anyone seeing the on-screen pop-up. Run by the 5-minute cron. */

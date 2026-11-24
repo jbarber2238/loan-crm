@@ -255,6 +255,8 @@ export const users = pgTable("user", {
   // Pop-up reminders for tasks with a due time: 'now' (at the due time), 'both' (15 minutes before and at the due
   // time) or 'off'. Whether the same reminder is also pushed to a phone is the "tasks" notification category.
   taskReminderMode: text("task_reminder_mode").notNull().default("now"),
+  // The Eastern day the morning "tasks due today / overdue" summary last went to this person, so it goes once a day.
+  taskDigestSentOn: date("task_digest_sent_on", { mode: "string" }),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 

@@ -15,7 +15,7 @@ import {
   todayEt,
   type ReminderMode,
 } from "@/lib/tasks";
-import { canActOnTask, listDueReminders, notifyTaskAssigned, type DueReminder } from "@/server/tasks";
+import { canActOnTask, listDayReminders, listDueReminders, notifyTaskAssigned, type DayReminder, type DueReminder } from "@/server/tasks";
 
 type Ok = { ok: true };
 
@@ -148,6 +148,16 @@ export async function setTaskReminderMode(mode: string): Promise<Ok | ActionErro
 export async function fetchDueReminders(): Promise<DueReminder[]> {
   const user = await requireUser();
   return listDueReminders(user);
+}
+
+/**
+ * What the reminder pop-ups poll now: the timed reminders plus the "due today / overdue" list. (fetchDueReminders
+ * stays for tabs that were open before this existed.)
+ */
+export async function fetchTaskReminders(): Promise<{ timed: DueReminder[]; day: DayReminder[] }> {
+  const user = await requireUser();
+  const [timed, day] = await Promise.all([listDueReminders(user), listDayReminders(user)]);
+  return { timed, day };
 }
 
 /** The pop-up reached this person, so the phone push for it is skipped. */

@@ -9,6 +9,9 @@ import {
   hasOutstandingSection,
   parseUpdateSections,
   reminderKind,
+  dayReminderKind,
+  dayNudgeKind,
+  dueCountText,
   updateAgeChip,
   updateAgeDays,
   withOutstandingSection,
@@ -65,6 +68,42 @@ describe("reminderKind", () => {
     expect(reminderKind(due, at(-15), "both")).toBe("soon");
     expect(reminderKind(due, at(-1), "both")).toBe("soon");
     expect(reminderKind(due, at(-1), "now")).toBeNull();
+  });
+});
+
+describe("dayReminderKind / dueCountText", () => {
+  const today = "2026-11-24";
+  it("covers anything past its due day, with or without a time", () => {
+    expect(dayReminderKind({ dueDate: "2026-11-23", dueTime: null }, today)).toBe("overdue");
+    expect(dayReminderKind({ dueDate: "2026-11-20", dueTime: "17:30" }, today)).toBe("overdue");
+  });
+  it("covers a task due today only when it has no time of its own", () => {
+    expect(dayReminderKind({ dueDate: today, dueTime: null }, today)).toBe("today");
+    expect(dayReminderKind({ dueDate: today, dueTime: "15:00" }, today)).toBeNull();
+  });
+  it("leaves alone tasks due later or with no date", () => {
+    expect(dayReminderKind({ dueDate: "2026-11-25", dueTime: null }, today)).toBeNull();
+    expect(dayReminderKind({ dueDate: null, dueTime: null }, today)).toBeNull();
+  });
+  it("waits a couple of hours before nudging about a task added for today", () => {
+    const now = new Date("2026-11-24T17:00:00Z"); // noon Eastern
+    const task = { dueDate: today, dueTime: null, dueAt: null };
+    expect(dayNudgeKind({ ...task, createdAt: new Date("2026-11-24T16:30:00Z") }, now)).toBeNull();
+    expect(dayNudgeKind({ ...task, createdAt: new Date("2026-11-24T14:00:00Z") }, now)).toBe("today");
+    expect(dayNudgeKind({ ...task, createdAt: new Date("2026-11-20T14:00:00Z") }, now)).toBe("today");
+  });
+  it("leaves a timed task to its own pop-up until that has run its course", () => {
+    const created = new Date("2026-11-20T14:00:00Z");
+    const lateLastNight = { dueDate: "2026-11-23", dueTime: "23:00", dueAt: new Date("2026-11-24T04:00:00Z"), createdAt: created };
+    expect(dayNudgeKind(lateLastNight, new Date("2026-11-24T14:00:00Z"))).toBeNull(); // 10 hours on
+    expect(dayNudgeKind(lateLastNight, new Date("2026-11-24T17:00:00Z"))).toBe("overdue"); // 13 hours on
+  });
+  it("words the count", () => {
+    expect(dueCountText(1, 0)).toBe("1 task due today");
+    expect(dueCountText(3, 0)).toBe("3 tasks due today");
+    expect(dueCountText(0, 1)).toBe("1 overdue task");
+    expect(dueCountText(0, 2)).toBe("2 overdue tasks");
+    expect(dueCountText(3, 1)).toBe("3 tasks due today, 1 overdue");
   });
 });
 

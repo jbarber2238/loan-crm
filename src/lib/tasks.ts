@@ -134,6 +134,49 @@ export function reminderKind(dueAt: Date, now: Date, mode: ReminderMode): Remind
   return null;
 }
 
+// ---- Due today / overdue --------------------------------------------------------------------------------
+
+/** A task added for today with no time first nudges once it has sat open this long (not the moment it's added). */
+export const SAME_DAY_NUDGE_MS = 2 * 60 * 60_000;
+/** The morning summary (bell and phone) goes out once this hour has started, Eastern. */
+export const DAY_DIGEST_HOUR_ET = 9;
+
+export type DayReminderKind = "today" | "overdue";
+
+/**
+ * Whether a task belongs in the "due today / overdue" reminder. Anything past its due day does; so does a task due
+ * today that has no time (one with a time gets its own pop-up at that time instead).
+ */
+export function dayReminderKind(task: { dueDate: string | null; dueTime: string | null }, today: string): DayReminderKind | null {
+  if (!task.dueDate) return null;
+  if (task.dueDate < today) return "overdue";
+  if (task.dueDate === today && !task.dueTime) return "today";
+  return null;
+}
+
+/**
+ * The same, minus the two cases where a nudge would be noise: a task added for today moments ago, and a timed task
+ * that is still inside its own "Was due" pop-up window.
+ */
+export function dayNudgeKind(
+  task: { dueDate: string | null; dueTime: string | null; dueAt: Date | null; createdAt: Date },
+  now: Date
+): DayReminderKind | null {
+  const kind = dayReminderKind(task, todayEt(now));
+  if (kind === "today" && now.getTime() - task.createdAt.getTime() < SAME_DAY_NUDGE_MS) return null;
+  if (kind === "overdue" && task.dueAt && now.getTime() - task.dueAt.getTime() <= LATE_REMINDER_WINDOW_MS) return null;
+  return kind;
+}
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/** The one-line count for a set of due tasks: "3 tasks due today", "2 overdue tasks", "3 tasks due today, 1 overdue". */
+export function dueCountText(todayCount: number, overdueCount: number): string {
+  if (todayCount && overdueCount) return `${plural(todayCount, "task")} due today, ${overdueCount} overdue`;
+  if (todayCount) return `${plural(todayCount, "task")} due today`;
+  return `${plural(overdueCount, "overdue task")}`;
+}
+
 // ---- Coverage -------------------------------------------------------------------------------------------
 
 export interface CoverageWindow {

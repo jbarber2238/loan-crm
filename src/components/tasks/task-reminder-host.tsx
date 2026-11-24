@@ -1,19 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { SquareCheckBig, X } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Check, ListChecks, SquareCheckBig, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { acknowledgeReminder, fetchDueReminders, setTaskDone } from "@/server/actions/tasks";
+import { acknowledgeReminder, fetchTaskReminders, setTaskDone } from "@/server/actions/tasks";
 import { isActionError } from "@/lib/action-result";
 import { useVisibleInterval } from "@/lib/use-visible-interval";
-import { formatTime } from "@/lib/tasks";
-import type { DueReminder } from "@/server/tasks";
+import { LOAN_CENTER_GOTO_EVENT } from "@/lib/loan-center-events";
+import { dueCountText, formatTime } from "@/lib/tasks";
+import type { DayReminder, DueReminder } from "@/server/tasks";
 
 const POLL_MS = 30_000;
 const MAX_SHOWN = 3;
+const MAX_DAY_ROWS = 4;
 const STORE_KEY = "crm.task-reminders.v1";
 
 /** Reminders this browser has dismissed or snoozed, remembered so a refresh doesn't bring them back. */
@@ -55,13 +57,17 @@ function snoozeUntil(choice: string): { until: number; label: string; now: numbe
 }
 
 /**
- * Pop-up cards on the right of the screen when a task with a due time is due (or, if chosen, 15 minutes before).
- * Separate from the bell: they stay until acted on. Open task, mark done, snooze or dismiss. Checked every half
- * minute while the tab is on screen. Showing one also tells the server, so the phone push for it is skipped.
+ * Pop-up cards on the right of the screen. A task with a due time gets its own card when it's due (or, if chosen,
+ * 15 minutes before). Tasks with only a date, and anything overdue, share one "due today" card that shows whenever
+ * the CRM is open until it's put away for the day. Separate from the bell: they stay until acted on. Checked every
+ * half minute while the tab is on screen. Showing a timed one also tells the server, so its phone push is skipped.
  */
 export function TaskReminderHost() {
   const router = useRouter();
+  const pathname = usePathname();
   const [reminders, setReminders] = useState<DueReminder[]>([]);
+  const [dayReminders, setDayReminders] = useState<DayReminder[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
   // What this browser has dismissed or snoozed (key -> hidden until). State, so hiding one re-renders.
   const [memory, setMemory] = useState<Memory>({});
   const memoryRef = useRef<Memory>({});
@@ -71,9 +77,10 @@ export function TaskReminderHost() {
 
   const poll = useCallback(async () => {
     try {
-      const list = await fetchDueReminders();
+      const { timed: list, day } = await fetchTaskReminders();
       setNow(Date.now());
       setReminders(list);
+      setDayReminders(day);
       for (const r of list) {
         if (memoryRef.current[r.key] && memoryRef.current[r.key] > Date.now()) continue;
         if (acked.current.has(r.key)) continue;
@@ -104,9 +111,45 @@ export function TaskReminderHost() {
     setNow(at.now);
   }
 
-  const visible = reminders.filter((r) => !(memory[r.key] && memory[r.key] > now));
-  if (visible.length === 0) return null;
+  const hidden = (key: string) => Boolean(memory[key] && memory[key] > now);
+  const visible = reminders.filter((r) => !hidden(r.key));
+  const dayVisible = dayReminders.filter((r) => !hidden(r.key));
+  if (visible.length === 0 && dayVisible.length === 0) return null;
   const shown = visible.slice(0, MAX_SHOWN);
+  const dayToday = dayVisible.filter((r) => r.kind === "today").length;
+  const dayOverdue = dayVisible.length - dayToday;
+
+  /** Goes to the loan's Tasks section, including when that loan is already open on another section. */
+  function openDealTasks(dealId: string) {
+    if (pathname === `/deals/${dealId}/loan-center`) window.dispatchEvent(new CustomEvent(LOAN_CENTER_GOTO_EVENT, { detail: { tab: "tasks" } }));
+    else router.push(`/deals/${dealId}/loan-center?tab=tasks`);
+  }
+
+  function hideDay(untilMs: number) {
+    const next = { ...memoryRef.current };
+    for (const r of dayVisible) next[r.key] = untilMs;
+    memoryRef.current = next;
+    save(next);
+    setMemory(next);
+    setNow(Date.now());
+  }
+
+  async function markDone(taskId: string, forName: string | null) {
+    setBusy(taskId);
+    try {
+      const result = await setTaskDone(taskId, true);
+      if (isActionError(result)) {
+        toast.error(result.error);
+        return false;
+      }
+      toast.success(forName ? `Done for ${forName}` : "Task marked done");
+      void poll();
+      router.refresh();
+      return true;
+    } finally {
+      setBusy(null);
+    }
+  }
 
   function snooze(r: DueReminder, choice: string) {
     const { until, label, now: at } = snoozeUntil(choice);
@@ -145,7 +188,7 @@ export function TaskReminderHost() {
               size="sm"
               onClick={() => {
                 dismiss(r.key);
-                router.push(`/deals/${r.dealId}/loan-center?tab=tasks`);
+                openDealTasks(r.dealId);
               }}
             >
               Open task
@@ -154,16 +197,9 @@ export function TaskReminderHost() {
               type="button"
               size="sm"
               variant="outline"
+              disabled={busy === r.taskId}
               onClick={async () => {
-                const result = await setTaskDone(r.taskId, true);
-                if (isActionError(result)) {
-                  toast.error(result.error);
-                  return;
-                }
-                dismiss(r.key);
-                toast.success(r.forName ? `Done for ${r.forName}` : "Task marked done");
-                void poll();
-                router.refresh();
+                if (await markDone(r.taskId, r.forName)) dismiss(r.key);
               }}
             >
               Mark done
@@ -184,6 +220,65 @@ export function TaskReminderHost() {
       ))}
       {visible.length > MAX_SHOWN && (
         <div className="pointer-events-auto justify-self-end rounded-full border bg-card px-3 py-0.5 text-xs text-muted-foreground">+{visible.length - MAX_SHOWN} more reminders</div>
+      )}
+      {dayVisible.length > 0 && (
+        <div role="group" aria-label="Tasks due today and overdue" className="pointer-events-auto grid gap-2 rounded-xl border bg-card p-3 shadow-2xl animate-in fade-in slide-in-from-right-6">
+          <div className="flex items-center gap-2">
+            <span className={`grid size-6 place-items-center rounded-md ${dayOverdue ? "bg-destructive/10 text-destructive" : "bg-amber-500/15 text-amber-700 dark:text-amber-400"}`}>
+              <ListChecks className="size-3.5" />
+            </span>
+            <p className="text-sm font-semibold">{dueCountText(dayToday, dayOverdue)}</p>
+            <button type="button" aria-label="Put away until tomorrow" title="Put away until tomorrow" onClick={() => hideDay(Date.now() + 24 * 3600_000)} className="ml-auto rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+              <X className="size-3.5" />
+            </button>
+          </div>
+          <ul className="grid gap-1">
+            {dayVisible.slice(0, MAX_DAY_ROWS).map((r) => (
+              <li key={r.key} className="flex items-start gap-2">
+                <button
+                  type="button"
+                  aria-label={`Mark done: ${r.title}`}
+                  title="Mark done"
+                  disabled={busy === r.taskId}
+                  onClick={() => void markDone(r.taskId, r.forName)}
+                  className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-md border text-transparent hover:border-primary hover:text-primary focus-visible:text-primary disabled:opacity-50"
+                >
+                  <Check className="size-3.5" />
+                </button>
+                <button type="button" onClick={() => openDealTasks(r.dealId)} className="min-w-0 flex-1 text-left">
+                  <span className="block text-sm font-medium break-words hover:underline">{r.title}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {r.dealLabel}
+                    {r.forName ? ` · Covering for ${r.forName}` : ""}
+                  </span>
+                </button>
+                {r.kind === "overdue" ? <Badge variant="destructive">{r.daysLate}d late</Badge> : <Badge variant="warning">Today</Badge>}
+              </li>
+            ))}
+          </ul>
+          {dayVisible.length > MAX_DAY_ROWS && <p className="text-xs text-muted-foreground">+{dayVisible.length - MAX_DAY_ROWS} more on your task list</p>}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button type="button" size="sm" onClick={() => router.push("/tasks")}>
+              Open my tasks
+            </Button>
+            <select
+              aria-label="Remind me again later"
+              value=""
+              onChange={(e) => {
+                if (!e.target.value) return;
+                const { until, label } = snoozeUntil(e.target.value);
+                hideDay(until);
+                toast.success(`Put away. We'll remind you again ${label}.`);
+              }}
+              className="h-7 rounded-lg border border-input bg-background px-2 text-xs dark:bg-input/30"
+            >
+              <option value="">Remind me later…</option>
+              <option value="60">In 1 hour</option>
+              <option value="180">In 3 hours</option>
+              <option value="tomorrow">Tomorrow, 9 AM</option>
+            </select>
+          </div>
+        </div>
       )}
     </div>
   );

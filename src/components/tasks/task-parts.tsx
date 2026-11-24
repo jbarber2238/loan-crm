@@ -156,7 +156,7 @@ export function AddTaskForm({
         return;
       }
       const other = users.find((u) => u.id === who);
-      toast.success(who !== viewerId ? `Assigned to ${other?.name ?? "them"}. It's on their list now, so it won't show on yours.` : date && time ? "Task added. You'll get a pop-up reminder at that time." : "Task added");
+      toast.success(who !== viewerId ? `Assigned to ${other?.name ?? "them"}. It's on their list now, so it won't show on yours.` : date && time ? "Task added. You'll get a pop-up reminder at that time." : date ? "Task added. You'll be reminded the day it's due." : "Task added. No due date, so no reminder.");
       setTitle("");
       setDate("");
       setTime("");
@@ -189,7 +189,7 @@ export function AddTaskForm({
           </select>
         )}
         <Input type="date" aria-label="Due date (optional)" value={date} onChange={(e) => { setDate(e.target.value); if (!e.target.value) setTime(""); }} className="w-auto" />
-        <TimePicker value={time} disabled={!date} onChange={setTime} title={date ? "Optional. A pop-up reminder appears at this time." : "Pick a date first"} />
+        <TimePicker value={time} disabled={!date} onChange={setTime} title={date ? "Optional. A pop-up reminder appears at this time. Without one, you're reminded that day." : "Pick a date first"} />
         <select aria-label="Assigned to" value={who} onChange={(e) => setWho(e.target.value)} className={SELECT_CLS}>
           {users.map((u) => (
             <option key={u.id} value={u.id}>
@@ -201,7 +201,9 @@ export function AddTaskForm({
           {pending ? "Adding…" : "Add task"}
         </Button>
       </div>
-      <p className="text-xs text-muted-foreground">Date and time are optional. Add a time and a pop-up reminder appears then.</p>
+      <p className="text-xs text-muted-foreground">
+        Give it a date and you&apos;re reminded the day it&apos;s due, and every day after until it&apos;s done. Add a time too for a pop-up at that exact time. No date means no reminder.
+      </p>
     </div>
   );
 }

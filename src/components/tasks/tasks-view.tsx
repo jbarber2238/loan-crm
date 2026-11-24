@@ -271,7 +271,7 @@ function CoveragePanel({ users, coverage, onDone, today }: { users: TaskUser[]; 
       <CardContent className="space-y-3 pt-6">
         <h3 className="text-sm font-semibold">Out of office</h3>
         <p className="text-xs text-muted-foreground">
-          Pick who covers your tasks while you&apos;re away. They get a &ldquo;Covering for you&rdquo; view of your open tasks and can complete them. The tasks stay yours, and they also get the pop-up reminders for tasks with a time. Coverage ends by itself on the last day.
+          Pick who covers your tasks while you&apos;re away. They get a &ldquo;Covering for you&rdquo; view of your open tasks and can complete them. The tasks stay yours, and they also get your reminders. Coverage ends by itself on the last day.
         </p>
         <div className="flex flex-wrap items-end gap-3">
           <label className="grid gap-1 text-xs font-semibold text-muted-foreground">
@@ -337,15 +337,17 @@ function ReminderPanel({ mode }: { mode: ReminderMode }) {
   }
 
   const options: [ReminderMode, string][] = [
-    ["now", "At the due time"],
-    ["both", "15 minutes before, and again at the due time"],
-    ["off", "No pop-ups"],
+    ["now", "At the due time, plus the daily due-today card"],
+    ["both", "15 minutes before, again at the due time, plus the daily due-today card"],
+    ["off", "No reminders"],
   ];
   return (
     <Card>
       <CardContent className="space-y-3 pt-6">
         <h3 className="text-sm font-semibold">Task reminders</h3>
-        <p className="text-xs text-muted-foreground">Applies to tasks that have a due time. They appear as a pop-up card on the right of the screen, separate from the bell.</p>
+        <p className="text-xs text-muted-foreground">
+          Reminders appear as a pop-up card on the right of the screen, separate from the bell. A task with a due time pops up at that time. A task with only a date shows in a &ldquo;due today&rdquo; card that day, and anything overdue stays in that card every day until it&apos;s done. Each morning you also get one summary in the bell.
+        </p>
         <div role="radiogroup" aria-label="When to remind me" className="grid gap-1.5">
           {options.map(([id, label]) => (
             <label key={id} className="flex items-start gap-2 text-sm">
