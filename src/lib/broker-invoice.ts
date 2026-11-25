@@ -1,7 +1,7 @@
 import { originationFeeForPoints } from "@/lib/term-sheet-calculations";
 
-// The broker invoice some lenders ask for before closing: one line, our origination fee, billed to the lender
-// on the deal. Everything that decides whether it can be made and what it says lives here, so the header
+// The broker invoice some lenders ask for before closing: one line, our origination fee, billed to the
+// borrower's entity. Everything that decides whether it can be made and what it says lives here, so the header
 // button, the download route and the PDF can never disagree.
 
 export const STANDARD_ORIGINATION_POINTS = 2;
@@ -36,6 +36,14 @@ export function brokerInvoiceFee(approvedLoanAmount: number, originationPointsOv
   const byPoints = approvedLoanAmount * (points / 100);
   const fee = originationFeeForPoints(approvedLoanAmount, points);
   return { loanAmount: approvedLoanAmount, points, fee: Math.round(fee), minimumApplied: fee > byPoints };
+}
+
+/** The invoice is billed to the borrowing entity, to the borrower's attention; with no entity, to the borrower. */
+export function brokerInvoiceBillTo(borrowerName: string, borrowerEntityName: string | null): { name: string; attention: string | null } {
+  const entity = borrowerEntityName?.trim();
+  const person = borrowerName.trim();
+  if (!entity || entity.toLowerCase() === person.toLowerCase()) return { name: person, attention: null };
+  return { name: entity, attention: person || null };
 }
 
 export function brokerInvoiceNumber(loanNumber: number): string {

@@ -5,6 +5,7 @@ import { db } from "@/server/db/client";
 import { companySettings, deals } from "@/server/db/schema";
 import { BrokerInvoicePdf } from "@/server/pdf/broker-invoice";
 import {
+  brokerInvoiceBillTo,
   brokerInvoiceBlocker,
   brokerInvoiceFee,
   brokerInvoiceFileName,
@@ -47,7 +48,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       deletedAt: true,
     },
     with: {
-      lender: { columns: { name: true } },
+      // Only to know a lender has been chosen. Its name is never printed on the invoice.
+      lender: { columns: { id: true } },
       assignedLoanOfficer: { columns: { name: true, email: true, phone: true } },
     },
   });
@@ -81,14 +83,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       companyNmlsId: company?.nmlsId?.trim() || null,
       invoiceNumber: brokerInvoiceNumber(deal.loanNumber),
       invoiceDate: longDate(etDay(new Date())),
-      lenderName: deal.lender.name,
+      billTo: brokerInvoiceBillTo(deal.borrowerName, deal.borrowerEntityName),
       contact: {
         name: deal.assignedLoanOfficer.name,
         email: deal.assignedLoanOfficer.email,
         phone: invoicePhone(deal.assignedLoanOfficer.phone),
       },
       borrowerName: deal.borrowerName,
-      borrowerEntityName: deal.borrowerEntityName,
       propertyAddress: deal.propertyAddress,
       loanTypeLabel: labelFor(LOAN_CATEGORIES, deal.loanCategory),
       loanNumber: deal.loanNumber,

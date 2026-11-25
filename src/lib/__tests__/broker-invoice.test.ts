@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  brokerInvoiceBillTo,
   brokerInvoiceBlocker,
   brokerInvoiceFee,
   brokerInvoiceFileName,
@@ -43,6 +44,18 @@ describe("brokerInvoiceFee", () => {
   it("applies the $2,500 minimum on a small loan and says so", () => {
     expect(brokerInvoiceFee(100000, null)).toEqual({ loanAmount: 100000, points: 2, fee: 2500, minimumApplied: true });
     expect(brokerInvoiceFee(125000, 2).minimumApplied).toBe(false);
+  });
+});
+
+describe("brokerInvoiceBillTo", () => {
+  it("bills the borrowing entity, to the borrower's attention", () => {
+    expect(brokerInvoiceBillTo("Andrew Sample", "Sample Holdings LLC")).toEqual({ name: "Sample Holdings LLC", attention: "Andrew Sample" });
+  });
+
+  it("bills the borrower when there is no entity, or the entity is just their own name", () => {
+    expect(brokerInvoiceBillTo("Andrew Sample", null)).toEqual({ name: "Andrew Sample", attention: null });
+    expect(brokerInvoiceBillTo("Andrew Sample", "  ")).toEqual({ name: "Andrew Sample", attention: null });
+    expect(brokerInvoiceBillTo("Andrew Sample", "andrew sample")).toEqual({ name: "Andrew Sample", attention: null });
   });
 });
 

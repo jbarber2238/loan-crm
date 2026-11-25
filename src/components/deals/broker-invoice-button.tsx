@@ -102,7 +102,7 @@ export function BrokerInvoiceButton({
                 </>
               ) : (
                 <>
-                  Please check with <span className="font-medium">{officer}</span> before sending the lender an invoice.
+                  Please check with <span className="font-medium">{officer}</span> before an invoice goes out.
                   Once the rate is locked, this button will download it.
                 </>
               )

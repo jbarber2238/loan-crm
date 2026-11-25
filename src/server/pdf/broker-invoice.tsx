@@ -2,8 +2,8 @@ import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/render
 import { invoiceMoney, pointsText, type BrokerInvoiceFee } from "@/lib/broker-invoice";
 
 // The broker invoice a lender asks for so our origination fee lands on the settlement statement. One page, one
-// line item, in the company's own colors. It goes to the lender, never the borrower, so the lender's name is
-// printed on it.
+// line item, in the company's own colors. It is billed to the borrower's entity (the borrower personally when
+// there is no entity), so like everything else a borrower can see, it never names the lender.
 
 const TEAL = "#143D4A";
 const SAND = "#CBB8A0";
@@ -110,10 +110,10 @@ export interface BrokerInvoicePdfProps {
   invoiceNumber: string;
   /** Already written out, such as "November 25, 2026". */
   invoiceDate: string;
-  lenderName: string;
+  /** Who the invoice is billed to: the borrowing entity, or the borrower when there is no entity. */
+  billTo: { name: string; attention: string | null };
   contact: { name: string | null; email: string | null; phone: string | null };
   borrowerName: string;
-  borrowerEntityName: string | null;
   propertyAddress: string;
   loanTypeLabel: string;
   loanNumber: number;
@@ -133,10 +133,9 @@ export function BrokerInvoicePdf({
   companyNmlsId,
   invoiceNumber,
   invoiceDate,
-  lenderName,
+  billTo,
   contact,
   borrowerName,
-  borrowerEntityName,
   propertyAddress,
   loanTypeLabel,
   loanNumber,
@@ -151,7 +150,6 @@ export function BrokerInvoicePdf({
 
   const loanRows: [string, string][] = [
     ["Borrower", borrowerName],
-    ...(borrowerEntityName ? ([["Borrowing entity", borrowerEntityName]] as [string, string][]) : []),
     ["Property", propertyAddress],
     ["Loan type", loanTypeLabel],
     ["Loan amount", wholeDollars(fee.loanAmount)],
@@ -197,7 +195,8 @@ export function BrokerInvoicePdf({
             </View>
             <View style={styles.party}>
               <Text style={styles.eyebrow}>BILL TO</Text>
-              <Text style={styles.partyName}>{lenderName}</Text>
+              <Text style={styles.partyName}>{billTo.name}</Text>
+              {billTo.attention && <Text style={styles.partyLine}>Attn: {billTo.attention}</Text>}
             </View>
           </View>
 
