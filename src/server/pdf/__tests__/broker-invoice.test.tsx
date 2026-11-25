@@ -20,6 +20,7 @@ const sample: BrokerInvoicePdfProps = {
   loanTypeLabel: "DSCR Rate & Term Refinance",
   loanNumber: 1006,
   fee: brokerInvoiceFee(161700, 1.7),
+  wireInstructionsAttached: true,
 };
 
 // Set INVOICE_PREVIEW_OUT (and optionally INVOICE_PREVIEW_LOGO, a PNG) to save the page for a look.
@@ -33,6 +34,7 @@ describe("BrokerInvoicePdf", () => {
         billTo: "Sample Borrower",
         companyLegalName: null,
         titleCompany: null,
+        wireInstructionsAttached: false,
         contact: { name: null, email: null, phone: null },
         fee: brokerInvoiceFee(65000, null),
       },

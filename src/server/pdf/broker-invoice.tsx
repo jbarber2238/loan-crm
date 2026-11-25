@@ -124,6 +124,8 @@ export interface BrokerInvoicePdfProps {
   loanTypeLabel: string;
   loanNumber: number;
   fee: BrokerInvoiceFee;
+  /** True when the company's wire instructions are being added as the page after this one. */
+  wireInstructionsAttached: boolean;
 }
 
 function wholeDollars(amount: number): string {
@@ -146,6 +148,7 @@ export function BrokerInvoicePdf({
   loanTypeLabel,
   loanNumber,
   fee,
+  wireInstructionsAttached,
 }: BrokerInvoicePdfProps) {
   // A light logo needs the dark band behind it. A dark logo (or no logo at all) reads better on cream.
   const darkBand = logoSrc ? logoIsLight : true;
@@ -245,6 +248,7 @@ export function BrokerInvoicePdf({
           <Text style={styles.terms}>
             Please show this fee on the settlement statement as a broker origination fee payable to{" "}
             {brokerInvoicePayee(companyName, companyLegalName)}, disbursed at funding.
+            {wireInstructionsAttached ? " Wire instructions are on the next page." : ""}
           </Text>
         </View>
 

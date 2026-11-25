@@ -4,6 +4,7 @@ import { auth } from "@/server/auth";
 import { db } from "@/server/db/client";
 import { companySettings, deals } from "@/server/db/schema";
 import { BrokerInvoicePdf } from "@/server/pdf/broker-invoice";
+import { appendAttachment, attachmentPageCount } from "@/server/pdf/append-attachment";
 import {
   brokerInvoiceBillTo,
   brokerInvoiceBlocker,
@@ -69,14 +70,30 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const company = await db.query.companySettings.findFirst({
     where: eq(companySettings.id, "default"),
-    columns: { name: true, legalName: true, nmlsId: true, logoMimeType: true, logoData: true, logoIsLight: true },
+    columns: {
+      name: true,
+      legalName: true,
+      nmlsId: true,
+      logoMimeType: true,
+      logoData: true,
+      logoIsLight: true,
+      wireInstructionsMimeType: true,
+      wireInstructionsData: true,
+    },
   });
+  // The wire instructions file from Settings → Company goes behind the invoice exactly as uploaded. If there is
+  // none, or it isn't a PDF or image we can add, the invoice goes out on its own and doesn't mention one.
+  const wire =
+    company?.wireInstructionsData && company.wireInstructionsMimeType
+      ? { bytes: new Uint8Array(Buffer.from(company.wireInstructionsData, "base64")), mimeType: company.wireInstructionsMimeType }
+      : null;
+  const wireInstructionsAttached = wire !== null && (await attachmentPageCount(wire.bytes, wire.mimeType)) > 0;
   const logoSrc =
     company?.logoData && company.logoMimeType && PDF_IMAGE_TYPES.has(company.logoMimeType)
       ? `data:${company.logoMimeType};base64,${company.logoData}`
       : null;
 
-  const buffer = await renderToBuffer(
+  const invoice = await renderToBuffer(
     BrokerInvoicePdf({
       companyName: company?.name ?? DEFAULT_COMPANY_NAME,
       companyLegalName: company?.legalName?.trim() || null,
@@ -100,10 +117,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         approvedLoanAmount,
         deal.originationPointsOverride !== null ? Number(deal.originationPointsOverride) : null
       ),
+      wireInstructionsAttached,
     })
   );
+  const pdf =
+    wire && wireInstructionsAttached
+      ? await appendAttachment(new Uint8Array(invoice), wire.bytes, wire.mimeType)
+      : invoice;
 
-  return new Response(new Uint8Array(buffer), {
+  return new Response(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": contentDisposition("attachment", brokerInvoiceFileName(deal.propertyAddress)),
