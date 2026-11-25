@@ -1,5 +1,5 @@
 import { requireAdmin } from "@/server/auth/guards";
-import { getCompanyName, getCompanyLogoFileName, getCompanyLogo, getCompanyWireInstructions, getPortalBranding, getResourceLinks } from "@/server/settings";
+import { getCompanyName, getCompanyLegalName, getCompanyLogoFileName, getCompanyLogo, getCompanyWireInstructions, getPortalBranding, getResourceLinks } from "@/server/settings";
 import { PortalBrandingCard } from "@/components/settings/portal-branding-card";
 import { db } from "@/server/db/client";
 import { deals } from "@/server/db/schema";
@@ -15,7 +15,7 @@ import { AddResourceLinkForm } from "@/components/settings/add-resource-link-for
 
 export default async function CompanySettingsPage() {
   await requireAdmin();
-  const companyName = await getCompanyName();
+  const [companyName, legalName] = await Promise.all([getCompanyName(), getCompanyLegalName()]);
   const [logoFileName, logo, wire, branding, resources] = await Promise.all([
     getCompanyLogoFileName(),
     getCompanyLogo(),
@@ -37,12 +37,20 @@ export default async function CompanySettingsPage() {
           <CardTitle>Company Profile</CardTitle>
         </CardHeader>
         <CardContent>
-          <ActionForm action={updateCompanyName} successMessage="Company name saved" className="max-w-sm space-y-4">
+          <ActionForm action={updateCompanyName} successMessage="Company profile saved" className="max-w-sm space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="name">Company Name</Label>
               <Input id="name" name="name" defaultValue={companyName} required />
               <p className="text-xs text-muted-foreground">
                 Used in email templates, PDF term sheets, and throughout the app.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="legalName">Legal Entity Name</Label>
+              <Input id="legalName" name="legalName" defaultValue={legalName ?? ""} placeholder="Leave blank if the company name is the legal name" />
+              <p className="text-xs text-muted-foreground">
+                If the company name is a DBA, the entity behind it. Printed on the broker invoice so the payee matches
+                your wire instructions.
               </p>
             </div>
             <SubmitButton>Save Changes</SubmitButton>

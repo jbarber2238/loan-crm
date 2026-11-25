@@ -6,6 +6,7 @@ import {
   brokerInvoiceFee,
   brokerInvoiceFileName,
   brokerInvoiceNumber,
+  brokerInvoicePayee,
   invoiceMoney,
   invoicePhone,
   longDate,
@@ -86,6 +87,18 @@ describe("brokerInvoiceClosingAgent", () => {
 
   it("is left off when the loan has no title contact yet", () => {
     expect(brokerInvoiceClosingAgent({ company: null, agent: null, email: "pat@example.com", phone: null })).toBeNull();
+  });
+});
+
+describe("brokerInvoicePayee", () => {
+  it("names the legal entity ahead of the DBA", () => {
+    expect(brokerInvoicePayee("Manna Lending", "VESBA Creative Capital LLC")).toBe("VESBA Creative Capital LLC dba Manna Lending");
+  });
+
+  it("is just the company name when there is no separate legal entity", () => {
+    expect(brokerInvoicePayee("Manna Lending", null)).toBe("Manna Lending");
+    expect(brokerInvoicePayee("Manna Lending", " ")).toBe("Manna Lending");
+    expect(brokerInvoicePayee("Manna Lending", "manna lending")).toBe("Manna Lending");
   });
 });
 

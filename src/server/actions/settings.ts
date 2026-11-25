@@ -16,12 +16,16 @@ export async function updateCompanyName(formData: FormData) {
     throw new Error("Company name is required");
   }
 
+  // A page loaded before this field existed doesn't send it; only a form that includes it can change or clear it.
+  const legalNameField = formData.get("legalName");
+  const legalName = typeof legalNameField === "string" ? { legalName: legalNameField.trim() || null } : {};
+
   await db
     .insert(companySettings)
-    .values({ id: "default", name: name.trim() })
+    .values({ id: "default", name: name.trim(), ...legalName })
     .onConflictDoUpdate({
       target: companySettings.id,
-      set: { name: name.trim(), updatedAt: new Date() },
+      set: { name: name.trim(), ...legalName, updatedAt: new Date() },
     });
 
   revalidatePath("/", "layout");

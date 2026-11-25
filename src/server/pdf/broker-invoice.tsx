@@ -1,5 +1,5 @@
 import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
-import { invoiceMoney, pointsText, type BrokerInvoiceClosingAgent, type BrokerInvoiceFee } from "@/lib/broker-invoice";
+import { brokerInvoicePayee, invoiceMoney, pointsText, type BrokerInvoiceClosingAgent, type BrokerInvoiceFee } from "@/lib/broker-invoice";
 
 // The broker invoice a lender asks for so our origination fee lands on the settlement statement. It is sent to
 // the title company, who pay it out at funding. It deliberately doesn't say where the money comes from: the
@@ -103,6 +103,8 @@ const styles = StyleSheet.create({
 
 export interface BrokerInvoicePdfProps {
   companyName: string;
+  /** The legal entity the company name is a DBA of. Null when the company name is the legal name. */
+  companyLegalName: string | null;
   /** A data: URI for a PNG or JPEG. Null prints the company name instead. */
   logoSrc: string | null;
   /** True when the logo is light-colored, so it sits on the dark band; a dark logo gets a light band. */
@@ -130,6 +132,7 @@ function wholeDollars(amount: number): string {
 
 export function BrokerInvoicePdf({
   companyName,
+  companyLegalName,
   logoSrc,
   logoIsLight,
   companyNmlsId,
@@ -189,6 +192,7 @@ export function BrokerInvoicePdf({
             <View style={styles.party}>
               <Text style={styles.eyebrow}>FROM</Text>
               <Text style={styles.partyName}>{companyName}</Text>
+              {companyLegalName && <Text style={styles.partyLine}>A DBA of {companyLegalName}</Text>}
               {contact.name && <Text style={styles.partyLine}>{contact.name}, Loan Officer</Text>}
               {contact.email && <Text style={styles.partyLine}>{contact.email}</Text>}
               {contact.phone && <Text style={styles.partyLine}>{contact.phone}</Text>}
@@ -244,8 +248,8 @@ export function BrokerInvoicePdf({
           </View>
 
           <Text style={styles.terms}>
-            Please show this fee on the settlement statement as a broker origination fee payable to {companyName},
-            disbursed at funding.
+            Please show this fee on the settlement statement as a broker origination fee payable to{" "}
+            {brokerInvoicePayee(companyName, companyLegalName)}, disbursed at funding.
           </Text>
         </View>
 

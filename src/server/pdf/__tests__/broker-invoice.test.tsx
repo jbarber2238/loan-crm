@@ -6,6 +6,7 @@ import { brokerInvoiceFee, brokerInvoiceNumber, longDate } from "@/lib/broker-in
 
 const sample: BrokerInvoicePdfProps = {
   companyName: "Sample Lending Co",
+  companyLegalName: "Sample Capital LLC",
   logoSrc: null,
   logoIsLight: false,
   companyNmlsId: null,
@@ -30,6 +31,7 @@ describe("BrokerInvoicePdf", () => {
       {
         ...sample,
         billTo: "Sample Borrower",
+        companyLegalName: null,
         closingAgent: null,
         contact: { name: null, email: null, phone: null },
         fee: brokerInvoiceFee(65000, null),

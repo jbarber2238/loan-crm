@@ -24,6 +24,12 @@ export async function getCompanyName(): Promise<string> {
   return row?.name ?? DEFAULT_COMPANY_NAME;
 }
 
+/** The legal entity the company name is a DBA of, or null when none is set. */
+export async function getCompanyLegalName(): Promise<string | null> {
+  const row = await companyRow();
+  return row?.legalName?.trim() || null;
+}
+
 /** For the Settings → Company page — just enough to show a preview, not the actual image bytes. */
 export async function getCompanyLogoFileName(): Promise<string | null> {
   const row = await db.query.companySettings.findFirst({

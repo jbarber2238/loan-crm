@@ -74,6 +74,12 @@ export function brokerInvoiceClosingAgent(title: {
   return { name, lines: lines.filter((line): line is string => Boolean(line)) };
 }
 
+/** Who title pay: "VESBA Creative Capital LLC dba Manna Lending" when the company name is a DBA, else the name. */
+export function brokerInvoicePayee(companyName: string, legalName: string | null): string {
+  const legal = legalName?.trim();
+  return legal && legal.toLowerCase() !== companyName.trim().toLowerCase() ? `${legal} dba ${companyName}` : companyName;
+}
+
 export function brokerInvoiceNumber(loanNumber: number): string {
   return `INV-${loanNumber}`;
 }

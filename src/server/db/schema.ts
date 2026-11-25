@@ -435,6 +435,9 @@ export const affiliatePaymentDocumentsRelations = relations(affiliatePaymentDocu
 export const companySettings = pgTable("company_settings", {
   id: text("id").primaryKey().default("default"),
   name: text("name").notNull(),
+  // The legal entity behind the company name when that name is a DBA (Settings → Company). Printed where a
+  // payee has to match the bank account, such as the broker invoice. Null when the company name is the legal name.
+  legalName: text("legal_name"),
   // Master switch for the partner program. While off, partner emails and the
   // portal only work for staff-owned test addresses.
   partnerProgramLive: boolean("partner_program_live").notNull().default(false),

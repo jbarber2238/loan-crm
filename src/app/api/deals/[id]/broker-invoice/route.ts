@@ -72,7 +72,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const company = await db.query.companySettings.findFirst({
     where: eq(companySettings.id, "default"),
-    columns: { name: true, nmlsId: true, logoMimeType: true, logoData: true, logoIsLight: true },
+    columns: { name: true, legalName: true, nmlsId: true, logoMimeType: true, logoData: true, logoIsLight: true },
   });
   const logoSrc =
     company?.logoData && company.logoMimeType && PDF_IMAGE_TYPES.has(company.logoMimeType)
@@ -82,6 +82,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const buffer = await renderToBuffer(
     BrokerInvoicePdf({
       companyName: company?.name ?? DEFAULT_COMPANY_NAME,
+      companyLegalName: company?.legalName?.trim() || null,
       logoSrc,
       logoIsLight: company?.logoIsLight ?? false,
       companyNmlsId: company?.nmlsId?.trim() || null,
