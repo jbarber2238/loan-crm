@@ -10,6 +10,8 @@ import { StageSelect } from "@/components/deals/stage-select";
 import { DealActionsMenu } from "@/components/deals/deal-actions-menu";
 import { CloneDealDialog } from "@/components/deals/clone-deal-dialog";
 import { DscrConversionLinkDialog } from "@/components/deals/dscr-conversion-link-dialog";
+import { BrokerInvoiceButton } from "@/components/deals/broker-invoice-button";
+import { brokerInvoiceBlocker } from "@/lib/broker-invoice";
 import { PipelineStepper } from "@/components/deals/pipeline-stepper";
 import { AcceptedTermsHeader } from "@/components/deals/accepted-terms-header";
 import { AcceptedTermsCollapse } from "@/components/deals/accepted-terms-collapse";
@@ -194,6 +196,20 @@ export async function DealHeader({ deal }: { deal: DealDetail }) {
           {deal.loanCategory === "new_construction" && <CloneDealDialog dealId={deal.id} />}
           {CONVERTIBLE_TO_DSCR_REFI_CATEGORIES.has(deal.loanCategory) && (
             <DscrConversionLinkDialog dealId={deal.id} />
+          )}
+          {/* Only once a lender is chosen: before that there is nobody to invoice. */}
+          {deal.lenderId && deal.lender && (
+            <BrokerInvoiceButton
+              dealId={deal.id}
+              propertyAddress={deal.propertyAddress}
+              blocker={brokerInvoiceBlocker({
+                hasLender: true,
+                approvedLoanAmount: deal.approvedLoanAmount ? Number(deal.approvedLoanAmount) : null,
+                rateLocked: deal.rateLocked,
+              })}
+              loanOfficerName={deal.assignedLoanOfficer.name}
+              viewerIsLoanOfficer={currentUser.isAdmin || currentUser.id === deal.assignedLoanOfficer.id}
+            />
           )}
           <StageSelect dealId={deal.id} stage={deal.stage} />
           <DealActionsMenu
