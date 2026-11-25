@@ -2,7 +2,8 @@ import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/render
 import { invoiceMoney, pointsText, type BrokerInvoiceClosingAgent, type BrokerInvoiceFee } from "@/lib/broker-invoice";
 
 // The broker invoice a lender asks for so our origination fee lands on the settlement statement. It is sent to
-// the title company, who collect the fee from the borrower at closing and pay it out. One page, one line item,
+// the title company, who pay it out at funding. It deliberately doesn't say where the money comes from: the
+// borrower may pay it directly or, on a refinance, out of the loan proceeds. One page, one line item,
 // in the company's own colors. It is billed to the borrower's entity (the borrower personally when
 // there is no entity), so like everything else a borrower can see, it never names the lender.
 
@@ -243,8 +244,8 @@ export function BrokerInvoicePdf({
           </View>
 
           <Text style={styles.terms}>
-            To the closing agent: please collect this fee from the borrower at closing, show it on the settlement
-            statement as a broker origination fee payable to {companyName}, and disburse it at funding.
+            Please show this fee on the settlement statement as a broker origination fee payable to {companyName},
+            disbursed at funding.
           </Text>
         </View>
 
