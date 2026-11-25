@@ -7,7 +7,7 @@ import { BrokerInvoicePdf } from "@/server/pdf/broker-invoice";
 import {
   brokerInvoiceBillTo,
   brokerInvoiceBlocker,
-  brokerInvoiceClosingAgent,
+  brokerInvoiceTitleCompany,
   brokerInvoiceFee,
   brokerInvoiceFileName,
   brokerInvoiceNumber,
@@ -46,9 +46,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       originationPointsOverride: true,
       rateLocked: true,
       titleCompanyName: true,
-      titleCompanyAgentName: true,
-      titleAgentEmail: true,
-      titleAgentPhone: true,
       deletedAt: true,
     },
     with: {
@@ -94,12 +91,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         email: deal.assignedLoanOfficer.email,
         phone: invoicePhone(deal.assignedLoanOfficer.phone),
       },
-      closingAgent: brokerInvoiceClosingAgent({
-        company: deal.titleCompanyName,
-        agent: deal.titleCompanyAgentName,
-        email: deal.titleAgentEmail,
-        phone: deal.titleAgentPhone,
-      }),
+      titleCompany: brokerInvoiceTitleCompany(deal.titleCompanyName),
       borrowerName: deal.borrowerName,
       propertyAddress: deal.propertyAddress,
       loanTypeLabel: labelFor(LOAN_CATEGORIES, deal.loanCategory),

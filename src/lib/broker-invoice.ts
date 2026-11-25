@@ -43,35 +43,12 @@ export function brokerInvoiceBillTo(borrowerName: string, borrowerEntityName: st
   return borrowerEntityName?.trim() || borrowerName.trim();
 }
 
-export interface BrokerInvoiceClosingAgent {
-  /** The title company, or the contact's own name when no company is on file. */
-  name: string;
-  /** Contact lines under the name: the person, their email, their phone. */
-  lines: string[];
-}
-
 /**
- * The invoice goes to title, who put the fee on the settlement statement and pay it out at funding. This is the
- * loan's title contact as a block for the invoice, or null when nothing is on file yet.
+ * The invoice is addressed to the title company only, never a named person there: the agent on a file often
+ * changes before closing. Null when the loan has no title company on file yet.
  */
-export function brokerInvoiceClosingAgent(title: {
-  company: string | null;
-  agent: string | null;
-  email: string | null;
-  phone: string | null;
-}): BrokerInvoiceClosingAgent | null {
-  const company = title.company?.trim() || null;
-  // The contact field is often filled in as "Company / Person"; the company is already the heading.
-  const agentRaw = title.agent?.trim() || "";
-  const at = company ? agentRaw.toLowerCase().indexOf(company.toLowerCase()) : -1;
-  const agent =
-    (at >= 0 && company ? agentRaw.slice(0, at) + agentRaw.slice(at + company.length) : agentRaw)
-      .replace(/^[\s/|,;:-]+|[\s/|,;:-]+$/g, "")
-      .trim() || null;
-  const name = company ?? agent;
-  if (!name) return null;
-  const lines = [company && agent ? `Attn: ${agent}` : null, title.email?.trim() || null, invoicePhone(title.phone)];
-  return { name, lines: lines.filter((line): line is string => Boolean(line)) };
+export function brokerInvoiceTitleCompany(titleCompanyName: string | null): string | null {
+  return titleCompanyName?.trim() || null;
 }
 
 /** Who title pay: "VESBA Creative Capital LLC dba Manna Lending" when the company name is a DBA, else the name. */

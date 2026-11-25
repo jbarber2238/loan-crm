@@ -1,5 +1,5 @@
 import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
-import { brokerInvoicePayee, invoiceMoney, pointsText, type BrokerInvoiceClosingAgent, type BrokerInvoiceFee } from "@/lib/broker-invoice";
+import { brokerInvoicePayee, invoiceMoney, pointsText, type BrokerInvoiceFee } from "@/lib/broker-invoice";
 
 // The broker invoice a lender asks for so our origination fee lands on the settlement statement. It is sent to
 // the title company, who pay it out at funding. It deliberately doesn't say where the money comes from: the
@@ -117,8 +117,8 @@ export interface BrokerInvoicePdfProps {
   /** Who the invoice is billed to: the borrowing entity, or the borrower when there is no entity. */
   billTo: string;
   contact: { name: string | null; email: string | null; phone: string | null };
-  /** The loan's title company, who receive the invoice. Null leaves the block off. */
-  closingAgent: BrokerInvoiceClosingAgent | null;
+  /** The loan's title company, who receive the invoice. Just the company, no named contact. Null leaves the block off. */
+  titleCompany: string | null;
   borrowerName: string;
   propertyAddress: string;
   loanTypeLabel: string;
@@ -140,7 +140,7 @@ export function BrokerInvoicePdf({
   invoiceDate,
   billTo,
   contact,
-  closingAgent,
+  titleCompany,
   borrowerName,
   propertyAddress,
   loanTypeLabel,
@@ -202,15 +202,10 @@ export function BrokerInvoicePdf({
               <Text style={styles.eyebrow}>BILL TO</Text>
               <Text style={styles.partyName}>{billTo}</Text>
             </View>
-            {closingAgent && (
+            {titleCompany && (
               <View style={styles.party}>
-                <Text style={styles.eyebrow}>CLOSING AGENT</Text>
-                <Text style={styles.partyName}>{closingAgent.name}</Text>
-                {closingAgent.lines.map((line) => (
-                  <Text key={line} style={styles.partyLine}>
-                    {line}
-                  </Text>
-                ))}
+                <Text style={styles.eyebrow}>TITLE COMPANY</Text>
+                <Text style={styles.partyName}>{titleCompany}</Text>
               </View>
             )}
           </View>
