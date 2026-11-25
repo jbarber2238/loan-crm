@@ -67,6 +67,20 @@ describe("brokerInvoiceClosingAgent", () => {
     ).toEqual({ name: "Sample Title & Escrow", lines: ["Attn: Pat Closer", "pat@example.com", "(555) 010-0199"] });
   });
 
+  it("drops the company from a contact entered as company / person", () => {
+    expect(
+      brokerInvoiceClosingAgent({ company: "Sample Title, Inc.", agent: "Sample Title, Inc. / PAT CLOSER", email: null, phone: null })
+    ).toEqual({ name: "Sample Title, Inc.", lines: ["Attn: PAT CLOSER"] });
+    expect(brokerInvoiceClosingAgent({ company: "Sample Title", agent: "Pat Closer - sample title", email: null, phone: null })).toEqual({
+      name: "Sample Title",
+      lines: ["Attn: Pat Closer"],
+    });
+    expect(brokerInvoiceClosingAgent({ company: "Sample Title", agent: "Sample Title", email: null, phone: null })).toEqual({
+      name: "Sample Title",
+      lines: [],
+    });
+  });
+
   it("uses the contact's name when no company is on file", () => {
     expect(brokerInvoiceClosingAgent({ company: " ", agent: "Pat Closer", email: null, phone: null })).toEqual({ name: "Pat Closer", lines: [] });
   });

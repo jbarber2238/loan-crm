@@ -64,7 +64,13 @@ export function brokerInvoiceClosingAgent(title: {
   phone: string | null;
 }): BrokerInvoiceClosingAgent | null {
   const company = title.company?.trim() || null;
-  const agent = title.agent?.trim() || null;
+  // The contact field is often filled in as "Company / Person"; the company is already the heading.
+  const agentRaw = title.agent?.trim() || "";
+  const at = company ? agentRaw.toLowerCase().indexOf(company.toLowerCase()) : -1;
+  const agent =
+    (at >= 0 && company ? agentRaw.slice(0, at) + agentRaw.slice(at + company.length) : agentRaw)
+      .replace(/^[\s/|,;:-]+|[\s/|,;:-]+$/g, "")
+      .trim() || null;
   const name = company ?? agent;
   if (!name) return null;
   const lines = [company && agent ? `Attn: ${agent}` : null, title.email?.trim() || null, invoicePhone(title.phone)];
