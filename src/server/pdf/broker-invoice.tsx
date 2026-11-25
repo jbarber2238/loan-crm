@@ -1,8 +1,9 @@
 import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
-import { invoiceMoney, pointsText, type BrokerInvoiceFee } from "@/lib/broker-invoice";
+import { invoiceMoney, pointsText, type BrokerInvoiceClosingAgent, type BrokerInvoiceFee } from "@/lib/broker-invoice";
 
-// The broker invoice a lender asks for so our origination fee lands on the settlement statement. One page, one
-// line item, in the company's own colors. It is billed to the borrower's entity (the borrower personally when
+// The broker invoice a lender asks for so our origination fee lands on the settlement statement. It is sent to
+// the title company, who collect the fee from the borrower at closing and pay it out. One page, one line item,
+// in the company's own colors. It is billed to the borrower's entity (the borrower personally when
 // there is no entity), so like everything else a borrower can see, it never names the lender.
 
 const TEAL = "#143D4A";
@@ -31,7 +32,7 @@ const styles = StyleSheet.create({
   invoiceDate: { fontSize: 9.5, marginTop: 4 },
   accent: { height: 4, backgroundColor: SAND },
   body: { paddingHorizontal: PAD, paddingTop: 30 },
-  parties: { flexDirection: "row", gap: 28 },
+  parties: { flexDirection: "row", gap: 22 },
   party: { flex: 1 },
   eyebrow: { fontSize: 7.5, fontWeight: 700, letterSpacing: 1.4, color: MUTED, marginBottom: 6 },
   partyName: { fontSize: 13, fontWeight: 700, color: TEAL },
@@ -113,6 +114,8 @@ export interface BrokerInvoicePdfProps {
   /** Who the invoice is billed to: the borrowing entity, or the borrower when there is no entity. */
   billTo: { name: string; attention: string | null };
   contact: { name: string | null; email: string | null; phone: string | null };
+  /** The loan's title company, who receive the invoice. Null leaves the block off. */
+  closingAgent: BrokerInvoiceClosingAgent | null;
   borrowerName: string;
   propertyAddress: string;
   loanTypeLabel: string;
@@ -135,6 +138,7 @@ export function BrokerInvoicePdf({
   invoiceDate,
   billTo,
   contact,
+  closingAgent,
   borrowerName,
   propertyAddress,
   loanTypeLabel,
@@ -161,7 +165,6 @@ export function BrokerInvoicePdf({
     ? `Minimum origination fee on a ${wholeDollars(fee.loanAmount)} loan amount`
     : `${pointsText(fee.points)} of the ${wholeDollars(fee.loanAmount)} loan amount`;
 
-  const contactLine = [contact.email, contact.phone].filter(Boolean).join("  |  ");
   const footerLine = [companyName, companyNmlsId ? `NMLS ${companyNmlsId}` : null, contact.email, contact.phone]
     .filter(Boolean)
     .join("   |   ");
@@ -190,7 +193,8 @@ export function BrokerInvoicePdf({
               <Text style={styles.eyebrow}>FROM</Text>
               <Text style={styles.partyName}>{companyName}</Text>
               {contact.name && <Text style={styles.partyLine}>{contact.name}, Loan Officer</Text>}
-              {contactLine.length > 0 && <Text style={styles.partyLine}>{contactLine}</Text>}
+              {contact.email && <Text style={styles.partyLine}>{contact.email}</Text>}
+              {contact.phone && <Text style={styles.partyLine}>{contact.phone}</Text>}
               {companyNmlsId && <Text style={styles.partyLine}>NMLS {companyNmlsId}</Text>}
             </View>
             <View style={styles.party}>
@@ -198,6 +202,17 @@ export function BrokerInvoicePdf({
               <Text style={styles.partyName}>{billTo.name}</Text>
               {billTo.attention && <Text style={styles.partyLine}>Attn: {billTo.attention}</Text>}
             </View>
+            {closingAgent && (
+              <View style={styles.party}>
+                <Text style={styles.eyebrow}>CLOSING AGENT</Text>
+                <Text style={styles.partyName}>{closingAgent.name}</Text>
+                {closingAgent.lines.map((line) => (
+                  <Text key={line} style={styles.partyLine}>
+                    {line}
+                  </Text>
+                ))}
+              </View>
+            )}
           </View>
 
           <View style={styles.section}>
@@ -233,8 +248,8 @@ export function BrokerInvoicePdf({
           </View>
 
           <Text style={styles.terms}>
-            Payable to {companyName} at closing. Please include this fee on the settlement statement and disburse
-            it at funding.
+            To the closing agent: please collect this fee from the borrower at closing, show it on the settlement
+            statement as a broker origination fee payable to {companyName}, and disburse it at funding.
           </Text>
         </View>
 

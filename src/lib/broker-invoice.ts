@@ -46,6 +46,31 @@ export function brokerInvoiceBillTo(borrowerName: string, borrowerEntityName: st
   return { name: entity, attention: person || null };
 }
 
+export interface BrokerInvoiceClosingAgent {
+  /** The title company, or the contact's own name when no company is on file. */
+  name: string;
+  /** Contact lines under the name: the person, their email, their phone. */
+  lines: string[];
+}
+
+/**
+ * The invoice goes to title, who put the fee on the settlement statement and pay it out at funding. This is the
+ * loan's title contact as a block for the invoice, or null when nothing is on file yet.
+ */
+export function brokerInvoiceClosingAgent(title: {
+  company: string | null;
+  agent: string | null;
+  email: string | null;
+  phone: string | null;
+}): BrokerInvoiceClosingAgent | null {
+  const company = title.company?.trim() || null;
+  const agent = title.agent?.trim() || null;
+  const name = company ?? agent;
+  if (!name) return null;
+  const lines = [company && agent ? `Attn: ${agent}` : null, title.email?.trim() || null, invoicePhone(title.phone)];
+  return { name, lines: lines.filter((line): line is string => Boolean(line)) };
+}
+
 export function brokerInvoiceNumber(loanNumber: number): string {
   return `INV-${loanNumber}`;
 }

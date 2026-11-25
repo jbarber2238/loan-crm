@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   brokerInvoiceBillTo,
   brokerInvoiceBlocker,
+  brokerInvoiceClosingAgent,
   brokerInvoiceFee,
   brokerInvoiceFileName,
   brokerInvoiceNumber,
@@ -56,6 +57,22 @@ describe("brokerInvoiceBillTo", () => {
     expect(brokerInvoiceBillTo("Andrew Sample", null)).toEqual({ name: "Andrew Sample", attention: null });
     expect(brokerInvoiceBillTo("Andrew Sample", "  ")).toEqual({ name: "Andrew Sample", attention: null });
     expect(brokerInvoiceBillTo("Andrew Sample", "andrew sample")).toEqual({ name: "Andrew Sample", attention: null });
+  });
+});
+
+describe("brokerInvoiceClosingAgent", () => {
+  it("lists the title company with its contact underneath", () => {
+    expect(
+      brokerInvoiceClosingAgent({ company: "Sample Title & Escrow", agent: "Pat Closer", email: "pat@example.com", phone: "+15550100199" })
+    ).toEqual({ name: "Sample Title & Escrow", lines: ["Attn: Pat Closer", "pat@example.com", "(555) 010-0199"] });
+  });
+
+  it("uses the contact's name when no company is on file", () => {
+    expect(brokerInvoiceClosingAgent({ company: " ", agent: "Pat Closer", email: null, phone: null })).toEqual({ name: "Pat Closer", lines: [] });
+  });
+
+  it("is left off when the loan has no title contact yet", () => {
+    expect(brokerInvoiceClosingAgent({ company: null, agent: null, email: "pat@example.com", phone: null })).toBeNull();
   });
 });
 
