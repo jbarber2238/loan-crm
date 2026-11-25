@@ -5,6 +5,7 @@ import {
   brokerInvoiceFileName,
   brokerInvoiceNumber,
   invoiceMoney,
+  invoicePhone,
   longDate,
   pointsText,
 } from "@/lib/broker-invoice";
@@ -59,6 +60,14 @@ describe("invoice text", () => {
   it("writes amounts in whole dollars", () => {
     expect(invoiceMoney(8000)).toBe("$8,000.00");
     expect(invoiceMoney(5578.6)).toBe("$5,579.00");
+  });
+
+  it("writes a US phone number the usual way and leaves anything else alone", () => {
+    expect(invoicePhone("+12692677506")).toBe("(269) 267-7506");
+    expect(invoicePhone("269-267-7506")).toBe("(269) 267-7506");
+    expect(invoicePhone("+44 20 7946 0958")).toBe("+44 20 7946 0958");
+    expect(invoicePhone("  ")).toBeNull();
+    expect(invoicePhone(null)).toBeNull();
   });
 
   it("writes points and dates plainly", () => {

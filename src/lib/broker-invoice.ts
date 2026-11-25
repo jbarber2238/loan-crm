@@ -68,3 +68,12 @@ export function longDate(day: string): string {
     year: "numeric",
   });
 }
+
+/** "+12692677506" -> "(269) 267-7506". Anything that isn't a ten-digit US number is printed as entered. */
+export function invoicePhone(phone: string | null): string | null {
+  const raw = phone?.trim();
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
+  const ten = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+  return ten.length === 10 ? `(${ten.slice(0, 3)}) ${ten.slice(3, 6)}-${ten.slice(6)}` : raw;
+}

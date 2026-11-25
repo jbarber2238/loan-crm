@@ -9,6 +9,7 @@ import {
   brokerInvoiceFee,
   brokerInvoiceFileName,
   brokerInvoiceNumber,
+  invoicePhone,
   longDate,
 } from "@/lib/broker-invoice";
 import { contentDisposition } from "@/lib/content-disposition";
@@ -84,14 +85,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       contact: {
         name: deal.assignedLoanOfficer.name,
         email: deal.assignedLoanOfficer.email,
-        phone: deal.assignedLoanOfficer.phone,
+        phone: invoicePhone(deal.assignedLoanOfficer.phone),
       },
       borrowerName: deal.borrowerName,
       borrowerEntityName: deal.borrowerEntityName,
       propertyAddress: deal.propertyAddress,
       loanTypeLabel: labelFor(LOAN_CATEGORIES, deal.loanCategory),
       loanNumber: deal.loanNumber,
-      estimatedClosing: deal.estimatedClosingDate ? longDate(etDay(deal.estimatedClosingDate)) : null,
+      // Stored as the picked calendar day at midnight UTC, so it is read back as a UTC day.
+      estimatedClosing: deal.estimatedClosingDate ? longDate(deal.estimatedClosingDate.toISOString().slice(0, 10)) : null,
       fee: brokerInvoiceFee(
         approvedLoanAmount,
         deal.originationPointsOverride !== null ? Number(deal.originationPointsOverride) : null
