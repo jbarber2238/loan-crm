@@ -11,14 +11,13 @@ const sample: BrokerInvoicePdfProps = {
   companyNmlsId: null,
   invoiceNumber: brokerInvoiceNumber(1006),
   invoiceDate: longDate("2026-11-25"),
-  billTo: { name: "Sample Holdings LLC", attention: "Sample Borrower" },
+  billTo: "Sample Holdings LLC",
   contact: { name: "Sample Officer", email: "officer@example.com", phone: "555-010-0100" },
   closingAgent: { name: "Sample Title & Escrow", lines: ["Attn: Sample Closer", "closer@example.com", "(555) 010-0199"] },
   borrowerName: "Sample Borrower",
   propertyAddress: "7552 Wheat Rd, Jacksonville, FL 32244",
   loanTypeLabel: "DSCR Rate & Term Refinance",
   loanNumber: 1006,
-  estimatedClosing: longDate("2026-12-04"),
   fee: brokerInvoiceFee(161700, 1.7),
 };
 
@@ -30,9 +29,8 @@ describe("BrokerInvoicePdf", () => {
       sample,
       {
         ...sample,
-        billTo: { name: "Sample Borrower", attention: null },
+        billTo: "Sample Borrower",
         closingAgent: null,
-        estimatedClosing: null,
         contact: { name: null, email: null, phone: null },
         fee: brokerInvoiceFee(65000, null),
       },

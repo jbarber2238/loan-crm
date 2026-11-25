@@ -45,7 +45,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       approvedLoanAmount: true,
       originationPointsOverride: true,
       rateLocked: true,
-      estimatedClosingDate: true,
       titleCompanyName: true,
       titleCompanyAgentName: true,
       titleAgentEmail: true,
@@ -104,8 +103,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       propertyAddress: deal.propertyAddress,
       loanTypeLabel: labelFor(LOAN_CATEGORIES, deal.loanCategory),
       loanNumber: deal.loanNumber,
-      // Stored as the picked calendar day at midnight UTC, so it is read back as a UTC day.
-      estimatedClosing: deal.estimatedClosingDate ? longDate(deal.estimatedClosingDate.toISOString().slice(0, 10)) : null,
       fee: brokerInvoiceFee(
         approvedLoanAmount,
         deal.originationPointsOverride !== null ? Number(deal.originationPointsOverride) : null

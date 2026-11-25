@@ -38,12 +38,9 @@ export function brokerInvoiceFee(approvedLoanAmount: number, originationPointsOv
   return { loanAmount: approvedLoanAmount, points, fee: Math.round(fee), minimumApplied: fee > byPoints };
 }
 
-/** The invoice is billed to the borrowing entity, to the borrower's attention; with no entity, to the borrower. */
-export function brokerInvoiceBillTo(borrowerName: string, borrowerEntityName: string | null): { name: string; attention: string | null } {
-  const entity = borrowerEntityName?.trim();
-  const person = borrowerName.trim();
-  if (!entity || entity.toLowerCase() === person.toLowerCase()) return { name: person, attention: null };
-  return { name: entity, attention: person || null };
+/** The invoice is billed to the borrowing entity; with no entity, to the borrower. */
+export function brokerInvoiceBillTo(borrowerName: string, borrowerEntityName: string | null): string {
+  return borrowerEntityName?.trim() || borrowerName.trim();
 }
 
 export interface BrokerInvoiceClosingAgent {

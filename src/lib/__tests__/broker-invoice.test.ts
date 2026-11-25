@@ -49,14 +49,13 @@ describe("brokerInvoiceFee", () => {
 });
 
 describe("brokerInvoiceBillTo", () => {
-  it("bills the borrowing entity, to the borrower's attention", () => {
-    expect(brokerInvoiceBillTo("Andrew Sample", "Sample Holdings LLC")).toEqual({ name: "Sample Holdings LLC", attention: "Andrew Sample" });
+  it("bills the borrowing entity", () => {
+    expect(brokerInvoiceBillTo("Andrew Sample", "Sample Holdings LLC")).toBe("Sample Holdings LLC");
   });
 
-  it("bills the borrower when there is no entity, or the entity is just their own name", () => {
-    expect(brokerInvoiceBillTo("Andrew Sample", null)).toEqual({ name: "Andrew Sample", attention: null });
-    expect(brokerInvoiceBillTo("Andrew Sample", "  ")).toEqual({ name: "Andrew Sample", attention: null });
-    expect(brokerInvoiceBillTo("Andrew Sample", "andrew sample")).toEqual({ name: "Andrew Sample", attention: null });
+  it("bills the borrower when there is no entity", () => {
+    expect(brokerInvoiceBillTo("Andrew Sample", null)).toBe("Andrew Sample");
+    expect(brokerInvoiceBillTo("Andrew Sample", "  ")).toBe("Andrew Sample");
   });
 });
 

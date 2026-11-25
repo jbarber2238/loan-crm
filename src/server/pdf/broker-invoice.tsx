@@ -112,7 +112,7 @@ export interface BrokerInvoicePdfProps {
   /** Already written out, such as "November 25, 2026". */
   invoiceDate: string;
   /** Who the invoice is billed to: the borrowing entity, or the borrower when there is no entity. */
-  billTo: { name: string; attention: string | null };
+  billTo: string;
   contact: { name: string | null; email: string | null; phone: string | null };
   /** The loan's title company, who receive the invoice. Null leaves the block off. */
   closingAgent: BrokerInvoiceClosingAgent | null;
@@ -120,8 +120,6 @@ export interface BrokerInvoicePdfProps {
   propertyAddress: string;
   loanTypeLabel: string;
   loanNumber: number;
-  /** Already written out, or null when no closing date is set. */
-  estimatedClosing: string | null;
   fee: BrokerInvoiceFee;
 }
 
@@ -143,7 +141,6 @@ export function BrokerInvoicePdf({
   propertyAddress,
   loanTypeLabel,
   loanNumber,
-  estimatedClosing,
   fee,
 }: BrokerInvoicePdfProps) {
   // A light logo needs the dark band behind it. A dark logo (or no logo at all) reads better on cream.
@@ -158,7 +155,6 @@ export function BrokerInvoicePdf({
     ["Loan type", loanTypeLabel],
     ["Loan amount", wholeDollars(fee.loanAmount)],
     ["Broker loan no.", String(loanNumber)],
-    ...(estimatedClosing ? ([["Estimated closing", estimatedClosing]] as [string, string][]) : []),
   ];
 
   const basis = fee.minimumApplied
@@ -199,8 +195,7 @@ export function BrokerInvoicePdf({
             </View>
             <View style={styles.party}>
               <Text style={styles.eyebrow}>BILL TO</Text>
-              <Text style={styles.partyName}>{billTo.name}</Text>
-              {billTo.attention && <Text style={styles.partyLine}>Attn: {billTo.attention}</Text>}
+              <Text style={styles.partyName}>{billTo}</Text>
             </View>
             {closingAgent && (
               <View style={styles.party}>
