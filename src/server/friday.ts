@@ -392,7 +392,8 @@ export async function runFridayJobs(now: Date = new Date()): Promise<FridayJobRe
 
   // After the session: pull attendance from Zoom, once.
   const finished = latestSessionDayBefore(now, 45);
-  if (finished && isZoomConfigured()) {
+  // A skipped Friday had no session, so nobody can be marked a no-show for it.
+  if (finished && !isSkippedSessionDay(finished) && isZoomConfigured()) {
     const done = await db.query.fridaySessions.findFirst({ where: eq(fridaySessions.sessionDate, finished) });
     if (!done?.syncedAt) {
       const registered = await registrantsFor(finished);

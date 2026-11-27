@@ -81,7 +81,7 @@ export function etToUtc(day: string, hour: number, minute = 0): Date {
 }
 
 /** Fridays with no session (out of office, holiday). Signups skip over these and book the following Friday. */
-export const SKIPPED_SESSION_DAYS: readonly string[] = ["2026-11-06"];
+export const SKIPPED_SESSION_DAYS: readonly string[] = ["2026-11-06", "2026-11-27"]; // Nov 27: Black Friday, postponed a week
 
 export function isSkippedSessionDay(day: string): boolean {
   return SKIPPED_SESSION_DAYS.includes(day);
